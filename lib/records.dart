@@ -101,6 +101,9 @@ class _RecordsState extends State<Records> {
           ),
         ],
       ),
+      bottomNavigationBar: TabsNavigation(
+        key: const Key('bottomNavigationBar'),
+      ),
       body: Column(
         children: [
           Expanded(

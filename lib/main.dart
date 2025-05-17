@@ -4,7 +4,6 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'widgets/tabs_navigation.dart';
-import 'records.dart';
 
 var kColorScheme = ColorScheme.fromSeed(
   seedColor: const Color.fromARGB(255, 0, 255, 0),
@@ -57,23 +56,8 @@ void main() {
             ),
           ),
           home: Scaffold(
-            bottomNavigationBar: TabsNavigation(
-              key: const Key('bottomNavigationBar'),
-            ),
-            body:
-                [
-                  const Records(),
-                  const Center(child: Text('Chart')),
-                  const Center(child: Text('Settings')),
-                  const Center(child: Text('Profile')),
-                ][TabsNavigation.currentPageIndex],
-          ),
-          routes: {
-            '/home': (context) => const Records(),
-            '/chart': (context) => const Center(child: Text('Chart')),
-            '/settings': (context) => const Center(child: Text('Settings')),
-            '/profile': (context) => const Center(child: Text('Profile')),
-          },
+            body: navigationBody[TabsNavigation.currentPageIndex]),
+          routes: navigationRoutes,
           themeMode: ThemeMode.system,
         ),
       ),

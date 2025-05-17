@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../screens/categories.dart';
+import '../records.dart';
+
 class TabsNavigation extends StatefulWidget {
   const TabsNavigation({super.key});
 
   static int currentPageIndex = 0;
-  static const List<Widget> pages = [
-    Text('Home'),
-    Text('Chart'),
-    Text('Settings'),
-    Text('Profile'),
-  ];
 
   @override
   State<TabsNavigation> createState() => _TabsNavigationState();
@@ -32,6 +29,10 @@ class _TabsNavigationState extends State<TabsNavigation> {
       ],
       selectedIndex: currentPageIndex,
       onDestinationSelected: (int index) {
+        if (index == currentPageIndex) {
+          return;
+        }
+        TabsNavigation.currentPageIndex = index;
         setState(() {
           currentPageIndex = index;
         });
@@ -55,4 +56,22 @@ class _TabsNavigationState extends State<TabsNavigation> {
       height: 60,
     );
   }
+}
+
+Map<String, WidgetBuilder> get navigationRoutes {
+  return {
+    '/home': (context) => const Records(),
+    '/chart': (context) => CategoriesScreen(),
+    '/settings': (context) => const Center(child: Text('Settings')),
+    '/profile': (context) => const Center(child: Text('Profile')),
+  };
+}
+
+List<Widget> get navigationBody {
+  return [
+    const Records(),
+    CategoriesScreen(),
+    const Center(child: Text('Settings')),
+    const Center(child: Text('Profile')),
+  ];
 }
