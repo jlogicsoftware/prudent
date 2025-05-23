@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-import 'widgets/tabs_navigation.dart';
+import 'package:prudent/navigation_desktop.dart';
+import 'package:prudent/navigation_mobile.dart';
+import 'package:prudent/records.dart';
+import 'package:prudent/screens/categories.dart';
+import 'package:prudent/utils.dart';
 
 var kColorScheme = ColorScheme.fromSeed(
   seedColor: const Color.fromARGB(255, 0, 255, 0),
@@ -55,9 +58,19 @@ void main() {
               ),
             ),
           ),
-          home: Scaffold(
-            body: navigationBody[TabsNavigation.currentPageIndex]),
-          routes: navigationRoutes,
+          home: Builder(
+            builder:
+                (ctx) =>
+                    isMobile(ctx)
+                        ? const NavigationMobile()
+                        : const NavigationDesktop(),
+          ),
+          routes: {
+            '/records': (ctx) => const Records(),
+            '/categories': (ctx) => CategoriesScreen(),
+            // '/category-details': (ctx) => const CategoryDetailsScreen(),
+            // '/new-record': (ctx) => const NewRecord(),
+          },
           themeMode: ThemeMode.system,
         ),
       ),
