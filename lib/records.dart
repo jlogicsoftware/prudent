@@ -4,7 +4,6 @@ import 'package:prudent/utils.dart';
 import 'new_record.dart';
 import 'models/record.dart';
 import 'widgets/records_list/records_list.dart';
-import 'widgets/tabs_navigation.dart';
 
 class Records extends StatefulWidget {
   const Records({super.key});
@@ -100,9 +99,6 @@ class _RecordsState extends State<Records> {
             icon: const Icon(Icons.add),
           ),
         ],
-      ),
-      bottomNavigationBar: TabsNavigation(
-        key: const Key('bottomNavigationBar'),
       ),
       body: Column(
         children: [

@@ -1,0 +1,31 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "iPhone Simulator",
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "iPhone 16 Plus"
+        },
+        {
+            "name": "prudent",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "prudent (profile mode)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "prudent (release mode)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        }
+    ]
+}

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:prudent/models/category.dart';
-import 'package:prudent/widgets/tabs_navigation.dart';
 
 import '../widgets/category_grid_items.dart';
 
@@ -15,9 +14,6 @@ class CategoriesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Categories')),
-      bottomNavigationBar: TabsNavigation(
-        key: const Key('bottomNavigationBar'),
-      ),
       body: GridView(
         padding: const EdgeInsets.all(20),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -33,6 +29,7 @@ class CategoriesScreen extends StatelessWidget {
               highlightColor: Theme.of(context).colorScheme.primary,
               borderRadius: BorderRadius.circular(15),
               onTap: () {
+                print('Category tapped: ${category.title}');
                 return;
                 Navigator.pushNamed(
                   context,
