@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:prudent/models/category.dart';
+import 'package:prudent/screens/category_records.dart';
+import 'package:prudent/utils.dart';
 
 import '../widgets/category_grid_items.dart';
 
@@ -18,7 +20,7 @@ class CategoriesScreen extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 3 / 2,
+          childAspectRatio: isMobile(context) ? 1.5 : 2,
           crossAxisSpacing: 20,
           mainAxisSpacing: 20,
         ),
@@ -29,12 +31,18 @@ class CategoriesScreen extends StatelessWidget {
               highlightColor: Theme.of(context).colorScheme.primary,
               borderRadius: BorderRadius.circular(15),
               onTap: () {
-                print('Category tapped: ${category.title}');
-                return;
-                Navigator.pushNamed(
-                  context,
-                  '/category-details',
-                  arguments: category,
+                // Navigator.pushNamed(
+                //   context,
+                //   CategoryRecords.routeName,
+                //   arguments: <String, String>{'categoryTitle': category.title},
+                // );
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder:
+                        (context) =>
+                            CategoryRecords(categoryTitle: category.title),
+                    settings: RouteSettings(name: CategoryRecords.routeName),
+                  ),
                 );
               },
               child: CategoryGridItem(category: category),

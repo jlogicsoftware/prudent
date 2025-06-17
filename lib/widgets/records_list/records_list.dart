@@ -16,6 +16,15 @@ class RecordsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (records.isEmpty) {
+      return const Center(
+        child: Text(
+          'No records found. Add some expenses!',
+          style: TextStyle(fontSize: 18, color: Colors.grey),
+        ),
+      );
+    }
+
     return ListView.builder(
       itemCount: records.length,
       itemBuilder:

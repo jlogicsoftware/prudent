@@ -68,6 +68,7 @@ void main() {
           routes: {
             '/records': (ctx) => const Records(),
             '/categories': (ctx) => CategoriesScreen(),
+            // CategoryRecords.routeName: (ctx) => const CategoryRecords(),
             // '/category-details': (ctx) => const CategoryDetailsScreen(),
             // '/new-record': (ctx) => const NewRecord(),
           },
