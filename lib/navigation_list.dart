@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:prudent/records.dart';
+import 'package:prudent/screens/overview.dart';
+import 'package:prudent/screens/settings.dart';
 
 final List<Widget> navigationPages = [
-  const Placeholder(),
-  const Placeholder(),
-  const Placeholder(),
+  const OverviewScreen(),
+  const Records(),
+  const SettingsScreen(),
 ];
 
-final List<String> navigationTitles = ['Home', 'Categories', 'Settings'];
+final List<String> navigationTitles = ['Overview', 'Records', 'More'];
 
 final List<IconData> navigationIcons = [
   Icons.home,
-  Icons.category,
-  Icons.settings,
+  Icons.list_alt, Icons.more,
 ];

@@ -5,6 +5,8 @@ import 'new_record.dart';
 import 'models/record.dart';
 import 'widgets/records_list/records_list.dart';
 
+const String recordsRoute = '/records';
+
 class Records extends StatefulWidget {
   const Records({super.key});
 

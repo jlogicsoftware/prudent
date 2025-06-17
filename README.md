@@ -1,16 +1,34 @@
 # prudent
 
-A new Flutter project.
+An Expense Tracker App built with Flutter.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+To run this project, you need to have Flutter installed on your machine. Follow the steps below to get started:
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+1. Clone the repository:
+   ```bash
+   git clone
+   cd prudent
+   flutter pub get
+   ```
+2. Install the required dependencies for your platform:
+    - For Android, ensure you have Java 17 installed and set up. You might need to set up `org.gradle.java.home=<path-to-java-17>` in `android/gradle.properties`.
+    - For iOS, ensure you have Xcode installed and set up.
+3. Run the app:
+   ```bash
+   flutter run
+   ```
+4. To build the app for release:
+   - For Android:
+     ```bash
+     flutter build apk --release
+     ```
+   - For iOS:
+     ```bash
+     flutter build ios --release
+     ```
+   - For web:
+     ```bash
+     flutter build web --release
+     ```

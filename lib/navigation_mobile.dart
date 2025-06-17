@@ -24,19 +24,6 @@ class _NavigationMobileState extends State<NavigationMobile> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(titles[currentPageIndex]),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.list),
-            onPressed: () => Navigator.pushNamed(context, '/records'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.dashboard_customize),
-            onPressed: () => Navigator.pushNamed(context, '/categories'),
-          ),
-        ],
-      ),
       body: pages[currentPageIndex],
       bottomNavigationBar: NavigationBar(
         destinations: List.generate(
@@ -48,6 +35,7 @@ class _NavigationMobileState extends State<NavigationMobile> {
         ),
         selectedIndex: currentPageIndex,
         onDestinationSelected: _onPageSelected,
+        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
       ),
     );
   }
