@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../models/record.dart';
+import '../record.dart';
 
 class RecordItem extends StatelessWidget {
   const RecordItem(this.record, {super.key});

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:prudent/new_record.dart';
+import 'package:prudent/record/new_record.dart';
 
-import '../../models/record.dart';
+import '../record.dart';
 import 'record_item.dart';
 
 class RecordsList extends StatelessWidget {
