@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:prudent/models/category.dart';
+import 'package:prudent/category/category.dart';
 
 class CategoryGridItem extends StatelessWidget {
   const CategoryGridItem({super.key, required this.category});

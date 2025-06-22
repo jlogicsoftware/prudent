@@ -34,10 +34,10 @@ class Record {
   }
 }
 
-class RecordBucket {
-  const RecordBucket({required this.category, required this.records});
+class RecordByCategory {
+  const RecordByCategory({required this.category, required this.records});
 
-  RecordBucket.forCategory(List<Record> allRecords, this.category)
+  RecordByCategory.forCategory(List<Record> allRecords, this.category)
     : records = allRecords.where((r) => r.category == category).toList();
 
   final Category category;

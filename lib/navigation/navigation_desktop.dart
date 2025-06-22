@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:prudent/navigation_list.dart';
+import 'package:prudent/navigation/navigation_list.dart';
 
 class NavigationDesktop extends StatefulWidget {
   const NavigationDesktop({super.key});

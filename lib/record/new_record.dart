@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'models/record.dart';
+import 'record.dart';
 
 class NewRecord extends StatefulWidget {
   const NewRecord({super.key, required this.onAddRecord, this.initialExpense});

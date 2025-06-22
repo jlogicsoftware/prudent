@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:prudent/utils.dart';
 
 import 'new_record.dart';
-import 'models/record.dart';
-import 'widgets/records_list/records_list.dart';
+import 'record.dart';
+import 'records_list/records_list.dart';
 
 const String recordsRoute = '/records';
 
 class Records extends StatefulWidget {
   const Records({super.key});
 
+  static const routeName = '/records';
+
   @override
-  State<Records> createState() {
-    return _RecordsState();
-  }
+  State<Records> createState() => _RecordsState();
 }
 
 class _RecordsState extends State<Records> {
@@ -112,7 +112,7 @@ class _RecordsState extends State<Records> {
                       onRemoveRecord: _removeExpense,
                     )
                     : const Center(
-                      child: Text('No expenses found. Start adding some!'),
+                      child: Text('No records found. Start adding some!'),
                     ),
           ),
         ],
