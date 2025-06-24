@@ -26,6 +26,9 @@ class _NavigationMobileState extends State<NavigationMobile> {
     return Scaffold(
       body: pages[currentPageIndex],
       bottomNavigationBar: NavigationBar(
+        indicatorShape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+        ),
         destinations: List.generate(
           titles.length,
           (index) => NavigationDestination(
