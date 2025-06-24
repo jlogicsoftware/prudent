@@ -5,7 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:prudent/navigation/navigation.dart';
 import 'package:prudent/record/records.dart';
 import 'package:prudent/screens/categories.dart';
-import 'package:prudent/screens/category_records.dart';
 
 var kColorScheme = ColorScheme.fromSeed(
   seedColor: const Color.fromARGB(255, 0, 255, 0),

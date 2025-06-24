@@ -33,7 +33,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       body: GridView(
         padding: const EdgeInsets.all(20),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
+          crossAxisCount: isMobile(context) ? 2 : 3,
+          mainAxisExtent: isMobile(context) ? 150 : 200,
           childAspectRatio: isMobile(context) ? 1.5 : 2,
           crossAxisSpacing: 20,
           mainAxisSpacing: 20,

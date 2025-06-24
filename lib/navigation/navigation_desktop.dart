@@ -24,19 +24,6 @@ class _NavigationDesktopState extends State<NavigationDesktop> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(titles[currentPageIndex]),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.list),
-            onPressed: () => Navigator.pushNamed(context, '/records'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.dashboard_customize),
-            onPressed: () => Navigator.pushNamed(context, '/categories'),
-          ),
-        ],
-      ),
       body: SafeArea(
         child: Row(
           children: <Widget>[
