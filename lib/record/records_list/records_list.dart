@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:prudent/record/new_record.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../new_record.dart';
+import '../records_provider.dart';
 import '../record.dart';
 import 'record_item.dart';
 
-class RecordsList extends StatelessWidget {
-  const RecordsList({
-    super.key,
-    required this.records,
-    required this.onRemoveRecord,
-  });
+class RecordsList extends ConsumerWidget {
+  const RecordsList({super.key, required this.onRemoveRecord});
 
-  final List<Record> records;
-  final void Function(Record expense) onRemoveRecord;
+  final void Function(Record record) onRemoveRecord;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final records = ref.watch(recordsProvider);
     if (records.isEmpty) {
       return const Center(
         child: Text(
@@ -62,8 +60,10 @@ class RecordsList extends StatelessWidget {
                   context: context,
                   builder:
                       (ctx) => NewRecord(
-                        onAddRecord: (expense) {
-                          onRemoveRecord(expense);
+                        onAddRecord: (record) {
+                          ref
+                              .read(recordsProvider.notifier)
+                              .editRecord(index, record);
                         },
                         initialExpense: records[index],
                       ),
