@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:prudent/record/records.dart';
+import 'package:prudent/record/records_screen.dart';
 import 'package:prudent/screens/overview.dart';
 import 'package:prudent/screens/settings.dart';
 
 final List<Widget> navigationPages = [
   const OverviewScreen(),
-  const Records(),
+  const RecordsScreen(),
   const SettingsScreen(),
 ];
 

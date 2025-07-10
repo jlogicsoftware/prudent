@@ -1,4 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
+
+class CategoryIcon {
+  final String value;
+  final IconData icon;
+
+  CategoryIcon({required this.value, required this.icon});
+}
+
+final selectableCategoryIcons = [
+  CategoryIcon(icon: Icons.work_outline, value: 'Work'),
+  CategoryIcon(icon: Icons.add_a_photo_outlined, value: 'Leisure'),
+  CategoryIcon(icon: Icons.local_grocery_store_outlined, value: 'Food'),
+  CategoryIcon(icon: Icons.fastfood_outlined, value: 'Restaurant'),
+  CategoryIcon(icon: Icons.medical_services_outlined, value: 'Medicine'),
+];
+
+const selectableCategoryColors = [
+  Colors.blue,
+  Colors.red,
+  Colors.green,
+  Colors.yellow,
+  Colors.deepPurple,
+  Colors.orange,
+  Colors.cyanAccent,
+  Colors.brown,
+  Colors.tealAccent,
+  Colors.white,
+];
 
 class Category {
   final String id;
@@ -7,77 +36,15 @@ class Category {
   final String description;
   final Color color;
 
-  const Category({
-    required this.id,
+  Category({
     required this.title,
     required this.icon,
     this.description = '',
-    this.color = Colors.green,
-  });
+    this.color = Colors.black,
+  }) : id = Uuid().v4();
 
   @override
   String toString() {
     return 'Category{id: $id, title: $title, icon: $icon, description: $description, color: $color}';
-  }
-
-  static List<Category> categories = [
-    Category(
-      id: 'c1',
-      title: 'Work',
-      icon: Icons.work,
-      description: 'Work-related expenses',
-      color: Colors.blue,
-    ),
-    Category(
-      id: 'c2',
-      title: 'Food',
-      icon: Icons.fastfood,
-      description: 'Food and dining expenses',
-      color: Colors.red,
-    ),
-    Category(
-      id: 'c3',
-      title: 'Travel',
-      icon: Icons.travel_explore,
-      description: 'Travel expenses',
-      color: Colors.orange,
-    ),
-    Category(
-      id: 'c4',
-      title: 'Leisure',
-      icon: Icons.add_a_photo,
-      description: 'Leisure activities',
-      color: Colors.purple,
-    ),
-    Category(
-      id: 'c5',
-      title: 'Health',
-      icon: Icons.health_and_safety,
-      description: 'Health-related expenses',
-      color: Colors.green,
-    ),
-  ];
-
-  static Category getCategoryById(String id) {
-    return categories.firstWhere((category) => category.id == id);
-  }
-
-  static void addCategory(Category category) {
-    categories.add(category);
-  }
-
-  static void removeCategory(String id) {
-    categories.removeWhere((category) => category.id == id);
-  }
-
-  static void updateCategory(String id, Category newCategory) {
-    int index = categories.indexWhere((category) => category.id == id);
-    if (index != -1) {
-      categories[index] = newCategory;
-    }
-  }
-
-  static List<Category> getCategories() {
-    return categories;
   }
 }

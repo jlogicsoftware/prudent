@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:prudent/category/category_item.dart';
 
 import '../record.dart';
 
@@ -14,14 +15,14 @@ class RecordItem extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(child: Icon(categoryIcons[record.category])),
+          CategoryItem(category: record.category, iconSize: 30),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  record.category.name.toUpperCase(),
+                  record.title,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 Text(

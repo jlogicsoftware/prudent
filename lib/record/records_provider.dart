@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:prudent/category/category_provider.dart';
 
 import 'record.dart';
 
@@ -7,13 +8,13 @@ final List<Record> registeredRecords = [
     title: 'Flutter Course',
     amount: 19.99,
     date: DateTime.now(),
-    category: Category.work,
+    category: registeredCategories.first,
   ),
   Record(
     title: 'Cinema',
     amount: 15.69,
     date: DateTime.now(),
-    category: Category.leisure,
+    category: registeredCategories.last,
   ),
 ];
 

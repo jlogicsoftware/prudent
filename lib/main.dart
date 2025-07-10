@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:prudent/account/account_screen.dart';
+import 'package:prudent/chart/chart_screen.dart';
 
 import 'package:prudent/navigation/navigation.dart';
-import 'package:prudent/record/records.dart';
-import 'package:prudent/screens/categories.dart';
+import 'package:prudent/record/records_screen.dart';
+import 'package:prudent/category/categories_screen.dart';
 
 var kColorScheme = ColorScheme.fromSeed(
   seedColor: const Color.fromARGB(255, 0, 255, 0),
@@ -61,7 +63,9 @@ void main() {
             ),
             home: Navigation(),
             routes: {
-              Records.routeName: (ctx) => const Records(),
+              AccountScreen.routeName: (ctx) => const AccountScreen(),
+              ChartScreen.routName: (ctx) => const ChartScreen(),
+              RecordsScreen.routeName: (ctx) => const RecordsScreen(),
               CategoriesScreen.routeName: (ctx) => CategoriesScreen(),
               // CategoryRecords.routeName: (ctx) => const CategoryRecords(category: , records: [],),
               // '/category-details': (ctx) => const CategoryDetailsScreen(),
