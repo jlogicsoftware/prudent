@@ -7,18 +7,16 @@ import 'record.dart';
 import 'records_list/records_list.dart';
 import 'records_provider.dart';
 
-const String recordsRoute = '/records';
-
-class Records extends ConsumerStatefulWidget {
-  const Records({super.key});
+class RecordsScreen extends ConsumerStatefulWidget {
+  const RecordsScreen({super.key});
 
   static const routeName = '/records';
 
   @override
-  ConsumerState<Records> createState() => _RecordsState();
+  ConsumerState<RecordsScreen> createState() => _RecordsState();
 }
 
-class _RecordsState extends ConsumerState<Records> {
+class _RecordsState extends ConsumerState<RecordsScreen> {
   late final List<Record> records = ref.watch(recordsProvider);
 
   void _openAddRecordOverlay() {

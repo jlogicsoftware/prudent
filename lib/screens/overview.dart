@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:prudent/account/account_screen.dart';
+import 'package:prudent/chart/chart_screen.dart';
 
 class OverviewScreen extends StatelessWidget {
   const OverviewScreen({super.key});
@@ -10,19 +12,28 @@ class OverviewScreen extends StatelessWidget {
         // title: Text(titles[currentPageIndex]),
         actions: [
           IconButton(
-            icon: const Icon(Icons.list),
-            onPressed: () => Navigator.pushNamed(context, '/records'),
+            icon: const Icon(Icons.pie_chart_outline),
+            onPressed: () => Navigator.pushNamed(context, ChartScreen.routName),
           ),
           IconButton(
             icon: const Icon(Icons.dashboard_customize),
-            onPressed: () => Navigator.pushNamed(context, '/categories'),
+            onPressed:
+                () => Navigator.pushNamed(context, AccountScreen.routeName),
           ),
         ],
       ),
       body: Center(
-        child: Text(
-          'Overview Screen',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        child: Column(
+          children: [
+            Text(
+              'Chart',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              'Accounts overview',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
       ),
     );

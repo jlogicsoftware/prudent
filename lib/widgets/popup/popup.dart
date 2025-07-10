@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:prudent/utils.dart';
 
 class Popup extends StatelessWidget {
-  const Popup({super.key, required this.icon, required this.popupContent});
+  const Popup({super.key, required this.popupLeading, required this.popupBody});
 
-  final Icon icon;
-  final Widget popupContent;
+  final Widget popupLeading;
+  final Widget popupBody;
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: icon,
+      icon: popupLeading,
       onPressed:
           () =>
               isMobile(context)
@@ -18,7 +18,7 @@ class Popup extends StatelessWidget {
                     isScrollControlled: true,
                     useSafeArea: true,
                     context: context,
-                    builder: (ctx) => popupContent,
+                    builder: (ctx) => popupBody,
                     constraints: const BoxConstraints.expand(),
                   )
                   : showDialog(
@@ -33,7 +33,7 @@ class Popup extends StatelessWidget {
                             height: 300,
                             child: Padding(
                               padding: const EdgeInsets.all(16),
-                              child: popupContent,
+                              child: popupBody,
                             ),
                           ),
                         ),

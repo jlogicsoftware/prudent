@@ -30,7 +30,6 @@ class RecordsList extends ConsumerWidget {
             key: ValueKey(records[index]),
             secondaryBackground: Container(
               color: Theme.of(context).colorScheme.error,
-              margin: EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
@@ -42,7 +41,6 @@ class RecordsList extends ConsumerWidget {
             ),
             background: Container(
               color: Theme.of(context).colorScheme.inversePrimary,
-              margin: EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -65,7 +63,7 @@ class RecordsList extends ConsumerWidget {
                               .read(recordsProvider.notifier)
                               .editRecord(index, record);
                         },
-                        initialExpense: records[index],
+                        initialRecord: records[index],
                       ),
                 );
                 return false;

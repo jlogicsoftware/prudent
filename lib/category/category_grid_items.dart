@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:prudent/category/category.dart';
+import 'package:prudent/category/category_item.dart';
 
 class CategoryGridItem extends StatelessWidget {
   const CategoryGridItem({super.key, required this.category});
@@ -9,15 +10,14 @@ class CategoryGridItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(15),
-        // color: Theme.of(context).colorScheme.primaryContainer,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(category.icon, size: 50, color: category.color),
+          CategoryItem(category: category),
           const SizedBox(height: 10),
           Text(
             category.title,

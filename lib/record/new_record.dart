@@ -1,33 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:prudent/category/category.dart';
+import 'package:prudent/category/category_provider.dart';
 
 import 'record.dart';
 
-class NewRecord extends StatefulWidget {
-  const NewRecord({super.key, required this.onAddRecord, this.initialExpense});
+class NewRecord extends ConsumerStatefulWidget {
+  const NewRecord({super.key, required this.onAddRecord, this.initialRecord});
 
-  final Record? initialExpense;
+  final Record? initialRecord;
   final void Function(Record record) onAddRecord;
 
   @override
-  State<NewRecord> createState() {
-    return _NewRecordState();
-  }
+  ConsumerState<NewRecord> createState() => _NewRecordState();
 }
 
-class _NewRecordState extends State<NewRecord> {
+class _NewRecordState extends ConsumerState<NewRecord> {
+  late final categories = ref.watch(categoryProvider);
+
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   DateTime? _selectedDate;
-  Category _selectedCategory = Category.leisure;
+  late Category _selectedCategory = categories.first;
 
   @override
   void initState() {
     super.initState();
-    if (widget.initialExpense != null) {
-      _titleController.text = widget.initialExpense!.title;
-      _amountController.text = widget.initialExpense!.amount.toString();
-      _selectedDate = widget.initialExpense!.date;
-      _selectedCategory = widget.initialExpense!.category;
+    if (widget.initialRecord != null) {
+      _titleController.text = widget.initialRecord!.title;
+      _amountController.text = widget.initialRecord!.amount.toString();
+      _selectedDate = widget.initialRecord!.date;
+      _selectedCategory = widget.initialRecord!.category;
     }
   }
 
@@ -140,11 +143,12 @@ class _NewRecordState extends State<NewRecord> {
               DropdownButton(
                 value: _selectedCategory,
                 items:
-                    Category.values
+                    // Category.values
+                    categories
                         .map(
                           (category) => DropdownMenuItem(
                             value: category,
-                            child: Text(category.name.toUpperCase()),
+                            child: Text(category.title.toUpperCase()),
                           ),
                         )
                         .toList(),
