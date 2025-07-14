@@ -9,14 +9,14 @@ class OverviewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // title: Text(titles[currentPageIndex]),
+        title: Text('Prudent'),
         actions: [
           IconButton(
             icon: const Icon(Icons.pie_chart_outline),
             onPressed: () => Navigator.pushNamed(context, ChartScreen.routName),
           ),
           IconButton(
-            icon: const Icon(Icons.dashboard_customize),
+            icon: const Icon(Icons.list),
             onPressed:
                 () => Navigator.pushNamed(context, AccountScreen.routeName),
           ),

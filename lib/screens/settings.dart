@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:prudent/account/account_screen.dart';
 import 'package:prudent/category/categories_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -10,10 +11,13 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: Column(
         children: [
-          InkWell(
-            child: Text('Categories'),
-            onTap:
-                () => Navigator.pushNamed(context, CategoriesScreen.routeName),
+          TextButton(
+            style: ButtonStyle(splashFactory: NoSplash.splashFactory),
+            onPressed:
+                () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (ctx) => AccountScreen())),
+            child: Text('Accounts'),
           ),
           TextButton(
             style: ButtonStyle(splashFactory: NoSplash.splashFactory),
