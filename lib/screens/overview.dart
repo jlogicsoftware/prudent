@@ -13,12 +13,17 @@ class OverviewScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.pie_chart_outline),
-            onPressed: () => Navigator.pushNamed(context, ChartScreen.routName),
+            onPressed:
+                () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (ctx) => ChartScreen())),
           ),
           IconButton(
             icon: const Icon(Icons.list),
             onPressed:
-                () => Navigator.pushNamed(context, AccountScreen.routeName),
+                () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (ctx) => AccountScreen())),
           ),
         ],
       ),

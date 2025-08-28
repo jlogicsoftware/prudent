@@ -19,6 +19,8 @@ var kDarkColorScheme = ColorScheme.fromSeed(
   seedColor: const Color.fromARGB(255, 0, 55, 0),
 );
 
+const serverUrl = 'https://prudent-60fcf-default-rtdb.firebaseio.com/';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]).then(

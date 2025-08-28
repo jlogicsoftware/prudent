@@ -1,6 +1,11 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:prudent/category/category_provider.dart';
-
+import 'package:http/http.dart' as http;
+import 'package:prudent/main.dart';
+import 'package:prudent/widgets/popup/popup.dart';
 import 'record.dart';
 
 final List<Record> registeredRecords = [
@@ -18,11 +23,33 @@ final List<Record> registeredRecords = [
   ),
 ];
 
-class RecordsNotifier extends StateNotifier<List<Record>> {
-  RecordsNotifier() : super(registeredRecords);
+final url = Uri.parse('$serverUrl/records.json');
 
-  void addRecord(Record record) {
-    state = [...state, record];
+class RecordsNotifier extends Notifier<List<Record>> {
+  @override
+  List<Record> build() {
+    return registeredRecords;
+  }
+
+  Future<String> addRecord(Record record) async {
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(<String, dynamic>{
+        'title': record.title,
+        'amount': record.amount,
+        'date': record.date.toIso8601String(),
+        'category': record.category.toJson(),
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final newRecord = jsonDecode(response.body);
+      state = [...state, newRecord];
+      return response.body;
+    } else {
+      return response.body;
+    }
   }
 
   void removeRecord(Record record) {
@@ -42,4 +69,6 @@ class RecordsNotifier extends StateNotifier<List<Record>> {
   }
 }
 
-final recordsProvider = StateNotifierProvider((ref) => RecordsNotifier());
+final recordsProvider = NotifierProvider<RecordsNotifier, List<Record>>(
+  () => RecordsNotifier(),
+);

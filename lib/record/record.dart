@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:prudent/category/category.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +7,7 @@ final formatter = DateFormat.yMd('pl_PL');
 
 const uuid = Uuid();
 
+@immutable
 class Record {
   Record({
     required this.title,

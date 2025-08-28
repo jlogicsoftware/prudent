@@ -29,6 +29,7 @@ const selectableCategoryColors = [
   Colors.white,
 ];
 
+@immutable
 class Category {
   final String id;
   final String title;
@@ -46,5 +47,15 @@ class Category {
   @override
   String toString() {
     return 'Category{id: $id, title: $title, icon: $icon, description: $description, color: $color}';
+  }
+
+  Map<String, Object> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'icon': icon.codePoint,
+      'description': description,
+      'color': color.toARGB32(),
+    };
   }
 }

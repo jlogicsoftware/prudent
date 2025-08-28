@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 enum AccountType { cash, card, checking, savings }
 
+@immutable
 class Account {
   final String id;
   final String name;
