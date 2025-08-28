@@ -50,7 +50,12 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
   }
 
   void _addRecord(Record record) {
-    ref.read(recordsProvider.notifier).addRecord(record);
+    ref.read(recordsProvider.notifier).addRecord(record).then((response) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(response)));
+    });
   }
 
   void _removeRecord(Record record) {

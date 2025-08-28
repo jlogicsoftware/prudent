@@ -18,8 +18,9 @@ class AccountNew extends ConsumerStatefulWidget {
 }
 
 class _AccountNewState extends ConsumerState<AccountNew> {
-  final _nameController = TextEditingController();
-  final _balanceController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  var _name = '';
+  var _balance = 0.0;
   late AccountType _selectedType;
   String _currency = 'USD';
 
@@ -27,8 +28,6 @@ class _AccountNewState extends ConsumerState<AccountNew> {
   void initState() {
     super.initState();
     if (widget.initialAccount != null) {
-      _nameController.text = widget.initialAccount!.name;
-      _balanceController.text = widget.initialAccount!.balance.toString();
       _selectedType = widget.initialAccount!.type;
       _currency = widget.initialAccount!.currency;
     } else {
@@ -37,29 +36,15 @@ class _AccountNewState extends ConsumerState<AccountNew> {
   }
 
   void _submitAccountData() {
-    if (_nameController.text.trim().isEmpty ||
-        _balanceController.text.trim().isEmpty) {
-      showDialog(
-        context: context,
-        builder:
-            (ctx) => AlertDialog(
-              title: const Text('Invalid input'),
-              content: const Text('Please fill in all fields.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Okay'),
-                ),
-              ],
-            ),
-      );
-      return;
+    if (!_formKey.currentState!.validate()) {
+      return; // If the form is not valid, exit
     }
 
+    _formKey.currentState!.save(); // Save the form data
     final account = Account(
-      name: _nameController.text,
+      name: _name,
       type: _selectedType,
-      balance: double.parse(_balanceController.text),
+      balance: _balance,
       currency: _currency,
     );
 
@@ -68,51 +53,69 @@ class _AccountNewState extends ConsumerState<AccountNew> {
   }
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    _balanceController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        TextField(
-          controller: _nameController,
-          decoration: const InputDecoration(labelText: 'Account Name'),
+    return Form(
+      key: _formKey,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 32.0),
+        child: Column(
+          children: [
+            TextFormField(
+              decoration: const InputDecoration(labelText: 'Account Name'),
+              validator:
+                  (value) => value!.isEmpty ? 'Please enter a name' : null,
+              onSaved: (newValue) => _name = newValue ?? '',
+            ),
+            TextFormField(
+              decoration: const InputDecoration(labelText: 'Balance'),
+              // initialValue: '0.00',
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              onSaved:
+                  (newValue) =>
+                      _balance =
+                          double.tryParse(
+                            newValue?.replaceAll(',', '.') ?? '',
+                          ) ??
+                          0.0,
+            ),
+            DropdownButtonFormField<AccountType>(
+              items:
+              [
+                for (var type in AccountType.values)
+                  DropdownMenuItem(
+                    value: type,
+                    child: Text(type.toString().split('.').last),
+                  ),
+              ],
+              initialValue: _selectedType,
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _selectedType = value;
+                  });
+                }
+              },
+              decoration: const InputDecoration(labelText: 'Account Type'),
+              validator:
+                  (value) => value == null ? 'Please select a type' : null,
+            ),
+            const SizedBox(height: 32.0),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                ElevatedButton(
+                  onPressed: _submitAccountData,
+                  child: const Text('Add Account'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+          ],
         ),
-        TextField(
-          controller: _balanceController,
-          decoration: const InputDecoration(labelText: 'Balance'),
-          keyboardType: TextInputType.number,
-        ),
-        DropdownButton<AccountType>(
-          value: _selectedType,
-          items:
-              AccountType.values.map((type) {
-                return DropdownMenuItem(
-                  value: type,
-                  child: Text(type.toString().split('.').last),
-                );
-              }).toList(),
-          onChanged: (value) {
-            if (value != null) {
-              setState(() {
-                _selectedType = value;
-              });
-            }
-          },
-        ),
-        ElevatedButton(
-          onPressed: _submitAccountData,
-          child: const Text('Add Account'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-      ],
+      ),
     );
   }
 }

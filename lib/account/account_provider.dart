@@ -17,8 +17,11 @@ final List<Account> registeredAccounts = [
   ),
 ];
 
-class AccountNotifier extends StateNotifier<List<Account>> {
-  AccountNotifier() : super(registeredAccounts);
+class AccountNotifier extends Notifier<List<Account>> {
+  @override
+  List<Account> build() {
+    return registeredAccounts;
+  }
 
   void addAccount(Account account) {
     state = [...state, account];
@@ -40,7 +43,7 @@ class AccountNotifier extends StateNotifier<List<Account>> {
     state = updatedAccounts;
   }
 
-  double get totalBalance {
+  double totalBalance() {
     return state.fold(
       0.0,
       (sum, account) =>
@@ -51,4 +54,6 @@ class AccountNotifier extends StateNotifier<List<Account>> {
   }
 }
 
-final accountProvider = StateNotifierProvider((ref) => AccountNotifier());
+final accountProvider = NotifierProvider<AccountNotifier, List<Account>>(
+  () => AccountNotifier(),
+);

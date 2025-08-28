@@ -6,14 +6,14 @@
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
-      "deviceId": "iPhone 16 Plus"
+      "emulatorId": "apple_ios_simulator" // > flutter emulators
     },
     {
       "name": "Android Emulator",
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
-      "deviceId": "Pixel_9"
+      "emulatorId": "Pixel_9" // > flutter emulators
     },
     {
       "name": "Web (hot reloadable)",
@@ -23,9 +23,11 @@
       "args": ["-d", "chrome", "--web-experimental-hot-reload"]
     },
     {
-      "name": "Lauch",
+      "name": "MacOS",
       "request": "launch",
-      "type": "dart"
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": ["-d", "macos"]
     },
     {
       "name": "Profile mode",

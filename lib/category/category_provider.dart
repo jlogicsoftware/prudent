@@ -18,8 +18,11 @@ final List<Category> registeredCategories = [
   ),
 ];
 
-class CategoryNotifier extends StateNotifier<List<Category>> {
-  CategoryNotifier() : super(registeredCategories);
+class CategoryNotifier extends Notifier<List<Category>> {
+  @override
+  List<Category> build() {
+    return registeredCategories;
+  }
 
   void addCategory(Category category) {
     state = [...state, category];
@@ -42,4 +45,6 @@ class CategoryNotifier extends StateNotifier<List<Category>> {
   }
 }
 
-final categoryProvider = StateNotifierProvider((ref) => CategoryNotifier());
+final categoryProvider = NotifierProvider<CategoryNotifier, List<Category>>(
+  () => CategoryNotifier(),
+);
