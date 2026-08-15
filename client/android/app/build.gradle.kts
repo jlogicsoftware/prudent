@@ -1,6 +1,5 @@
 plugins {
     id("com.android.application")
-    id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -8,15 +7,22 @@ plugins {
 android {
     namespace = "com.jlogicsoftware.prudent"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973"
+    // Delegated, never a literal — and Flutter itself walks you into the literal. When a plugin
+    // needs a newer NDK than the pin, the tool prints "use the highest Android NDK version" and
+    // hands you `ndkVersion = "<version>"` interpolated from whatever your plugin set happens to
+    // need today. Taking that re-pins to a snapshot of the current dependency graph, and the next
+    // plugin that wants newer — or the next Flutter SDK bump — reopens the identical failure.
+    //
+    // `flutter.ndkVersion` tracks the AGP-default NDK for whatever Flutter is in use (it is a
+    // constant in the SDK's own FlutterExtension), which is the version the plugin ecosystem
+    // converges on anyway. The previous literal here was 27.0.12077973, the AGP 8.x-era default:
+    // drift from the same stale template as the Gradle wrapper, and invisible until the toolchain
+    // upgrade got far enough to resolve plugin projects at all.
+    ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
@@ -36,6 +42,15 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+}
+
+// 17, and NOT raised to match whatever JDK runs the build. This is the bytecode level of the
+// shipped APK, which Android's desugaring surface pins; it is independent of the build JDK.
+// `compilerOptions`, not the old `kotlinOptions` block, which KGP 2.x removed.
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 
