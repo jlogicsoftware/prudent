@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  prudent-server :: Prudent's Quarkus backend.
+
+  IN THIS PHASE IT COMPILES AND NOTHING ELSE. There are no resources, no entities, no datasource
+  and no migrations — those arrive in Phase 2, where there is something for them to do. What this
+  module exists to prove today is that the dependency seam on the jZen framework resolves, which is
+  the one thing that has to be true before anything else can be built on it.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    ============================================================================================
+    THE EMPTY <relativePath/> IS THE DECISION, NOT A DETAIL. READ THIS BEFORE CHANGING IT.
+    ============================================================================================
+
+    An empty <relativePath/> tells Maven: do NOT look for this parent on the filesystem, resolve it
+    from a repository like any other artifact. jZen's artifacts are unpublished
+    (0.1.0-SNAPSHOT, no registry), so "a repository" means the LOCAL one, ~/.m2.
+
+    THE PREREQUISITE MAVEN CANNOT EXPRESS. Something has to put the framework artifacts in the
+    local repository first, and no POM can say so — a build cannot declare "go build another
+    repository". That step is:
+
+        task zen:framework:install
+
+    which runs `./mvnw -B install -DskipTests` inside ../jZen/server.
+
+    WHAT IT LOOKS LIKE WHEN YOU FORGET. Maven fails with
+
+        Non-resolvable parent POM for prudent:prudent-server:0.1.0-SNAPSHOT:
+        zen:zen-parent:pom:0.1.0-SNAPSHOT was not found
+
+    which reads like a broken or malformed POM file. It is not. The POM is fine and the fix is to
+    run `task zen:framework:install`. Run `task zen:info` first if that fails too — it reports
+    whether the ../jZen checkout is even there.
+
+    WHY NOT jZen ADR-026'S FILESYSTEM <relativePath>. jZen's own reference backend inherits this
+    same parent with <relativePath>../../../server/pom.xml</relativePath>, and ADR-026 has a second
+    product do the equivalent across repositories, under a shared parent folder with a root
+    aggregator POM above both checkouts. Prudent does not, for two reasons:
+
+      1. CLAUDE.md requires that all work happen inside this repository and that nothing reach
+         outside the repo root. A root aggregator POM in the parent directory is a file above the
+         repository root, created and maintained by neither repository.
+      2. A cross-repository <relativePath> couples this build to a DIRECTORY LAYOUT rather than to
+         a VERSION. The empty form couples it to a coordinate, which is what the eventual published
+         dependency will also be — so publishing changes this block's <version> and deletes nothing
+         else.
+
+    This is a Prudent-owned concern, so Prudent's rule wins and the divergence is recorded:
+    docs/DECISIONS.md ADR-001.
+
+    THE COST, PLAINLY: there is no version boundary between the two repositories. They move in
+    lockstep, and a `git pull` in ../jZen can break this build with no version to point at.
+  -->
+  <parent>
+    <groupId>zen</groupId>
+    <artifactId>zen-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>prudent</groupId>
+  <artifactId>prudent-server</artifactId>
+  <!--
+    Declared, not inherited. It happens to match zen-parent's version string today, and inheriting
+    it would silently make Prudent's version track the framework's — so that the day jZen releases
+    0.2.0, Prudent's server is renumbered by a dependency. Prudent versions itself.
+  -->
+  <version>0.1.0-SNAPSHOT</version>
+  <name>Prudent :: server</name>
+  <packaging>quarkus</packaging>
+
+  <dependencies>
+    <!--
+      The framework libraries. No <version> on any of them: zen-parent's dependencyManagement
+      supplies it, which is half of what inheriting that parent buys (the other half is the Quarkus
+      BOM, the Java release level, and plugin management).
+
+      These three and no more. zen-identity, zen-email, zen-jobs and zen-ratelimit are real
+      dependencies of the finished product and are deliberately absent here — a module that
+      declares a dependency it does not use implies a surface that does not exist. They arrive in
+      Phase 2 alongside the auth and persistence work that needs them.
+    -->
+    <dependency>
+      <groupId>zen</groupId>
+      <artifactId>zen-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>zen</groupId>
+      <artifactId>zen-proto</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>zen</groupId>
+      <artifactId>zen-transport</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-arc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest</artifactId>
+    </dependency>
+
+    <!--
+      NO quarkus-rest-jackson. NOT AT ANY PRIORITY. NOT LATER.
+
+      jZen's JSON is canonical proto3 JSON produced by protobuf's JsonFormat, written by
+      zen-transport's own MessageBodyWriter. quarkus-rest-jackson registers itself for
+      application/json through a BUILD-TIME path that does not consult writer priority, so merely
+      out-ranking it does not work: it wins, tries to reflect over a protobuf-generated class, and
+      returns 500 on every proto response body. The extension must be ABSENT.
+
+      This is on the list of rules that fail late and confusingly rather than at the point of the
+      mistake, which is why it is written here rather than assumed.
+    -->
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!--
+        Declared with NO <executions>, deliberately, and this module is <packaging>quarkus</packaging>
+        while zen-parent registers the plugin with <extensions>true</extensions> — so that packaging's
+        own lifecycle already binds generate-code, generate-code-tests and build to their phases.
+
+        The Quarkus archetype's explicit <execution> listing those three goals is correct for a
+        `jar` module and a DUPLICATE here: it binds `build` a second time, so a native build
+        compiles the image TWICE and the second overwrites the first. Both builds succeed and the
+        output is identical, so the only symptom is minutes of wall clock on every deploy.
+      -->
+      <plugin>
+        <groupId>${quarkus.platform.group-id}</groupId>
+        <artifactId>quarkus-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      OpenAPI is BUILD TOOLING, and the profile is what makes that true rather than merely said.
+      Prudent has no resources yet, so the extension documents nothing today; the profile is here
+      now so that Phase 2's first resource lands in a module already shaped correctly, rather than
+      shipping the extension to production once and being retrofitted.
+
+      quarkus-smallrye-openapi exists to produce one file — the merged openapi.json the contract
+      loop consumes. Shipping it additionally serves /openapi to the internet for the life of every
+      deployed revision: a complete, current map of every route, verb, parameter and status code
+      the service accepts, published to anyone who asks. Nothing needs it there.
+
+      WHY A PROFILE AND NOT quarkus.smallrye-openapi.enable=false. That stops the endpoint and
+      still bakes the extension and its scanner into the image, so the attack-surface argument
+      survives and the cold-start one is untouched. Removing the dependency removes the code.
+
+      WHY THE ACTIVATION IS INVERTED. It is ON unless -Dnative is passed, so every ordinary build,
+      test run and contract regeneration has the extension and only the native production image
+      lacks it. Getting this backwards is expensive and quiet: the contract task would package
+      cleanly, write no openapi.json, and the downstream generator would then SKIP on its
+      "does openapi.json exist?" guard — leaving generated types stale while the gate reported
+      success.
+    -->
+    <profile>
+      <id>openapi</id>
+      <activation>
+        <property><name>!native</name></property>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>io.quarkus</groupId>
+          <artifactId>quarkus-smallrye-openapi</artifactId>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
+</project>

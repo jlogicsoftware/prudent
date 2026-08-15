@@ -1,3 +1,11 @@
+# Prudent — one .gitignore for a language-neutral root over three tiers.
+#
+# The root is not a Dart package, so the Flutter patterns below cannot stay anchored at the root
+# the way `flutter create` wrote them (`/build/`, `/android/app/debug`). A leading-slash pattern
+# matches only at the repository root, so after the client moved into client/ those patterns
+# silently stopped matching anything — the ignore file would still look correct and would ignore
+# nothing. They are re-anchored to the tier that owns them.
+
 # Miscellaneous
 *.class
 *.log
@@ -23,7 +31,9 @@ migrate_working_dir/
 # is commented out by default.
 #.vscode/
 
-# Flutter/Dart/Pub related
+# --- client/ : Flutter/Dart/Pub ---------------------------------------------------------------
+# Unanchored so they match at any depth: the client tier owns them today, and a second Dart
+# package (a shared package, a second app) would otherwise need every pattern repeated.
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -31,7 +41,7 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+build/
 
 # Symbolication related
 app.*.symbols
@@ -40,6 +50,18 @@ app.*.symbols
 app.*.map.json
 
 # Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+client/android/app/debug
+client/android/app/profile
+client/android/app/release
+
+# Generated localizations are BUILT, NOT TRACKED (jZen ADR-009): flutter gen-l10n ships inside
+# the Flutter SDK every consumer already has, so there is no toolchain boundary to carry the
+# output across. Listed now so the first ARB file cannot land with its output tracked by
+# accident. Prudent's contract gate asserts none of it is tracked (Phase 1).
+client/lib/src/l10n/generated/
+
+# --- server/ : Java/Maven ----------------------------------------------------------------------
+# `target/` is unanchored for the same reason as build/: the server is one Maven module today and
+# will not stay that way.
+target/
+.mvn/wrapper/maven-wrapper.jar

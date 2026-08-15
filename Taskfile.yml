@@ -1,0 +1,56 @@
+# Prudent :: the single entry point.
+#
+# `task` TRIGGERS native tools and never replaces them — `mvnw` owns Java, `flutter`/`dart pub`
+# owns Dart, `pnpm` owns TypeScript. A task that reimplements a package manager is a bug.
+#
+# RUN `task zen:info` FIRST when a build behaves oddly. Prudent consumes jZen from a sibling
+# checkout at ../jZen rather than from a registry, so there is no version boundary between the two
+# repositories: the only honest answer to "which framework is this?" is a commit, and the only
+# warning that the answer is unstable is a dirty tree. `zen:info` reports both, and it is the
+# difference between "the framework moved under me" and an hour spent reading a stack trace.
+version: '3'
+
+includes:
+  # INCLUDED, NOT COPIED. jZen consumes this same file for its own reference application, so these
+  # are shared tasks rather than a lookalike that drifts. Two go-task facts make it work: included
+  # tasks run in THIS repository's directory (so relative paths mean Prudent's tree), and
+  # {{.ROOT_DIR}} is Prudent's root while {{.TASKFILE_DIR}} is jZen's — which is how a task reaches
+  # back into the framework checkout while operating on Prudent's files.
+  zen:
+    taskfile: ../jZen/Taskfile.app.yml
+    vars:
+      APP_NAME: prudent
+      CLIENT_DIR: client
+      SERVER_DIR: server
+      PROTO_DIR: proto
+
+# WHAT IS DELIBERATELY NOT HERE YET.
+#
+# Prudent defines no tasks of its own in this phase. That is sequencing, not an omission, and it is
+# worth stating because the absence otherwise reads as something forgotten.
+#
+# The tasks an application eventually needs — the contract loop (generate:proto:*, generate:api:*,
+# sync:contracts), the server build, the local stack, the deploy, and every gate — are NOT in
+# jZen's Taskfile.app.yml. jZen ADR-046 records that limit explicitly: only generate:l10n and
+# build:runners have been made app-agnostic so far, and the rest of jZen's orchestration is still
+# shaped around its own reference app (it hardcodes that app's proto globs and directory names, so
+# an application cannot reuse it). Prudent writes its own in Phases 1–5, as each phase produces
+# something for the task to act on.
+#
+# NO STUBS. A task that exists and does nothing is worse than no task: it reports success, and a
+# gate composed from it then passes without having checked anything. Each task below arrives with
+# the work it verifies.
+#
+#   Phase 1  generate:proto:{java,dart}, sync:contracts, sync:verify
+#   Phase 2  build:server, test:server, the local stack
+#   Phase 3  verify:boundaries   <- the gate that proves the Firebase call is gone
+#   Phase 5  test:e2e, deploy:cloudrun, verify:deploy, the composed `task test`
+#
+# AVAILABLE TODAY, from the include:
+#   task zen:info                Which jZen checkout, which revision, dirty or not
+#   task zen:framework:install   Installs the jZen Java libraries into the local Maven repository —
+#                                the prerequisite server/pom.xml cannot express (see that file)
+#   task zen:deps                flutter pub get across the client tier
+#   task zen:generate:l10n       flutter gen-l10n in every package declaring an l10n.yaml
+#   task zen:test:client         Every Dart/Flutter suite
+#   task zen:build:runners       Every delivery runner this host can build; skips are announced
