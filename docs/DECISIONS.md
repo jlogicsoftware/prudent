@@ -299,3 +299,102 @@ this entry and by the comments at the two places where the temptation recurs
 **Not covered by this entry:** the Firebase project itself, its API key and its billing are not this
 repository's to leave running. Decommissioning it is an open question in the plan (§5.6) and is
 outside the repository.
+
+---
+
+## ADR-005 — One Java version everywhere; the build toolchain is delegated, never pinned to a literal
+
+**Date:** 2026-08-15. **Status:** accepted.
+
+### Context
+
+Prudent's Android build could not run at all. `flutter build apk` failed with a message whose entire
+text was `25.0.3` — naming no tool, no version, and nothing about a version being unsupported.
+
+The cause: Gradle compiles `build.gradle.kts` with the Kotlin compiler embedded in the **Gradle
+distribution** (`org.gradle.kotlin.dsl.support.KotlinCompiler`). That compiler is not swappable,
+overridable or pinnable, and under Gradle 8.x it cannot parse a two-digit Java feature version. Java
+25 support arrives in **Gradle 9.1**.
+
+Two things about this are worth recording, because both cost real time here:
+
+- **The `org.jetbrains.kotlin.android` plugin version is not a lever.** It governs compilation of
+  the application's own Kotlin sources and has no bearing on how the build scripts themselves are
+  compiled. Bumping it under Gradle 8.x changes nothing. The only way to change that compiler is to
+  change the Gradle distribution.
+- **`android/` had simply never been rolled forward.** It was scaffolded from an older
+  `flutter create` template. This was not a policy question about which Java to support; it was
+  drift in one directory, against a reference application that already builds on a current JDK.
+
+### Decision, part one: one Java version everywhere
+
+**The Java version is the same everywhere; only the distribution differs.**
+
+| Where | Distribution |
+|---|---|
+| Maven, Quarkus, native image | GraalVM 25 (jZen pins `25.0.2-graalce` in `.sdkmanrc`) |
+| Android / Gradle | Temurin 25 |
+
+Two distributions are necessary rather than untidy: AGP's `jdkImage` transform shells out to
+`jlink`, and GraalVM's `jlink` cannot run it, so the Android build needs a standard JDK. That is why
+the split exists at all.
+
+**Installing an older JDK to satisfy Android is rejected.** Flutter takes its JDK from
+`flutter config --jdk-dir`, which outranks `JAVA_HOME`, `GRADLE_OPTS` and `org.gradle.java.home`,
+and which is a **machine-wide** setting applying to every Flutter project on the machine. Pinning a
+second Java version for Prudent's benefit would silently change every other Flutter Android build on
+that machine, jZen's reference application included — fixing this repository by breaking another
+one. A repository may not buy its own correctness with a global side effect.
+
+The consequence is that the *toolchain in the repository* must support the JDK, rather than the
+developer downgrading the JDK to suit the repository. Hence Gradle 9.1.0 / AGP 9.0.1 / KGP 2.3.20,
+matching what the reference application already builds against.
+
+### Decision, part two: delegate the toolchain, never pin a literal
+
+**Where the Flutter SDK exposes a version, use it rather than copying its current value.**
+Concretely, `ndkVersion = flutter.ndkVersion`, not a version string.
+
+This is the more transferable half of the entry, because the failure mode is invisible. Prudent
+pinned `ndkVersion = "27.0.12077973"` — the AGP 8.x-era default, drift from the same stale template
+as the Gradle wrapper — and it stayed hidden until the toolchain upgrade got far enough to resolve
+plugin projects at all.
+
+**Flutter actively steers you into re-making the mistake.** When a plugin requires a newer NDK than
+the pin, the tool prints:
+
+```
+Fix this issue by using the highest Android NDK version (they are backward compatible).
+    ndkVersion = "<version>"
+```
+
+with the version interpolated from whatever the current plugin set happens to need. Accepting that
+suggestion re-pins to a **snapshot of today's dependency graph**, and the next plugin that wants
+newer — or the next Flutter SDK bump — reopens the identical failure. The suggestion is correct
+about the value and wrong about the mechanism.
+
+A literal that is right today is worse than an obviously wrong one: it passes review and every
+build, and fails later for a reason disconnected from the change that caused it.
+`flutter.ndkVersion` tracks the AGP-default NDK for whatever Flutter is in use, which is the version
+the plugin ecosystem converges on anyway.
+
+**`jvmTarget` is the deliberate exception and stays at 17.** It is the bytecode level of the shipped
+APK, pinned by Android's desugaring surface, and is independent of the JDK running the build. It is
+not raised to "match" the toolchain.
+
+### Consequence: the Flutter version must be pinned
+
+Delegating to the SDK moves the variable rather than removing it. `flutter.ndkVersion` is only
+stable across a team if the **Flutter version** is, so two developers on different Flutter releases
+would resolve different NDKs and hit this asymmetrically.
+
+Prudent therefore pins Flutter in **`.fvmrc`** at the repository root (`3.44.2`), matching jZen. The
+pin is advisory until CI enforces it: jZen's workflows pass `flutter-version` explicitly to the
+setup action, and Prudent's must do the same when they are written in Phase 5. A pin nothing checks
+is documentation, not a constraint.
+
+### Consequence: the daemon outlives the change
+
+After changing the Gradle distribution, kill the daemon — one started under the old distribution
+survives a wrapper change and keeps serving the old Gradle, so the first build after the upgrade
+fails exactly as it did before it.

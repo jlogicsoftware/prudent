@@ -128,12 +128,33 @@ the full set**, which is why `task zen:build:runners` announces what it skipped 
 silently, and why CI needs more than one operating system. See
 [`docs/DECISIONS.md`](docs/DECISIONS.md) ADR-003.
 
-For Android, note that Flutter takes its JDK from a **machine-wide** setting that outranks
-`JAVA_HOME`, so no task in this repository can fix it:
+### Toolchain
+
+**Flutter is pinned to `3.44.2`** in [`.fvmrc`](.fvmrc), matching jZen. This is load-bearing rather
+than tidiness: the Android build delegates its NDK version to the SDK (`flutter.ndkVersion`), so two
+developers on different Flutter releases resolve different NDKs and hit build failures
+asymmetrically. Until CI enforces it, the pin is advisory — check `flutter --version` matches.
+
+**One Java version everywhere; only the distribution differs** — GraalVM 25 for Maven, Quarkus and
+the native image; **Temurin 25** for Android, because AGP's `jdkImage` transform shells out to
+`jlink` and GraalVM's cannot run it:
 
 ```bash
-flutter config --jdk-dir /path/to/a/standard/jdk-25   # GraalVM will not work — its jlink
-                                                      # cannot run AGP's jdkImage transform
+sdk install java 25.0.3-tem
+flutter config --jdk-dir "$HOME/.sdkman/candidates/java/25.0.3-tem"
+```
+
+That second command is a **machine-wide** setting which outranks `JAVA_HOME` and applies to every
+Flutter project on the machine — so no task in this repository can set it, and installing a
+*different* Java version to satisfy one project would break the others. See
+[`docs/DECISIONS.md`](docs/DECISIONS.md) ADR-005.
+
+If an Android build fails with a message whose entire text is a version number like `25.0.3`, the
+Gradle distribution is too old for the JDK. After changing it, kill the daemon — one started under
+the old distribution keeps serving it:
+
+```bash
+pkill -f GradleDaemon
 ```
 
 ## Documentation
