@@ -1,4 +1,4 @@
-package com.example.prudent
+package com.jlogicsoftware.prudent
 
 import io.flutter.embedding.android.FlutterActivity
 
