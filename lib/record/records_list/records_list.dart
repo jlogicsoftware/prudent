@@ -13,7 +13,7 @@ class RecordsList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final records = ref.watch(recordsProvider);
+    final records = ref.watch(recordsProvider).asData?.value ?? [];
     if (records.isEmpty) {
       return const Center(
         child: Text(

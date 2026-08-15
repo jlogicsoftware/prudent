@@ -17,7 +17,8 @@ class RecordsScreen extends ConsumerStatefulWidget {
 }
 
 class _RecordsState extends ConsumerState<RecordsScreen> {
-  late final List<Record> records = ref.watch(recordsProvider);
+  late final List<Record> records =
+      ref.watch(recordsProvider).asData?.value ?? [];
 
   void _openAddRecordOverlay() {
     if (isMobile(context)) {
