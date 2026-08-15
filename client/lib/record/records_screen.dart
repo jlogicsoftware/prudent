@@ -17,9 +17,6 @@ class RecordsScreen extends ConsumerStatefulWidget {
 }
 
 class _RecordsState extends ConsumerState<RecordsScreen> {
-  late final List<Record> records =
-      ref.watch(recordsProvider).asData?.value ?? [];
-
   void _openAddRecordOverlay() {
     if (isMobile(context)) {
       showModalBottomSheet(
@@ -51,16 +48,14 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
   }
 
   void _addRecord(Record record) {
-    ref.read(recordsProvider.notifier).addRecord(record).then((response) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(response)));
-    });
+    ref.read(recordsProvider.notifier).addRecord(record);
   }
 
   void _removeRecord(Record record) {
-    final recordIndex = records.indexWhere((r) => r.id == record.id);
+    // `read`, not `watch`: this is a callback, not a build. Watching outside build subscribes a
+    // widget that is not rebuilding.
+    final current = ref.read(recordsProvider).asData?.value ?? const <Record>[];
+    final recordIndex = current.indexWhere((r) => r.id == record.id);
     ref.read(recordsProvider.notifier).removeRecord(record);
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -81,6 +76,12 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Read inside build, so the screen actually rebuilds when records change. Holding this in a
+    // `late final` field captures the provider's value once — during the first frame, while it is
+    // still loading — and never updates, which leaves the empty-state branch below permanently
+    // selected no matter what the provider holds.
+    final records = ref.watch(recordsProvider).asData?.value ?? const <Record>[];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Prudent'),

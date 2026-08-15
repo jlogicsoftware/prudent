@@ -38,7 +38,9 @@ dependencies:
   uuid: ^4.3.3
   google_fonts: ^6.2.1
   flutter_riverpod: ^3.0.0-dev.17
-  http: ^1.5.0
+  # No `http`, deliberately. The client talks to one server and it is ours, reached through the
+  # framework's transport rather than by hand — so a direct HTTP client in this package is the
+  # thing the rule forbids, not a convenience. See docs/DECISIONS.md ADR-004.
 
 dev_dependencies:
   flutter_test:
