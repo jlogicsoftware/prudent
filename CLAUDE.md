@@ -27,17 +27,23 @@ from the `../jZen` checkout rather than copied here, so they cannot drift.
 jZen rule and a Prudent rule conflict on something **Prudent** owns, Prudent's wins and the
 divergence is recorded as a Prudent ADR.
 
-## Current state: this repository has not been converted yet
+## Current state: Phases 0 and 1 are done; the rest is not
 
-As of 2026-08-15 this is still the **original standalone Flutter app**: a single Flutter package
-at the repo root (`lib/`, `pubspec.yaml`), Riverpod state over in-memory seed lists, and records
-read/written straight to a Firebase Realtime Database URL hardcoded in `lib/main.dart`. There is
-no server, no proto contract, no auth, no test suite, and no `Taskfile.yml`.
+As of 2026-08-15 the repository has a **language-neutral root over three tiers**: `client/` (the
+Flutter app), `server/` (a Quarkus module that compiles and serves nothing), `proto/prudent/v1/`
+(the wire contract), and a `Taskfile.yml` that includes jZen's. The contract, its generate/verify
+loop and the round-trip suite that proves it are in place — `task sync:contracts` and
+`task zen:test:client` are the commands that check them.
 
-The conversion to jZen is planned, not done. **`docs/prudent-migration-prompt.md` is the brief
-that drives it** — read it before proposing structural change, and do not invent a different
-target shape. Anything below describing `proto/`, `server/`, or `Taskfile.yml` is the **target**,
-and a session must not speak about it as if it already exists.
+What is **not** built yet: no Quarkus resources, no Panache entities, no migrations, no auth, no
+`ZenClient` on the client. The client is still Riverpod state over in-memory seed lists, and it now
+persists nothing — the third-party backend call was removed ahead of its replacement (ADR-004).
+
+**`docs/prudent-migration-plan.md` is the approved plan the remaining phases execute**, and
+`docs/prudent-migration-prompt.md` is the brief behind it — read them before proposing structural
+change, and do not invent a different target shape. Check what actually exists before building on
+it: parts of the structure described below are built and parts are still the target, `docs/DECISIONS.md`
+is the record of which, and a session must not speak about the unbuilt half as if it already exists.
 
 ## How Prudent depends on jZen: a sibling checkout, by path
 

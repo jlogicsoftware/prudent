@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// Prudent's accounts — where the money is. CANONICAL SOURCE OF TRUTH for the model: the Java
+// DTOs and the Dart messages are GENERATED from this file and are never hand-edited. Change
+// this file and run `task sync:contracts`.
+//
+// Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that
+// message is not imported here (proto/README.md records why).
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+// The outer class holds only the descriptor (java_multiple_files puts each message in its own
+// file). Named explicitly rather than defaulted from the filename, matching the framework's
+// convention, so the descriptor holder can never collide with a message name added later.
+option java_outer_classname = "AccountsProto";
+
+// What kind of account this is. The zero value is UNSPECIFIED and means exactly that.
+//
+// proto3 requires a zero value and uses it for any field that was not set, so whichever
+// constant sits at 0 is what an omission decodes to. Putting CASH there would make a client
+// that forgot the field indistinguishable from one that meant cash — a silent data defect that
+// no test catches, because both produce a valid Account. UNSPECIFIED is rejected server-side.
+enum AccountType {
+  ACCOUNT_TYPE_UNSPECIFIED = 0;
+  ACCOUNT_TYPE_CASH = 1;
+  ACCOUNT_TYPE_CARD = 2;
+  ACCOUNT_TYPE_CHECKING = 3;
+  ACCOUNT_TYPE_SAVINGS = 4;
+}
+
+// An account, as the server holds it.
+message Account {
+  // Server-minted UUID. A create request carries no id.
+  string id = 1;
+
+  string name = 2;
+
+  AccountType type = 3;
+
+  // MONEY IS AN INTEGER COUNT OF MINOR UNITS — 1234 is 12.34 PLN — never a float.
+  // Binary floating point cannot represent 0.10, and an expense tracker sums thousands of
+  // values; a balance wrong by cents is wrong. int64 minor units are exact under addition and
+  // need no decimal library on either stack.
+  //
+  // NOTE FOR BOTH CLIENTS: canonical proto3 JSON encodes int64 AS A STRING ("1234"), while
+  // Protobuf binary carries it as a number. The two transport modes therefore differ on the
+  // wire and must agree after decoding — which is what the round-trip suite asserts.
+  int64 balance_minor = 4;
+
+  // ISO-4217 alphabetic code, validated server-side. Prudent's default is PLN.
+  //
+  // This is the ONLY place a currency is chosen. A record inherits its account's currency and
+  // cannot contradict it (see records.proto), so there is no FX arithmetic and no rate source:
+  // totals are per-currency, and summing across currencies is refused rather than done
+  // silently.
+  string currency = 5;
+
+  // The account offered first when creating a record. Exactly one per user is true; the server
+  // clears the flag on the previous holder rather than trusting the client to.
+  bool is_default = 6;
+
+  // Whether the account is in use. An inactive account is kept for its history rather than
+  // deleted.
+  bool is_active = 7;
+
+  // Whether this account counts toward the total balance...
+  bool include_in_total = 8;
+
+  // ...and whether it appears on the overview. Two flags, not one: a savings account a user
+  // wants visible but excluded from spendable funds needs them to differ.
+  bool include_in_overview = 9;
+
+  // NO description FIELD. It existed as an always-null field that nothing could set and
+  // nothing rendered; carrying it here would commit a decision nobody has made to the
+  // contract. If the product ever needs it, it arrives with the screen that sets it, at field
+  // number 10.
+  //
+  // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
+}
+
+// POST /api/v1/accounts
+message CreateAccountRequest {
+  string name = 1;
+  AccountType type = 2;
+  // The opening balance. Every later change to it is an act of the records, not of this field.
+  int64 balance_minor = 3;
+  string currency = 4;
+  bool is_default = 5;
+  bool is_active = 6;
+  bool include_in_total = 7;
+  bool include_in_overview = 8;
+}
+
+// PUT /api/v1/accounts/{id} — a FULL REPLACEMENT, for the presence reason set out in
+// categories.proto.
+//
+// The four booleans are why that rule is written down rather than assumed: plain proto3 scalars
+// have no presence, so a client sending `include_in_total = false` and a client that never
+// touched the field produce byte-identical requests. Replacement makes them mean the same
+// thing on purpose, instead of leaving the server to guess which one it received.
+//
+// `currency` is deliberately NOT replaceable here: changing an account's currency would
+// reinterpret every existing record's amount without converting it, silently turning 100 PLN
+// into 100 EUR. It is fixed at creation.
+message UpdateAccountRequest {
+  string name = 1;
+  AccountType type = 2;
+  int64 balance_minor = 3;
+  bool is_default = 4;
+  bool is_active = 5;
+  bool include_in_total = 6;
+  bool include_in_overview = 7;
+}
+
+// GET /api/v1/accounts — every account owned by the authenticated user.
+message ListAccountsResponse {
+  repeated Account accounts = 1;
+}
+
+// DELETE /api/v1/accounts/{id} carries no request body and answers 204, so it declares no
+// messages.

@@ -26,27 +26,23 @@ includes:
 
 # WHAT IS DELIBERATELY NOT HERE YET.
 #
-# Prudent defines no tasks of its own in this phase. That is sequencing, not an omission, and it is
-# worth stating because the absence otherwise reads as something forgotten.
-#
-# The tasks an application eventually needs — the contract loop (generate:proto:*, generate:api:*,
-# sync:contracts), the server build, the local stack, the deploy, and every gate — are NOT in
-# jZen's Taskfile.app.yml. jZen ADR-046 records that limit explicitly: only generate:l10n and
-# build:runners have been made app-agnostic so far, and the rest of jZen's orchestration is still
-# shaped around its own reference app (it hardcodes that app's proto globs and directory names, so
-# an application cannot reuse it). Prudent writes its own in Phases 1–5, as each phase produces
-# something for the task to act on.
+# The tasks an application eventually needs are NOT in jZen's Taskfile.app.yml. jZen ADR-046
+# records that limit explicitly: only generate:l10n and build:runners have been made app-agnostic
+# so far, and the rest of jZen's orchestration is still shaped around its own reference app (its
+# generate:proto:dart writes into client/zen_transport/lib/src/generated and its sync:verify globs
+# proto/zen/v1, so an application cannot reuse either). Prudent writes its own, phase by phase, as
+# each phase produces something for the task to act on.
 #
 # NO STUBS. A task that exists and does nothing is worse than no task: it reports success, and a
-# gate composed from it then passes without having checked anything. Each task below arrives with
-# the work it verifies.
+# gate composed from it then passes without having checked anything. Each task arrives with the
+# work it verifies.
 #
-#   Phase 1  generate:proto:{java,dart}, sync:contracts, sync:verify
+#   Phase 1  generate:proto:{java,dart}, sync:contracts, sync:verify   <- below
 #   Phase 2  build:server, test:server, the local stack
 #   Phase 3  verify:boundaries   <- the gate that proves the Firebase call is gone
 #   Phase 5  test:e2e, deploy:cloudrun, verify:deploy, the composed `task test`
 #
-# AVAILABLE TODAY, from the include:
+# AVAILABLE FROM THE INCLUDE:
 #   task zen:info                Which jZen checkout, which revision, dirty or not
 #   task zen:framework:install   Installs the jZen Java libraries into the local Maven repository —
 #                                the prerequisite server/pom.xml cannot express (see that file)
@@ -54,3 +50,167 @@ includes:
 #   task zen:generate:l10n       flutter gen-l10n in every package declaring an l10n.yaml
 #   task zen:test:client         Every Dart/Flutter suite
 #   task zen:build:runners       Every delivery runner this host can build; skips are announced
+
+vars:
+  PROTO_DIR: proto
+  CLIENT_DIR: client
+  SERVER_DIR: server
+  # Where the generated Dart messages land. TRACKED, unlike the Java DTOs — see the tracking rule
+  # in generate:proto:dart below and in proto/README.md.
+  DART_OUT: client/lib/src/generated
+
+tasks:
+  # ---------------------------------------------------------------------------------------------
+  # The contract loop. proto/prudent/v1/*.proto is upstream of everything.
+  #
+  #   proto/prudent/v1/*.proto              (canonical models)
+  #     |-- protoc --> Java DTOs            (protobuf-maven-plugin; NOT tracked)
+  #     |-- protoc --> Dart messages        (protoc_plugin;         TRACKED)
+  #
+  # THE OPENAPI HALF ARRIVES IN PHASE 2, and its absence here is sequencing rather than an
+  # omission. openapi.json is emitted by SmallRye from ANNOTATED RESOURCES, and Prudent has no
+  # resources yet — so a generate:api task today would package a backend with no routes, write a
+  # document describing nothing, and report success. sync:contracts gains `generate:api` and the
+  # '*.generated.ts' watch the moment the first resource exists.
+  # ---------------------------------------------------------------------------------------------
+
+  generate:proto:
+    desc: Generate the Java DTOs and the Dart messages from proto/
+    cmds:
+      - task: generate:proto:java
+      - task: generate:proto:dart
+
+  generate:proto:java:
+    desc: Generate Java DTOs from proto/ (protoc resolved from Maven Central)
+    dir: "{{.SERVER_DIR}}"
+    summary: |
+      NOT TRACKED. The output is target/generated-sources/protobuf, which is gitignored.
+
+      protobuf-maven-plugin resolves the protoc binary from Maven Central itself, so anyone with
+      the Maven wrapper regenerates this hermetically and there is no toolchain boundary to carry
+      the result across. Committing it would only add a second copy to keep honest.
+
+      Needs the framework artifacts in the local Maven repository first (`task
+      zen:framework:install`) — server/pom.xml's parent has an empty <relativePath/>.
+    cmds:
+      - ./mvnw -B -q generate-sources
+
+  generate:proto:dart:
+    desc: Generate Dart messages from proto/ into client/lib/src/generated
+    silent: true
+    summary: |
+      TRACKED, which is the opposite of the Java side and for the opposite reason: regenerating
+      this needs a SYSTEM protoc plus protoc-gen-dart, tools a Flutter developer has no other
+      reason to install. Committing the output keeps `flutter test` and `flutter build` working
+      for someone who has neither. .gitattributes marks it linguist-generated.
+
+      A tracked generated file is never hand-edited. Fix the .proto and run this.
+    cmds:
+      - |
+        set -euo pipefail
+        shopt -s nullglob
+        protos=({{.PROTO_DIR}}/prudent/v1/*.proto)
+        # NOT a skip. An empty contract directory in a repository whose contract is the point is a
+        # broken checkout, and a codegen step that shrugs at having nothing to do is how a gate
+        # composed from it passes without checking anything.
+        if [ ${#protos[@]} -eq 0 ]; then
+          echo "No .proto files under {{.PROTO_DIR}}/prudent/v1. The contract is the deliverable; this is not a state to pass through." >&2
+          exit 1
+        fi
+        # Both tools are named with their install command, because the failure is otherwise a bare
+        # "program not found" from deep inside a pipeline.
+        command -v protoc >/dev/null 2>&1 || {
+          echo "protoc not found. Install it: brew install protobuf" >&2; exit 1; }
+        [ -x "$HOME/.pub-cache/bin/protoc-gen-dart" ] || {
+          echo "protoc-gen-dart not found. Install it: dart pub global activate protoc_plugin" >&2; exit 1; }
+        mkdir -p {{.DART_OUT}}
+        PATH="$HOME/.pub-cache/bin:$PATH" protoc -I {{.PROTO_DIR}} --dart_out={{.DART_OUT}} "${protos[@]}"
+        echo "Generated Dart messages -> {{.DART_OUT}}/prudent/v1"
+
+  sync:contracts:
+    desc: Regenerate every cross-language artifact and FAIL if anything drifted
+    summary: |
+      THE GATE. Regenerates the Java DTOs and the Dart messages, then fails if any tracked
+      generated file changed.
+
+      A failure means a generated file was hand-edited, or a .proto changed without the output
+      being regenerated. Fix it by running `task generate:proto` and committing the result, never
+      by editing generated output.
+
+      WHAT IT CATCHES, EXACTLY — worth knowing, because the obvious mental model is wrong. This
+      gate REGENERATES FIRST and then diffs against HEAD, so it catches:
+
+        - a .proto changed without its generated output being regenerated and committed;
+        - a hand-edited generated file that reached a COMMIT.
+
+      It does NOT fail on an uncommitted hand-edit, because regeneration OVERWRITES it before the
+      diff runs. That is the gate doing its job rather than a hole in it — the edit is destroyed,
+      which is the outcome the rule wants — but it means "the gate catches hand-editing" is only
+      true at the point the edit would otherwise enter the repository. Both behaviours were run,
+      not assumed.
+
+      It also asserts the MIRROR-IMAGE property for the artifacts the tracking rule sends the
+      other way: generated localizations are built, not tracked (jZen ADR-009), so for those the
+      failure is being committed at all.
+
+      Gains generate:api (openapi.json + admin types) in Phase 2, when there is a resource to
+      document.
+    cmds:
+      - task: generate:proto
+      - task: generate:l10n
+      - task: sync:verify
+
+  generate:l10n:
+    desc: Generate the typed client localizations from the ARB files
+    summary: |
+      Delegated to jZen's app-agnostic implementation (ADR-046) — it discovers packages by
+      l10n.yaml and is not about jZen's own tree.
+
+      Prudent has no ARB files yet (they arrive in Phase 3), so this generates nothing today. It
+      is composed into sync:contracts now anyway, because the assertion that matters in the
+      meantime is the one in sync:verify: that no generated localization is ever TRACKED. That
+      guard has to be in place BEFORE the first ARB file lands, not after.
+    cmds:
+      - task: zen:generate:l10n
+
+  sync:verify:
+    desc: Fail if regeneration produced a dirty working tree, or tracked what must not be
+    internal: true
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        if ! git rev-parse --git-dir >/dev/null 2>&1; then
+          echo "Not a git repository, cannot verify contract sync." >&2; exit 1
+        fi
+        # Scoped to the .proto SOURCES and the tracked generated output, not to everything under
+        # proto/: this gate detects CONTRACT DRIFT, and proto/README.md is documentation beside the
+        # contract rather than part of it.
+        dirty=$(git status --porcelain -- '*.pb.dart' '*.pbjson.dart' '*.pbenum.dart' '*.pbserver.dart' 'proto/**/*.proto')
+        if [ -n "$dirty" ]; then
+          echo "Contracts are OUT OF SYNC. Regenerated output differs from what is committed:" >&2
+          echo "$dirty" >&2
+          echo >&2
+          echo "Run 'task generate:proto' and commit the result. Never edit generated output." >&2
+          exit 1
+        fi
+        echo "Contracts in sync."
+      - |
+        set -euo pipefail
+        tracked=$(git ls-files -- '*/l10n/generated/*')
+        if [ -n "$tracked" ]; then
+          echo "Generated localizations are TRACKED, and must not be (jZen ADR-009):" >&2
+          echo "$tracked" >&2
+          echo >&2
+          echo "Run 'git rm --cached' on them; they are produced by 'task generate:l10n'." >&2
+          exit 1
+        fi
+        echo "Generated localizations correctly untracked."
+
+# NO `sources:`/`generates:` FINGERPRINTING ON ANY TASK ABOVE, and this is the subtle one.
+#
+# go-task can skip a task whose inputs have not changed. On a codegen task that a gate composes,
+# that is a defect rather than an optimisation: the skipped regeneration leaves the working tree
+# clean, sync:verify then finds nothing dirty, and the gate reports "Contracts in sync." WITHOUT
+# HAVING REGENERATED ANYTHING — which is precisely the drift it exists to catch. Regeneration is
+# cheap; a gate that passes vacuously is not.

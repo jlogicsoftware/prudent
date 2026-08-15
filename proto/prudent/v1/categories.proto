@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// Prudent's spending categories. CANONICAL SOURCE OF TRUTH for the model: the Java DTOs and
+// the Dart messages are GENERATED from this file and are never hand-edited. Change this file
+// and run `task sync:contracts`.
+//
+// NO ENVELOPE, NO GENERIC PAYLOAD. Every endpoint declares its own request and response
+// message. HTTP status carries the status, the X-Request-ID header carries the request id,
+// and errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto.
+// That message is NOT imported here — see proto/README.md, which records why importing it
+// works on the Java side and breaks on the Dart side.
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+// The outer class holds only the descriptor (java_multiple_files puts each message in its own
+// file). Named explicitly rather than defaulted from the filename, matching the framework's
+// convention, so the descriptor holder can never collide with a message name added later.
+option java_outer_classname = "CategoriesProto";
+
+// A spending category, as the server holds it.
+message Category {
+  // Server-minted UUID. A create request carries no id: an id chosen by an untrusted client
+  // is not identity.
+  string id = 1;
+
+  string title = 2;
+
+  // A STABLE KEY, NEVER AN ICON CODE POINT, and this is load-bearing rather than stylistic.
+  // Flutter's --tree-shake-icons only works when every IconData constant is statically known,
+  // and `IconData(codePointFromServer)` defeats it — the whole Material icon font then ships
+  // in every bundle on every platform. So the wire carries a key ("work", "leisure", "food",
+  // "restaurant", "medicine"), the client holds a `const Map<String, IconData>` of exactly the
+  // icons it ships, and the server validates the key against a known set.
+  //
+  // An unknown key renders a documented fallback icon rather than throwing: a category created
+  // by a newer client must not break an older one.
+  string icon_key = 3;
+
+  // Free text. Unlike Account's dropped description field this one is real — the category form
+  // sets it today.
+  string description = 4;
+
+  // A colour is a VALUE, and ARGB is its portable form. Carried as an unsigned 32-bit integer
+  // (0xAARRGGBB) so it survives a user picking a colour outside today's ten-swatch palette;
+  // `dart:ui`'s Color cannot appear in a .proto and stays at the client's widget boundary,
+  // where Color(color_argb) is the only conversion.
+  uint32 color_argb = 5;
+}
+
+// POST /api/v1/categories
+message CreateCategoryRequest {
+  string title = 1;
+  string icon_key = 2;
+  string description = 3;
+  uint32 color_argb = 4;
+}
+
+// PUT /api/v1/categories/{id} — A FULL REPLACEMENT, not a patch.
+//
+// Every mutable field is present and every one is applied, so a field the client omits is
+// written as its proto3 default. This is deliberate: plain proto3 scalars have no presence, so
+// an absent field and an explicitly-sent default are indistinguishable on the wire, and a
+// partial-update message would silently write `false` and `0` for anything the client forgot.
+// Replacement makes the semantics readable from the message alone. (There is no PATCH surface;
+// if one is ever wanted it gets `optional` fields and its own message, not a reinterpretation
+// of this one.)
+message UpdateCategoryRequest {
+  // No id field: the id is in the path, and two places to say which row is being written is
+  // one place to disagree.
+  string title = 1;
+  string icon_key = 2;
+  string description = 3;
+  uint32 color_argb = 4;
+}
+
+// GET /api/v1/categories — every category owned by the authenticated user.
+//
+// NO user_id FIELD ANYWHERE IN THIS FILE, in either direction. Ownership is the JWT `sub`,
+// resolved server-side. A client that can name an owner can name someone else's.
+message ListCategoriesResponse {
+  repeated Category categories = 1;
+}
+
+// DELETE /api/v1/categories/{id} carries no request body and answers 204 with no body, so it
+// declares no messages. Named here so its absence reads as a decision rather than an omission.

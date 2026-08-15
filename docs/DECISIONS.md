@@ -398,3 +398,171 @@ is documentation, not a constraint.
 After changing the Gradle distribution, kill the daemon — one started under the old distribution
 survives a wrapper change and keeps serving the old Gradle, so the first build after the upgrade
 fails exactly as it did before it.
+
+---
+
+## ADR-006 — The wire contract: what crosses it, and which side of the tracking rule each generated artifact falls on
+
+**Date:** 2026-08-15. **Status:** accepted.
+
+### Context
+
+Prudent's models existed only as Dart classes holding Flutter types: `double` money, an `IconData`
+icon, a `Color` colour, and client-minted uuids. None of that can cross a wire, and jZen's
+contract-first rule (`../jZen/docs/architecture/STANDARDS.md`, "Source of truth") makes `.proto`
+canonical for models with every other language derived from it.
+
+This entry records the shape that was settled and, for each representation, the defect the
+alternative would have introduced. It also settles the question a contract phase cannot leave
+open: which generated output is committed and which is built.
+
+### Decision — the contract
+
+`proto/prudent/v1/{records,accounts,categories}.proto`, package **`prudent.v1`**, Java package
+**`prudent.proto.v1`**, `java_multiple_files = true`, and an explicit `java_outer_classname`
+(`RecordsProto`, …) rather than one defaulted from the filename. The directory mirrors the proto
+package the way `../jZen/proto/zen/v1/` mirrors `zen.v1`. **`v1` is the API version and is
+independent of the product version.**
+
+**Every endpoint declares its own request and response message.** There is no envelope and no
+generic payload: HTTP status carries the status, `X-Request-ID` carries the request id, and errors
+are a `zen.v1.ZenError` body. Messages are named for the Phase 2 REST surface they serve
+(`CreateRecordRequest`, `Record`, `ListRecordsResponse`, …).
+
+| Concern | The contract carries | The defect the alternative has |
+|---|---|---|
+| Money | `int64 amount_minor` / `balance_minor` + `string currency` (ISO-4217) | binary floating point cannot represent 0.10, and an expense tracker sums thousands of values. Note proto3 JSON encodes `int64` **as a string**; both clients handle that, and the round-trip suite pins it |
+| Category colour | `uint32 color_argb` | a colour is a value and ARGB is its portable form; it survives a user picking outside today's ten swatches. `dart:ui`'s `Color` stays at the widget boundary |
+| Category icon | `string icon_key`, **never a code point** | `IconData(codePoint)` built from data defeats `--tree-shake-icons`, shipping the whole Material font in every bundle. The client holds a `const Map<String, IconData>`; an unknown key renders a documented fallback rather than throwing |
+| Record date | `string date`, ISO-8601 `YYYY-MM-DD` | a purchase happens on a calendar day. An epoch timestamp forces every reader to pick a timezone, and at a DST boundary a record shifts a day — at a month edge, into the wrong month, which is a wrong total |
+| Identity | ids are server-minted; a create request carries **no id** | an id from an untrusted client is not identity |
+| Ownership | **`user_id` never appears on the wire, in either direction** | it is the JWT `sub`. A client that can name an owner can name someone else's |
+| Account type | `ACCOUNT_TYPE_UNSPECIFIED = 0` first, then `CASH/CARD/CHECKING/SAVINGS` | proto3 requires a zero value and decodes every omission to it; a default meaning "cash" is a silent data defect, because cash is a valid answer |
+
+Four questions the plan left open are closed here:
+
+- **A `Record` carries a required `account_id`** (plan §5.1). Records and accounts were previously
+  unconnected, which is why `totalBalance()` never moved when money was spent. An optional link
+  would make every later piece of arithmetic branch on its absence, forever.
+- **The default currency is `PLN`, and an account's and a record's currency cannot disagree**
+  (plan §5.2, no FX). Not by validation but **by construction**: `CreateRecordRequest` and
+  `UpdateRecordRequest` carry no currency field at all, and the server copies the owning account's
+  onto the `Record` response so a list renders without loading accounts. `Account.currency` is also
+  not replaceable by `UpdateAccountRequest` — changing it would reinterpret every existing record's
+  amount without converting it, turning 100 PLN into 100 EUR silently.
+- **All four `Account` booleans are kept; `Account.description` is dropped.** `is_active` and
+  `include_in_total` are already read by `totalBalance()`; `include_in_overview` and
+  `include_in_total` are both named by the overview arithmetic; `is_default` pairs with the new
+  required `account_id` as the pre-selected account. `description` was an always-null field nothing
+  could set and nothing rendered — carrying it would commit a decision nobody has made. Field
+  number 10 is left for it. (`Category.description` stays: the category form sets it today.)
+- **Updates are FULL REPLACEMENTS, not patches.** A `PUT` carries every mutable field and every one
+  is applied. Plain proto3 scalars have no presence, so an absent field and an explicitly-sent
+  default are byte-identical on the wire — which matters most for the four `Account` booleans,
+  where a partial-update message would silently write `false` for anything the client forgot.
+  Replacement makes the semantics readable from the message alone. A `PATCH` surface, if ever
+  wanted, gets `optional` fields and its own messages rather than a reinterpretation of these.
+
+**`analytics.proto` is deliberately not written.** Analytics is new product work with no endpoint
+and no agreed arithmetic behind it; a message written before either exists is a guess committed to
+a contract, and a contract is the one place a guess is expensive to withdraw. This narrows the
+plan's Phase 1 file list (`docs/prudent-migration-plan.md` §4, "Phase 1 — The contract"), which
+named `analytics.proto` alongside the other three.
+
+### Decision — the tracking rule, and why the two sides differ
+
+| Side | Output | Tracked? |
+|---|---|---|
+| Java | `server/target/generated-sources/protobuf/` | **No** |
+| Dart | `client/lib/src/generated/prudent/v1/*.pb*.dart` | **Yes** |
+
+This is a **toolchain-boundary** question, not a preference. `protobuf-maven-plugin` resolves the
+`protoc` binary from Maven Central itself, so anyone with the Maven wrapper regenerates the Java
+side hermetically and committing it would only add a second copy to keep honest. The Dart side
+needs a **system `protoc`** plus **`protoc-gen-dart`** — tools a Flutter developer has no other
+reason to install — so the output is committed, `.gitattributes` marks it `linguist-generated`, and
+`flutter test` and `flutter build` keep working for someone who has neither.
+
+Either way, **a tracked generated file is never hand-edited.** Fix the `.proto` and regenerate.
+
+### Framework messages are referenced, not imported — measured, not assumed
+
+`ZenError` and `PageRequest` live in `../jZen/proto/zen/v1/common.proto` and are **never copied
+here**. Prudent's files reference them in comments and **import nothing** — which is what jZen's
+own protos do: not one of `admin.proto`, `demo.proto`, `identity.proto` or `jobs.proto` imports
+`common.proto` either. `ZenError` is an error *body*, returned in place of a response rather than
+embedded in one, and `PageRequest`'s fields are query parameters on a `GET`.
+
+Both halves of a cross-repository import were nevertheless **run** before this was settled, against
+a throwaway proto importing `zen/v1/common.proto` with `-I proto -I ../jZen/proto`:
+
+- **Java — clean.** `--java_out` emitted only Prudent's classes; `zen.v1` resolves from the
+  `zen-proto` jar already on the classpath. Nothing is generated twice.
+- **Dart — broken.** `--dart_out` emitted `import '../../zen/v1/common.pb.dart'`, a **relative**
+  path resolving to a file that does not exist in Prudent's tree. `protoc_plugin` has no
+  package-mapping option, so the only way to satisfy it is to generate the framework's messages
+  into Prudent's tree — producing a **second `ZenError` type** beside the one
+  `package:zen_transport` exports. Two Dart classes from one message are not assignable, so the
+  transport's decoded error and the app's would be different types that look identical. That is
+  worse than the missing file, because it compiles.
+
+**Recorded as a jZen-side finding, not worked around** (it extends the plan's §3.7 finding 1). The
+fix belongs in jZen: either its published Dart package maps generated imports to `package:` URIs,
+or the framework states that application protos must not import `zen.v1`. Nothing is blocked here,
+because Prudent's contract needs no import.
+
+### The generate/verify loop is Prudent's own
+
+jZen's contract tasks are hardcoded to its own tree — `generate:proto:dart` writes into
+`client/zen_transport/lib/src/generated` and `sync:verify` globs `proto/zen/v1` — so
+`Taskfile.app.yml` does not carry them and Prudent cannot include them. `Taskfile.yml` gains
+`generate:proto:{java,dart}`, `generate:l10n`, `sync:contracts` and `sync:verify` of its own.
+
+Two properties of that loop are load-bearing and easy to lose:
+
+- **No task a gate composes is fingerprinted with `sources:`/`generates:`.** A skipped regeneration
+  leaves a clean working tree, `sync:verify` then finds nothing dirty, and the gate reports
+  "Contracts in sync." **without having regenerated anything** — precisely the drift it exists to
+  catch. Regeneration is cheap; a gate that passes vacuously is not.
+- **`generate:proto:dart` fails, rather than skipping, on an empty contract directory.** jZen's
+  equivalent prints "No .proto files yet, skipping" and exits 0, which was right for a framework
+  shipping an empty `proto/` skeleton. For Prudent an empty contract directory is a broken
+  checkout.
+
+**The OpenAPI half arrives in Phase 2, and its absence now is sequencing rather than an omission.**
+`openapi.json` is emitted by SmallRye from annotated resources, and Prudent has none yet — a
+`generate:api` task today would package a backend with no routes, write a document describing
+nothing, and report success.
+
+### Consequence
+
+- `task sync:contracts` reports "Contracts in sync." and "Generated localizations correctly
+  untracked." The localization half is a **guard before the fact**: there are no ARB files until
+  Phase 3, and the assertion that none of their output is ever tracked has to be in place before
+  the first one lands, not after.
+- `task zen:test:client` is green: 14 tests in `client/test/contract/wire_round_trip_test.dart`,
+  the repository's first. Every domain message round-trips through **both** `ZenTransportFormat`
+  modes over the real `ZenProtoCodec` — the two are different code paths (binary uses generated
+  descriptors, canonical proto3 JSON resolves accessors reflectively), and jZen's own history
+  records a revision that served Protobuf perfectly and 500'd on every JSON response. The suite
+  also asserts the two modes agree with **each other**, that money is exact where `0.1 + 0.2 != 0.3`
+  is not, and that an amount beyond a double's exact integer range survives.
+- **The gate was demonstrated failing**, not merely asserted — and the demonstration corrected the
+  mental model, which is the reason for running it. `sync:contracts` **regenerates first and then
+  diffs against `HEAD`**, so an uncommitted hand-edit to a `.pb.dart` does **not** fail the gate:
+  regeneration overwrites the edit before the diff runs, and the tree comes back clean. That is the
+  gate doing its job rather than a hole in it, but "the gate catches hand-editing" is only true at
+  the point the edit would enter the repository. The two failures that do fire were both run and
+  then reverted: a `.proto` changed without its output regenerated (fails naming all three files),
+  and a hand-edited `.pb.dart` that reached a **commit** (fails naming that file). The distinction
+  is written into `Taskfile.yml`'s `sync:verify` summary, where someone debugging a passing gate
+  will look.
+- `client/pubspec.yaml` gains `protobuf`, `fixnum` and a `path:` dependency on `zen_transport`. The
+  transport is present for one reason — the round-trip suite has to exercise the real codec rather
+  than a local reimplementation of it. `ZenClient` itself arrives in Phase 3.
+- **Phase 2 inherits these as constraints**, not as suggestions: entities store `BIGINT` +
+  `CHAR(3)` and a `DATE`; `PUT` handlers replace rather than merge; the server mints ids, resolves
+  ownership from the JWT `sub` and never accepts a `user_id`; it validates `icon_key` against a
+  known set, rejects `ACCOUNT_TYPE_UNSPECIFIED`, rejects an `account_id` that is not the caller's,
+  and copies the account's currency onto every record rather than accepting one; and
+  `sync:contracts` grows its OpenAPI half with the first resource.
