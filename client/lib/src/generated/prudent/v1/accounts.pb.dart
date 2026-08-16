@@ -21,29 +21,110 @@ export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
 export 'accounts.pbenum.dart';
 
+/// One currency an account holds, and how much of it.
+///
+/// MONEY IS AN INTEGER COUNT OF MINOR UNITS — 1234 is 12.34 PLN — never a float. Binary floating
+/// point cannot represent 0.10, and an expense tracker sums thousands of values; a balance wrong by
+/// cents is wrong. int64 minor units are exact under addition and need no decimal library on either
+/// stack.
+///
+/// NOTE FOR BOTH CLIENTS: canonical proto3 JSON encodes int64 AS A STRING ("1234"), while Protobuf
+/// binary carries it as a number. The two transport modes therefore differ on the wire and must
+/// agree after decoding — which is what the round-trip suite asserts.
+class CurrencyBalance extends $pb.GeneratedMessage {
+  factory CurrencyBalance({
+    $core.String? currency,
+    $fixnum.Int64? amountMinor,
+  }) {
+    final result = create();
+    if (currency != null) result.currency = currency;
+    if (amountMinor != null) result.amountMinor = amountMinor;
+    return result;
+  }
+
+  CurrencyBalance._();
+
+  factory CurrencyBalance.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CurrencyBalance.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CurrencyBalance',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'currency')
+    ..aInt64(2, _omitFieldNames ? '' : 'amountMinor')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CurrencyBalance clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CurrencyBalance copyWith(void Function(CurrencyBalance) updates) =>
+      super.copyWith((message) => updates(message as CurrencyBalance))
+          as CurrencyBalance;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CurrencyBalance create() => CurrencyBalance._();
+  @$core.override
+  CurrencyBalance createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CurrencyBalance getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CurrencyBalance>(create);
+  static CurrencyBalance? _defaultInstance;
+
+  /// ISO-4217 alphabetic code, validated server-side.
+  @$pb.TagNumber(1)
+  $core.String get currency => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set currency($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCurrency() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCurrency() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get amountMinor => $_getI64(1);
+  @$pb.TagNumber(2)
+  set amountMinor($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasAmountMinor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearAmountMinor() => $_clearField(2);
+}
+
 /// An account, as the server holds it.
+///
+/// AN ACCOUNT HOLDS SEVERAL CURRENCIES AT ONCE, each with its own balance — the shape a
+/// multi-currency account actually has, rather than one currency per account with a separate
+/// account per currency. There is still NO FX: the balances are independent, nothing converts
+/// between them, and a total is per-currency. Summing across currencies is refused, not done at
+/// some rate nobody chose.
 class Account extends $pb.GeneratedMessage {
   factory Account({
     $core.String? id,
     $core.String? name,
     AccountType? type,
-    $fixnum.Int64? balanceMinor,
-    $core.String? currency,
     $core.bool? isDefault,
     $core.bool? isActive,
     $core.bool? includeInTotal,
     $core.bool? includeInOverview,
+    $core.Iterable<CurrencyBalance>? balances,
   }) {
     final result = create();
     if (id != null) result.id = id;
     if (name != null) result.name = name;
     if (type != null) result.type = type;
-    if (balanceMinor != null) result.balanceMinor = balanceMinor;
-    if (currency != null) result.currency = currency;
     if (isDefault != null) result.isDefault = isDefault;
     if (isActive != null) result.isActive = isActive;
     if (includeInTotal != null) result.includeInTotal = includeInTotal;
     if (includeInOverview != null) result.includeInOverview = includeInOverview;
+    if (balances != null) result.balances.addAll(balances);
     return result;
   }
 
@@ -64,12 +145,12 @@ class Account extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'name')
     ..aE<AccountType>(3, _omitFieldNames ? '' : 'type',
         enumValues: AccountType.values)
-    ..aInt64(4, _omitFieldNames ? '' : 'balanceMinor')
-    ..aOS(5, _omitFieldNames ? '' : 'currency')
     ..aOB(6, _omitFieldNames ? '' : 'isDefault')
     ..aOB(7, _omitFieldNames ? '' : 'isActive')
     ..aOB(8, _omitFieldNames ? '' : 'includeInTotal')
     ..aOB(9, _omitFieldNames ? '' : 'includeInOverview')
+    ..pPM<CurrencyBalance>(10, _omitFieldNames ? '' : 'balances',
+        subBuilder: CurrencyBalance.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -118,80 +199,63 @@ class Account extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   void clearType() => $_clearField(3);
 
-  /// MONEY IS AN INTEGER COUNT OF MINOR UNITS — 1234 is 12.34 PLN — never a float.
-  /// Binary floating point cannot represent 0.10, and an expense tracker sums thousands of
-  /// values; a balance wrong by cents is wrong. int64 minor units are exact under addition and
-  /// need no decimal library on either stack.
-  ///
-  /// NOTE FOR BOTH CLIENTS: canonical proto3 JSON encodes int64 AS A STRING ("1234"), while
-  /// Protobuf binary carries it as a number. The two transport modes therefore differ on the
-  /// wire and must agree after decoding — which is what the round-trip suite asserts.
-  @$pb.TagNumber(4)
-  $fixnum.Int64 get balanceMinor => $_getI64(3);
-  @$pb.TagNumber(4)
-  set balanceMinor($fixnum.Int64 value) => $_setInt64(3, value);
-  @$pb.TagNumber(4)
-  $core.bool hasBalanceMinor() => $_has(3);
-  @$pb.TagNumber(4)
-  void clearBalanceMinor() => $_clearField(4);
-
-  /// ISO-4217 alphabetic code, validated server-side. Prudent's default is PLN.
-  ///
-  /// This is the ONLY place a currency is chosen. A record inherits its account's currency and
-  /// cannot contradict it (see records.proto), so there is no FX arithmetic and no rate source:
-  /// totals are per-currency, and summing across currencies is refused rather than done
-  /// silently.
-  @$pb.TagNumber(5)
-  $core.String get currency => $_getSZ(4);
-  @$pb.TagNumber(5)
-  set currency($core.String value) => $_setString(4, value);
-  @$pb.TagNumber(5)
-  $core.bool hasCurrency() => $_has(4);
-  @$pb.TagNumber(5)
-  void clearCurrency() => $_clearField(5);
-
   /// The account offered first when creating a record. Exactly one per user is true; the server
   /// clears the flag on the previous holder rather than trusting the client to.
   @$pb.TagNumber(6)
-  $core.bool get isDefault => $_getBF(5);
+  $core.bool get isDefault => $_getBF(3);
   @$pb.TagNumber(6)
-  set isDefault($core.bool value) => $_setBool(5, value);
+  set isDefault($core.bool value) => $_setBool(3, value);
   @$pb.TagNumber(6)
-  $core.bool hasIsDefault() => $_has(5);
+  $core.bool hasIsDefault() => $_has(3);
   @$pb.TagNumber(6)
   void clearIsDefault() => $_clearField(6);
 
   /// Whether the account is in use. An inactive account is kept for its history rather than
   /// deleted.
   @$pb.TagNumber(7)
-  $core.bool get isActive => $_getBF(6);
+  $core.bool get isActive => $_getBF(4);
   @$pb.TagNumber(7)
-  set isActive($core.bool value) => $_setBool(6, value);
+  set isActive($core.bool value) => $_setBool(4, value);
   @$pb.TagNumber(7)
-  $core.bool hasIsActive() => $_has(6);
+  $core.bool hasIsActive() => $_has(4);
   @$pb.TagNumber(7)
   void clearIsActive() => $_clearField(7);
 
   /// Whether this account counts toward the total balance...
   @$pb.TagNumber(8)
-  $core.bool get includeInTotal => $_getBF(7);
+  $core.bool get includeInTotal => $_getBF(5);
   @$pb.TagNumber(8)
-  set includeInTotal($core.bool value) => $_setBool(7, value);
+  set includeInTotal($core.bool value) => $_setBool(5, value);
   @$pb.TagNumber(8)
-  $core.bool hasIncludeInTotal() => $_has(7);
+  $core.bool hasIncludeInTotal() => $_has(5);
   @$pb.TagNumber(8)
   void clearIncludeInTotal() => $_clearField(8);
 
   /// ...and whether it appears on the overview. Two flags, not one: a savings account a user
   /// wants visible but excluded from spendable funds needs them to differ.
   @$pb.TagNumber(9)
-  $core.bool get includeInOverview => $_getBF(8);
+  $core.bool get includeInOverview => $_getBF(6);
   @$pb.TagNumber(9)
-  set includeInOverview($core.bool value) => $_setBool(8, value);
+  set includeInOverview($core.bool value) => $_setBool(6, value);
   @$pb.TagNumber(9)
-  $core.bool hasIncludeInOverview() => $_has(8);
+  $core.bool hasIncludeInOverview() => $_has(6);
   @$pb.TagNumber(9)
   void clearIncludeInOverview() => $_clearField(9);
+
+  /// THE CURRENCIES THIS ACCOUNT HOLDS, one entry each. Never empty — an account that holds no
+  /// currency cannot receive a record, and the server rejects an empty list rather than creating
+  /// one that nothing can be spent from.
+  ///
+  /// The set is DECLARED, not inferred from whatever records happen to arrive. That is what lets
+  /// the server reject a record in a currency the account does not hold, instead of silently
+  /// opening a new balance because someone mistyped a code.
+  ///
+  /// At most one entry per currency; the server rejects duplicates. A repeated message is used
+  /// rather than a map<string, int64> because a map's ordering is undefined and its proto3 JSON
+  /// form differs more sharply between the two transport modes — and because a balance is likely
+  /// to grow fields (an as-of date, a hidden flag) that a bare int64 has nowhere to put.
+  @$pb.TagNumber(10)
+  $pb.PbList<CurrencyBalance> get balances => $_getList(7);
 }
 
 /// POST /api/v1/accounts
@@ -199,22 +263,20 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
   factory CreateAccountRequest({
     $core.String? name,
     AccountType? type,
-    $fixnum.Int64? balanceMinor,
-    $core.String? currency,
     $core.bool? isDefault,
     $core.bool? isActive,
     $core.bool? includeInTotal,
     $core.bool? includeInOverview,
+    $core.Iterable<CurrencyBalance>? balances,
   }) {
     final result = create();
     if (name != null) result.name = name;
     if (type != null) result.type = type;
-    if (balanceMinor != null) result.balanceMinor = balanceMinor;
-    if (currency != null) result.currency = currency;
     if (isDefault != null) result.isDefault = isDefault;
     if (isActive != null) result.isActive = isActive;
     if (includeInTotal != null) result.includeInTotal = includeInTotal;
     if (includeInOverview != null) result.includeInOverview = includeInOverview;
+    if (balances != null) result.balances.addAll(balances);
     return result;
   }
 
@@ -234,12 +296,12 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'name')
     ..aE<AccountType>(2, _omitFieldNames ? '' : 'type',
         enumValues: AccountType.values)
-    ..aInt64(3, _omitFieldNames ? '' : 'balanceMinor')
-    ..aOS(4, _omitFieldNames ? '' : 'currency')
     ..aOB(5, _omitFieldNames ? '' : 'isDefault')
     ..aOB(6, _omitFieldNames ? '' : 'isActive')
     ..aOB(7, _omitFieldNames ? '' : 'includeInTotal')
     ..aOB(8, _omitFieldNames ? '' : 'includeInOverview')
+    ..pPM<CurrencyBalance>(9, _omitFieldNames ? '' : 'balances',
+        subBuilder: CurrencyBalance.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -279,60 +341,46 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearType() => $_clearField(2);
 
-  /// The opening balance. Every later change to it is an act of the records, not of this field.
-  @$pb.TagNumber(3)
-  $fixnum.Int64 get balanceMinor => $_getI64(2);
-  @$pb.TagNumber(3)
-  set balanceMinor($fixnum.Int64 value) => $_setInt64(2, value);
-  @$pb.TagNumber(3)
-  $core.bool hasBalanceMinor() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearBalanceMinor() => $_clearField(3);
-
-  @$pb.TagNumber(4)
-  $core.String get currency => $_getSZ(3);
-  @$pb.TagNumber(4)
-  set currency($core.String value) => $_setString(3, value);
-  @$pb.TagNumber(4)
-  $core.bool hasCurrency() => $_has(3);
-  @$pb.TagNumber(4)
-  void clearCurrency() => $_clearField(4);
-
   @$pb.TagNumber(5)
-  $core.bool get isDefault => $_getBF(4);
+  $core.bool get isDefault => $_getBF(2);
   @$pb.TagNumber(5)
-  set isDefault($core.bool value) => $_setBool(4, value);
+  set isDefault($core.bool value) => $_setBool(2, value);
   @$pb.TagNumber(5)
-  $core.bool hasIsDefault() => $_has(4);
+  $core.bool hasIsDefault() => $_has(2);
   @$pb.TagNumber(5)
   void clearIsDefault() => $_clearField(5);
 
   @$pb.TagNumber(6)
-  $core.bool get isActive => $_getBF(5);
+  $core.bool get isActive => $_getBF(3);
   @$pb.TagNumber(6)
-  set isActive($core.bool value) => $_setBool(5, value);
+  set isActive($core.bool value) => $_setBool(3, value);
   @$pb.TagNumber(6)
-  $core.bool hasIsActive() => $_has(5);
+  $core.bool hasIsActive() => $_has(3);
   @$pb.TagNumber(6)
   void clearIsActive() => $_clearField(6);
 
   @$pb.TagNumber(7)
-  $core.bool get includeInTotal => $_getBF(6);
+  $core.bool get includeInTotal => $_getBF(4);
   @$pb.TagNumber(7)
-  set includeInTotal($core.bool value) => $_setBool(6, value);
+  set includeInTotal($core.bool value) => $_setBool(4, value);
   @$pb.TagNumber(7)
-  $core.bool hasIncludeInTotal() => $_has(6);
+  $core.bool hasIncludeInTotal() => $_has(4);
   @$pb.TagNumber(7)
   void clearIncludeInTotal() => $_clearField(7);
 
   @$pb.TagNumber(8)
-  $core.bool get includeInOverview => $_getBF(7);
+  $core.bool get includeInOverview => $_getBF(5);
   @$pb.TagNumber(8)
-  set includeInOverview($core.bool value) => $_setBool(7, value);
+  set includeInOverview($core.bool value) => $_setBool(5, value);
   @$pb.TagNumber(8)
-  $core.bool hasIncludeInOverview() => $_has(7);
+  $core.bool hasIncludeInOverview() => $_has(5);
   @$pb.TagNumber(8)
   void clearIncludeInOverview() => $_clearField(8);
+
+  /// The currencies the account opens with, and their opening balances. REQUIRED and non-empty.
+  /// Every later change to an amount is an act of the records, not of this field.
+  @$pb.TagNumber(9)
+  $pb.PbList<CurrencyBalance> get balances => $_getList(6);
 }
 
 /// PUT /api/v1/accounts/{id} — a FULL REPLACEMENT, for the presence reason set out in
@@ -342,28 +390,24 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
 /// have no presence, so a client sending `include_in_total = false` and a client that never
 /// touched the field produce byte-identical requests. Replacement makes them mean the same
 /// thing on purpose, instead of leaving the server to guess which one it received.
-///
-/// `currency` is deliberately NOT replaceable here: changing an account's currency would
-/// reinterpret every existing record's amount without converting it, silently turning 100 PLN
-/// into 100 EUR. It is fixed at creation.
 class UpdateAccountRequest extends $pb.GeneratedMessage {
   factory UpdateAccountRequest({
     $core.String? name,
     AccountType? type,
-    $fixnum.Int64? balanceMinor,
     $core.bool? isDefault,
     $core.bool? isActive,
     $core.bool? includeInTotal,
     $core.bool? includeInOverview,
+    $core.Iterable<CurrencyBalance>? balances,
   }) {
     final result = create();
     if (name != null) result.name = name;
     if (type != null) result.type = type;
-    if (balanceMinor != null) result.balanceMinor = balanceMinor;
     if (isDefault != null) result.isDefault = isDefault;
     if (isActive != null) result.isActive = isActive;
     if (includeInTotal != null) result.includeInTotal = includeInTotal;
     if (includeInOverview != null) result.includeInOverview = includeInOverview;
+    if (balances != null) result.balances.addAll(balances);
     return result;
   }
 
@@ -383,11 +427,12 @@ class UpdateAccountRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'name')
     ..aE<AccountType>(2, _omitFieldNames ? '' : 'type',
         enumValues: AccountType.values)
-    ..aInt64(3, _omitFieldNames ? '' : 'balanceMinor')
     ..aOB(4, _omitFieldNames ? '' : 'isDefault')
     ..aOB(5, _omitFieldNames ? '' : 'isActive')
     ..aOB(6, _omitFieldNames ? '' : 'includeInTotal')
     ..aOB(7, _omitFieldNames ? '' : 'includeInOverview')
+    ..pPM<CurrencyBalance>(8, _omitFieldNames ? '' : 'balances',
+        subBuilder: CurrencyBalance.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -427,50 +472,57 @@ class UpdateAccountRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearType() => $_clearField(2);
 
-  @$pb.TagNumber(3)
-  $fixnum.Int64 get balanceMinor => $_getI64(2);
-  @$pb.TagNumber(3)
-  set balanceMinor($fixnum.Int64 value) => $_setInt64(2, value);
-  @$pb.TagNumber(3)
-  $core.bool hasBalanceMinor() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearBalanceMinor() => $_clearField(3);
-
   @$pb.TagNumber(4)
-  $core.bool get isDefault => $_getBF(3);
+  $core.bool get isDefault => $_getBF(2);
   @$pb.TagNumber(4)
-  set isDefault($core.bool value) => $_setBool(3, value);
+  set isDefault($core.bool value) => $_setBool(2, value);
   @$pb.TagNumber(4)
-  $core.bool hasIsDefault() => $_has(3);
+  $core.bool hasIsDefault() => $_has(2);
   @$pb.TagNumber(4)
   void clearIsDefault() => $_clearField(4);
 
   @$pb.TagNumber(5)
-  $core.bool get isActive => $_getBF(4);
+  $core.bool get isActive => $_getBF(3);
   @$pb.TagNumber(5)
-  set isActive($core.bool value) => $_setBool(4, value);
+  set isActive($core.bool value) => $_setBool(3, value);
   @$pb.TagNumber(5)
-  $core.bool hasIsActive() => $_has(4);
+  $core.bool hasIsActive() => $_has(3);
   @$pb.TagNumber(5)
   void clearIsActive() => $_clearField(5);
 
   @$pb.TagNumber(6)
-  $core.bool get includeInTotal => $_getBF(5);
+  $core.bool get includeInTotal => $_getBF(4);
   @$pb.TagNumber(6)
-  set includeInTotal($core.bool value) => $_setBool(5, value);
+  set includeInTotal($core.bool value) => $_setBool(4, value);
   @$pb.TagNumber(6)
-  $core.bool hasIncludeInTotal() => $_has(5);
+  $core.bool hasIncludeInTotal() => $_has(4);
   @$pb.TagNumber(6)
   void clearIncludeInTotal() => $_clearField(6);
 
   @$pb.TagNumber(7)
-  $core.bool get includeInOverview => $_getBF(6);
+  $core.bool get includeInOverview => $_getBF(5);
   @$pb.TagNumber(7)
-  set includeInOverview($core.bool value) => $_setBool(6, value);
+  set includeInOverview($core.bool value) => $_setBool(5, value);
   @$pb.TagNumber(7)
-  $core.bool hasIncludeInOverview() => $_has(6);
+  $core.bool hasIncludeInOverview() => $_has(5);
   @$pb.TagNumber(7)
   void clearIncludeInOverview() => $_clearField(7);
+
+  /// The account's currencies after this update — a full replacement like every other field here,
+  /// so an entry the client omits is an entry it is asking to remove.
+  ///
+  /// TWO SERVER RULES THIS MESSAGE CANNOT EXPRESS, and both are refusals rather than best-effort
+  /// repairs:
+  ///
+  ///   1. A currency that still has records CANNOT be dropped. Removing it would orphan every
+  ///      record denominated in it — money that left an account that no longer admits it exists.
+  ///      The server refuses; the user deletes or re-denominates the records first.
+  ///   2. A currency CODE is never edited in place. There is no rename: dropping PLN and adding
+  ///      EUR in one request is two operations, and rule 1 catches the case where it would have
+  ///      silently reinterpreted 100 PLN as 100 EUR. Adding a new currency to an account is always
+  ///      allowed — that is the ordinary way an account becomes multi-currency after the fact.
+  @$pb.TagNumber(8)
+  $pb.PbList<CurrencyBalance> get balances => $_getList(6);
 }
 
 /// GET /api/v1/accounts — every account owned by the authenticated user.

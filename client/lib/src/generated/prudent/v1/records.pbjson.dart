@@ -45,6 +45,7 @@ const CreateRecordRequest$json = {
     {'1': 'date', '3': 3, '4': 1, '5': 9, '10': 'date'},
     {'1': 'category_id', '3': 4, '4': 1, '5': 9, '10': 'categoryId'},
     {'1': 'account_id', '3': 5, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'currency', '3': 6, '4': 1, '5': 9, '10': 'currency'},
   ],
 };
 
@@ -52,7 +53,8 @@ const CreateRecordRequest$json = {
 final $typed_data.Uint8List createRecordRequestDescriptor = $convert.base64Decode(
     'ChNDcmVhdGVSZWNvcmRSZXF1ZXN0EhQKBXRpdGxlGAEgASgJUgV0aXRsZRIhCgxhbW91bnRfbW'
     'lub3IYAiABKANSC2Ftb3VudE1pbm9yEhIKBGRhdGUYAyABKAlSBGRhdGUSHwoLY2F0ZWdvcnlf'
-    'aWQYBCABKAlSCmNhdGVnb3J5SWQSHQoKYWNjb3VudF9pZBgFIAEoCVIJYWNjb3VudElk');
+    'aWQYBCABKAlSCmNhdGVnb3J5SWQSHQoKYWNjb3VudF9pZBgFIAEoCVIJYWNjb3VudElkEhoKCG'
+    'N1cnJlbmN5GAYgASgJUghjdXJyZW5jeQ==');
 
 @$core.Deprecated('Use updateRecordRequestDescriptor instead')
 const UpdateRecordRequest$json = {
@@ -63,6 +65,7 @@ const UpdateRecordRequest$json = {
     {'1': 'date', '3': 3, '4': 1, '5': 9, '10': 'date'},
     {'1': 'category_id', '3': 4, '4': 1, '5': 9, '10': 'categoryId'},
     {'1': 'account_id', '3': 5, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'currency', '3': 6, '4': 1, '5': 9, '10': 'currency'},
   ],
 };
 
@@ -70,7 +73,8 @@ const UpdateRecordRequest$json = {
 final $typed_data.Uint8List updateRecordRequestDescriptor = $convert.base64Decode(
     'ChNVcGRhdGVSZWNvcmRSZXF1ZXN0EhQKBXRpdGxlGAEgASgJUgV0aXRsZRIhCgxhbW91bnRfbW'
     'lub3IYAiABKANSC2Ftb3VudE1pbm9yEhIKBGRhdGUYAyABKAlSBGRhdGUSHwoLY2F0ZWdvcnlf'
-    'aWQYBCABKAlSCmNhdGVnb3J5SWQSHQoKYWNjb3VudF9pZBgFIAEoCVIJYWNjb3VudElk');
+    'aWQYBCABKAlSCmNhdGVnb3J5SWQSHQoKYWNjb3VudF9pZBgFIAEoCVIJYWNjb3VudElkEhoKCG'
+    'N1cnJlbmN5GAYgASgJUghjdXJyZW5jeQ==');
 
 @$core.Deprecated('Use listRecordsResponseDescriptor instead')
 const ListRecordsResponse$json = {

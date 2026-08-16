@@ -647,3 +647,169 @@ arriving is not a reason to use it.
   makes it app-agnostic, on this same pattern — report, wait, delete the local copy, prove it green.
 - `docs/jzen/README.md` carries the findings table, with state (reported / fixed and consumed), so
   a later session does not re-report a fixed finding or re-fork a consumed one.
+
+---
+
+## ADR-008 — An account holds several currencies at once
+
+**Date:** 2026-08-16. **Status:** accepted. **Supersedes:** ADR-006's currency decision.
+
+### Context
+
+ADR-006 gave each account exactly one currency: `Account.balance_minor` + `Account.currency`, with
+a record **inheriting** its account's currency and no way to say otherwise. Multi-currency was
+possible only by holding several accounts, one per currency.
+
+That is not the product. A multi-currency account is one account holding balances in several
+currencies — the shape a real bank or fintech account has, and the shape a traveller with one card
+actually has. Discovered before Phase 2 built entities against the single-currency shape, which is
+the last moment it is cheap.
+
+### Decision
+
+**`Account` carries a list of balances, one per currency it holds.**
+
+```proto
+message CurrencyBalance {
+  string currency = 1;      // ISO-4217
+  int64  amount_minor = 2;
+}
+```
+
+- `Account.balances` (field 10) replaces `balance_minor` (4) and `currency` (5). The same swap
+  happens on `CreateAccountRequest` (balances at 9, retiring 3 and 4) and `UpdateAccountRequest`
+  (balances at 8, retiring 3).
+- **The retired numbers are `reserved`, not recycled**, in every one of the three messages. Nothing
+  has ever served this contract — no deployed server, no persisted row, no shipped client — so
+  recycling them would have been free. It was rejected anyway: `reserved` is what makes the
+  retirement visible in the file, and the discipline is worth more than two field numbers.
+- **The currency set is declared, not inferred.** `balances` is never empty, holds at most one
+  entry per currency, and the server rejects both violations. Declaring the set is what lets the
+  server reject a record in a currency the account does not hold, rather than silently opening a
+  new balance because someone mistyped a code.
+- **A repeated message, not `map<string, int64>`.** A map's ordering is undefined and its proto3
+  JSON form differs more sharply between the two transport modes; and a balance is likely to grow
+  fields — an as-of date, a hidden flag — that a bare `int64` has nowhere to put.
+- **Two refusals `UpdateAccountRequest` cannot express**, both server-side: a currency with records
+  cannot be dropped (it would orphan money that left an account no longer admitting it exists), and
+  a currency code is never edited in place (there is no rename; dropping PLN and adding EUR is two
+  operations, and the first rule catches the case where it would have reinterpreted 100 PLN as 100
+  EUR). **Adding** a currency is always allowed — that is how an account becomes multi-currency
+  after the fact.
+
+**`Record.currency` becomes client-supplied and required.** Field 4 keeps its number and type; only
+its meaning changes, so the wire shape is untouched. `CreateRecordRequest` and
+`UpdateRecordRequest` gain `currency` at field 6.
+
+### What this costs, stated rather than glossed
+
+ADR-006 made a record's currency **impossible to contradict** — not by a validation rule but by
+there being no field in which to say it. That was the stronger design and it is now gone: with
+several currencies in an account there is nothing to inherit, and only the record knows which
+balance it moved.
+
+What replaces it is a **refusal**: the server rejects a currency the owning account does not hold.
+That is a weaker guarantee — an enforced rule rather than an unsayable state — and it is the price
+of the feature. It is named here, and in `records.proto` beside the field, so Phase 2 implements it
+as a rule it knows it owns rather than discovering the gap.
+
+**Still no FX**, unchanged from ADR-006 and the plan's §5.2. The balances are independent; nothing
+converts between them; a total is per-currency, and summing across currencies is refused rather
+than done at a rate nobody chose. Multi-currency accounts make this *more* load-bearing, not less:
+one account can now show two numbers that must never be added.
+
+### Consequence
+
+- `task sync:contracts` green; `task zen:test:client` green at **20 tests**, up from 14. The new
+  ones assert what the reshape introduced: three currencies in one account round-trip in order (a
+  repeated field is a list, and the client renders the order the server sent); a **zero-amount**
+  pocket survives, since `amount_minor = 0` is the proto3 default and absent from both encodings,
+  so the entry rides on its currency alone; an **empty** balance list decodes as empty rather than
+  looking like a decode failure; two equal amounts in different currencies stay separate and are
+  never summed; and `CreateRecordRequest` names a currency while still having no `id` field to set.
+- **Phase 2 inherits two new rules**: reject an account with no balances, with a duplicate
+  currency, or dropping a currency that has records; and reject a record whose currency the owning
+  account does not hold — validated together with `account_id`, because moving a record between
+  accounts and changing its currency are one operation.
+- **Phase 3 inherits an open UI question this ADR deliberately does not answer**: which currency a
+  record form pre-selects. `is_default` marks a default *account*, and there is no
+  `primary_currency` on `Account` — adding one is a field number and an ADR when the screen that
+  needs it exists, not a guess made now.
+- The Postgres shape changes with it: a `prudent_account_balance` table keyed by
+  (account, currency), rather than `BIGINT` + `CHAR(3)` columns on the account row.
+
+---
+
+## ADR-009 — A main currency that labels, and never converts
+
+**Date:** 2026-08-16. **Status:** accepted. **Extends:** ADR-008.
+
+### Context
+
+With an account holding several currencies (ADR-008), the overview shows more than one number, and
+the obvious next question is whether Prudent shows a single total balance in one currency.
+
+That question hides two different features wearing one name:
+
+- a **label** — which currency a record form pre-selects, which per-currency total is shown first,
+  what an empty state names. No arithmetic.
+- a **conversion target** — one total across PLN, EUR and USD. This is **FX**, and it needs a rate
+  source, a base currency, and a rate **date** stored on every record, because a 2024 purchase
+  converted at today's rate is a wrong number that looks right. Under the one-server rule the rate
+  provider is reached through Prudent's own server, never from a client.
+
+### Decision
+
+**The label. `Settings.main_currency`, ISO-4217, and it is never used to convert or to sum.**
+
+A new `proto/prudent/v1/settings.proto` carries it, because Prudent's contract had nowhere to put a
+per-user preference — it was records, accounts and categories only.
+
+- **A singleton, not a collection.** One `Settings` per user, so there is no id, no create, no
+  delete and no list message: `GET /api/v1/settings`, `PUT /api/v1/settings`. The row is created on
+  first login, not by the client. **No `user_id` field** — on a singleton the token is the entire
+  addressing scheme, which is why the URL carries no id either.
+- **`PUT` responds with the resulting `Settings`**, not an empty body: the server may have
+  substituted a default, and a client that must re-read to learn what it just wrote is a round trip
+  the response could have saved.
+- **`main_currency` is not required to be a currency any of the user's accounts holds.** It is a
+  display preference; a user who picks PLN before opening their first account is a normal state,
+  not an inconsistency to reject.
+- **The empty string is given a meaning on each side rather than left ambiguous.** proto3 has no
+  presence for a string, so `""` and unset are the same bytes. On a **response** it never appears —
+  the server resolves the default before answering, so a `GET` always names a real currency. On a
+  **request** it means *reset to the default*, which is the full-replacement rule applied to a
+  one-field message.
+
+**Deriving it instead — "the default account's first balance" — was rejected.** It needs no new
+surface and no new field, and it breaks the moment a user reorders their balances or has no
+accounts yet. A preference that silently changes because a list was reordered is worse than a
+field.
+
+### Why not the conversion target
+
+FX is a product feature with a third-party dependency, and it was deferred rather than declined —
+the plan's §5.2 assumed no FX and ADR-006 and ADR-008 both hold to it. A single total computed at
+an unstated rate on an unstated date is precisely the class of plausible-wrong-number the int64
+minor-units type exists to prevent, and a budget app is the worst place to show one.
+
+**Nothing here forecloses it.** Records already carry a currency and a date, so if FX is added it
+arrives as its own ADR with its own fields — a rate and a rate date — rather than as a
+reinterpretation of `main_currency`. This entry is what makes that a deliberate later step instead
+of a meaning quietly attached to an existing field.
+
+### Consequence
+
+- `task sync:contracts` green; `task zen:test:client` green at **24 tests**, up from 20. The new
+  ones assert `Settings` round-trips in both formats and names an owner nowhere, and that an empty
+  `main_currency` survives the wire — without which neither side of the empty-string rule above
+  could be implemented.
+- **Phase 2 inherits** a fourth resource (`SettingsResource`, `@Authenticated`, `GET` + `PUT`), a
+  one-row-per-user table created on first login beside the seeded default categories, ISO-4217
+  validation, and the default-resolution rule so a `GET` never answers with an empty currency.
+- **Phase 3 inherits** the pre-selection question ADR-008 left open, now with an answer: a record
+  form defaults to `main_currency` when the chosen account holds it, and otherwise to that
+  account's first balance. `Account` still has no `primary_currency`, and does not need one.
+- **Phase 4's overview** shows per-currency totals with `main_currency` first. It does not show a
+  combined total, and the round-trip suite's "balances in different currencies stay separate, and
+  are never summed" is the test that fails if someone later adds one.

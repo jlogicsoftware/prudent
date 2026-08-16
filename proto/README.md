@@ -13,6 +13,12 @@ The directory mirrors the proto package the way `../jZen/proto/zen/v1/` mirrors 
 | `prudent/v1/records.proto` | `prudent.v1` | `prudent.proto.v1` |
 | `prudent/v1/accounts.proto` | `prudent.v1` | `prudent.proto.v1` |
 | `prudent/v1/categories.proto` | `prudent.v1` | `prudent.proto.v1` |
+| `prudent/v1/settings.proto` | `prudent.v1` | `prudent.proto.v1` |
+
+`settings.proto` is the odd one: a **singleton**, one row per user, with no id and no list message
+because the JWT is the entire addressing scheme. It carries `main_currency`, which is a **label and
+never a conversion target** — Prudent does no FX, totals stay per-currency, and ADR-009 records
+why.
 
 `analytics.proto` is **deliberately absent**. Analytics is new product work with no endpoint and
 no agreed arithmetic behind it yet; a message written before either exists is a guess committed
@@ -96,3 +102,11 @@ The capability is there the day one does.
 
 Field numbers are permanent. Adding a field is backward compatible; renumbering, retyping or
 reusing a retired number is not. A removed field's number is `reserved`, never recycled.
+
+`Account` and its request messages carry `reserved` entries already, from the change to
+multi-currency accounts (ADR-008): `balance_minor` and `currency` were one balance in one
+currency, and their numbers are retired rather than reused. **Nothing has ever served this
+contract** — there is no deployed server, no persisted row and no shipped client — so those numbers
+could technically have been recycled for free. They were not, because the discipline is worth more
+than the two field numbers: `reserved` is what makes the retirement visible in the file, and the
+moment Phase 2 deploys, guessing wrong about whether a number was ever used stops being free.

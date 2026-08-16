@@ -28,11 +28,17 @@ message Record {
   // reasoning and for the JSON-encodes-int64-as-a-string warning that applies here too.
   int64 amount_minor = 3;
 
-  // RESPONSE-ONLY IN PRACTICE: the server copies it from the owning account, and
-  // CreateRecordRequest/UpdateRecordRequest carry no currency field at all. A record therefore
-  // CANNOT contradict its account's currency — not because a validation rule forbids it, but
-  // because there is no way to say it. It is carried on the response so a records list renders
-  // without loading every account.
+  // WHICH OF THE ACCOUNT'S CURRENCIES THIS RECORD IS DENOMINATED IN. ISO-4217.
+  //
+  // Client-supplied and required, which it did not used to be. When an account held exactly one
+  // currency a record could inherit it, and inheritance was the stronger design because it made
+  // disagreement impossible to express. An account now holds SEVERAL currencies (ADR-008), so
+  // there is nothing to inherit — a record has to say which balance it moved, and only the record
+  // knows.
+  //
+  // What replaces inheritance is a refusal: the server rejects a currency the owning account does
+  // not hold. That is a weaker guarantee — a validation rule rather than an unsayable state — and
+  // it is the price of the feature, named here rather than discovered in Phase 2.
   string currency = 4;
 
   // A CIVIL DATE — ISO-8601 `YYYY-MM-DD`, e.g. "2026-08-15" — not an instant.
@@ -63,7 +69,8 @@ message CreateRecordRequest {
   string category_id = 4;
   // Required. The server rejects an id that does not exist or is not the caller's.
   string account_id = 5;
-  // No currency field, deliberately — see Record.currency.
+  // Required, and rejected if the account named above does not hold it — see Record.currency.
+  string currency = 6;
 }
 
 // PUT /api/v1/records/{id} — a FULL REPLACEMENT, for the presence reason set out in
@@ -74,6 +81,9 @@ message UpdateRecordRequest {
   string date = 3;
   string category_id = 4;
   string account_id = 5;
+  // Moving a record between accounts and changing its currency are the same operation here, and
+  // the pair is validated together: the new currency must be one the new account holds.
+  string currency = 6;
 }
 
 // GET /api/v1/records — every record owned by the authenticated user.

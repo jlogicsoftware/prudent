@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// Prudent's per-user settings. CANONICAL SOURCE OF TRUTH for the model: the Java DTOs and the
+// Dart messages are GENERATED from this file and are never hand-edited. Change this file and run
+// `task sync:contracts`.
+//
+// A SINGLETON, not a collection. There is exactly one Settings per user, so there is no id, no
+// create, no delete and no list message: `GET /api/v1/settings` reads it and
+// `PUT /api/v1/settings` writes it. The row is created on first login, not by the client.
+//
+// Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that message
+// is not imported here (proto/README.md records why).
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+// The outer class holds only the descriptor (java_multiple_files puts each message in its own
+// file). Named explicitly rather than defaulted from the filename, matching the framework's
+// convention, so the descriptor holder can never collide with a message name added later.
+option java_outer_classname = "SettingsProto";
+
+// The settings of the authenticated user.
+//
+// NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side — and
+// on a singleton it is also the entire addressing scheme: the URL names no id because the token
+// already says whose settings these are.
+message Settings {
+  // The user's main currency — ISO-4217, validated server-side.
+  //
+  // A LABEL, NOT A CONVERSION TARGET, and that distinction is the whole decision (ADR-009).
+  // It selects which currency a record form pre-selects, which per-currency total the overview
+  // shows first, and what an empty state names. It is NEVER used to convert one currency into
+  // another or to sum across them.
+  //
+  // Prudent does no FX. A single total across PLN, EUR and USD would need a rate source, a base
+  // currency and a rate DATE stored on every record — a 2024 purchase converted at today's rate
+  // is a wrong number that looks right, which is the class of defect the int64 money type exists
+  // to prevent. Totals stay per-currency and summing across them is refused. If FX is ever added
+  // it is its own ADR and its own fields, not a reinterpretation of this one.
+  //
+  // NOT required to be a currency any of the user's accounts holds. It is a display preference,
+  // and a user who has chosen PLN before opening their first account is a normal state, not an
+  // inconsistency to reject.
+  //
+  // NEVER EMPTY ON A RESPONSE. proto3 has no presence for a string, so "" and "unset" are the same
+  // bytes; rather than leave the client to guess, the server resolves the default before
+  // answering, so a GET always names a real currency. On a request, "" means "reset to the
+  // default" — see UpdateSettingsRequest.
+  string main_currency = 1;
+}
+
+// PUT /api/v1/settings — a FULL REPLACEMENT, for the presence reason set out in categories.proto.
+//
+// Responds with the resulting `Settings`, not with an empty body: the server may have substituted
+// a default, and a client that has to re-read to find out what it just wrote is a round trip that
+// the response could have saved.
+message UpdateSettingsRequest {
+  // An EMPTY value means "reset to the default" rather than "leave unchanged" — the full-
+  // replacement rule, applied to the one field. There is no way to say "leave unchanged" because
+  // there is nothing else in the message to leave alone; when a second field lands here, that
+  // sentence stops being true and this comment is the reminder to re-decide rather than inherit.
+  string main_currency = 1;
+}

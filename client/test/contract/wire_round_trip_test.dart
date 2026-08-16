@@ -17,6 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/src/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/src/generated/prudent/v1/categories.pb.dart';
 import 'package:prudent/src/generated/prudent/v1/records.pb.dart';
+import 'package:prudent/src/generated/prudent/v1/settings.pb.dart';
 import 'package:protobuf/protobuf.dart';
 import 'package:zen_transport/zen_transport.dart';
 
@@ -59,13 +60,11 @@ void main() {
         expect(decoded, original);
       });
 
-      test('an Account survives the round trip field for field', () {
+      test('a multi-currency Account survives the round trip field for field', () {
         final original = Account(
           id: '018f3a1b-2c4d-7e8f-9a0b-1c2d3e4f5a6b',
           name: 'Everyday',
           type: AccountType.ACCOUNT_TYPE_CHECKING,
-          balanceMinor: Int64(-2550), // Overdrawn: money is signed.
-          currency: 'PLN',
           isDefault: true,
           // FALSE ON PURPOSE, all three. A false bool is the proto3 default, so these fields are
           // absent from both encodings — and this is the case that proves a full-replacement PUT
@@ -74,6 +73,13 @@ void main() {
           isActive: false,
           includeInTotal: false,
           includeInOverview: false,
+          // Three currencies in ONE account, which is the shape the product asked for. Note the
+          // negative entry: one pocket may be overdrawn while another is not, and money is signed.
+          balances: [
+            CurrencyBalance(currency: 'PLN', amountMinor: Int64(125000)),
+            CurrencyBalance(currency: 'EUR', amountMinor: Int64(-2550)),
+            CurrencyBalance(currency: 'USD', amountMinor: Int64(0)),
+          ],
         );
 
         final decoded = roundTrip(original, format, Account.new);
@@ -81,13 +87,64 @@ void main() {
         expect(decoded.id, original.id);
         expect(decoded.name, original.name);
         expect(decoded.type, AccountType.ACCOUNT_TYPE_CHECKING);
-        expect(decoded.balanceMinor, original.balanceMinor);
-        expect(decoded.currency, original.currency);
         expect(decoded.isDefault, isTrue);
         expect(decoded.isActive, isFalse);
         expect(decoded.includeInTotal, isFalse);
         expect(decoded.includeInOverview, isFalse);
+
+        // ORDER IS PART OF THE VALUE. A repeated field is a list, not a set, and the client will
+        // render these in the order the server sent them — so a codec that preserved the entries
+        // but not their sequence would be a defect the field-count assertion alone would miss.
+        expect(decoded.balances.map((b) => b.currency).toList(), ['PLN', 'EUR', 'USD']);
+        expect(decoded.balances[0].amountMinor, Int64(125000));
+        expect(decoded.balances[1].amountMinor, Int64(-2550));
+        // A zero-amount pocket is a real state — an account holds the currency, with none of it in
+        // it. amount_minor = 0 is the proto3 default, so it is absent from both encodings; the
+        // entry must survive on the strength of its currency alone.
+        expect(decoded.balances[2].currency, 'USD');
+        expect(decoded.balances[2].amountMinor, Int64.ZERO);
+        expect(decoded.balances.length, 3);
+
         expect(decoded, original);
+      });
+
+      test('an empty balance list round-trips as empty, not as absent', () {
+        // The server rejects an account with no currencies, but the CONTRACT must still carry the
+        // state faithfully — a repeated field with no entries encodes to nothing in both formats,
+        // and "decoded to an empty list" and "failed to decode" must not look the same. A
+        // validation rule the wire cannot express is one the server has to enforce, which is
+        // exactly what accounts.proto says.
+        final decoded = roundTrip(Account(name: 'No currencies'), format, Account.new);
+
+        expect(decoded.balances, isEmpty);
+      });
+
+      test('a CreateRecordRequest names its currency, and carries no id', () {
+        // The half of the multi-currency change that lives on the request side. A record used to
+        // inherit its account's currency, and the create message had no currency field at all;
+        // an account now holds several, so the record has to say which balance it moved.
+        final decoded = roundTrip(
+          CreateRecordRequest(
+            title: 'Hotel',
+            amountMinor: Int64(48000),
+            date: '2026-08-16',
+            categoryId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
+            accountId: '018f3a1b-2c4d-7e8f-9a0b-1c2d3e4f5a6b',
+            currency: 'EUR',
+          ),
+          format,
+          CreateRecordRequest.new,
+        );
+
+        expect(decoded.currency, 'EUR');
+        expect(decoded.amountMinor, Int64(48000));
+        // Identity is the server's. The generated class has no id field to set, which is the
+        // contract enforcing it rather than a rule someone has to remember.
+        expect(
+          CreateRecordRequest().info_.byName.keys,
+          isNot(contains('id')),
+          reason: 'a create request carrying an id would let a client choose its own identity',
+        );
       });
 
       test('a Category survives the round trip field for field', () {
@@ -109,6 +166,27 @@ void main() {
         expect(decoded.description, original.description);
         expect(decoded.colorArgb, 0xFF2196F3);
         expect(decoded, original);
+      });
+
+      test('Settings round-trips, and names an owner nowhere', () {
+        final decoded = roundTrip(Settings(mainCurrency: 'PLN'), format, Settings.new);
+
+        expect(decoded.mainCurrency, 'PLN');
+        // A singleton addressed by the token: the URL carries no id and the message carries no
+        // owner. A client that could name an owner could name someone else's.
+        expect(Settings().info_.byName.keys, isNot(contains('userId')));
+        expect(Settings().info_.byName.keys, isNot(contains('id')));
+      });
+
+      test('an empty main_currency round-trips as empty — "reset to default", not a value', () {
+        // proto3 has no presence for a string, so "" and unset are the same bytes. The contract
+        // resolves that by assigning "" a meaning on each side rather than leaving it ambiguous:
+        // on a request it means reset to the default, and a response never carries it because the
+        // server resolves the default before answering. The wire must carry "" faithfully for
+        // either rule to be implementable.
+        final decoded = roundTrip(UpdateSettingsRequest(), format, UpdateSettingsRequest.new);
+
+        expect(decoded.mainCurrency, isEmpty);
       });
 
       test('the AccountType zero value round-trips as UNSPECIFIED, not as CASH', () {
@@ -152,13 +230,41 @@ void main() {
         expect(beyondDouble.toDouble().toStringAsFixed(0), '9007199254740992');
 
         final decoded = roundTrip(
-          Account(balanceMinor: beyondDouble),
+          Account(balances: [CurrencyBalance(currency: 'PLN', amountMinor: beyondDouble)]),
           format,
           Account.new,
         );
 
-        expect(decoded.balanceMinor, beyondDouble);
-        expect(decoded.balanceMinor.toString(), '9007199254740993');
+        expect(decoded.balances.single.amountMinor, beyondDouble);
+        expect(decoded.balances.single.amountMinor.toString(), '9007199254740993');
+      });
+
+      test('balances in different currencies stay separate, and are never summed', () {
+        // The multi-currency rule the arithmetic depends on, asserted on the wire rather than left
+        // to Phase 4 to remember. Prudent does no FX: there is no rate source, no rate date and no
+        // base currency, so 100 PLN + 100 EUR has no value to be. A total is per-currency, and
+        // this test exists so that a later change collapsing balances into one number fails here
+        // instead of shipping a plausible wrong number to a budget screen.
+        final decoded = roundTrip(
+          Account(
+            balances: [
+              CurrencyBalance(currency: 'PLN', amountMinor: Int64(10000)),
+              CurrencyBalance(currency: 'EUR', amountMinor: Int64(10000)),
+            ],
+          ),
+          format,
+          Account.new,
+        );
+
+        expect(decoded.balances.length, 2);
+        // Identical amounts, different currencies: equal as numbers, not interchangeable as money.
+        expect(decoded.balances[0].amountMinor, decoded.balances[1].amountMinor);
+        expect(decoded.balances[0].currency, isNot(decoded.balances[1].currency));
+
+        final byCurrency = {
+          for (final b in decoded.balances) b.currency: b.amountMinor,
+        };
+        expect(byCurrency, {'PLN': Int64(10000), 'EUR': Int64(10000)});
       });
     });
   }

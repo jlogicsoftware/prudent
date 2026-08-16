@@ -110,11 +110,17 @@ class Record extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   void clearAmountMinor() => $_clearField(3);
 
-  /// RESPONSE-ONLY IN PRACTICE: the server copies it from the owning account, and
-  /// CreateRecordRequest/UpdateRecordRequest carry no currency field at all. A record therefore
-  /// CANNOT contradict its account's currency — not because a validation rule forbids it, but
-  /// because there is no way to say it. It is carried on the response so a records list renders
-  /// without loading every account.
+  /// WHICH OF THE ACCOUNT'S CURRENCIES THIS RECORD IS DENOMINATED IN. ISO-4217.
+  ///
+  /// Client-supplied and required, which it did not used to be. When an account held exactly one
+  /// currency a record could inherit it, and inheritance was the stronger design because it made
+  /// disagreement impossible to express. An account now holds SEVERAL currencies (ADR-008), so
+  /// there is nothing to inherit — a record has to say which balance it moved, and only the record
+  /// knows.
+  ///
+  /// What replaces inheritance is a refusal: the server rejects a currency the owning account does
+  /// not hold. That is a weaker guarantee — a validation rule rather than an unsayable state — and
+  /// it is the price of the feature, named here rather than discovered in Phase 2.
   @$pb.TagNumber(4)
   $core.String get currency => $_getSZ(3);
   @$pb.TagNumber(4)
@@ -171,6 +177,7 @@ class CreateRecordRequest extends $pb.GeneratedMessage {
     $core.String? date,
     $core.String? categoryId,
     $core.String? accountId,
+    $core.String? currency,
   }) {
     final result = create();
     if (title != null) result.title = title;
@@ -178,6 +185,7 @@ class CreateRecordRequest extends $pb.GeneratedMessage {
     if (date != null) result.date = date;
     if (categoryId != null) result.categoryId = categoryId;
     if (accountId != null) result.accountId = accountId;
+    if (currency != null) result.currency = currency;
     return result;
   }
 
@@ -199,6 +207,7 @@ class CreateRecordRequest extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'date')
     ..aOS(4, _omitFieldNames ? '' : 'categoryId')
     ..aOS(5, _omitFieldNames ? '' : 'accountId')
+    ..aOS(6, _omitFieldNames ? '' : 'currency')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -265,6 +274,16 @@ class CreateRecordRequest extends $pb.GeneratedMessage {
   $core.bool hasAccountId() => $_has(4);
   @$pb.TagNumber(5)
   void clearAccountId() => $_clearField(5);
+
+  /// Required, and rejected if the account named above does not hold it — see Record.currency.
+  @$pb.TagNumber(6)
+  $core.String get currency => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set currency($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasCurrency() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearCurrency() => $_clearField(6);
 }
 
 /// PUT /api/v1/records/{id} — a FULL REPLACEMENT, for the presence reason set out in
@@ -276,6 +295,7 @@ class UpdateRecordRequest extends $pb.GeneratedMessage {
     $core.String? date,
     $core.String? categoryId,
     $core.String? accountId,
+    $core.String? currency,
   }) {
     final result = create();
     if (title != null) result.title = title;
@@ -283,6 +303,7 @@ class UpdateRecordRequest extends $pb.GeneratedMessage {
     if (date != null) result.date = date;
     if (categoryId != null) result.categoryId = categoryId;
     if (accountId != null) result.accountId = accountId;
+    if (currency != null) result.currency = currency;
     return result;
   }
 
@@ -304,6 +325,7 @@ class UpdateRecordRequest extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'date')
     ..aOS(4, _omitFieldNames ? '' : 'categoryId')
     ..aOS(5, _omitFieldNames ? '' : 'accountId')
+    ..aOS(6, _omitFieldNames ? '' : 'currency')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -369,6 +391,17 @@ class UpdateRecordRequest extends $pb.GeneratedMessage {
   $core.bool hasAccountId() => $_has(4);
   @$pb.TagNumber(5)
   void clearAccountId() => $_clearField(5);
+
+  /// Moving a record between accounts and changing its currency are the same operation here, and
+  /// the pair is validated together: the new currency must be one the new account holds.
+  @$pb.TagNumber(6)
+  $core.String get currency => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set currency($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasCurrency() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearCurrency() => $_clearField(6);
 }
 
 /// GET /api/v1/records — every record owned by the authenticated user.
