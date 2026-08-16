@@ -566,3 +566,84 @@ nothing, and report success.
   known set, rejects `ACCOUNT_TYPE_UNSPECIFIED`, rejects an `account_id` that is not the caller's,
   and copies the account's currency onto every record rather than accepting one; and
   `sync:contracts` grows its OpenAPI half with the first resource.
+
+---
+
+## ADR-007 — The Dart codegen workaround is deleted the day jZen ships the fix
+
+**Date:** 2026-08-16. **Status:** accepted. **Refines:** ADR-006's "The generate/verify loop is
+Prudent's own", on the Dart half only.
+
+### Context
+
+ADR-006 recorded two findings that came out of building the contract, and both were reported
+upstream as [jZenDev/jZen#54](https://github.com/jZenDev/jZen/issues/54):
+
+1. `protoc-gen-dart` writes imports as **filesystem-relative paths** and has no equivalent of Go's
+   `M` mapping, so an application proto importing `zen/v1/common.proto` generated an import
+   resolving to nothing inside the application's package — and the obvious repair, regenerating
+   `zen.v1` into the application's tree, is worse and silently so, because the copy is a
+   **different Dart type** and the framework's own API stops type-checking against it.
+2. jZen's contract loop was hardcoded to its own tree, so an application could not include it, and
+   its `generate:proto:dart` *skipped* with exit 0 on an empty proto directory.
+
+Prudent's answer at the time was a hand-rolled `generate:proto:dart` in its own `Taskfile.yml`.
+That was correct **as a consequence of the gap**, never as a design: jZen consumes the same
+`Taskfile.app.yml` for its own reference application, which is what makes an included task shared
+code rather than a lookalike that drifts.
+
+jZen fixed both in [PR #55](https://github.com/jZenDev/jZen/pull/55), merged to its `main`.
+
+### Decision
+
+**Prudent deletes its copy and delegates.** `generate:proto:dart` now has one command,
+`task: zen:generate:proto:dart`, and `PROTO_DART_OUT: client/lib/src/generated` is declared on the
+include. The task name is kept because `generate:proto` composes it and the docs say it; the body
+is gone.
+
+The framework's version does what Prudent's could not: it passes protoc **both** contract roots
+with `-I` but only the application's protos as **arguments**, so `zen/v1` is resolved for typing
+and never emitted; it rewrites the dangling relative imports into
+`package:zen_transport/generated/zen/v1/…`, which resolves because jZen moved those messages
+outside `lib/src` for exactly this purpose; and it **refuses** if a `zen/v1` file lands in the
+application's tree — the duplicate-type rule enforced rather than documented.
+
+**Deleting rather than keeping both is the decision.** A task that exists in two files is drift
+waiting to happen: the copy keeps working, so nothing forces the two to stay equal, and the day
+they differ the difference is invisible until it produces a wrong artifact.
+
+**What does NOT change:** the tracking rule. The Dart output stays committed and the Java DTOs stay
+untracked, for the toolchain-boundary reason in ADR-006. That is Prudent's decision about its own
+repository, and consuming a framework task does not hand it over — `PROTO_DART_OUT` points inside
+`lib/src/` rather than at the framework's public `lib/generated` default for the matching reason:
+jZen's messages are public because other packages import them by URI, and nothing outside Prudent's
+client package imports Prudent's.
+
+### What this changes about ADR-006's measurement
+
+ADR-006 recorded, correctly at the time, that a cross-repository proto import **cannot** work on
+the Dart side. **It can now.** The capability was verified here rather than taken on trust: a
+throwaway proto importing `zen/v1/common.proto` produced one import re-pointed at
+`package:zen_transport/generated/zen/v1/common.pb.dart`, emitted no `zen/v1` into `client/`, and
+analyzed clean. The probe was deleted.
+
+**Prudent's contract still imports nothing from `zen.v1`, and that is now a choice rather than a
+constraint.** `ZenError` is an error *body* returned in place of a response, and `PageRequest`'s
+fields are query parameters on a `GET`; neither belongs inside a Prudent message. Nothing in the
+contract changes as a result of this ADR — which is the point worth recording, because a capability
+arriving is not a reason to use it.
+
+### Consequence
+
+- `task sync:contracts` and `task zen:test:client` are green against jZen `b2de16b`, and the
+  regenerated messages are **byte-identical** to what ADR-006 committed — the delegation changed
+  the mechanism and not the artifact, which is the only evidence that the swap was faithful.
+- **`task zen:info` is now load-bearing rather than advisory.** Prudent consumes jZen by path, so
+  "which fix am I on" has no version to name — only a commit. This ADR is the first time a jZen
+  revision is a prerequisite for Prudent's build behaving as documented, and `zen:info` is the only
+  thing that reports it.
+- The rest of the loop is still Prudent's own: the server build, the local stack, the deploy and
+  every gate remain `zen_demo`-shaped upstream. Each is a separate migration to consume when jZen
+  makes it app-agnostic, on this same pattern — report, wait, delete the local copy, prove it green.
+- `docs/jzen/README.md` carries the findings table, with state (reported / fixed and consumed), so
+  a later session does not re-report a fixed finding or re-fork a consumed one.

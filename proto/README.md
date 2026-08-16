@@ -68,6 +68,30 @@ package maps generated imports to `package:` URIs, or the framework states that 
 protos must not import `zen.v1`. Until then Prudent's contract needs no import, so nothing is
 blocked and nothing is duplicated.
 
+### Fixed upstream, and consumed
+
+**That finding is closed.** It was reported as
+[jZenDev/jZen#54](https://github.com/jZenDev/jZen/issues/54) and fixed by
+[PR #55](https://github.com/jZenDev/jZen/pull/55), which Prudent now consumes — Prudent's
+hand-rolled Dart codegen is deleted and `task generate:proto:dart` delegates to
+`zen:generate:proto:dart` (see `docs/DECISIONS.md` ADR-007).
+
+**An application proto may now `import "zen/v1/common.proto"`.** jZen moved its messages to the
+public `zen_transport/lib/generated`, and the task passes protoc both contract roots with `-I`
+while naming only the application's protos as arguments, then rewrites the relative imports protoc
+leaves behind into `package:zen_transport/generated/zen/v1/…`. It refuses outright if a `zen/v1`
+file lands in the application's tree, so the duplicate-type failure is now enforced rather than
+merely warned about.
+
+Verified here rather than taken on trust: a throwaway proto importing `zen/v1/common.proto`
+generated one file re-pointed at `package:zen_transport/generated/zen/v1/common.pb.dart`, emitted
+no `zen/v1` into `client/`, and analyzed clean. The probe was then deleted.
+
+**Prudent's contract still imports nothing from `zen.v1`, and that is now a design choice rather
+than a limitation.** `ZenError` is an error *body* returned in place of a response, and
+`PageRequest`'s fields are query parameters on a `GET` — neither belongs inside a Prudent message.
+The capability is there the day one does.
+
 ## Compatibility
 
 Field numbers are permanent. Adding a field is backward compatible; renumbering, retyping or

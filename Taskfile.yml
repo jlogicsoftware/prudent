@@ -23,6 +23,16 @@ includes:
       CLIENT_DIR: client
       SERVER_DIR: server
       PROTO_DIR: proto
+      # Where zen:generate:proto:dart writes Prudent's messages. OVERRIDDEN, because the task's
+      # default is `<client>/<app>_client/lib/generated` — the conventional layout, where the
+      # client tier holds a package per concern. Prudent's client tier IS the Flutter package, so
+      # its messages live inside it.
+      #
+      # Under lib/src/ rather than lib/ deliberately: jZen keeps ITS messages at the public
+      # lib/generated because other packages import them by URI, which is the whole mechanism the
+      # framework fix below relies on. Nothing outside this package imports Prudent's, so they stay
+      # an implementation detail. If Prudent ever splits a shared client package out, they move.
+      PROTO_DART_OUT: client/lib/src/generated
 
 # WHAT IS DELIBERATELY NOT HERE YET.
 #
@@ -55,9 +65,9 @@ vars:
   PROTO_DIR: proto
   CLIENT_DIR: client
   SERVER_DIR: server
-  # Where the generated Dart messages land. TRACKED, unlike the Java DTOs — see the tracking rule
-  # in generate:proto:dart below and in proto/README.md.
-  DART_OUT: client/lib/src/generated
+  # NO DART_OUT HERE. The generated Dart messages' location is declared ONCE, as PROTO_DART_OUT on
+  # the include above, because the framework's task is what writes them. A second copy of the path
+  # in this map would be a value nothing reads until someone changes the wrong one.
 
 tasks:
   # ---------------------------------------------------------------------------------------------
@@ -97,35 +107,29 @@ tasks:
 
   generate:proto:dart:
     desc: Generate Dart messages from proto/ into client/lib/src/generated
-    silent: true
     summary: |
-      TRACKED, which is the opposite of the Java side and for the opposite reason: regenerating
-      this needs a SYSTEM protoc plus protoc-gen-dart, tools a Flutter developer has no other
-      reason to install. Committing the output keeps `flutter test` and `flutter build` working
-      for someone who has neither. .gitattributes marks it linguist-generated.
+      DELEGATED TO THE FRAMEWORK, and this task exists only to keep the name — `generate:proto`
+      and any future gate compose it, and CI and docs say it.
 
-      A tracked generated file is never hand-edited. Fix the .proto and run this.
+      Prudent hand-rolled this in Phase 1 because jZen's version wrote into its own tree. Prudent
+      reported that (jZenDev/jZen#54), jZen made the task app-agnostic (PR #55), and Prudent
+      DELETED ITS COPY rather than keeping one that resembles it — a task sitting in both files is
+      drift waiting to happen. See docs/DECISIONS.md ADR-007.
+
+      What the framework's version does that Prudent's could not: it gives protoc BOTH contract
+      roots with -I but only the application's protos as arguments, then rewrites the dangling
+      relative imports protoc leaves behind into `package:zen_transport/generated/zen/v1/…`. That
+      is what makes a Prudent proto able to `import "zen/v1/common.proto"` at all — the thing
+      measured as impossible in Phase 1. It also REFUSES if a zen/v1 file lands in Prudent's tree,
+      which is the type-identity rule enforced rather than documented.
+
+      TRACKING IS UNCHANGED and is still Prudent's decision, not the framework's: this output is
+      committed, because regenerating it needs a system protoc plus protoc-gen-dart that a Flutter
+      developer has no other reason to install. The Java side is the opposite, for the opposite
+      reason. .gitattributes marks this output linguist-generated, and a tracked generated file is
+      never hand-edited.
     cmds:
-      - |
-        set -euo pipefail
-        shopt -s nullglob
-        protos=({{.PROTO_DIR}}/prudent/v1/*.proto)
-        # NOT a skip. An empty contract directory in a repository whose contract is the point is a
-        # broken checkout, and a codegen step that shrugs at having nothing to do is how a gate
-        # composed from it passes without checking anything.
-        if [ ${#protos[@]} -eq 0 ]; then
-          echo "No .proto files under {{.PROTO_DIR}}/prudent/v1. The contract is the deliverable; this is not a state to pass through." >&2
-          exit 1
-        fi
-        # Both tools are named with their install command, because the failure is otherwise a bare
-        # "program not found" from deep inside a pipeline.
-        command -v protoc >/dev/null 2>&1 || {
-          echo "protoc not found. Install it: brew install protobuf" >&2; exit 1; }
-        [ -x "$HOME/.pub-cache/bin/protoc-gen-dart" ] || {
-          echo "protoc-gen-dart not found. Install it: dart pub global activate protoc_plugin" >&2; exit 1; }
-        mkdir -p {{.DART_OUT}}
-        PATH="$HOME/.pub-cache/bin:$PATH" protoc -I {{.PROTO_DIR}} --dart_out={{.DART_OUT}} "${protos[@]}"
-        echo "Generated Dart messages -> {{.DART_OUT}}/prudent/v1"
+      - task: zen:generate:proto:dart
 
   sync:contracts:
     desc: Regenerate every cross-language artifact and FAIL if anything drifted
