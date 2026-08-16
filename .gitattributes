@@ -1,0 +1,9 @@
+# The Dart messages under client/lib/src/generated are GENERATED from proto/prudent/v1/*.proto and
+# are TRACKED — the opposite of the Java DTOs, and for a reason: regenerating them needs a system
+# protoc plus protoc-gen-dart, which a Flutter developer has no other reason to install. See
+# proto/README.md and docs/DECISIONS.md ADR-006.
+#
+# linguist-generated collapses them in diffs and review, and keeps them out of the repository's
+# language statistics. It is a display hint, NOT the rule — the rule is that a tracked generated
+# file is never hand-edited, and `task sync:contracts` is what enforces it.
+client/lib/src/generated/** linguist-generated=true

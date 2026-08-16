@@ -1,0 +1,168 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// Prudent's accounts — where the money is. CANONICAL SOURCE OF TRUTH for the model: the Java
+// DTOs and the Dart messages are GENERATED from this file and are never hand-edited. Change
+// this file and run `task sync:contracts`.
+//
+// Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that
+// message is not imported here (proto/README.md records why).
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+// The outer class holds only the descriptor (java_multiple_files puts each message in its own
+// file). Named explicitly rather than defaulted from the filename, matching the framework's
+// convention, so the descriptor holder can never collide with a message name added later.
+option java_outer_classname = "AccountsProto";
+
+// What kind of account this is. The zero value is UNSPECIFIED and means exactly that.
+//
+// proto3 requires a zero value and uses it for any field that was not set, so whichever
+// constant sits at 0 is what an omission decodes to. Putting CASH there would make a client
+// that forgot the field indistinguishable from one that meant cash — a silent data defect that
+// no test catches, because both produce a valid Account. UNSPECIFIED is rejected server-side.
+enum AccountType {
+  ACCOUNT_TYPE_UNSPECIFIED = 0;
+  ACCOUNT_TYPE_CASH = 1;
+  ACCOUNT_TYPE_CARD = 2;
+  ACCOUNT_TYPE_CHECKING = 3;
+  ACCOUNT_TYPE_SAVINGS = 4;
+}
+
+// One currency an account holds, and how much of it.
+//
+// MONEY IS AN INTEGER COUNT OF MINOR UNITS — 1234 is 12.34 PLN — never a float. Binary floating
+// point cannot represent 0.10, and an expense tracker sums thousands of values; a balance wrong by
+// cents is wrong. int64 minor units are exact under addition and need no decimal library on either
+// stack.
+//
+// NOTE FOR BOTH CLIENTS: canonical proto3 JSON encodes int64 AS A STRING ("1234"), while Protobuf
+// binary carries it as a number. The two transport modes therefore differ on the wire and must
+// agree after decoding — which is what the round-trip suite asserts.
+message CurrencyBalance {
+  // ISO-4217 alphabetic code, validated server-side.
+  string currency = 1;
+  int64 amount_minor = 2;
+}
+
+// An account, as the server holds it.
+//
+// AN ACCOUNT HOLDS SEVERAL CURRENCIES AT ONCE, each with its own balance — the shape a
+// multi-currency account actually has, rather than one currency per account with a separate
+// account per currency. There is still NO FX: the balances are independent, nothing converts
+// between them, and a total is per-currency. Summing across currencies is refused, not done at
+// some rate nobody chose.
+message Account {
+  // Server-minted UUID. A create request carries no id.
+  string id = 1;
+
+  string name = 2;
+
+  AccountType type = 3;
+
+  // 4 and 5 held `int64 balance_minor` and `string currency` — one balance in one currency. They
+  // are RESERVED rather than reused: a field number is permanent, and a future field landing on 4
+  // would be read as a balance by anything still carrying the old shape. Superseded by `balances`
+  // below (docs/DECISIONS.md ADR-008).
+  reserved 4, 5;
+  reserved "balance_minor", "currency";
+
+  // The account offered first when creating a record. Exactly one per user is true; the server
+  // clears the flag on the previous holder rather than trusting the client to.
+  bool is_default = 6;
+
+  // Whether the account is in use. An inactive account is kept for its history rather than
+  // deleted.
+  bool is_active = 7;
+
+  // Whether this account counts toward the total balance...
+  bool include_in_total = 8;
+
+  // ...and whether it appears on the overview. Two flags, not one: a savings account a user
+  // wants visible but excluded from spendable funds needs them to differ.
+  bool include_in_overview = 9;
+
+  // THE CURRENCIES THIS ACCOUNT HOLDS, one entry each. Never empty — an account that holds no
+  // currency cannot receive a record, and the server rejects an empty list rather than creating
+  // one that nothing can be spent from.
+  //
+  // The set is DECLARED, not inferred from whatever records happen to arrive. That is what lets
+  // the server reject a record in a currency the account does not hold, instead of silently
+  // opening a new balance because someone mistyped a code.
+  //
+  // At most one entry per currency; the server rejects duplicates. A repeated message is used
+  // rather than a map<string, int64> because a map's ordering is undefined and its proto3 JSON
+  // form differs more sharply between the two transport modes — and because a balance is likely
+  // to grow fields (an as-of date, a hidden flag) that a bare int64 has nowhere to put.
+  repeated CurrencyBalance balances = 10;
+
+  // NO description FIELD. It existed as an always-null field that nothing could set and
+  // nothing rendered; carrying it would commit a decision nobody has made to the contract. If the
+  // product ever needs it, it arrives with the screen that sets it, at field number 11.
+  //
+  // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
+}
+
+// POST /api/v1/accounts
+message CreateAccountRequest {
+  string name = 1;
+  AccountType type = 2;
+
+  // 3 and 4 held the single `balance_minor` + `currency` pair. Reserved, not reused — see Account.
+  reserved 3, 4;
+  reserved "balance_minor", "currency";
+
+  bool is_default = 5;
+  bool is_active = 6;
+  bool include_in_total = 7;
+  bool include_in_overview = 8;
+
+  // The currencies the account opens with, and their opening balances. REQUIRED and non-empty.
+  // Every later change to an amount is an act of the records, not of this field.
+  repeated CurrencyBalance balances = 9;
+}
+
+// PUT /api/v1/accounts/{id} — a FULL REPLACEMENT, for the presence reason set out in
+// categories.proto.
+//
+// The four booleans are why that rule is written down rather than assumed: plain proto3 scalars
+// have no presence, so a client sending `include_in_total = false` and a client that never
+// touched the field produce byte-identical requests. Replacement makes them mean the same
+// thing on purpose, instead of leaving the server to guess which one it received.
+message UpdateAccountRequest {
+  string name = 1;
+  AccountType type = 2;
+
+  // 3 held the single `balance_minor`. Reserved, not reused — see Account.
+  reserved 3;
+  reserved "balance_minor";
+
+  bool is_default = 4;
+  bool is_active = 5;
+  bool include_in_total = 6;
+  bool include_in_overview = 7;
+
+  // The account's currencies after this update — a full replacement like every other field here,
+  // so an entry the client omits is an entry it is asking to remove.
+  //
+  // TWO SERVER RULES THIS MESSAGE CANNOT EXPRESS, and both are refusals rather than best-effort
+  // repairs:
+  //
+  //   1. A currency that still has records CANNOT be dropped. Removing it would orphan every
+  //      record denominated in it — money that left an account that no longer admits it exists.
+  //      The server refuses; the user deletes or re-denominates the records first.
+  //   2. A currency CODE is never edited in place. There is no rename: dropping PLN and adding
+  //      EUR in one request is two operations, and rule 1 catches the case where it would have
+  //      silently reinterpreted 100 PLN as 100 EUR. Adding a new currency to an account is always
+  //      allowed — that is the ordinary way an account becomes multi-currency after the fact.
+  repeated CurrencyBalance balances = 8;
+}
+
+// GET /api/v1/accounts — every account owned by the authenticated user.
+message ListAccountsResponse {
+  repeated Account accounts = 1;
+}
+
+// DELETE /api/v1/accounts/{id} carries no request body and answers 204, so it declares no
+// messages.

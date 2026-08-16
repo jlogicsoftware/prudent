@@ -398,3 +398,418 @@ is documentation, not a constraint.
 After changing the Gradle distribution, kill the daemon — one started under the old distribution
 survives a wrapper change and keeps serving the old Gradle, so the first build after the upgrade
 fails exactly as it did before it.
+
+---
+
+## ADR-006 — The wire contract: what crosses it, and which side of the tracking rule each generated artifact falls on
+
+**Date:** 2026-08-15. **Status:** accepted.
+
+### Context
+
+Prudent's models existed only as Dart classes holding Flutter types: `double` money, an `IconData`
+icon, a `Color` colour, and client-minted uuids. None of that can cross a wire, and jZen's
+contract-first rule (`../jZen/docs/architecture/STANDARDS.md`, "Source of truth") makes `.proto`
+canonical for models with every other language derived from it.
+
+This entry records the shape that was settled and, for each representation, the defect the
+alternative would have introduced. It also settles the question a contract phase cannot leave
+open: which generated output is committed and which is built.
+
+### Decision — the contract
+
+`proto/prudent/v1/{records,accounts,categories}.proto`, package **`prudent.v1`**, Java package
+**`prudent.proto.v1`**, `java_multiple_files = true`, and an explicit `java_outer_classname`
+(`RecordsProto`, …) rather than one defaulted from the filename. The directory mirrors the proto
+package the way `../jZen/proto/zen/v1/` mirrors `zen.v1`. **`v1` is the API version and is
+independent of the product version.**
+
+**Every endpoint declares its own request and response message.** There is no envelope and no
+generic payload: HTTP status carries the status, `X-Request-ID` carries the request id, and errors
+are a `zen.v1.ZenError` body. Messages are named for the Phase 2 REST surface they serve
+(`CreateRecordRequest`, `Record`, `ListRecordsResponse`, …).
+
+| Concern | The contract carries | The defect the alternative has |
+|---|---|---|
+| Money | `int64 amount_minor` / `balance_minor` + `string currency` (ISO-4217) | binary floating point cannot represent 0.10, and an expense tracker sums thousands of values. Note proto3 JSON encodes `int64` **as a string**; both clients handle that, and the round-trip suite pins it |
+| Category colour | `uint32 color_argb` | a colour is a value and ARGB is its portable form; it survives a user picking outside today's ten swatches. `dart:ui`'s `Color` stays at the widget boundary |
+| Category icon | `string icon_key`, **never a code point** | `IconData(codePoint)` built from data defeats `--tree-shake-icons`, shipping the whole Material font in every bundle. The client holds a `const Map<String, IconData>`; an unknown key renders a documented fallback rather than throwing |
+| Record date | `string date`, ISO-8601 `YYYY-MM-DD` | a purchase happens on a calendar day. An epoch timestamp forces every reader to pick a timezone, and at a DST boundary a record shifts a day — at a month edge, into the wrong month, which is a wrong total |
+| Identity | ids are server-minted; a create request carries **no id** | an id from an untrusted client is not identity |
+| Ownership | **`user_id` never appears on the wire, in either direction** | it is the JWT `sub`. A client that can name an owner can name someone else's |
+| Account type | `ACCOUNT_TYPE_UNSPECIFIED = 0` first, then `CASH/CARD/CHECKING/SAVINGS` | proto3 requires a zero value and decodes every omission to it; a default meaning "cash" is a silent data defect, because cash is a valid answer |
+
+Four questions the plan left open are closed here:
+
+- **A `Record` carries a required `account_id`** (plan §5.1). Records and accounts were previously
+  unconnected, which is why `totalBalance()` never moved when money was spent. An optional link
+  would make every later piece of arithmetic branch on its absence, forever.
+- **The default currency is `PLN`, and an account's and a record's currency cannot disagree**
+  (plan §5.2, no FX). Not by validation but **by construction**: `CreateRecordRequest` and
+  `UpdateRecordRequest` carry no currency field at all, and the server copies the owning account's
+  onto the `Record` response so a list renders without loading accounts. `Account.currency` is also
+  not replaceable by `UpdateAccountRequest` — changing it would reinterpret every existing record's
+  amount without converting it, turning 100 PLN into 100 EUR silently.
+- **All four `Account` booleans are kept; `Account.description` is dropped.** `is_active` and
+  `include_in_total` are already read by `totalBalance()`; `include_in_overview` and
+  `include_in_total` are both named by the overview arithmetic; `is_default` pairs with the new
+  required `account_id` as the pre-selected account. `description` was an always-null field nothing
+  could set and nothing rendered — carrying it would commit a decision nobody has made. Field
+  number 10 is left for it. (`Category.description` stays: the category form sets it today.)
+- **Updates are FULL REPLACEMENTS, not patches.** A `PUT` carries every mutable field and every one
+  is applied. Plain proto3 scalars have no presence, so an absent field and an explicitly-sent
+  default are byte-identical on the wire — which matters most for the four `Account` booleans,
+  where a partial-update message would silently write `false` for anything the client forgot.
+  Replacement makes the semantics readable from the message alone. A `PATCH` surface, if ever
+  wanted, gets `optional` fields and its own messages rather than a reinterpretation of these.
+
+**`analytics.proto` is deliberately not written.** Analytics is new product work with no endpoint
+and no agreed arithmetic behind it; a message written before either exists is a guess committed to
+a contract, and a contract is the one place a guess is expensive to withdraw. This narrows the
+plan's Phase 1 file list (`docs/prudent-migration-plan.md` §4, "Phase 1 — The contract"), which
+named `analytics.proto` alongside the other three.
+
+### Decision — the tracking rule, and why the two sides differ
+
+| Side | Output | Tracked? |
+|---|---|---|
+| Java | `server/target/generated-sources/protobuf/` | **No** |
+| Dart | `client/lib/src/generated/prudent/v1/*.pb*.dart` | **Yes** |
+
+This is a **toolchain-boundary** question, not a preference. `protobuf-maven-plugin` resolves the
+`protoc` binary from Maven Central itself, so anyone with the Maven wrapper regenerates the Java
+side hermetically and committing it would only add a second copy to keep honest. The Dart side
+needs a **system `protoc`** plus **`protoc-gen-dart`** — tools a Flutter developer has no other
+reason to install — so the output is committed, `.gitattributes` marks it `linguist-generated`, and
+`flutter test` and `flutter build` keep working for someone who has neither.
+
+Either way, **a tracked generated file is never hand-edited.** Fix the `.proto` and regenerate.
+
+### Framework messages are referenced, not imported — measured, not assumed
+
+`ZenError` and `PageRequest` live in `../jZen/proto/zen/v1/common.proto` and are **never copied
+here**. Prudent's files reference them in comments and **import nothing** — which is what jZen's
+own protos do: not one of `admin.proto`, `demo.proto`, `identity.proto` or `jobs.proto` imports
+`common.proto` either. `ZenError` is an error *body*, returned in place of a response rather than
+embedded in one, and `PageRequest`'s fields are query parameters on a `GET`.
+
+Both halves of a cross-repository import were nevertheless **run** before this was settled, against
+a throwaway proto importing `zen/v1/common.proto` with `-I proto -I ../jZen/proto`:
+
+- **Java — clean.** `--java_out` emitted only Prudent's classes; `zen.v1` resolves from the
+  `zen-proto` jar already on the classpath. Nothing is generated twice.
+- **Dart — broken.** `--dart_out` emitted `import '../../zen/v1/common.pb.dart'`, a **relative**
+  path resolving to a file that does not exist in Prudent's tree. `protoc_plugin` has no
+  package-mapping option, so the only way to satisfy it is to generate the framework's messages
+  into Prudent's tree — producing a **second `ZenError` type** beside the one
+  `package:zen_transport` exports. Two Dart classes from one message are not assignable, so the
+  transport's decoded error and the app's would be different types that look identical. That is
+  worse than the missing file, because it compiles.
+
+**Recorded as a jZen-side finding, not worked around** (it extends the plan's §3.7 finding 1). The
+fix belongs in jZen: either its published Dart package maps generated imports to `package:` URIs,
+or the framework states that application protos must not import `zen.v1`. Nothing is blocked here,
+because Prudent's contract needs no import.
+
+### The generate/verify loop is Prudent's own
+
+jZen's contract tasks are hardcoded to its own tree — `generate:proto:dart` writes into
+`client/zen_transport/lib/src/generated` and `sync:verify` globs `proto/zen/v1` — so
+`Taskfile.app.yml` does not carry them and Prudent cannot include them. `Taskfile.yml` gains
+`generate:proto:{java,dart}`, `generate:l10n`, `sync:contracts` and `sync:verify` of its own.
+
+Two properties of that loop are load-bearing and easy to lose:
+
+- **No task a gate composes is fingerprinted with `sources:`/`generates:`.** A skipped regeneration
+  leaves a clean working tree, `sync:verify` then finds nothing dirty, and the gate reports
+  "Contracts in sync." **without having regenerated anything** — precisely the drift it exists to
+  catch. Regeneration is cheap; a gate that passes vacuously is not.
+- **`generate:proto:dart` fails, rather than skipping, on an empty contract directory.** jZen's
+  equivalent prints "No .proto files yet, skipping" and exits 0, which was right for a framework
+  shipping an empty `proto/` skeleton. For Prudent an empty contract directory is a broken
+  checkout.
+
+**The OpenAPI half arrives in Phase 2, and its absence now is sequencing rather than an omission.**
+`openapi.json` is emitted by SmallRye from annotated resources, and Prudent has none yet — a
+`generate:api` task today would package a backend with no routes, write a document describing
+nothing, and report success.
+
+### Consequence
+
+- `task sync:contracts` reports "Contracts in sync." and "Generated localizations correctly
+  untracked." The localization half is a **guard before the fact**: there are no ARB files until
+  Phase 3, and the assertion that none of their output is ever tracked has to be in place before
+  the first one lands, not after.
+- `task zen:test:client` is green: 14 tests in `client/test/contract/wire_round_trip_test.dart`,
+  the repository's first. Every domain message round-trips through **both** `ZenTransportFormat`
+  modes over the real `ZenProtoCodec` — the two are different code paths (binary uses generated
+  descriptors, canonical proto3 JSON resolves accessors reflectively), and jZen's own history
+  records a revision that served Protobuf perfectly and 500'd on every JSON response. The suite
+  also asserts the two modes agree with **each other**, that money is exact where `0.1 + 0.2 != 0.3`
+  is not, and that an amount beyond a double's exact integer range survives.
+- **The gate was demonstrated failing**, not merely asserted — and the demonstration corrected the
+  mental model, which is the reason for running it. `sync:contracts` **regenerates first and then
+  diffs against `HEAD`**, so an uncommitted hand-edit to a `.pb.dart` does **not** fail the gate:
+  regeneration overwrites the edit before the diff runs, and the tree comes back clean. That is the
+  gate doing its job rather than a hole in it, but "the gate catches hand-editing" is only true at
+  the point the edit would enter the repository. The two failures that do fire were both run and
+  then reverted: a `.proto` changed without its output regenerated (fails naming all three files),
+  and a hand-edited `.pb.dart` that reached a **commit** (fails naming that file). The distinction
+  is written into `Taskfile.yml`'s `sync:verify` summary, where someone debugging a passing gate
+  will look.
+- `client/pubspec.yaml` gains `protobuf`, `fixnum` and a `path:` dependency on `zen_transport`. The
+  transport is present for one reason — the round-trip suite has to exercise the real codec rather
+  than a local reimplementation of it. `ZenClient` itself arrives in Phase 3.
+- **Phase 2 inherits these as constraints**, not as suggestions: entities store `BIGINT` +
+  `CHAR(3)` and a `DATE`; `PUT` handlers replace rather than merge; the server mints ids, resolves
+  ownership from the JWT `sub` and never accepts a `user_id`; it validates `icon_key` against a
+  known set, rejects `ACCOUNT_TYPE_UNSPECIFIED`, rejects an `account_id` that is not the caller's,
+  and copies the account's currency onto every record rather than accepting one; and
+  `sync:contracts` grows its OpenAPI half with the first resource.
+
+---
+
+## ADR-007 — The Dart codegen workaround is deleted the day jZen ships the fix
+
+**Date:** 2026-08-16. **Status:** accepted. **Refines:** ADR-006's "The generate/verify loop is
+Prudent's own", on the Dart half only.
+
+### Context
+
+ADR-006 recorded two findings that came out of building the contract, and both were reported
+upstream as [jZenDev/jZen#54](https://github.com/jZenDev/jZen/issues/54):
+
+1. `protoc-gen-dart` writes imports as **filesystem-relative paths** and has no equivalent of Go's
+   `M` mapping, so an application proto importing `zen/v1/common.proto` generated an import
+   resolving to nothing inside the application's package — and the obvious repair, regenerating
+   `zen.v1` into the application's tree, is worse and silently so, because the copy is a
+   **different Dart type** and the framework's own API stops type-checking against it.
+2. jZen's contract loop was hardcoded to its own tree, so an application could not include it, and
+   its `generate:proto:dart` *skipped* with exit 0 on an empty proto directory.
+
+Prudent's answer at the time was a hand-rolled `generate:proto:dart` in its own `Taskfile.yml`.
+That was correct **as a consequence of the gap**, never as a design: jZen consumes the same
+`Taskfile.app.yml` for its own reference application, which is what makes an included task shared
+code rather than a lookalike that drifts.
+
+jZen fixed both in [PR #55](https://github.com/jZenDev/jZen/pull/55), merged to its `main`.
+
+### Decision
+
+**Prudent deletes its copy and delegates.** `generate:proto:dart` now has one command,
+`task: zen:generate:proto:dart`, and `PROTO_DART_OUT: client/lib/src/generated` is declared on the
+include. The task name is kept because `generate:proto` composes it and the docs say it; the body
+is gone.
+
+The framework's version does what Prudent's could not: it passes protoc **both** contract roots
+with `-I` but only the application's protos as **arguments**, so `zen/v1` is resolved for typing
+and never emitted; it rewrites the dangling relative imports into
+`package:zen_transport/generated/zen/v1/…`, which resolves because jZen moved those messages
+outside `lib/src` for exactly this purpose; and it **refuses** if a `zen/v1` file lands in the
+application's tree — the duplicate-type rule enforced rather than documented.
+
+**Deleting rather than keeping both is the decision.** A task that exists in two files is drift
+waiting to happen: the copy keeps working, so nothing forces the two to stay equal, and the day
+they differ the difference is invisible until it produces a wrong artifact.
+
+**What does NOT change:** the tracking rule. The Dart output stays committed and the Java DTOs stay
+untracked, for the toolchain-boundary reason in ADR-006. That is Prudent's decision about its own
+repository, and consuming a framework task does not hand it over — `PROTO_DART_OUT` points inside
+`lib/src/` rather than at the framework's public `lib/generated` default for the matching reason:
+jZen's messages are public because other packages import them by URI, and nothing outside Prudent's
+client package imports Prudent's.
+
+### What this changes about ADR-006's measurement
+
+ADR-006 recorded, correctly at the time, that a cross-repository proto import **cannot** work on
+the Dart side. **It can now.** The capability was verified here rather than taken on trust: a
+throwaway proto importing `zen/v1/common.proto` produced one import re-pointed at
+`package:zen_transport/generated/zen/v1/common.pb.dart`, emitted no `zen/v1` into `client/`, and
+analyzed clean. The probe was deleted.
+
+**Prudent's contract still imports nothing from `zen.v1`, and that is now a choice rather than a
+constraint.** `ZenError` is an error *body* returned in place of a response, and `PageRequest`'s
+fields are query parameters on a `GET`; neither belongs inside a Prudent message. Nothing in the
+contract changes as a result of this ADR — which is the point worth recording, because a capability
+arriving is not a reason to use it.
+
+### Consequence
+
+- `task sync:contracts` and `task zen:test:client` are green against jZen `b2de16b`, and the
+  regenerated messages are **byte-identical** to what ADR-006 committed — the delegation changed
+  the mechanism and not the artifact, which is the only evidence that the swap was faithful.
+- **`task zen:info` is now load-bearing rather than advisory.** Prudent consumes jZen by path, so
+  "which fix am I on" has no version to name — only a commit. This ADR is the first time a jZen
+  revision is a prerequisite for Prudent's build behaving as documented, and `zen:info` is the only
+  thing that reports it.
+- The rest of the loop is still Prudent's own: the server build, the local stack, the deploy and
+  every gate remain `zen_demo`-shaped upstream. Each is a separate migration to consume when jZen
+  makes it app-agnostic, on this same pattern — report, wait, delete the local copy, prove it green.
+- `docs/jzen/README.md` carries the findings table, with state (reported / fixed and consumed), so
+  a later session does not re-report a fixed finding or re-fork a consumed one.
+
+---
+
+## ADR-008 — An account holds several currencies at once
+
+**Date:** 2026-08-16. **Status:** accepted. **Supersedes:** ADR-006's currency decision.
+
+### Context
+
+ADR-006 gave each account exactly one currency: `Account.balance_minor` + `Account.currency`, with
+a record **inheriting** its account's currency and no way to say otherwise. Multi-currency was
+possible only by holding several accounts, one per currency.
+
+That is not the product. A multi-currency account is one account holding balances in several
+currencies — the shape a real bank or fintech account has, and the shape a traveller with one card
+actually has. Discovered before Phase 2 built entities against the single-currency shape, which is
+the last moment it is cheap.
+
+### Decision
+
+**`Account` carries a list of balances, one per currency it holds.**
+
+```proto
+message CurrencyBalance {
+  string currency = 1;      // ISO-4217
+  int64  amount_minor = 2;
+}
+```
+
+- `Account.balances` (field 10) replaces `balance_minor` (4) and `currency` (5). The same swap
+  happens on `CreateAccountRequest` (balances at 9, retiring 3 and 4) and `UpdateAccountRequest`
+  (balances at 8, retiring 3).
+- **The retired numbers are `reserved`, not recycled**, in every one of the three messages. Nothing
+  has ever served this contract — no deployed server, no persisted row, no shipped client — so
+  recycling them would have been free. It was rejected anyway: `reserved` is what makes the
+  retirement visible in the file, and the discipline is worth more than two field numbers.
+- **The currency set is declared, not inferred.** `balances` is never empty, holds at most one
+  entry per currency, and the server rejects both violations. Declaring the set is what lets the
+  server reject a record in a currency the account does not hold, rather than silently opening a
+  new balance because someone mistyped a code.
+- **A repeated message, not `map<string, int64>`.** A map's ordering is undefined and its proto3
+  JSON form differs more sharply between the two transport modes; and a balance is likely to grow
+  fields — an as-of date, a hidden flag — that a bare `int64` has nowhere to put.
+- **Two refusals `UpdateAccountRequest` cannot express**, both server-side: a currency with records
+  cannot be dropped (it would orphan money that left an account no longer admitting it exists), and
+  a currency code is never edited in place (there is no rename; dropping PLN and adding EUR is two
+  operations, and the first rule catches the case where it would have reinterpreted 100 PLN as 100
+  EUR). **Adding** a currency is always allowed — that is how an account becomes multi-currency
+  after the fact.
+
+**`Record.currency` becomes client-supplied and required.** Field 4 keeps its number and type; only
+its meaning changes, so the wire shape is untouched. `CreateRecordRequest` and
+`UpdateRecordRequest` gain `currency` at field 6.
+
+### What this costs, stated rather than glossed
+
+ADR-006 made a record's currency **impossible to contradict** — not by a validation rule but by
+there being no field in which to say it. That was the stronger design and it is now gone: with
+several currencies in an account there is nothing to inherit, and only the record knows which
+balance it moved.
+
+What replaces it is a **refusal**: the server rejects a currency the owning account does not hold.
+That is a weaker guarantee — an enforced rule rather than an unsayable state — and it is the price
+of the feature. It is named here, and in `records.proto` beside the field, so Phase 2 implements it
+as a rule it knows it owns rather than discovering the gap.
+
+**Still no FX**, unchanged from ADR-006 and the plan's §5.2. The balances are independent; nothing
+converts between them; a total is per-currency, and summing across currencies is refused rather
+than done at a rate nobody chose. Multi-currency accounts make this *more* load-bearing, not less:
+one account can now show two numbers that must never be added.
+
+### Consequence
+
+- `task sync:contracts` green; `task zen:test:client` green at **20 tests**, up from 14. The new
+  ones assert what the reshape introduced: three currencies in one account round-trip in order (a
+  repeated field is a list, and the client renders the order the server sent); a **zero-amount**
+  pocket survives, since `amount_minor = 0` is the proto3 default and absent from both encodings,
+  so the entry rides on its currency alone; an **empty** balance list decodes as empty rather than
+  looking like a decode failure; two equal amounts in different currencies stay separate and are
+  never summed; and `CreateRecordRequest` names a currency while still having no `id` field to set.
+- **Phase 2 inherits two new rules**: reject an account with no balances, with a duplicate
+  currency, or dropping a currency that has records; and reject a record whose currency the owning
+  account does not hold — validated together with `account_id`, because moving a record between
+  accounts and changing its currency are one operation.
+- **Phase 3 inherits an open UI question this ADR deliberately does not answer**: which currency a
+  record form pre-selects. `is_default` marks a default *account*, and there is no
+  `primary_currency` on `Account` — adding one is a field number and an ADR when the screen that
+  needs it exists, not a guess made now.
+- The Postgres shape changes with it: a `prudent_account_balance` table keyed by
+  (account, currency), rather than `BIGINT` + `CHAR(3)` columns on the account row.
+
+---
+
+## ADR-009 — A main currency that labels, and never converts
+
+**Date:** 2026-08-16. **Status:** accepted. **Extends:** ADR-008.
+
+### Context
+
+With an account holding several currencies (ADR-008), the overview shows more than one number, and
+the obvious next question is whether Prudent shows a single total balance in one currency.
+
+That question hides two different features wearing one name:
+
+- a **label** — which currency a record form pre-selects, which per-currency total is shown first,
+  what an empty state names. No arithmetic.
+- a **conversion target** — one total across PLN, EUR and USD. This is **FX**, and it needs a rate
+  source, a base currency, and a rate **date** stored on every record, because a 2024 purchase
+  converted at today's rate is a wrong number that looks right. Under the one-server rule the rate
+  provider is reached through Prudent's own server, never from a client.
+
+### Decision
+
+**The label. `Settings.main_currency`, ISO-4217, and it is never used to convert or to sum.**
+
+A new `proto/prudent/v1/settings.proto` carries it, because Prudent's contract had nowhere to put a
+per-user preference — it was records, accounts and categories only.
+
+- **A singleton, not a collection.** One `Settings` per user, so there is no id, no create, no
+  delete and no list message: `GET /api/v1/settings`, `PUT /api/v1/settings`. The row is created on
+  first login, not by the client. **No `user_id` field** — on a singleton the token is the entire
+  addressing scheme, which is why the URL carries no id either.
+- **`PUT` responds with the resulting `Settings`**, not an empty body: the server may have
+  substituted a default, and a client that must re-read to learn what it just wrote is a round trip
+  the response could have saved.
+- **`main_currency` is not required to be a currency any of the user's accounts holds.** It is a
+  display preference; a user who picks PLN before opening their first account is a normal state,
+  not an inconsistency to reject.
+- **The empty string is given a meaning on each side rather than left ambiguous.** proto3 has no
+  presence for a string, so `""` and unset are the same bytes. On a **response** it never appears —
+  the server resolves the default before answering, so a `GET` always names a real currency. On a
+  **request** it means *reset to the default*, which is the full-replacement rule applied to a
+  one-field message.
+
+**Deriving it instead — "the default account's first balance" — was rejected.** It needs no new
+surface and no new field, and it breaks the moment a user reorders their balances or has no
+accounts yet. A preference that silently changes because a list was reordered is worse than a
+field.
+
+### Why not the conversion target
+
+FX is a product feature with a third-party dependency, and it was deferred rather than declined —
+the plan's §5.2 assumed no FX and ADR-006 and ADR-008 both hold to it. A single total computed at
+an unstated rate on an unstated date is precisely the class of plausible-wrong-number the int64
+minor-units type exists to prevent, and a budget app is the worst place to show one.
+
+**Nothing here forecloses it.** Records already carry a currency and a date, so if FX is added it
+arrives as its own ADR with its own fields — a rate and a rate date — rather than as a
+reinterpretation of `main_currency`. This entry is what makes that a deliberate later step instead
+of a meaning quietly attached to an existing field.
+
+### Consequence
+
+- `task sync:contracts` green; `task zen:test:client` green at **24 tests**, up from 20. The new
+  ones assert `Settings` round-trips in both formats and names an owner nowhere, and that an empty
+  `main_currency` survives the wire — without which neither side of the empty-string rule above
+  could be implemented.
+- **Phase 2 inherits** a fourth resource (`SettingsResource`, `@Authenticated`, `GET` + `PUT`), a
+  one-row-per-user table created on first login beside the seeded default categories, ISO-4217
+  validation, and the default-resolution rule so a `GET` never answers with an empty currency.
+- **Phase 3 inherits** the pre-selection question ADR-008 left open, now with an answer: a record
+  form defaults to `main_currency` when the chosen account holds it, and otherwise to that
+  account's first balance. `Account` still has no `primary_currency`, and does not need one.
+- **Phase 4's overview** shows per-currency totals with `main_currency` first. It does not show a
+  combined total, and the round-trip suite's "balances in different currencies stay separate, and
+  are never summed" is the test that fails if someone later adds one.

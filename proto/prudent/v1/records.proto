@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// Prudent's records — the individual transactions. CANONICAL SOURCE OF TRUTH for the model:
+// the Java DTOs and the Dart messages are GENERATED from this file and are never hand-edited.
+// Change this file and run `task sync:contracts`.
+//
+// Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that
+// message is not imported here (proto/README.md records why).
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+// The outer class holds only the descriptor (java_multiple_files puts each message in its own
+// file). Named explicitly rather than defaulted from the filename, matching the framework's
+// convention, so the descriptor holder can never collide with a message name added later.
+option java_outer_classname = "RecordsProto";
+
+// A single transaction, as the server holds it.
+message Record {
+  // Server-minted UUID. A create request carries no id: an id from an untrusted client is not
+  // identity.
+  string id = 1;
+
+  string title = 2;
+
+  // Minor units, exact under addition. See accounts.proto's balance_minor for the full
+  // reasoning and for the JSON-encodes-int64-as-a-string warning that applies here too.
+  int64 amount_minor = 3;
+
+  // WHICH OF THE ACCOUNT'S CURRENCIES THIS RECORD IS DENOMINATED IN. ISO-4217.
+  //
+  // Client-supplied and required, which it did not used to be. When an account held exactly one
+  // currency a record could inherit it, and inheritance was the stronger design because it made
+  // disagreement impossible to express. An account now holds SEVERAL currencies (ADR-008), so
+  // there is nothing to inherit — a record has to say which balance it moved, and only the record
+  // knows.
+  //
+  // What replaces inheritance is a refusal: the server rejects a currency the owning account does
+  // not hold. That is a weaker guarantee — a validation rule rather than an unsayable state — and
+  // it is the price of the feature, named here rather than discovered in Phase 2.
+  string currency = 4;
+
+  // A CIVIL DATE — ISO-8601 `YYYY-MM-DD`, e.g. "2026-08-15" — not an instant.
+  //
+  // A purchase happens on a calendar day. An epoch timestamp would force every reader to pick a
+  // timezone to render in, and at the first daylight-saving boundary a record would shift a day
+  // and, at a month edge, into the wrong month — which in a budget app is a wrong total, not a
+  // cosmetic slip. A date string has no timezone to get wrong, sorts lexicographically in
+  // calendar order, and maps to DATE in Postgres and DateTime-at-midnight-local on the client.
+  string date = 5;
+
+  // The owning category, by id. The client resolves it against the category list it already
+  // holds and renders a documented fallback for an id it does not know, rather than throwing.
+  string category_id = 6;
+
+  // The owning account, by id. REQUIRED — a record with no account is money that left no
+  // account, and a balance computed over such records is arithmetic with a hole in it.
+  string account_id = 7;
+
+  // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
+}
+
+// POST /api/v1/records
+message CreateRecordRequest {
+  string title = 1;
+  int64 amount_minor = 2;
+  string date = 3;
+  string category_id = 4;
+  // Required. The server rejects an id that does not exist or is not the caller's.
+  string account_id = 5;
+  // Required, and rejected if the account named above does not hold it — see Record.currency.
+  string currency = 6;
+}
+
+// PUT /api/v1/records/{id} — a FULL REPLACEMENT, for the presence reason set out in
+// categories.proto.
+message UpdateRecordRequest {
+  string title = 1;
+  int64 amount_minor = 2;
+  string date = 3;
+  string category_id = 4;
+  string account_id = 5;
+  // Moving a record between accounts and changing its currency are the same operation here, and
+  // the pair is validated together: the new currency must be one the new account holds.
+  string currency = 6;
+}
+
+// GET /api/v1/records — every record owned by the authenticated user.
+//
+// UNPAGINATED IN v1, and this is a decision rather than an oversight. jZen's zen.v1.PageRequest
+// exists for list endpoints that need it; a personal expense tracker's record list is bounded
+// by one person's spending, and pagination would arrive here as a page parameter no screen
+// sends and no test exercises. When a real list gets long enough to need it, the page
+// parameters are query parameters on the GET and this message gains its page metadata — a
+// backward-compatible addition, because adding fields is what proto3 is good at.
+message ListRecordsResponse {
+  repeated Record records = 1;
+}
+
+// DELETE /api/v1/records/{id} carries no request body and answers 204, so it declares no
+// messages.

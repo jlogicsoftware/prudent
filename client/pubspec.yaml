@@ -38,6 +38,24 @@ dependencies:
   uuid: ^4.3.3
   google_fonts: ^6.2.1
   flutter_riverpod: ^3.0.0-dev.17
+
+  # The runtime for the messages generated from ../proto into lib/src/generated. protobuf
+  # supplies GeneratedMessage; fixnum supplies the Int64 that backs every int64 field — money is
+  # an int64 count of minor units, so Int64 is not incidental here, it is the money type.
+  protobuf: ^6.0.0
+  fixnum: ^1.1.0
+
+  # jZen's transport, consumed from the sibling checkout by path (docs/DECISIONS.md ADR-001).
+  # The import stays `package:zen_transport/...` — character for character what a consumer of the
+  # published package writes — so publishing later is a pubspec edit with no code churn.
+  #
+  # Present in this phase for ONE reason: ZenProtoCodec is what proves the generated messages
+  # survive both wire formats, and the round-trip suite has to exercise the real codec rather
+  # than a local reimplementation of it. Nothing else in the client uses it yet; ZenClient
+  # arrives in Phase 3.
+  zen_transport:
+    path: ../../jZen/client/zen_transport
+
   # No `http`, deliberately. The client talks to one server and it is ours, reached through the
   # framework's transport rather than by hand — so a direct HTTP client in this package is the
   # thing the rule forbids, not a convenience. See docs/DECISIONS.md ADR-004.

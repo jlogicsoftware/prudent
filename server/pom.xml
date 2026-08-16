@@ -99,6 +99,18 @@
       <artifactId>zen-transport</artifactId>
     </dependency>
 
+    <!--
+      The runtime for the DTOs generated from ../proto below. Declared explicitly, with no
+      <version> (zen-parent manages it at ${protobuf.version}), even though zen-proto already
+      drags it in transitively: this module compiles code that calls protobuf-java directly, and
+      a direct compile dependency that is only satisfied by accident disappears the day the
+      module it travelled through drops it.
+    -->
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-arc</artifactId>
@@ -137,6 +149,45 @@
       <plugin>
         <groupId>${quarkus.platform.group-id}</groupId>
         <artifactId>quarkus-maven-plugin</artifactId>
+      </plugin>
+
+      <!--
+        THE JAVA HALF OF THE CONTRACT. ../proto/prudent/v1/*.proto is canonical; these DTOs are
+        derived, and a derived file is never hand-edited.
+
+        NOT TRACKED, ON PURPOSE. The output lands in target/generated-sources/protobuf, which is
+        gitignored, because this plugin RESOLVES THE protoc BINARY FROM MAVEN CENTRAL — anyone
+        with the Maven wrapper regenerates it hermetically, so committing it would only create a
+        second copy to keep honest. The Dart half is the opposite (tracked), for the opposite
+        reason: it needs a system protoc that a Flutter developer has no reason to install. See
+        ../proto/README.md and docs/DECISIONS.md ADR-006.
+
+        NO <version>: zen-parent's pluginManagement supplies it, which is part of what inheriting
+        that parent buys.
+
+        NO ../jZen/proto ON THE IMPORT PATH, deliberately. Prudent's protos import nothing from
+        zen.v1 — the framework's ZenError is an error *body*, returned in place of a response
+        rather than embedded in one, which is why none of jZen's own protos import common.proto
+        either. Adding the include path would be configuration nothing uses, and it would suggest
+        an import is available when the Dart half of the loop cannot follow one across
+        repositories (../proto/README.md records what was measured).
+      -->
+      <plugin>
+        <groupId>io.github.ascopes</groupId>
+        <artifactId>protobuf-maven-plugin</artifactId>
+        <configuration>
+          <protocVersion>${protobuf.version}</protocVersion>
+          <sourceDirectories>
+            <sourceDirectory>${project.basedir}/../proto</sourceDirectory>
+          </sourceDirectories>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
