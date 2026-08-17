@@ -131,6 +131,88 @@ tasks:
     cmds:
       - task: zen:generate:proto:dart
 
+  # ---------------------------------------------------------------------------------------------
+  # The server: build, test, and the OpenAPI half of the contract loop.
+  # ---------------------------------------------------------------------------------------------
+
+  build:server:
+    desc: Build the Quarkus backend
+    dir: "{{.SERVER_DIR}}"
+    summary: |
+      Needs the framework artifacts in the local Maven repository first (`task
+      zen:framework:install`) — server/pom.xml's parent has an empty <relativePath/>, so a missing
+      sibling checkout reports a NON-RESOLVABLE PARENT POM, which reads like a broken file rather
+      than a missing prerequisite.
+
+      The `openapi` profile is active by default (it is ON unless -Dnative is passed), so an
+      ordinary build also writes target/openapi/openapi.json.
+    cmds:
+      - ./mvnw -B package
+
+  test:server:
+    desc: Run the backend suites against a throwaway Postgres
+    dir: "{{.SERVER_DIR}}"
+    summary: |
+      @QuarkusTest with Dev Services, which provisions a throwaway Postgres per run and therefore
+      NEEDS DOCKER. %test migrates at boot, so the migration under test is the one that creates the
+      schema the suite runs against — including the repeatable that adds the row-level security
+      policies.
+
+      What these suites cover, and why each exists, is written on the test classes themselves.
+      UserScopingTest is the one to read first: it is the suite that would catch the worst defect
+      this server can ship, and the defect is invisible from inside a single identity.
+    cmds:
+      - ./mvnw -B test
+
+  generate:api:schema:
+    desc: Emit openapi.json from the annotated resources (SmallRye) and track it
+    summary: |
+      THE OPENAPI HALF OF THE CONTRACT. Packaging the server runs SmallRye's scanner over the
+      annotated resources and merges the result onto the static component schemas in
+      server/src/main/resources/META-INF/openapi.yaml — PATHS COME FROM THE ANNOTATIONS, SCHEMAS
+      COME FROM THE APPLICATION. store-schema-directory (application.properties) is what makes it
+      write the file at all.
+
+      WHY THE RESULT IS COPIED TO A TRACKED PATH. Everything Maven writes lives under target/, which
+      is gitignored — so a gate that regenerated openapi.json there and then diffed the working tree
+      would find nothing, always, and report the contract in sync HAVING CHECKED NOTHING. That is
+      precisely the vacuous-gate failure the no-fingerprinting rule at the bottom of this file
+      exists to prevent, in a different disguise. Tracking the document makes REST-surface drift
+      reviewable in a diff the same way a .proto change is.
+
+      In jZen the tracked downstream artifact is the admin panel's schema.generated.ts, and
+      openapi.json stays in target/. Prudent has no admin panel until Phase 5, so until then the
+      document itself is the artifact worth tracking; generate:api:ts joins this task then.
+
+      -DskipTests, deliberately: this task exists to produce a document, and `task test:server` is
+      where the suites run. Running them here would make every contract check pay for a full
+      database-backed suite, and a slow gate is a gate people stop running.
+    cmds:
+      - "{{.SERVER_DIR}}/mvnw -B -q -f {{.SERVER_DIR}}/pom.xml package -DskipTests"
+      - cmd: |
+          set -euo pipefail
+          generated="{{.SERVER_DIR}}/target/openapi/openapi.json"
+          if [ ! -f "$generated" ]; then
+            echo "SmallRye wrote no openapi.json at $generated." >&2
+            echo >&2
+            echo "The usual cause is that the 'openapi' Maven profile did not activate, which" >&2
+            echo "removes quarkus-smallrye-openapi from the build. The profile is ON unless" >&2
+            echo "-Dnative is passed; check server/pom.xml if that has been changed." >&2
+            exit 1
+          fi
+          cp "$generated" "{{.SERVER_DIR}}/openapi.json"
+          echo "openapi.json -> {{.SERVER_DIR}}/openapi.json"
+        silent: true
+
+  generate:api:
+    desc: Generate every artifact derived from the REST surface
+    summary: |
+      Only the schema half exists today. generate:api:ts — openapi-typescript over openapi.json,
+      producing the admin panel's types — arrives with the admin panel in Phase 5. Its absence is
+      SEQUENCING, not an omission: there is no panel to type.
+    cmds:
+      - task: generate:api:schema
+
   sync:contracts:
     desc: Regenerate every cross-language artifact and FAIL if anything drifted
     summary: |
@@ -161,6 +243,7 @@ tasks:
       document.
     cmds:
       - task: generate:proto
+      - task: generate:api
       - task: generate:l10n
       - task: sync:verify
 
@@ -190,7 +273,7 @@ tasks:
         # Scoped to the .proto SOURCES and the tracked generated output, not to everything under
         # proto/: this gate detects CONTRACT DRIFT, and proto/README.md is documentation beside the
         # contract rather than part of it.
-        dirty=$(git status --porcelain -- '*.pb.dart' '*.pbjson.dart' '*.pbenum.dart' '*.pbserver.dart' 'proto/**/*.proto')
+        dirty=$(git status --porcelain -- '*.pb.dart' '*.pbjson.dart' '*.pbenum.dart' '*.pbserver.dart' 'proto/**/*.proto' 'server/openapi.json')
         if [ -n "$dirty" ]; then
           echo "Contracts are OUT OF SYNC. Regenerated output differs from what is committed:" >&2
           echo "$dirty" >&2
