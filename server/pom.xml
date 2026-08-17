@@ -98,6 +98,40 @@
       <groupId>zen</groupId>
       <artifactId>zen-transport</artifactId>
     </dependency>
+    <!--
+      Auth, the `users` table every Prudent row's user_id references, and the UserRegistered CDI
+      event Prudent observes to seed a new user's default categories and settings row. Not
+      optional: without it there is no authenticated identity to scope a row to, and every
+      ownership rule in this phase is stated in terms of one.
+    -->
+    <dependency>
+      <groupId>zen</groupId>
+      <artifactId>zen-identity</artifactId>
+    </dependency>
+    <!--
+      The abuse layer. Assembling it is the whole integration — the limits are production values
+      by default (jZen ADR-029), so an application that configures nothing still gets protection.
+      Its absence would be an open door on the login path of a personal-finance API, which is why
+      it is here in the phase that first exposes one rather than in the phase that first tunes it.
+    -->
+    <dependency>
+      <groupId>zen</groupId>
+      <artifactId>zen-ratelimit</artifactId>
+    </dependency>
+
+    <!--
+      NO zen-email AND NO zen-jobs, each for its own reason, and neither absence is an oversight.
+
+      zen-email: Prudent sends no mail. zen-identity does not need it either — UserRegistered is
+      fired as an event precisely so the framework stays free of any dependency on zen-email, and
+      an application that wants no welcome message simply observes nothing (jZen ADR-007). This
+      was checked against that class's contract rather than assumed.
+
+      zen-jobs: Prudent has no scheduled work of its own. But zen-identity ships UserRetentionJob,
+      and zen-jobs is what triggers it — so this absence means Prudent's GDPR retention cycle is
+      currently UNRUN rather than unneeded. That is an obligation deferred to the deploy phase,
+      where there is an external trigger to fire it, not a decision that retention does not apply.
+    -->
 
     <!--
       The runtime for the DTOs generated from ../proto below. Declared explicitly, with no
@@ -132,6 +166,69 @@
       This is on the list of rules that fail late and confusingly rather than at the point of the
       mistake, which is why it is written here rather than assumed.
     -->
+
+    <!--
+      PERSISTENCE. Panache in ACTIVE-RECORD style: entities extend PanacheEntityBase and there are
+      no repository classes on this server. (The repository pattern lives on the CLIENT, over
+      ZenClient — Phase 3, a different thing wearing the same word.)
+    -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-hibernate-orm-panache</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jdbc-postgresql</artifactId>
+    </dependency>
+    <!--
+      THE SINGLE MIGRATION AUTHORITY. Never two migration systems on one database. zen-identity
+      ships its migrations to the same db/migration classpath location and they run into THIS
+      database, which is why Prudent's versions are UTC timestamps rather than a reserved band
+      (docs/DECISIONS.md ADR-002).
+    -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-flyway</artifactId>
+    </dependency>
+    <!--
+      Bean Validation on the request messages. The validation this phase owes is server-side and
+      unconditional: an id from a client is not identity, and a currency or icon_key from a client
+      is not a fact.
+    -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-hibernate-validator</artifactId>
+    </dependency>
+
+    <!--
+      Entity <-> proto mapping, so a resource method only ever names the domain model. No
+      <version>: zen-parent manages it.
+    -->
+    <dependency>
+      <groupId>org.mapstruct</groupId>
+      <artifactId>mapstruct</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-junit5</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.rest-assured</groupId>
+      <artifactId>rest-assured</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!--
+      Mints a SecurityIdentity in a test without a live Supabase, which is how every ownership
+      assertion in this phase is made: the user-scoping suite needs TWO identities that differ,
+      and @TestSecurity is the mechanism zen_demo's own AdminUserResourceTest uses.
+    -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-test-security</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -150,6 +247,41 @@
         <groupId>${quarkus.platform.group-id}</groupId>
         <artifactId>quarkus-maven-plugin</artifactId>
       </plugin>
+
+      <!--
+        MapStruct's annotation processor, which generates the mapper implementations at compile
+        time. ${mapstruct.version} comes from zen-parent, the same property zen-identity's own
+        mapper build uses.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.mapstruct</groupId>
+              <artifactId>mapstruct-processor</artifactId>
+              <version>${mapstruct.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+
+      <!--
+        NO jandex-maven-plugin HERE, AND THE REASON MATTERS FOR WHOEVER ADDS THE SECOND MODULE.
+
+        The rule is that every module contributing CDI beans or JAX-RS providers must produce a
+        META-INF/jandex.idx, because without one Quarkus never discovers them — no error, the
+        beans simply do nothing. It does not apply to this module: prudent-server is the
+        APPLICATION module (<packaging>quarkus</packaging>), and Quarkus indexes the application's
+        own classes automatically. The rule is about LIBRARY jars that arrive as dependencies,
+        which is why zen-identity and zen-transport both run it and this module does not.
+
+        THE MOMENT PRUDENT SPLITS OUT A LIBRARY MODULE — anything this POM would list as a
+        <dependency> that carries an @Entity, a @Mapper, a JAX-RS provider or any CDI bean — that
+        module runs jandex-maven-plugin. Stated here rather than left ambiguous, because the
+        failure is silent and the symptom appears in the application rather than in the library.
+      -->
 
       <!--
         THE JAVA HALF OF THE CONTRACT. ../proto/prudent/v1/*.proto is canonical; these DTOs are

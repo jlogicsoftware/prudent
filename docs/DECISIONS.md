@@ -813,3 +813,262 @@ of a meaning quietly attached to an existing field.
 - **Phase 4's overview** shows per-currency totals with `main_currency` first. It does not show a
   combined total, and the round-trip suite's "balances in different currencies stay separate, and
   are never summed" is the test that fails if someone later adds one.
+
+---
+
+## ADR-010 — The backend's shape: policies in a repeatable, port 8085, and the four rules the resources own
+
+**Date:** 2026-08-17. **Status:** accepted. **Refines:** ADR-002's "same migration" instruction, on
+mechanism only.
+
+### Context
+
+Phase 2 built Prudent's server: Panache entities, one Flyway migration and its row-level security,
+MapStruct mappers, four REST resources, the static OpenAPI document and the suites that prove them.
+Most of it follows rules already recorded. Five things it settled are not, and this entry is those.
+
+### The policies live in a repeatable, and the reason is ordering rather than taste
+
+**ADR-002 says every new table ships RLS *and* a `zen_runtime` policy in the same migration. The
+policies are in `R__prudent_row_level_security.sql` instead, and they had to be.**
+
+`zen_runtime` is created by `zen-identity`'s **repeatable** `R__identity_application_role.sql`, and
+Flyway runs every repeatable **after** every versioned migration. A `CREATE POLICY … TO zen_runtime`
+inside `V20260817090000__prudent_init.sql` would therefore reference a role that does not exist yet
+on a fresh database — which is every `@QuarkusTest` run, since Dev Services provisions one per run.
+The migration would not degrade; it would fail outright.
+
+**ADR-002's intent is honoured and its mechanism is not.** What that entry is actually protecting
+against is a *release* that enables RLS and leaves the policy for later, opening a window where the
+application silently reads nothing. Both files land together in one change, so no such window
+exists. The versioned migration enables RLS on all five tables; the repeatable creates the five
+policies, guarded on the role existing.
+
+The boot log confirms the order rather than asserting it:
+
+```
+Migrating schema "public" to version "20260817090000 - prudent init"
+Migrating schema "public" with repeatable migration "identity application role"
+Migrating schema "public" with repeatable migration "prudent row level security"
+```
+
+### The port is 8085, and it is a collision avoided
+
+`quarkus.http.port=8085`. jZen's local stack holds 8080, and `Taskfile.app.yml` already defaults an
+application's API to 8085 — so this is the value the shared orchestration already expects.
+
+**Prudent runs its own local Supabase project on shifted ports, 54331 (API) and 54332 (db)**, rather
+than sharing jZen's 54321/54322. This closes plan §5.4. The alternative — only one product running
+at a time — is not a decision anyone holds; it is a state discovered when `supabase start` fails to
+bind, mid-task, on whichever product was started second. And the ports are the smaller half: one
+shared project would put jZen's demo users and Prudent's in a single `auth.users`, which is a data
+problem wearing a port problem's clothes. Nothing in Phase 2 depends on it — Dev Services gives the
+suite a plain Postgres with no `auth` schema — so it is decided here and wired in Phase 3.
+
+### Validation, and the two places a refusal replaced a guess
+
+- **`currency` is validated against the JDK's ISO-4217 table**, not a list in this repository. A
+  hand-maintained set is a second copy of a standard that changes without asking, and its failure
+  mode is rejecting a currency that legitimately exists. This is a second reason `quarkus.locales`
+  matters: a native image bakes that table at build time.
+- **`icon_key` is validated against a set of five**, duplicated on the client and named as a cost in
+  `IconKeys`. Generating both from one source means moving the keys into the `.proto` as an enum,
+  which forecloses a user-supplied icon set — a product question nobody has asked. Until it is
+  asked, the duplication is documented rather than designed away.
+- **`ACCOUNT_TYPE_UNSPECIFIED` is refused**, never defaulted. It is what proto3 decodes an omitted
+  field to, and cash is a valid answer, so a default would make "the client forgot" and "the client
+  meant cash" the same row.
+- **A malformed date is refused**, never rolled. `LocalDate.parse` rejects `2026-02-30` rather than
+  moving it to March; a rolled date files a record in a month the user did not choose, which is a
+  wrong total in two months at once.
+
+### Deletes are hard, and a delete that would orphan data is refused
+
+**Hard deletes everywhere**, closing the plan's open question. A soft delete's stated appeal is that
+Phase 4's analytics could still read the rows, and that is the problem rather than the feature: a
+user who deletes a mistyped 5,000 PLN entry and still sees it in a total is looking at a wrong
+number that looks right — the class of defect the integer money type exists to prevent. A soft
+delete the product gives no way to undo is a table that grows.
+
+**Deleting an account or category that still has records is refused at 409**, not cascaded. This is
+ADR-008's rule about dropping a currency with records, applied to the case it obviously generalises
+to, rather than a second philosophy. The migration carries no `ON DELETE CASCADE` on either
+reference, so the database enforces it as a last resort and the resource refuses first with a
+message a user can act on.
+
+### Listing is unpaginated, and that was already decided
+
+`records.proto` settles it: **unpaginated in v1**. This entry records only that Phase 2 implemented
+what the contract said rather than reopening it — a `PageRequest` on records was proposed during
+planning and withdrawn on reading the contract, because page parameters are query parameters on the
+`GET` and response page metadata is a backward-compatible proto3 addition. The retrofit is cheap,
+so pre-empting it buys nothing.
+
+### Default categories arrive on first login, through the framework's event
+
+Five starter categories — Food, Restaurant, Leisure, Health, Work — and the `Settings` row are
+created by `NewUserSetup`, an `@ObservesAsync` observer of `zen-identity`'s `UserRegistered`. This
+is jZen ADR-007's split used as intended: the framework knows *that* a user registered, the
+application supplies what happens next. Flyway cannot do this — it is per-user data, not schema.
+
+They are **ordinary deletable rows**, because a default a user cannot clear is clutter; their icon
+keys are the five the client ships, because seeding a key the client cannot render would show the
+fallback icon on day one. **Their titles are English, and that is a named gap**: the event carries
+the registering user's language, and localising them needs a server-side message bundle that has no
+other caller yet.
+
+### Consequence
+
+- `task test:server` green at **55 tests**; `(cd server && ./mvnw -B package)` green with the
+  `openapi` profile active by default.
+- **`zen-identity` and `zen-ratelimit` are assembled; `zen-email` and `zen-jobs` are not.**
+  `zen-email` is genuinely unnecessary — `UserRegistered`'s own contract states that firing an event
+  is what keeps `zen-identity` free of any dependency on it. **`zen-jobs` is an obligation deferred,
+  not a need declined:** `zen-identity` ships `UserRetentionJob` and `zen-jobs` is what triggers it,
+  so Prudent's GDPR retention cycle is currently **unrun**. It is assembled in the deploy phase,
+  where there is an external trigger to fire it.
+- **Phase 3 inherits** entities named with an `Entity` suffix (the proto types own `Account`,
+  `Record`, `Category`, `Settings`, and `Record` would additionally shadow `java.lang.Record`); a
+  404 rather than a 403 for another user's row, so an id cannot be used as an existence oracle; and
+  a `PUT` that replaces rather than merges on every resource.
+
+---
+
+## ADR-011 — The OpenAPI half of the contract gate needs a tracked artifact, and framework schemas are the application's to declare
+
+**Date:** 2026-08-17. **Status:** accepted. **Extends:** ADR-006's "the generate/verify loop is
+Prudent's own".
+
+### Context
+
+ADR-006 deferred the OpenAPI half of `sync:contracts` to Phase 2, correctly: `openapi.json` is
+emitted by SmallRye from annotated resources, and there were none. Phase 2 added four resources and
+with them the task. Two things about wiring it up were not obvious and cost real time.
+
+### `openapi.json` is tracked, because otherwise the gate checks nothing
+
+SmallRye writes `target/openapi/openapi.json`, and `target/` is gitignored. A gate that regenerated
+the document there and then diffed the working tree would find nothing dirty **always**, and report
+the contracts in sync having verified nothing about the REST surface.
+
+That is exactly the vacuous-gate failure ADR-006's no-fingerprinting rule exists to prevent, wearing
+a different disguise — and it is more dangerous than the fingerprinting one, because there is no
+`sources:` line to notice.
+
+**So `generate:api:schema` copies the document to `server/openapi.json`, which is tracked**,
+`linguist-generated`, and watched by `sync:verify`. REST-surface drift now shows up in a diff the
+way a `.proto` change does.
+
+In jZen the tracked downstream artifact is the admin panel's `schema.generated.ts` and
+`openapi.json` stays in `target/`. Prudent has no admin panel until Phase 5, so until then the
+document itself is the artifact worth tracking. `generate:api:ts` joins the task then; its absence
+now is sequencing.
+
+### An application declares component schemas for framework messages, and there are more than expected
+
+`zen-identity`'s `AuthResource` and `AdminUserResource` and `zen-jobs`' `JobTriggerResource` ship
+their **paths** inside the framework jars, and SmallRye scans them into Prudent's document
+automatically. Their **schemas** are not carried by the merge. Paths come from the annotations;
+schemas come from the application — including for messages the application did not write.
+
+**Ten components in Prudent's `openapi.yaml` describe framework messages**: `Identity`, `ZenError`,
+the five auth request bodies, `AdminUser`/`AdminUserList`, and `JobTickResult`/`JobRun`. The last
+pair is declared even though Prudent does not assemble `zen-jobs`: the path is scanned in from a
+transitive dependency regardless of whether anything serves it.
+
+**Eight of the ten were missing on the first pass, and nothing said so.** A `$ref` with no component
+behind it is a dangling reference: the document generates, the build succeeds, and the failure
+surfaces later in whatever consumes it — for Prudent, Phase 5's `openapi-typescript`. It was found
+by checking the generated document for unresolved references, not by reading it, and that check is
+worth keeping as the document grows.
+
+**jZen's own document does not declare `ZenError` at all**, because its resources never `$ref` it —
+they describe error responses with a description and no schema. Prudent's do reference it, so
+Prudent declares it. This extends the plan's §3.7 finding 5: the static document being hand-authored
+means every application re-declares schemas for framework messages, and there is nothing to keep the
+copies honest with the framework or with each other.
+
+### Consequence
+
+- `sync:contracts` now runs `generate:proto`, `generate:api`, `generate:l10n`, `sync:verify`. The
+  document holds **27 component schemas and 21 paths, with zero dangling and zero unreferenced
+  references**.
+- The transport seam is visible in the document: every response and request body is declared for
+  both `application/json` and `application/x-protobuf`.
+- **`server/openapi.json` must be committed for the gate to pass.** It diffs against `HEAD`, so a
+  newly tracked generated file reads as drift until it lands — correct behaviour, and worth knowing
+  before someone debugs it.
+
+---
+
+## ADR-012 — The no-Jackson rule stands, but its documented failure mode does not reproduce
+
+**Date:** 2026-08-17. **Status:** accepted. **Records a measurement that contradicts a rule this
+repository asserts.**
+
+### Context
+
+Both `server/pom.xml` and CLAUDE.md state the rule absolutely: **no `quarkus-rest-jackson`, not at
+any priority, not later** — because it registers itself for `application/json` through a build-time
+path that ignores writer priority, wins over `zen-transport`'s writer, tries to reflect over a
+protobuf-generated class, and **returns 500 on every proto response body**.
+
+A rule whose violation is invisible deserves a demonstration, so Phase 2 ran one: add the
+dependency, confirm a proto response 500s, remove it. **It did not 500.**
+
+### What was measured
+
+With `quarkus-rest-jackson` added and confirmed active — `rest-jackson` present in Quarkus's
+`Installed features` line, `quarkus-rest-jackson:jar:3.38.0` in the dependency tree — the full
+`CategoryResourceTest` suite passed unchanged, in both transport modes.
+
+Suspecting the trigger was the *bare proto return type* the rule's own wording names (every Prudent
+resource returns `jakarta.ws.rs.core.Response`), a throwaway probe resource returning a bare
+`Category` was added and hit in JSON mode. With Jackson installed:
+
+```
+status=200  content-type=application/json;charset=UTF-8
+body={"id":"1111…","title":"Probe","iconKey":"food","colorArgb":4283215696}
+```
+
+That is correct canonical proto3 JSON — `colorArgb` carries the unsigned value, and there is none of
+the builder-internal output Jackson produces on a protobuf class. The negative control, the same
+probe with Jackson removed, returned a **byte-identical** body. `zen-transport`'s writer served both.
+The probe was deleted.
+
+### Decision
+
+**The rule stands and the dependency stays absent.** Nothing here is an argument for adding an
+extension this server has no use for: it would still bake a scanner and its dependencies into every
+image for a capability nothing wants, and the reasoning that keeps `quarkus-smallrye-openapi` in a
+profile applies to it with more force.
+
+**What changes is the justification's status.** On Quarkus 3.38.0 with this `zen-transport`, the
+stated mechanism — Jackson hijacking `application/json` and 500ing on proto — is **not
+reproducible**, including through the bare-return-type shape the rule names as its trigger. The rule
+is now held by "do not ship what you do not need", which is sound, rather than by a failure anyone
+can currently demonstrate.
+
+### Why record a negative result at all
+
+Because the alternative is worse in a specific way. A rule justified by a dramatic failure that
+nobody can reproduce is a rule the next person tests, finds harmless, and drops — and if the
+mechanism is real on some other Quarkus version, configuration or resource shape, they will have
+removed a guard for a good reason and been wrong. Writing down that the demonstration was attempted
+and did not fire is what stops the rule from being either blindly trusted or casually deleted.
+
+**Reported as a jZen-side finding**, since the rule is the framework's and the claim appears in its
+STANDARDS: either the mechanism was fixed by a Quarkus upgrade or by `zen-transport` gaining writer
+precedence, in which case the wording should say so, or it survives under conditions not identified
+here, in which case those conditions are what the rule should name. Prudent is not changed either
+way.
+
+### Consequence
+
+- The pairing gate **was** demonstrated for the other silent failure: dropping the `zen_runtime`
+  policies from the repeatable made `PrudentRowLevelSecurityTest` fail with
+  `zen_runtime read 0 rows from prudent_account but the table holds 1` — zero rows, no error,
+  exactly the shape the policy exists to prevent. Restored and re-verified green.
+- One of this phase's two named silent failures therefore has a working demonstration and the other
+  has a recorded non-reproduction. That asymmetry is the honest state and is not resolved by
+  asserting the second.
