@@ -1,0 +1,571 @@
+# Prudent's static OpenAPI base document.
+#
+# WHY THIS FILE EXISTS AT ALL. SmallRye cannot introspect a protobuf-generated class into a clean
+# schema — it walks the builder internals and emits a hundred-plus garbage components. So Prudent's
+# resources declare every request and response schema BY REFERENCE (@Schema(ref = "Record")) and
+# the component schemas are supplied here. SmallRye merges its annotation-scanned PATHS on top of
+# this base: PATHS COME FROM THE ANNOTATIONS, SCHEMAS COME FROM THE APPLICATION.
+#
+# THAT SPLIT IS WHY FRAMEWORK SCHEMAS ARE HERE TOO, AND THERE ARE MORE OF THEM THAN EXPECTED.
+# zen-identity's AuthResource, its AdminUserResource and zen-jobs' JobTriggerResource all ship
+# their PATHS inside the framework jars, and those paths are scanned into Prudent's document
+# automatically — but their SCHEMAS are not, because nothing in the merge carries them. So ten
+# components below describe messages Prudent did not write: Identity, ZenError, the five auth
+# request bodies, AdminUser/AdminUserList and JobTickResult/JobRun.
+#
+# A $ref with no component behind it is a DANGLING REFERENCE. The document still generates and the
+# build still succeeds; the failure surfaces later, in whatever consumes it — for Prudent that is
+# Phase 5's openapi-typescript, which would emit a type referencing nothing. This was found by
+# checking the generated document for unresolved refs rather than by reading it, because eight of
+# the ten were missing on the first pass and nothing said so.
+#
+# JobTickResult is declared even though Prudent does not assemble zen-jobs: the path is scanned in
+# from a transitive dependency regardless of whether anything serves it.
+#
+# FIELD NAMES ARE proto3 CANONICAL JSON (lowerCamelCase) — what JsonFormat emits and what the Dart
+# and TypeScript generators consume. int64 IS ENCODED AS A STRING in that form, which is why every
+# money field below is `type: string` with `format: int64` rather than an integer. Getting that
+# wrong produces a generated client that silently truncates large amounts.
+#
+# HAND-AUTHORED, and that is a known cost rather than a design. jZen's own document says the same
+# of itself: in the finished system this is generated from the .proto files by a protoc -> OpenAPI
+# step, keeping the contract single-sourced. Until that exists, every application hand-maintains
+# component schemas for messages it did not write, and the two can drift with nothing to catch it.
+openapi: 3.1.0
+info:
+  title: Prudent API
+  version: 0.1.0
+components:
+  schemas:
+
+    # -----------------------------------------------------------------------------------------
+    # Framework messages — declared here because the merge does not carry them (see the header)
+    # -----------------------------------------------------------------------------------------
+    ZenError:
+      type: object
+      description: >-
+        The error body every Prudent endpoint returns in place of a response on any status >= 400.
+        There is no envelope: HTTP status carries the status, X-Request-ID carries the request id,
+        and this carries the error. A client parses it with the same codec it would a success,
+        because the transport seam serialises it in the negotiated format.
+      properties:
+        code:
+          type: string
+          description: >-
+            The stable machine-readable code a client branches on — "not_found", "invalid",
+            "conflict", or one of the framework's own ("unauthorized"). This is API; the message is
+            not.
+        message:
+          type: string
+          description: Human-readable detail, for a log or a developer console. Not for branching.
+    Identity:
+      type: object
+      description: >-
+        The authenticated identity returned by the framework's auth endpoints (zen-identity's
+        AuthResource, whose paths are scanned into this document from the framework jar). An
+        Identity with an empty id denotes "no session".
+      properties:
+        id:
+          type: string
+          description: Stable identity id (the Supabase auth.users id / JWT sub).
+        lifecycleState:
+          type: string
+          description: One of "pending", "active", "revoked", "disabled".
+        lifecycleReason:
+          type: string
+          description: Optional human-readable reason for the current lifecycle state.
+        roles:
+          type: array
+          items:
+            type: string
+          description: Authority roles loaded from the users table, never from the JWT.
+        capabilities:
+          type: array
+          items:
+            type: string
+        createdAtMs:
+          type: integer
+          format: int64
+          description: Creation time in ms since the Unix epoch.
+        emailVerified:
+          type: boolean
+    LoginRequest:
+      type: object
+      description: Body for POST /api/v1/auth/login.
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+    RegisterRequest:
+      type: object
+      description: Body for POST /api/v1/auth/register.
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        redirectUri:
+          type: string
+          description: >-
+            Optional. Where the confirmation link returns the user; empty means the server's
+            default. Accepted only on an EXACT match with a configured target — an unchecked
+            return address would let anyone have a live session token mailed to a destination
+            they control.
+    RestorePasswordRequest:
+      type: object
+      description: Body for POST /api/v1/auth/restore-password.
+      properties:
+        email:
+          type: string
+        redirectUri:
+          type: string
+          description: Optional; validated exactly as RegisterRequest.redirectUri.
+    SessionExchangeRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/auth/session. The tokens a Supabase email link left in the URL
+        fragment, posted back by the client so the backend can validate them and set cookies.
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+          description: Optional; without it the session cannot be refreshed silently.
+    SetPasswordRequest:
+      type: object
+      description: Body for POST /api/v1/auth/password; sets a new password for the current session.
+      properties:
+        password:
+          type: string
+    AdminUser:
+      type: object
+      description: >-
+        A users-table row projected for the admin panel (GET/PUT /api/v1/admin/users). Prudent has
+        no admin panel until Phase 5; the schema is here because the framework's AdminUserResource
+        ships its PATHS and they are scanned into this document regardless.
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        nickname:
+          type: string
+        role:
+          type: string
+          description: Authority role; one of "user", "admin", "reviewer", "b2b_admin".
+        language:
+          type: string
+          description: >-
+            Preferred language code. For Prudent this is one of en, uk, pl — and it is the SOLE
+            locale source for email, which has no request to read Accept-Language from.
+        isPremium:
+          type: boolean
+        isPrivate:
+          type: boolean
+        emailVerified:
+          type: boolean
+        createdAtMs:
+          type: integer
+          format: int64
+        lastLoginAtMs:
+          type: integer
+          format: int64
+          description: Last login time in ms since the Unix epoch; 0 when never logged in.
+    AdminUserList:
+      type: array
+      description: >-
+        GET /api/v1/admin/users response; a page of AdminUser records as a bare JSON array. The
+        total row count travels in the Content-Range header (the ra-data-simple-rest convention).
+      items:
+        $ref: '#/components/schemas/AdminUser'
+    JobRun:
+      type: object
+      description: The outcome of one job executed during a tick of POST /api/v1/jobs/trigger.
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+          description: Terminal status of the run; "success" or "failure".
+        startedAtMs:
+          type: integer
+          format: int64
+        durationMs:
+          type: integer
+          format: int64
+        error:
+          type: string
+          description: Failure detail; empty on success.
+    JobTickResult:
+      type: object
+      description: >-
+        POST /api/v1/jobs/trigger response. Prudent does not assemble zen-jobs today, so nothing
+        serves this path — but the schema is declared because the reference is scanned in from the
+        framework, and a $ref with no component behind it is a dangling reference in a document
+        Prudent publishes.
+      properties:
+        startedAtMs:
+          type: integer
+          format: int64
+        due:
+          type: integer
+          format: int32
+        succeeded:
+          type: integer
+          format: int32
+        failed:
+          type: integer
+          format: int32
+        skippedOverlap:
+          type: boolean
+        runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobRun'
+
+    # -----------------------------------------------------------------------------------------
+    # Categories
+    # -----------------------------------------------------------------------------------------
+    Category:
+      type: object
+      description: A spending category, as the server holds it.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Server-minted. A create request carries no id.
+        title:
+          type: string
+        iconKey:
+          type: string
+          description: >-
+            A STABLE KEY, never an icon code point — "work", "leisure", "food", "restaurant",
+            "medicine". A code point would defeat Flutter's icon tree-shaking, shipping the whole
+            Material font in every bundle. Validated server-side; an unknown key is rejected on
+            write, and a client renders a documented fallback for one it does not know.
+          enum: [work, leisure, food, restaurant, medicine]
+        description:
+          type: string
+        colorArgb:
+          type: integer
+          format: int32
+          description: >-
+            The category colour as unsigned 0xAARRGGBB. A colour is a value and ARGB is its
+            portable form, so it survives a user picking outside the shipped palette.
+    CreateCategoryRequest:
+      type: object
+      description: Body for POST /api/v1/categories. No id field — the server mints it.
+      properties:
+        title:
+          type: string
+        iconKey:
+          type: string
+          enum: [work, leisure, food, restaurant, medicine]
+        description:
+          type: string
+        colorArgb:
+          type: integer
+          format: int32
+    UpdateCategoryRequest:
+      type: object
+      description: >-
+        Body for PUT /api/v1/categories/{id}. A FULL REPLACEMENT, not a patch: every mutable field
+        is applied, so a field the client omits is written as its proto3 default. Plain proto3
+        scalars have no presence, so an absent field and an explicitly-sent default are identical
+        on the wire — a merge would have to guess which it received.
+      properties:
+        title:
+          type: string
+        iconKey:
+          type: string
+          enum: [work, leisure, food, restaurant, medicine]
+        description:
+          type: string
+        colorArgb:
+          type: integer
+          format: int32
+    ListCategoriesResponse:
+      type: object
+      description: GET /api/v1/categories — every category owned by the caller.
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+
+    # -----------------------------------------------------------------------------------------
+    # Accounts
+    # -----------------------------------------------------------------------------------------
+    AccountType:
+      type: string
+      description: >-
+        What kind of account this is. ACCOUNT_TYPE_UNSPECIFIED is what proto3 decodes an omitted
+        field to and is REJECTED server-side — defaulting it to cash would make "the client forgot"
+        indistinguishable from "the client meant cash", and cash is a valid answer.
+      enum:
+        - ACCOUNT_TYPE_UNSPECIFIED
+        - ACCOUNT_TYPE_CASH
+        - ACCOUNT_TYPE_CARD
+        - ACCOUNT_TYPE_CHECKING
+        - ACCOUNT_TYPE_SAVINGS
+    CurrencyBalance:
+      type: object
+      description: One currency an account holds, and how much of it.
+      properties:
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: ISO-4217 alphabetic code, validated server-side against the JDK's table.
+        amountMinor:
+          type: string
+          format: int64
+          description: >-
+            An INTEGER COUNT OF MINOR UNITS — "1234" is 12.34 PLN — never a float. Binary floating
+            point cannot represent 0.10 and an expense tracker sums thousands of values. Note the
+            type: proto3 canonical JSON encodes int64 AS A STRING, while the Protobuf binary mode
+            carries a number; the two must agree after decoding.
+    Account:
+      type: object
+      description: >-
+        An account, as the server holds it. AN ACCOUNT HOLDS SEVERAL CURRENCIES AT ONCE, each with
+        its own balance. There is no FX: the balances are independent, nothing converts between
+        them, and summing across them is refused rather than done at a rate nobody chose.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/AccountType'
+        isDefault:
+          type: boolean
+          description: >-
+            The account offered first when creating a record. Exactly one per user is true; the
+            server clears the flag on the previous holder rather than trusting the client to.
+        isActive:
+          type: boolean
+          description: An inactive account is kept for its history rather than deleted.
+        includeInTotal:
+          type: boolean
+        includeInOverview:
+          type: boolean
+          description: >-
+            Two flags rather than one: a savings account a user wants visible but excluded from
+            spendable funds needs them to differ.
+        balances:
+          type: array
+          minItems: 1
+          description: >-
+            The currencies this account holds, one entry each, in the order the server stores them.
+            NEVER EMPTY and at most one entry per currency — both rejected server-side. The set is
+            DECLARED rather than inferred, which is what lets the server reject a record in a
+            currency the account does not hold instead of silently opening a new balance.
+          items:
+            $ref: '#/components/schemas/CurrencyBalance'
+    CreateAccountRequest:
+      type: object
+      description: Body for POST /api/v1/accounts. No id field — the server mints it.
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/AccountType'
+        isDefault:
+          type: boolean
+        isActive:
+          type: boolean
+        includeInTotal:
+          type: boolean
+        includeInOverview:
+          type: boolean
+        balances:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CurrencyBalance'
+    UpdateAccountRequest:
+      type: object
+      description: >-
+        Body for PUT /api/v1/accounts/{id}. A FULL REPLACEMENT — an entry omitted from `balances`
+        is an entry the client is asking to remove.
+
+        TWO SERVER RULES THIS MESSAGE CANNOT EXPRESS, both refusals rather than best-effort
+        repairs: a currency that still has records cannot be dropped (409 — it would orphan money
+        that left an account no longer admitting it exists), and a currency code is never edited in
+        place (there is no rename; dropping PLN and adding EUR is two operations, and the first
+        rule catches the case where it would have reinterpreted 100 PLN as 100 EUR). Adding a
+        currency is always allowed — that is how an account becomes multi-currency after the fact.
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/AccountType'
+        isDefault:
+          type: boolean
+        isActive:
+          type: boolean
+        includeInTotal:
+          type: boolean
+        includeInOverview:
+          type: boolean
+        balances:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CurrencyBalance'
+    ListAccountsResponse:
+      type: object
+      description: GET /api/v1/accounts — every account owned by the caller.
+      properties:
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Account'
+
+    # -----------------------------------------------------------------------------------------
+    # Records
+    # -----------------------------------------------------------------------------------------
+    Record:
+      type: object
+      description: A single transaction, as the server holds it.
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        amountMinor:
+          type: string
+          format: int64
+          description: Minor units, exact under addition. See CurrencyBalance.amountMinor.
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: >-
+            Which of the owning account's currencies this record is denominated in. Client-supplied
+            and required; the server REJECTS a currency the account does not hold. That refusal is
+            what replaced inheritance when an account gained the ability to hold several
+            currencies — a validation rule rather than an unsayable state, which is the price of
+            the feature.
+        date:
+          type: string
+          format: date
+          description: >-
+            A CIVIL DATE, ISO-8601 YYYY-MM-DD — not an instant. A purchase happens on a calendar
+            day; an epoch timestamp would force every reader to pick a timezone, and at a
+            daylight-saving boundary a record would shift a day — at a month edge, into the wrong
+            month, which is a wrong total.
+        categoryId:
+          type: string
+          format: uuid
+        accountId:
+          type: string
+          format: uuid
+          description: >-
+            REQUIRED. A record with no account is money that left no account, and a balance
+            computed over such records is arithmetic with a hole in it.
+    CreateRecordRequest:
+      type: object
+      description: Body for POST /api/v1/records. No id field — the server mints it.
+      properties:
+        title:
+          type: string
+        amountMinor:
+          type: string
+          format: int64
+        date:
+          type: string
+          format: date
+        categoryId:
+          type: string
+          format: uuid
+        accountId:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+    UpdateRecordRequest:
+      type: object
+      description: >-
+        Body for PUT /api/v1/records/{id}. A FULL REPLACEMENT. Moving a record between accounts and
+        changing its currency are ONE operation and are validated together: the new currency must
+        be one the NEW account holds.
+      properties:
+        title:
+          type: string
+        amountMinor:
+          type: string
+          format: int64
+        date:
+          type: string
+          format: date
+        categoryId:
+          type: string
+          format: uuid
+        accountId:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+    ListRecordsResponse:
+      type: object
+      description: >-
+        GET /api/v1/records — every record owned by the caller. UNPAGINATED IN v1, which is a
+        decision rather than an oversight: a personal expense tracker's record list is bounded by
+        one person's spending. When one gets long enough to need paging, the page parameters are
+        query parameters on the GET and this message gains its page metadata — a
+        backward-compatible addition.
+      properties:
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/Record'
+
+    # -----------------------------------------------------------------------------------------
+    # Settings — a singleton per user
+    # -----------------------------------------------------------------------------------------
+    Settings:
+      type: object
+      description: >-
+        The authenticated user's settings. A SINGLETON: there is no id, no create, no delete and no
+        list, and the URL carries no id because the token is the entire addressing scheme. The row
+        is created on first login, not by a client.
+      properties:
+        mainCurrency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: >-
+            The user's main currency — A LABEL, NEVER A CONVERSION TARGET. It selects which
+            currency a record form pre-selects, which per-currency total the overview shows first,
+            and what an empty state names. It is never used to convert between currencies or to sum
+            across them, because Prudent does no FX.
+
+            NEVER EMPTY ON A RESPONSE: the server resolves the default before answering, so a GET
+            always names a real currency. Not required to be a currency any of the user's accounts
+            holds — it is a display preference.
+    UpdateSettingsRequest:
+      type: object
+      description: >-
+        Body for PUT /api/v1/settings. A FULL REPLACEMENT, and the response carries the resulting
+        Settings rather than an empty body — the server may have substituted a default, and a
+        client that has to re-read to learn what it just wrote is a round trip the response could
+        have saved.
+      properties:
+        mainCurrency:
+          type: string
+          description: >-
+            AN EMPTY VALUE MEANS "RESET TO THE DEFAULT", not "leave unchanged". proto3 has no
+            presence for a string, so "" and unset are the same bytes; one reading had to be
+            chosen, and there is nothing else in this message that "leave unchanged" could
+            preserve. When a second field lands here, that sentence stops being true.
