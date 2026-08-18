@@ -1,59 +1,60 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'account.dart';
+import '../src/generated/prudent/v1/accounts.pb.dart';
+import '../src/l10n/generated/prudent_localizations.dart';
+import '../src/money.dart';
 
-class AccountNew extends ConsumerStatefulWidget {
-  final Account? initialAccount;
-  final void Function(Account) onAddAccount;
+/// Opens an account with a single starting currency and balance. An account can hold several
+/// currencies at once (docs/DECISIONS.md ADR-008); adding a second one is an edit, not part of
+/// creation.
+class AccountNew extends StatefulWidget {
+  final void Function(CreateAccountRequest request) onAddAccount;
 
-  const AccountNew({
-    super.key,
-    required this.onAddAccount,
-    this.initialAccount,
-  });
+  const AccountNew({super.key, required this.onAddAccount});
 
   @override
-  ConsumerState<AccountNew> createState() => _AccountNewState();
+  State<AccountNew> createState() => _AccountNewState();
 }
 
-class _AccountNewState extends ConsumerState<AccountNew> {
+class _AccountNewState extends State<AccountNew> {
   final _formKey = GlobalKey<FormState>();
   var _name = '';
-  var _balance = 0.0;
-  late AccountType _selectedType;
-  String _currency = 'USD';
+  var _balanceInput = '0';
+  var _currency = 'PLN';
+  var _selectedType = AccountType.ACCOUNT_TYPE_CARD;
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.initialAccount != null) {
-      _selectedType = widget.initialAccount!.type;
-      _currency = widget.initialAccount!.currency;
-    } else {
-      _selectedType = AccountType.card; // Default type
-    }
-  }
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    _formKey.currentState!.save();
 
-  void _submitAccountData() {
-    if (!_formKey.currentState!.validate()) {
-      return; // If the form is not valid, exit
-    }
+    final minor = parseMinorUnits(_balanceInput);
+    if (minor == null) return;
 
-    _formKey.currentState!.save(); // Save the form data
-    final account = Account(
-      name: _name,
-      type: _selectedType,
-      balance: _balance,
-      currency: _currency,
+    widget.onAddAccount(
+      CreateAccountRequest(
+        name: _name,
+        type: _selectedType,
+        isDefault: false,
+        isActive: true,
+        includeInTotal: true,
+        includeInOverview: true,
+        balances: [CurrencyBalance(currency: _currency, amountMinor: minor)],
+      ),
     );
-
-    widget.onAddAccount(account);
     Navigator.pop(context);
   }
 
+  String _typeLabel(PrudentLocalizations t, AccountType type) => switch (type) {
+    AccountType.ACCOUNT_TYPE_CASH => t.accountTypeCash,
+    AccountType.ACCOUNT_TYPE_CARD => t.accountTypeCard,
+    AccountType.ACCOUNT_TYPE_CHECKING => t.accountTypeChecking,
+    AccountType.ACCOUNT_TYPE_SAVINGS => t.accountTypeSavings,
+    _ => type.name,
+  };
+
   @override
   Widget build(BuildContext context) {
+    final t = PrudentLocalizations.of(context);
     return Form(
       key: _formKey,
       child: Padding(
@@ -61,56 +62,52 @@ class _AccountNewState extends ConsumerState<AccountNew> {
         child: Column(
           children: [
             TextFormField(
-              decoration: const InputDecoration(labelText: 'Account Name'),
-              validator:
-                  (value) => value!.isEmpty ? 'Please enter a name' : null,
+              decoration: InputDecoration(labelText: t.accountNameField),
+              validator: (value) => value == null || value.isEmpty ? t.accountNameRequired : null,
               onSaved: (newValue) => _name = newValue ?? '',
             ),
-            TextFormField(
-              decoration: const InputDecoration(labelText: 'Balance'),
-              // initialValue: '0.00',
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
-              onSaved:
-                  (newValue) =>
-                      _balance =
-                          double.tryParse(
-                            newValue?.replaceAll(',', '.') ?? '',
-                          ) ??
-                          0.0,
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    initialValue: _balanceInput,
+                    decoration: InputDecoration(labelText: t.accountOpeningBalanceField),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    validator: (value) => parseMinorUnits(value ?? '') == null ? t.accountAmountInvalid : null,
+                    onSaved: (newValue) => _balanceInput = newValue ?? '0',
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 80,
+                  child: TextFormField(
+                    initialValue: _currency,
+                    decoration: InputDecoration(labelText: t.accountCurrencyField),
+                    textCapitalization: TextCapitalization.characters,
+                    maxLength: 3,
+                    onSaved: (newValue) => _currency = (newValue ?? 'PLN').toUpperCase(),
+                  ),
+                ),
+              ],
             ),
             DropdownButtonFormField<AccountType>(
-              items:
-              [
-                for (var type in AccountType.values)
-                  DropdownMenuItem(
-                    value: type,
-                    child: Text(type.toString().split('.').last),
-                  ),
+              items: [
+                for (final type in AccountType.values.where((v) => v != AccountType.ACCOUNT_TYPE_UNSPECIFIED))
+                  DropdownMenuItem(value: type, child: Text(_typeLabel(t, type))),
               ],
               initialValue: _selectedType,
               onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _selectedType = value;
-                  });
-                }
+                if (value != null) setState(() => _selectedType = value);
               },
-              decoration: const InputDecoration(labelText: 'Account Type'),
-              validator:
-                  (value) => value == null ? 'Please select a type' : null,
+              decoration: InputDecoration(labelText: t.accountTypeField),
+              validator: (value) => value == null ? t.accountTypeRequired : null,
             ),
             const SizedBox(height: 32.0),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                ElevatedButton(
-                  onPressed: _submitAccountData,
-                  child: const Text('Add Account'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
+                ElevatedButton(onPressed: _submit, child: Text(t.accountAdd)),
+                TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
               ],
             ),
           ],

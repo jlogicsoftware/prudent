@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:prudent/category/category.dart';
 
+import '../src/generated/prudent/v1/categories.pb.dart';
+import '../src/l10n/generated/prudent_localizations.dart';
+
+/// Stub — made reachable in Phase 4 (docs/prudent-migration-plan.md), not this one.
 class CategoryRecords extends StatelessWidget {
   final Category category;
 
@@ -11,7 +14,7 @@ class CategoryRecords extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(category.title)),
-      body: const Center(child: Text('Category Records Screen')),
+      body: Center(child: Text(PrudentLocalizations.of(context).categoryRecordsStub)),
     );
   }
 }

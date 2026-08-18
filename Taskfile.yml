@@ -294,6 +294,27 @@ tasks:
         fi
         echo "Generated localizations correctly untracked."
 
+  verify:boundaries:
+    desc: Fail if the client reaches past Prudent's own server
+    summary: |
+      THE GATE THAT PROVES THE FIREBASE CALL IS GONE AND CANNOT RETURN (Phase 3). Runs
+      scripts/verify_boundaries.py — Prudent's OWN script, not jZen's
+      scripts/verify-boundaries.py: that script's scan scopes are module-level constants with no
+      override, so it cannot be pointed at a second repository (docs/prudent-migration-plan.md
+      §3.7, finding 2). The duplication is a jZen-side finding, not a design choice made here.
+
+      Four checks, detailed on the script itself: (A) no provider SDK or firebase_* dependency,
+      (B) no provider host or credential in client source — including Prudent's own retired
+      Firebase project, (C) no absolute URL literal outside the one compile-time zenApiUrl, and
+      (D) Prudent's own additions — package:http stays in the composition root, google_fonts is
+      gone.
+
+      WHY THIS MATTERS MORE THAN IT LOOKS: an app that called a third-party backend directly
+      would still authenticate, still render, and still pass every other suite here — the defect
+      is invisible from inside a single test. This is the one gate that would have caught it.
+    cmds:
+      - python3 scripts/verify_boundaries.py
+
 # NO `sources:`/`generates:` FINGERPRINTING ON ANY TASK ABOVE, and this is the subtle one.
 #
 # go-task can skip a task whose inputs have not changed. On a codegen task that a gate composes,

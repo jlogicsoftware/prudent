@@ -1,12 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:prudent/category/category_item.dart';
+import 'package:intl/intl.dart';
 
-import '../record.dart';
+import '../../category/category_icons.dart';
+import '../../src/generated/prudent/v1/categories.pb.dart';
+import '../../src/generated/prudent/v1/records.pb.dart';
+import '../../src/money.dart';
 
 class RecordItem extends StatelessWidget {
-  const RecordItem(this.record, {super.key});
+  const RecordItem(this.record, {required this.category, super.key});
 
   final Record record;
+
+  /// Resolved by the caller against the category list it already holds; `null` for an id the
+  /// client does not (yet) recognize, which renders the documented fallback rather than throwing.
+  final Category? category;
+
+  /// [record.date] is a civil date string (`YYYY-MM-DD`, proto/prudent/v1/records.proto) — parsed
+  /// and re-rendered in the ambient locale rather than shown as-is.
+  String _formattedDate(BuildContext context) {
+    final parsed = DateTime.tryParse(record.date);
+    if (parsed == null) return record.date;
+    return DateFormat.yMd(Localizations.localeOf(context).toLanguageTag()).format(parsed);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,26 +30,25 @@ class RecordItem extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CategoryItem(category: record.category, iconSize: 30),
+          CircleAvatar(
+            radius: 30,
+            backgroundColor: category != null ? Color(category!.colorArgb) : Colors.grey,
+            foregroundColor: Colors.white,
+            child: Icon(category != null ? prudentIconFor(category!.iconKey) : prudentUnknownCategoryIcon),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  record.title,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                Text(
-                  record.formattedDate,
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
+                Text(record.title, style: Theme.of(context).textTheme.titleLarge),
+                Text(_formattedDate(context), style: Theme.of(context).textTheme.labelSmall),
               ],
             ),
           ),
           const Spacer(),
           Text(
-            '\$${record.amount.toStringAsFixed(2)}',
+            '${formatMinorUnits(record.amountMinor)} ${record.currency}',
             style: Theme.of(context).textTheme.titleLarge,
           ),
         ],

@@ -1,50 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:prudent/account/account_list.dart';
-import 'package:prudent/account/account_new.dart';
-import 'package:prudent/account/account_provider.dart';
-import 'package:prudent/widgets/popup/popup.dart';
 
-import 'account.dart';
+import '../src/l10n/generated/prudent_localizations.dart';
+import '../src/providers.dart';
+import '../widgets/popup/popup.dart';
+import 'account_list.dart';
+import 'account_new.dart';
 
-class AccountScreen extends ConsumerStatefulWidget {
+class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
 
   static const routeName = '/account';
 
   @override
-  ConsumerState<AccountScreen> createState() => _AccountScreenState();
-}
-
-class _AccountScreenState extends ConsumerState<AccountScreen> {
-  late final List<Account> accounts = ref.watch(accountProvider);
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Accounts'),
+        title: Text(PrudentLocalizations.of(context).accountsTitle),
         actions: [
           Popup(
             popupLeading: const Icon(Icons.add),
             popupBody: AccountNew(
-              onAddAccount:
-                  (account) =>
-                      ref.read(accountProvider.notifier).addAccount(account),
+              onAddAccount: (request) => ref.read(accountsProvider.notifier).addAccount(request),
             ),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child:
-                accounts.isEmpty
-                    ? const Center(child: Text('No accounts added yet.'))
-                    : AccountList(),
-          ),
-        ],
-      ),
+      body: const AccountList(),
     );
   }
 }

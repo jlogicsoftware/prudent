@@ -1,36 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:prudent/category/category.dart';
-import 'package:prudent/category/category_provider.dart';
+import 'package:intl/intl.dart';
 
-import 'record.dart';
+import '../src/generated/prudent/v1/accounts.pb.dart';
+import '../src/generated/prudent/v1/categories.pb.dart';
+import '../src/generated/prudent/v1/records.pb.dart';
+import '../src/l10n/generated/prudent_localizations.dart';
+import '../src/money.dart';
+import '../src/providers.dart';
 
 class NewRecord extends ConsumerStatefulWidget {
-  const NewRecord({super.key, required this.onAddRecord, this.initialRecord});
+  const NewRecord({super.key, required this.onSave, this.initialRecord});
 
   final Record? initialRecord;
-  final void Function(Record record) onAddRecord;
+  final void Function({
+    required String title,
+    required String amountInput,
+    required String date,
+    required String categoryId,
+    required String accountId,
+    required String currency,
+  })
+  onSave;
 
   @override
   ConsumerState<NewRecord> createState() => _NewRecordState();
 }
 
 class _NewRecordState extends ConsumerState<NewRecord> {
-  late final categories = ref.watch(categoryProvider);
-
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   DateTime? _selectedDate;
-  late Category _selectedCategory = categories.first;
+  String? _selectedCategoryId;
+  String? _selectedAccountId;
+  String _currency = 'PLN';
 
   @override
   void initState() {
     super.initState();
-    if (widget.initialRecord != null) {
-      _titleController.text = widget.initialRecord!.title;
-      _amountController.text = widget.initialRecord!.amount.toString();
-      _selectedDate = widget.initialRecord!.date;
-      _selectedCategory = widget.initialRecord!.category;
+    final initial = widget.initialRecord;
+    if (initial != null) {
+      _titleController.text = initial.title;
+      _amountController.text = formatMinorUnits(initial.amountMinor);
+      _selectedDate = DateTime.tryParse(initial.date);
+      _selectedCategoryId = initial.categoryId;
+      _selectedAccountId = initial.accountId;
+      _currency = initial.currency;
     }
   }
 
@@ -39,49 +54,45 @@ class _NewRecordState extends ConsumerState<NewRecord> {
     final firstDate = DateTime(now.year - 1, now.month, now.day);
     final pickedDate = await showDatePicker(
       context: context,
-      initialDate: now,
+      initialDate: _selectedDate ?? now,
       firstDate: firstDate,
       lastDate: now,
     );
-    setState(() {
-      _selectedDate = pickedDate;
-    });
+    if (pickedDate != null) setState(() => _selectedDate = pickedDate);
   }
 
-  void _submitExpenseData() {
-    final enteredAmount = double.tryParse(_amountController.text);
-    final amountIsInvalid = enteredAmount == null || enteredAmount <= 0;
+  void _invalid(String message) {
+    final t = PrudentLocalizations.of(context);
+    showDialog(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(t.invalidInputTitle),
+            content: Text(message),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t.okay))],
+          ),
+    );
+  }
+
+  void _submit() {
+    final amount = parseMinorUnits(_amountController.text);
     if (_titleController.text.trim().isEmpty ||
-        amountIsInvalid ||
-        _selectedDate == null) {
-      showDialog(
-        context: context,
-        builder:
-            (ctx) => AlertDialog(
-              title: const Text('Invalid input'),
-              content: const Text(
-                'Please make sure a valid title, amount, date and category was entered.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text('Okay'),
-                ),
-              ],
-            ),
-      );
+        amount == null ||
+        amount <= 0 ||
+        _selectedDate == null ||
+        _selectedCategoryId == null ||
+        _selectedAccountId == null) {
+      _invalid(PrudentLocalizations.of(context).recordsInvalidInput);
       return;
     }
 
-    widget.onAddRecord(
-      Record(
-        title: _titleController.text,
-        amount: enteredAmount,
-        date: _selectedDate!,
-        category: _selectedCategory,
-      ),
+    widget.onSave(
+      title: _titleController.text.trim(),
+      amountInput: _amountController.text,
+      date: DateFormat('yyyy-MM-dd').format(_selectedDate!),
+      categoryId: _selectedCategoryId!,
+      accountId: _selectedAccountId!,
+      currency: _currency,
     );
     Navigator.pop(context);
   }
@@ -95,6 +106,13 @@ class _NewRecordState extends ConsumerState<NewRecord> {
 
   @override
   Widget build(BuildContext context) {
+    final t = PrudentLocalizations.of(context);
+    final locale = ref.watch(localeProvider);
+    final categories = ref.watch(categoriesProvider).value ?? const <Category>[];
+    final accounts = ref.watch(accountsProvider).value ?? const <Account>[];
+    _selectedCategoryId ??= categories.isNotEmpty ? categories.first.id : null;
+    _selectedAccountId ??= accounts.isNotEmpty ? accounts.first.id : null;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
       child: Column(
@@ -102,19 +120,15 @@ class _NewRecordState extends ConsumerState<NewRecord> {
           TextField(
             controller: _titleController,
             maxLength: 50,
-            decoration: const InputDecoration(label: Text('Title')),
+            decoration: InputDecoration(label: Text(t.recordsTitleField)),
           ),
           Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _amountController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    prefixText: '\$ ',
-                    suffix: Text('USD'),
-                    label: Text('Amount'),
-                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(suffix: Text(_currency), label: Text(t.recordsAmountField)),
                 ),
               ),
               const SizedBox(width: 16),
@@ -125,53 +139,49 @@ class _NewRecordState extends ConsumerState<NewRecord> {
                   children: [
                     Text(
                       _selectedDate == null
-                          ? 'No date selected'
-                          : formatter.format(_selectedDate!),
+                          ? t.recordsNoDateSelected
+                          : DateFormat.yMd(locale.toLanguageTag()).format(_selectedDate!),
                     ),
-                    IconButton(
-                      onPressed: _presentDatePicker,
-                      icon: const Icon(Icons.calendar_month),
-                    ),
+                    IconButton(onPressed: _presentDatePicker, icon: const Icon(Icons.calendar_month)),
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
+          if (accounts.isNotEmpty)
+            DropdownButton<String>(
+              value: _selectedAccountId,
+              items: [
+                for (final account in accounts) DropdownMenuItem(value: account.id, child: Text(account.name)),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _selectedAccountId = value;
+                  final account = accounts.firstWhere((a) => a.id == value);
+                  if (account.balances.isNotEmpty) _currency = account.balances.first.currency;
+                });
+              },
+            ),
+          const SizedBox(height: 16),
           Row(
             children: [
-              DropdownButton(
-                value: _selectedCategory,
-                items:
-                    // Category.values
-                    categories
-                        .map(
-                          (category) => DropdownMenuItem(
-                            value: category,
-                            child: Text(category.title.toUpperCase()),
-                          ),
-                        )
-                        .toList(),
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  setState(() {
-                    _selectedCategory = value;
-                  });
-                },
-              ),
+              if (categories.isNotEmpty)
+                DropdownButton<String>(
+                  value: _selectedCategoryId,
+                  items: [
+                    for (final category in categories)
+                      DropdownMenuItem(value: category.id, child: Text(category.title.toUpperCase())),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _selectedCategoryId = value);
+                  },
+                ),
               const Spacer(),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: _submitExpenseData,
-                child: const Text('Save Expense'),
-              ),
+              TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
+              ElevatedButton(onPressed: _submit, child: Text(t.recordsSaveExpense)),
             ],
           ),
         ],

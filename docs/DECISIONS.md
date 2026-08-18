@@ -1072,3 +1072,121 @@ way.
 - One of this phase's two named silent failures therefore has a working demonstration and the other
   has a recorded non-reproduction. That asymmetry is the honest state and is not resolved by
   asserting the second.
+
+---
+
+## ADR-013 — The client becomes a jZen application: repository, auth, shell, and what Phase 3 settled
+
+**Date:** 2026-08-18. **Status:** accepted.
+
+### Context
+
+Phase 3 of `docs/prudent-migration-plan.md` rewires the client onto `ZenClient`, `zen_ui_identity`
+and `zen_ui_navigation`, deletes the Firebase call, and writes the boundary gate that proves it
+cannot return. Several things had to be decided rather than assumed, and two real defects surfaced
+only by running the actual stack — neither is visible from `task test:server` alone.
+
+### Decisions
+
+- **The whole app sits behind login.** No signed-out screen exists besides the auth flow itself
+  (`lib/src/app.dart`'s `_Root`): anonymous → `AuthFlow`, authenticated → `HomeShell`. There is no
+  partial signed-out surface to keep consistent as the product grows.
+- **Delete-with-undo fires the delete immediately; undo re-creates.** `records_screen.dart`'s
+  `_removeRecord` calls `DELETE` right away and undo issues a fresh `POST`, which the server answers
+  with a new id. No deferred-delete timer, no client-side pending-delete state to keep honest against
+  a server that might already have acted.
+- **The bundled font is the platform default, not a bundled asset.** `google_fonts` is deleted
+  outright (`main.dart` no longer references `GoogleFonts.latoTextTheme`); `ThemeData` falls back to
+  each platform's system font. Zero bundle cost, zero licence file to carry, and it is what
+  `verify_boundaries.py` check D now asserts is absent.
+- **Native auth redirects use the custom scheme only** — `prudent://auth-callback`, registered as
+  the sole entry in `AUTH_REDIRECT_URIS` and mirrored in `supabase/config.toml`'s
+  `additional_redirect_urls`. App Links (verified `https` universal links) are deferred: they need a
+  real domain and a hosted verification file, which this phase has neither.
+- **macOS session persistence is accepted as absent for this phase.** `SecureTokenStore` needs a
+  Keychain entitlement Xcode will not sign without a certificate; none is available. Verified by
+  launching the macOS build twice with the same result both times — this is a known jZen-side
+  platform boundary, not a Prudent defect, and every suite passes identically either way.
+- **An unknown `icon_key` renders `prudentUnknownCategoryIcon`** (`lib/category/category_icons.dart`)
+  rather than throwing — a category created by a newer client must not break an older one
+  (proto/prudent/v1/categories.proto §2.2). Covered by
+  `test/category/category_icons_test.dart`.
+- **Money never touches `double`, on either the parse or the format path.**
+  `lib/src/money.dart`'s `parseMinorUnits`/`formatMinorUnits` work entirely in `Int64` and decimal
+  string arithmetic, including for a value beyond a double's exact integer range
+  (`test/src/money_test.dart`). Display therefore stays a plain `"<amount> <currency>"` string
+  rather than routing through `NumberFormat.currency`, which would reintroduce a `double` conversion
+  this phase specifically removes.
+- **Prudent's own Polish chrome for `zen_ui_identity`/`zen_ui_navigation`** — `PlIdentityLocalizations`
+  / `PlNavigationLocalizations` subclass the packages' exported `*LocalizationsEn`, wrapped in
+  delegates (`PlIdentityDelegate`/`PlNavigationDelegate`) returning a `SynchronousFuture` and
+  composed **before** `identityLocaleDelegate`/`navigationLocaleDelegate` in
+  `lib/src/app.dart`. The ordering and the synchronous load are both pinned by
+  `test/l10n/prudent_l10n_test.dart`, including a negative case (composed last) that must render in
+  English to prove the test discriminates at all — the failure mode jZen ADR-044 found by testing
+  rather than by reading.
+- **Prudent's own `task verify:boundaries`** (`scripts/verify_boundaries.py`) — deliberately not
+  jZen's `scripts/verify-boundaries.py`, whose scan scopes are module-level constants with no
+  override and therefore cannot be pointed at a second repository
+  (`docs/prudent-migration-plan.md` §3.7, finding 2). Four checks: (A) no provider SDK or
+  `firebase_*` dependency, (B) no provider host or credential — including Prudent's own retired
+  Firebase project (`firebaseio.com`, `prudent-60fcf`), (C) no absolute URL literal outside the one
+  compile-time `zenApiUrl`, (D) Prudent's own additions — `package:http` stays in the composition
+  root (`lib/main.dart`), `google_fonts` is gone entirely. Keeps jZen's `StaleScope` guard: a scan
+  scope matching nothing is a failure, not a vacuous pass.
+- **Prudent runs its own local Supabase project, ports shifted +10 from jZen's** (`supabase/config.toml`:
+  54331 API / 54332 db / 54330 shadow / 54333 studio / 54334 SMTP / 54339 pooler / 54337 analytics /
+  8093 edge-runtime inspector) — the answer to the open question in
+  `docs/prudent-migration-plan.md` §5.4. A developer working on both products can now run both
+  simultaneously; the smaller reason is the port shift itself, the larger one is that a shared
+  project would put jZen's demo users and Prudent's users in one `auth.users`.
+
+### What running the real stack found, that no test caught
+
+Two genuine gaps in Phase 2's `application.properties`, invisible to `task test:server` because
+`@QuarkusTest` calls the server directly — not a browser, and not through the real Supabase REST
+client:
+
+1. **No `quarkus.rest-client.supabase-auth.url` and no `mp.jwt.verify.*`/`mp.jwt.token.*`
+   properties.** `SupabaseAuthClient` (`configKey = "supabase-auth"`) had no base URI to resolve,
+   so the first real `POST /api/v1/auth/register` 500'd with
+   `Unable to determine the proper baseUrl/baseUri`; once that was fixed, every cookie-authenticated
+   request still 401'd because `mp.jwt.token.header=Cookie` / `mp.jwt.token.cookie=zen_access_token`
+   were never set, so SmallRye JWT kept reading the (absent) `Authorization` header and every
+   session-cookie request looked anonymous. Both fixed in `application.properties`, matching the
+   wiring `../jZen/apps/zen_demo/zen_demo_server` already carries.
+2. **No CORS configuration at all.** A browser client is cross-origin from this server in local dev
+   (the Flutter web build serves its own port), and `@QuarkusTest` sends no preflight, so this
+   passed every backend suite and then failed the first real browser request with an opaque
+   `ClientException: Failed to fetch`. Added `quarkus.http.cors.*`, including
+   `access-control-allow-credentials=true` — required because the session lives in a cookie, and a
+   cross-origin cookie is dropped without it.
+
+Both were found by actually registering a user, signing in through the real `LoginScreen`, and
+reading records back through the real UI — not by reading the properties file. A third thing was
+found and **not** fixed: Hibernate's dev-mode post-boot schema validation reports a type mismatch
+between the `CHAR(3)` currency columns the migration creates and the `VARCHAR`-mapped
+`@Column(length = 3)` Hibernate expects. An attempted fix (`columnDefinition = "char(3)"`) changed
+the DDL Hibernate would generate but not the JDBC type code it validates against, so the warning
+persisted; reverted rather than chased further, because `CHAR` and `VARCHAR` bind and read
+identically through `setString`/`getString` and the warning is dev-mode-only (`%test` uses
+`schema-management.strategy=none` against a fresh throwaway database and never sees it; `%prod`
+validates at deploy, not at request time). **Left as a known, non-blocking cosmetic finding.**
+
+### Consequence
+
+- `task verify:boundaries`, `task sync:contracts`, `task zen:test:client` (47 tests, including the
+  three repository/money/icon suites and the four l10n suites added this phase), and
+  `flutter build web --wasm` are all green.
+- Verified against the **real** local stack, not just compiled: registered a user through
+  `POST /api/v1/auth/register` with `Accept-Language: pl`, confirmed `users.language = 'pl'`,
+  created an account and a record through the authenticated REST surface, then ran the actual
+  Flutter app — one native target (macOS) and one web target (Chrome, via `flutter run -d
+  web-server`) — signed in through the real `LoginScreen`, saw the record created via the API render
+  in the real `RecordsScreen`, and switched the running app to Polish live, including the framework
+  login screen's chrome.
+- Icon tree-shaking survived the `icon_key` → `const Map<String, IconData>` design:
+  `flutter build web --wasm` reduced `MaterialIcons-Regular.otf` by 99.4%.
+- What Phase 4 inherits: full ARB coverage for Prudent's own strings landed in this phase (not
+  deferred), so Phase 4's new screens (Overview, Analytics, Chart) start from zero hardcoded
+  strings rather than retrofitting them later.

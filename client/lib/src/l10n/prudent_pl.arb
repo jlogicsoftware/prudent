@@ -1,0 +1,77 @@
+{
+  "@@locale": "pl",
+
+  "appTitle": "Prudent",
+
+  "navOverview": "Przegląd",
+  "navRecords": "Wpisy",
+  "navAnalytics": "Analityka",
+  "navSettings": "Ustawienia",
+
+  "cancel": "Anuluj",
+  "okay": "Ok",
+  "invalidInputTitle": "Nieprawidłowe dane",
+
+  "recordsTitleField": "Tytuł",
+  "recordsAmountField": "Kwota",
+  "recordsNoDateSelected": "Nie wybrano daty",
+  "recordsSaveExpense": "Zapisz wydatek",
+  "recordsInvalidInput": "Upewnij się, że podano poprawny tytuł, kwotę, datę, kategorię i rachunek.",
+  "recordsDeleted": "Wpis usunięty.",
+  "recordsUndo": "Cofnij",
+  "recordsEmpty": "Nie znaleziono wpisów. Dodaj pierwszy!",
+  "recordsLoadError": "Nie udało się wczytać wpisów: {error}",
+  "@recordsLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "categoriesTitle": "Kategorie",
+  "categoriesEmpty": "Nie dodano jeszcze żadnej kategorii.",
+  "categoriesLoadError": "Nie udało się wczytać kategorii: {error}",
+  "@categoriesLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "categoryTitleField": "Tytuł",
+  "categoryDescriptionField": "Opis",
+  "categorySave": "Zapisz kategorię",
+  "categoryInvalidInput": "Upewnij się, że podano poprawny tytuł.",
+  "categoryRecordsStub": "Ekran wpisów kategorii",
+
+  "accountsTitle": "Rachunki",
+  "accountsBanksAndCards": "Banki i karty",
+  "accountsOther": "Inne rachunki",
+  "accountsEmpty": "Nie dodano jeszcze żadnego rachunku.",
+  "accountsNoBalance": "Brak salda",
+  "accountsLoadError": "Nie udało się wczytać rachunków: {error}",
+  "@accountsLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "accountNameField": "Nazwa rachunku",
+  "accountOpeningBalanceField": "Saldo początkowe",
+  "accountCurrencyField": "Waluta",
+  "accountTypeField": "Typ rachunku",
+  "accountAdd": "Dodaj rachunek",
+  "accountNameRequired": "Podaj nazwę",
+  "accountAmountInvalid": "Podaj prawidłową kwotę",
+  "accountTypeRequired": "Wybierz typ",
+  "accountTypeCash": "Gotówka",
+  "accountTypeCard": "Karta",
+  "accountTypeChecking": "Rachunek bieżący",
+  "accountTypeSavings": "Oszczędnościowy",
+
+  "overviewChartStub": "Wykres",
+  "overviewAccountsStub": "Przegląd rachunków",
+
+  "analyticsTitle": "Analityka",
+  "analyticsOverviewStub": "Przegląd analityki",
+  "analyticsDetailStub": "Szczegółowa analityka będzie dostępna wkrótce.",
+
+  "chartStub": "Diagram wykresu",
+
+  "settingsTitle": "Ustawienia",
+  "settingsLanguage": "Język",
+  "settingsCorrespondents": "Korespondenci",
+  "settingsProfile": "Profil",
+  "settingsHelp": "Pomoc",
+  "settingsLogOut": "Wyloguj się"
+}
