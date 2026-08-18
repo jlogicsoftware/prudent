@@ -1,0 +1,77 @@
+{
+  "@@locale": "uk",
+
+  "appTitle": "Prudent",
+
+  "navOverview": "Огляд",
+  "navRecords": "Записи",
+  "navAnalytics": "Аналітика",
+  "navSettings": "Налаштування",
+
+  "cancel": "Скасувати",
+  "okay": "Гаразд",
+  "invalidInputTitle": "Некоректні дані",
+
+  "recordsTitleField": "Назва",
+  "recordsAmountField": "Сума",
+  "recordsNoDateSelected": "Дату не вибрано",
+  "recordsSaveExpense": "Зберегти витрату",
+  "recordsInvalidInput": "Будь ласка, введіть коректну назву, суму, дату, категорію та рахунок.",
+  "recordsDeleted": "Запис видалено.",
+  "recordsUndo": "Скасувати",
+  "recordsEmpty": "Записів не знайдено. Додайте перший!",
+  "recordsLoadError": "Не вдалося завантажити записи: {error}",
+  "@recordsLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "categoriesTitle": "Категорії",
+  "categoriesEmpty": "Категорій ще не додано.",
+  "categoriesLoadError": "Не вдалося завантажити категорії: {error}",
+  "@categoriesLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "categoryTitleField": "Назва",
+  "categoryDescriptionField": "Опис",
+  "categorySave": "Зберегти категорію",
+  "categoryInvalidInput": "Будь ласка, введіть коректну назву.",
+  "categoryRecordsStub": "Екран записів категорії",
+
+  "accountsTitle": "Рахунки",
+  "accountsBanksAndCards": "Банки та картки",
+  "accountsOther": "Інші рахунки",
+  "accountsEmpty": "Рахунків ще не додано.",
+  "accountsNoBalance": "Без балансу",
+  "accountsLoadError": "Не вдалося завантажити рахунки: {error}",
+  "@accountsLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "accountNameField": "Назва рахунку",
+  "accountOpeningBalanceField": "Початковий баланс",
+  "accountCurrencyField": "Валюта",
+  "accountTypeField": "Тип рахунку",
+  "accountAdd": "Додати рахунок",
+  "accountNameRequired": "Будь ласка, введіть назву",
+  "accountAmountInvalid": "Введіть коректну суму",
+  "accountTypeRequired": "Будь ласка, оберіть тип",
+  "accountTypeCash": "Готівка",
+  "accountTypeCard": "Картка",
+  "accountTypeChecking": "Поточний рахунок",
+  "accountTypeSavings": "Заощадження",
+
+  "overviewChartStub": "Діаграма",
+  "overviewAccountsStub": "Огляд рахунків",
+
+  "analyticsTitle": "Аналітика",
+  "analyticsOverviewStub": "Огляд аналітики",
+  "analyticsDetailStub": "Детальна аналітика скоро з'явиться.",
+
+  "chartStub": "Діаграма",
+
+  "settingsTitle": "Налаштування",
+  "settingsLanguage": "Мова",
+  "settingsCorrespondents": "Кореспонденти",
+  "settingsProfile": "Профіль",
+  "settingsHelp": "Допомога",
+  "settingsLogOut": "Вийти"
+}

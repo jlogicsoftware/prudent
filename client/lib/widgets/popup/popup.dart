@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:prudent/utils.dart';
+import 'package:zen_core/zen_core.dart';
 
+/// Prudent's own widget — the framework has no equivalent, it is product UI, not framework UI.
+///
+/// `zenIsDesktop` is the compile-time platform answer (see docs/DECISIONS.md / CLAUDE.md "the
+/// two platform mechanisms"), not `Theme.of(context).platform`: the runtime value is wrong for a
+/// browser on a phone and can be overridden by a `Theme`.
 class Popup extends StatelessWidget {
   const Popup({super.key, required this.popupLeading, required this.popupBody});
 
@@ -13,15 +18,8 @@ class Popup extends StatelessWidget {
       icon: popupLeading,
       onPressed:
           () =>
-              isMobile(context)
-                  ? showModalBottomSheet(
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    context: context,
-                    builder: (ctx) => popupBody,
-                    constraints: const BoxConstraints.expand(),
-                  )
-                  : showDialog(
+              zenIsDesktop
+                  ? showDialog(
                     context: context,
                     builder:
                         (ctx) => Dialog(
@@ -37,6 +35,13 @@ class Popup extends StatelessWidget {
                             ),
                           ),
                         ),
+                  )
+                  : showModalBottomSheet(
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    context: context,
+                    builder: (ctx) => popupBody,
+                    constraints: const BoxConstraints.expand(),
                   ),
     );
   }

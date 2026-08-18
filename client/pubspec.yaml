@@ -30,13 +30,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   intl: ^0.20.2
-  uuid: ^4.3.3
-  google_fonts: ^6.2.1
   flutter_riverpod: ^3.0.0-dev.17
 
   # The runtime for the messages generated from ../proto into lib/src/generated. protobuf
@@ -45,20 +45,33 @@ dependencies:
   protobuf: ^6.0.0
   fixnum: ^1.1.0
 
-  # jZen's transport, consumed from the sibling checkout by path (docs/DECISIONS.md ADR-001).
-  # The import stays `package:zen_transport/...` — character for character what a consumer of the
-  # published package writes — so publishing later is a pubspec edit with no code churn.
-  #
-  # Present in this phase for ONE reason: ZenProtoCodec is what proves the generated messages
-  # survive both wire formats, and the round-trip suite has to exercise the real codec rather
-  # than a local reimplementation of it. Nothing else in the client uses it yet; ZenClient
-  # arrives in Phase 3.
+  # jZen's packages, consumed from the sibling checkout by path (docs/DECISIONS.md ADR-001). Each
+  # import stays `package:zen_x/...` — character for character what a consumer of the published
+  # package writes — so publishing later is a pubspec edit with no code churn. Naming six framework
+  # packages here is the finding CLAUDE.md calls out, and it is meant to be visible.
+  zen_core:
+    path: ../../jZen/client/zen_core
   zen_transport:
     path: ../../jZen/client/zen_transport
+  zen_identity:
+    path: ../../jZen/client/zen_identity
+  zen_secure_store:
+    path: ../../jZen/client/zen_secure_store
+  zen_ui_identity:
+    path: ../../jZen/client/zen_ui_identity
+  zen_ui_navigation:
+    path: ../../jZen/client/zen_ui_navigation
 
-  # No `http`, deliberately. The client talks to one server and it is ours, reached through the
-  # framework's transport rather than by hand — so a direct HTTP client in this package is the
-  # thing the rule forbids, not a convenience. See docs/DECISIONS.md ADR-004.
+  # http is used ONLY to type the shared session client createSessionClient() returns (the
+  # composition root, main.dart) — not to make requests. Every actual call goes through
+  # ZenClient. See docs/DECISIONS.md ADR-004.
+  http: ^1.2.2
+
+  # Deep-link delivery is the application's (ADR-019 in jZen's archive): a scheme in a plist/
+  # manifest and a plugin to read it. Consumption (spending the token) is the framework's
+  # (IdentitySessionStore.consumeAuthLink). Reached only from a conditional import guarded by
+  # dart.library.io, so the web bundle never sees it.
+  app_links: ^7.2.1
 
 dev_dependencies:
   flutter_test:
@@ -83,6 +96,11 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Drives `flutter gen-l10n` from l10n.yaml (task zen:generate:l10n). The ARB files under
+  # lib/src/l10n are tracked; the generated accessors are not (jZen ADR-009) — the contract gate
+  # asserts they stay untracked.
+  generate: true
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -1,0 +1,77 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "Prudent",
+
+  "navOverview": "Overview",
+  "navRecords": "Records",
+  "navAnalytics": "Analytics",
+  "navSettings": "Settings",
+
+  "cancel": "Cancel",
+  "okay": "Okay",
+  "invalidInputTitle": "Invalid input",
+
+  "recordsTitleField": "Title",
+  "recordsAmountField": "Amount",
+  "recordsNoDateSelected": "No date selected",
+  "recordsSaveExpense": "Save Expense",
+  "recordsInvalidInput": "Please make sure a valid title, amount, date, category and account were entered.",
+  "recordsDeleted": "Record deleted.",
+  "recordsUndo": "Undo",
+  "recordsEmpty": "No records found. Start adding some!",
+  "recordsLoadError": "Could not load records: {error}",
+  "@recordsLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "categoriesTitle": "Categories",
+  "categoriesEmpty": "No categories added yet.",
+  "categoriesLoadError": "Could not load categories: {error}",
+  "@categoriesLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "categoryTitleField": "Title",
+  "categoryDescriptionField": "Description",
+  "categorySave": "Save Category",
+  "categoryInvalidInput": "Please make sure a valid title was entered.",
+  "categoryRecordsStub": "Category Records Screen",
+
+  "accountsTitle": "Accounts",
+  "accountsBanksAndCards": "Banks and Cards",
+  "accountsOther": "Other Accounts",
+  "accountsEmpty": "No accounts added yet.",
+  "accountsNoBalance": "No balance",
+  "accountsLoadError": "Could not load accounts: {error}",
+  "@accountsLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "accountNameField": "Account Name",
+  "accountOpeningBalanceField": "Opening balance",
+  "accountCurrencyField": "Currency",
+  "accountTypeField": "Account Type",
+  "accountAdd": "Add Account",
+  "accountNameRequired": "Please enter a name",
+  "accountAmountInvalid": "Enter a valid amount",
+  "accountTypeRequired": "Please select a type",
+  "accountTypeCash": "Cash",
+  "accountTypeCard": "Card",
+  "accountTypeChecking": "Checking",
+  "accountTypeSavings": "Savings",
+
+  "overviewChartStub": "Chart",
+  "overviewAccountsStub": "Accounts overview",
+
+  "analyticsTitle": "Analytics",
+  "analyticsOverviewStub": "Analytics Overview",
+  "analyticsDetailStub": "Detailed analytics will be available soon.",
+
+  "chartStub": "Chart diagram",
+
+  "settingsTitle": "Settings",
+  "settingsLanguage": "Language",
+  "settingsCorrespondents": "Correspondents",
+  "settingsProfile": "Profile",
+  "settingsHelp": "Help",
+  "settingsLogOut": "Log Out"
+}

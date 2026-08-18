@@ -1,63 +1,95 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zen_core/zen_core.dart';
 
-import 'package:prudent/category/category.dart';
-import 'package:prudent/category/category_grid_items.dart';
-import 'package:prudent/category/category_provider.dart';
-import 'package:prudent/category/new_category.dart';
-import 'package:prudent/utils.dart';
-import 'package:prudent/widgets/popup/popup.dart';
+import '../src/generated/prudent/v1/categories.pb.dart';
+import '../src/l10n/generated/prudent_localizations.dart';
+import '../src/providers.dart';
+import '../widgets/popup/popup.dart';
+import 'category_grid_items.dart';
+import 'new_category.dart';
 
-class CategoriesScreen extends ConsumerStatefulWidget {
+class CategoriesScreen extends ConsumerWidget {
   const CategoriesScreen({super.key});
 
   static const routeName = '/categories';
 
   @override
-  ConsumerState<CategoriesScreen> createState() => _CategoriesScreenState();
-}
-
-class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
-  @override
-  Widget build(BuildContext context) {
-    late final List<Category> categories = ref.watch(categoryProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categoriesAsync = ref.watch(categoriesProvider);
+    final t = PrudentLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Categories'),
+        title: Text(t.categoriesTitle),
         actions: [
           Popup(
             popupLeading: const Icon(Icons.add),
             popupBody: NewCategory(
-              onAddCategory:
-                  (category) =>
-                      ref.read(categoryProvider.notifier).addCategory(category),
+              onSave:
+                  ({
+                    required title,
+                    required iconKey,
+                    required description,
+                    required colorArgb,
+                  }) => ref
+                      .read(categoriesProvider.notifier)
+                      .addCategory(
+                        CreateCategoryRequest(
+                          title: title,
+                          iconKey: iconKey,
+                          description: description,
+                          colorArgb: colorArgb,
+                        ),
+                      ),
             ),
           ),
         ],
       ),
-      body: GridView(
-        padding: const EdgeInsets.all(20),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: isMobile(context) ? 2 : 3,
-          mainAxisExtent: isMobile(context) ? 150 : 200,
-          childAspectRatio: isMobile(context) ? 1.5 : 2,
-          crossAxisSpacing: 20,
-          mainAxisSpacing: 20,
-        ),
-        children: [
-          for (int index = 0; index < categories.length; index++)
-            Popup(
-              popupLeading: CategoryGridItem(category: categories[index]),
-              popupBody: NewCategory(
-                onAddCategory:
-                    (category) => ref
-                        .read(categoryProvider.notifier)
-                        .editCategory(index, category),
-                initialCategory: categories[index],
-              ),
+      body: categoriesAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(child: Text(t.categoriesLoadError(error.toString()))),
+        data: (categories) {
+          if (categories.isEmpty) {
+            return Center(child: Text(t.categoriesEmpty));
+          }
+          return GridView(
+            padding: const EdgeInsets.all(20),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: zenIsDesktop ? 3 : 2,
+              mainAxisExtent: zenIsDesktop ? 200 : 150,
+              childAspectRatio: zenIsDesktop ? 2 : 1.5,
+              crossAxisSpacing: 20,
+              mainAxisSpacing: 20,
             ),
-        ],
+            children: [
+              for (final category in categories)
+                Popup(
+                  popupLeading: CategoryGridItem(category: category),
+                  popupBody: NewCategory(
+                    initialCategory: category,
+                    onSave:
+                        ({
+                          required title,
+                          required iconKey,
+                          required description,
+                          required colorArgb,
+                        }) => ref
+                            .read(categoriesProvider.notifier)
+                            .editCategory(
+                              category.id,
+                              UpdateCategoryRequest(
+                                title: title,
+                                iconKey: iconKey,
+                                description: description,
+                                colorArgb: colorArgb,
+                              ),
+                            ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
