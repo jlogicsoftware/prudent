@@ -101,6 +101,12 @@ class Record extends $pb.GeneratedMessage {
 
   /// Minor units, exact under addition. See accounts.proto's balance_minor for the full
   /// reasoning and for the JSON-encodes-int64-as-a-string warning that applies here too.
+  ///
+  /// SIGNED (docs/DECISIONS.md ADR-014): NEGATIVE is an expense (money leaving the account),
+  /// POSITIVE is income (money entering it). Zero is rejected — a record with no effect on the
+  /// balance is not a transaction. This is also the balance formula: an account's current balance
+  /// in a currency is its opening balance (accounts.proto's CurrencyBalance) PLUS the sum of its
+  /// records' amount_minor in that currency, with no separate sign flip anywhere in that sum.
   @$pb.TagNumber(3)
   $fixnum.Int64 get amountMinor => $_getI64(2);
   @$pb.TagNumber(3)
@@ -238,6 +244,7 @@ class CreateRecordRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearTitle() => $_clearField(1);
 
+  /// See Record.amount_minor: negative is an expense, positive is income, zero is rejected.
   @$pb.TagNumber(2)
   $fixnum.Int64 get amountMinor => $_getI64(1);
   @$pb.TagNumber(2)
@@ -356,6 +363,7 @@ class UpdateRecordRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearTitle() => $_clearField(1);
 
+  /// See Record.amount_minor: negative is an expense, positive is income, zero is rejected.
   @$pb.TagNumber(2)
   $fixnum.Int64 get amountMinor => $_getI64(1);
   @$pb.TagNumber(2)

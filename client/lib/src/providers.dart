@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_core/zen_core.dart';
 
 import 'generated/prudent/v1/accounts.pb.dart';
+import 'generated/prudent/v1/analytics.pb.dart';
 import 'generated/prudent/v1/categories.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
@@ -176,3 +177,90 @@ class SettingsNotifier extends AsyncNotifier<Settings> {
 }
 
 final settingsProvider = AsyncNotifierProvider<SettingsNotifier, Settings>(SettingsNotifier.new);
+
+// ---------------------------------------------------------------------------------------------
+// Analytics — read-only, always scoped to one currency (analytics.proto, ADR-014)
+// ---------------------------------------------------------------------------------------------
+
+/// The set of currencies across every account the user holds, main currency first when it is one
+/// of them — the options a currency picker on the chart/analytics screens offers. Never a blended
+/// list that pretends currencies can be summed; this is only ever used to pick ONE to view.
+final analyticsCurrenciesProvider = Provider<List<String>>((ref) {
+  final accounts = ref.watch(accountsProvider).value ?? const <Account>[];
+  final mainCurrency = ref.watch(settingsProvider).value?.mainCurrency;
+  final currencies = <String>{
+    for (final account in accounts)
+      for (final balance in account.balances) balance.currency,
+  };
+  final ordered = currencies.toList()..sort();
+  if (mainCurrency != null && ordered.remove(mainCurrency)) {
+    ordered.insert(0, mainCurrency);
+  }
+  return ordered;
+});
+
+@immutable
+class SpendByCategoryParams {
+  const SpendByCategoryParams({required this.currency, required this.year, this.month});
+
+  final String currency;
+  final int year;
+  final int? month;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SpendByCategoryParams &&
+      other.currency == currency &&
+      other.year == year &&
+      other.month == month;
+
+  @override
+  int get hashCode => Object.hash(currency, year, month);
+}
+
+final spendByCategoryProvider =
+    FutureProvider.autoDispose.family<SpendByCategoryResponse, SpendByCategoryParams>((
+      ref,
+      params,
+    ) async {
+      final repository = ref.watch(prudentRepositoryProvider);
+      final result = await repository.spendByCategory(
+        currency: params.currency,
+        year: params.year,
+        month: params.month,
+      );
+      return result.fold((response) => response, (error) => throw error);
+    });
+
+@immutable
+class SpendByPeriodParams {
+  const SpendByPeriodParams({required this.currency, required this.granularity, required this.count});
+
+  final String currency;
+  final String granularity;
+  final int count;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SpendByPeriodParams &&
+      other.currency == currency &&
+      other.granularity == granularity &&
+      other.count == count;
+
+  @override
+  int get hashCode => Object.hash(currency, granularity, count);
+}
+
+final spendByPeriodProvider =
+    FutureProvider.autoDispose.family<SpendByPeriodResponse, SpendByPeriodParams>((
+      ref,
+      params,
+    ) async {
+      final repository = ref.watch(prudentRepositoryProvider);
+      final result = await repository.spendByPeriod(
+        currency: params.currency,
+        granularity: params.granularity,
+        count: params.count,
+      );
+      return result.fold((response) => response, (error) => throw error);
+    });

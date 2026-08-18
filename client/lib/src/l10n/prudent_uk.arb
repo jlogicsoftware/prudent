@@ -14,8 +14,11 @@
 
   "recordsTitleField": "Назва",
   "recordsAmountField": "Сума",
+  "recordsExpense": "Витрата",
+  "recordsIncome": "Дохід",
   "recordsNoDateSelected": "Дату не вибрано",
   "recordsSaveExpense": "Зберегти витрату",
+  "recordsSaveIncome": "Зберегти дохід",
   "recordsInvalidInput": "Будь ласка, введіть коректну назву, суму, дату, категорію та рахунок.",
   "recordsDeleted": "Запис видалено.",
   "recordsUndo": "Скасувати",
@@ -35,7 +38,7 @@
   "categoryDescriptionField": "Опис",
   "categorySave": "Зберегти категорію",
   "categoryInvalidInput": "Будь ласка, введіть коректну назву.",
-  "categoryRecordsStub": "Екран записів категорії",
+  "categoryRecordsEmpty": "У цій категорії ще немає записів.",
 
   "accountsTitle": "Рахунки",
   "accountsBanksAndCards": "Банки та картки",
@@ -58,20 +61,42 @@
   "accountTypeCard": "Картка",
   "accountTypeChecking": "Поточний рахунок",
   "accountTypeSavings": "Заощадження",
+  "accountIsDefault": "Основний рахунок",
+  "accountIsActive": "Активний",
+  "accountIncludeInTotal": "Враховувати в загальному балансі",
+  "accountIncludeInOverview": "Показувати в огляді",
+  "accountSave": "Зберегти рахунок",
+  "accountDelete": "Видалити",
+  "accountDeleteTitle": "Видалити рахунок",
+  "accountDeleteConfirm": "Видалити «{name}»? Цю дію не можна скасувати.",
+  "@accountDeleteConfirm": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "accountDeleteBlockedGeneric": "Не вдалося видалити цей рахунок.",
 
-  "overviewChartStub": "Діаграма",
-  "overviewAccountsStub": "Огляд рахунків",
+  "overviewEmpty": "Немає рахунків для показу. Додайте перший, щоб почати.",
+  "overviewTotalsTitle": "Загальний баланс",
+  "overviewAccountsTitle": "Рахунки",
 
   "analyticsTitle": "Аналітика",
-  "analyticsOverviewStub": "Огляд аналітики",
-  "analyticsDetailStub": "Детальна аналітика скоро з'явиться.",
+  "analyticsSpendByMonth": "Витрати за місяцями",
+  "analyticsEmpty": "Немає витрат за останні 12 місяців.",
+  "analyticsLoadError": "Не вдалося завантажити аналітику: {error}",
+  "@analyticsLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
 
-  "chartStub": "Діаграма",
+  "chartTitle": "Діаграма",
+  "chartNoAccounts": "Додайте рахунок, щоб побачити діаграму.",
+  "chartEmpty": "Немає витрат цього місяця.",
+  "chartUnknownCategory": "Невідома категорія",
+  "chartLoadError": "Не вдалося завантажити діаграму: {error}",
+  "@chartLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
 
   "settingsTitle": "Налаштування",
   "settingsLanguage": "Мова",
-  "settingsCorrespondents": "Кореспонденти",
   "settingsProfile": "Профіль",
-  "settingsHelp": "Допомога",
   "settingsLogOut": "Вийти"
 }

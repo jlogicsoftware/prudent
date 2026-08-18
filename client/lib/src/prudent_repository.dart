@@ -2,6 +2,7 @@ import 'package:zen_core/zen_core.dart' show ZenResult;
 import 'package:zen_transport/zen_transport.dart';
 
 import 'generated/prudent/v1/accounts.pb.dart';
+import 'generated/prudent/v1/analytics.pb.dart';
 import 'generated/prudent/v1/categories.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
@@ -22,6 +23,8 @@ class PrudentRepository {
   static const String _accountsPath = '/api/v1/accounts';
   static const String _categoriesPath = '/api/v1/categories';
   static const String _settingsPath = '/api/v1/settings';
+  static const String _spendByCategoryPath = '/api/v1/analytics/spend-by-category';
+  static const String _spendByPeriodPath = '/api/v1/analytics/spend-by-period';
 
   // --- Records --------------------------------------------------------------------------------
 
@@ -72,4 +75,41 @@ class PrudentRepository {
 
   Future<ZenResult<Settings>> updateSettings(UpdateSettingsRequest request) =>
       _client.put<Settings>(Settings.new, _settingsPath, body: request);
+
+  // --- Analytics — read-only, always scoped to one currency (analytics.proto) --------------------
+
+  /// [year] required; [month] optional (1-12) — a single month, or the whole year when omitted.
+  Future<ZenResult<SpendByCategoryResponse>> spendByCategory({
+    required String currency,
+    required int year,
+    int? month,
+  }) {
+    final query = {
+      'currency': currency,
+      'year': '$year',
+      if (month != null) 'month': '$month',
+    };
+    return _client.get<SpendByCategoryResponse>(
+      SpendByCategoryResponse.new,
+      '$_spendByCategoryPath?${_encodeQuery(query)}',
+    );
+  }
+
+  /// [granularity] is `MONTH` or `YEAR`; [count] is the number of trailing buckets (1-60), ending
+  /// at the current period as the server resolves it in UTC.
+  Future<ZenResult<SpendByPeriodResponse>> spendByPeriod({
+    required String currency,
+    required String granularity,
+    required int count,
+  }) {
+    final query = {'currency': currency, 'granularity': granularity, 'count': '$count'};
+    return _client.get<SpendByPeriodResponse>(
+      SpendByPeriodResponse.new,
+      '$_spendByPeriodPath?${_encodeQuery(query)}',
+    );
+  }
+
+  static String _encodeQuery(Map<String, String> query) => query.entries
+      .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+      .join('&');
 }

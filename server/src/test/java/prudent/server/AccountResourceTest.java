@@ -4,10 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.restassured.response.Response;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +22,8 @@ import prudent.proto.v1.CreateAccountRequest;
 import prudent.proto.v1.CurrencyBalance;
 import prudent.proto.v1.ListAccountsResponse;
 import prudent.proto.v1.UpdateAccountRequest;
+import prudent.server.account.AccountBalance;
+import prudent.server.account.AccountEntity;
 import zen.proto.v1.ZenError;
 
 /**
@@ -259,6 +264,38 @@ class AccountResourceTest {
     assertEquals(
         "conflict",
         PrudentTest.decode(PrudentTest.JSON, response, ZenError.newBuilder()).build().getCode());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void balance_isDerivedFromOpeningAmountPlusRecords() throws Exception {
+    // ADR-014: the balance an Account response carries is the OPENING amount plus the sum of its
+    // records — never a stored figure the resource writes back after a record is created.
+    UUID accountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Wallet", "PLN", "EUR");
+    UUID categoryId = PrudentTest.seedCategory(PrudentTest.ALICE, "Food");
+    // The opening amount is set directly on the entity, bypassing the resource, so this test does
+    // not depend on the create endpoint also being correct.
+    QuarkusTransaction.requiringNew()
+        .run(
+            () -> {
+              AccountEntity account = AccountEntity.findById(accountId);
+              account.balances.clear();
+              account.balances.add(new AccountBalance("PLN", 100_00L));
+              account.balances.add(new AccountBalance("EUR", 0L));
+            });
+    // A 30 PLN expense (negative) and a 500 PLN income (positive): 100_00 - 30_00 + 500_00.
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -30_00L, "PLN");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, 500_00L, "PLN");
+    // EUR has no records at all — its derived balance must equal its opening amount exactly.
+
+    Response read =
+        PrudentTest.request(PrudentTest.JSON).when().get("/api/v1/accounts/" + accountId).andReturn();
+    Account account = PrudentTest.decode(PrudentTest.JSON, read, Account.newBuilder()).build();
+
+    Map<String, Long> byCurrency = new HashMap<>();
+    account.getBalancesList().forEach(b -> byCurrency.put(b.getCurrency(), b.getAmountMinor()));
+    assertEquals(570_00L, byCurrency.get("PLN"));
+    assertEquals(0L, byCurrency.get("EUR"));
   }
 
   @Test

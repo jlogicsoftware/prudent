@@ -7,6 +7,7 @@ import '../src/l10n/generated/prudent_localizations.dart';
 import '../src/providers.dart';
 import '../widgets/popup/popup.dart';
 import 'category_grid_items.dart';
+import 'category_records.dart';
 import 'new_category.dart';
 
 class CategoriesScreen extends ConsumerWidget {
@@ -64,28 +65,47 @@ class CategoriesScreen extends ConsumerWidget {
             ),
             children: [
               for (final category in categories)
-                Popup(
-                  popupLeading: CategoryGridItem(category: category),
-                  popupBody: NewCategory(
-                    initialCategory: category,
-                    onSave:
-                        ({
-                          required title,
-                          required iconKey,
-                          required description,
-                          required colorArgb,
-                        }) => ref
-                            .read(categoriesProvider.notifier)
-                            .editCategory(
-                              category.id,
-                              UpdateCategoryRequest(
-                                title: title,
-                                iconKey: iconKey,
-                                description: description,
-                                colorArgb: colorArgb,
-                              ),
-                            ),
-                  ),
+                Stack(
+                  children: [
+                    // A TAP OPENS THE CATEGORY'S RECORDS, not the edit form: CategoryRecords was
+                    // unreachable before this phase (docs/prudent-migration-plan.md), and giving
+                    // it the tile's main gesture is what makes it reachable rather than a second
+                    // stub nobody can get to.
+                    InkWell(
+                      borderRadius: BorderRadius.circular(15),
+                      onTap:
+                          () => Navigator.of(
+                            context,
+                          ).push(MaterialPageRoute(builder: (ctx) => CategoryRecords(category: category))),
+                      child: CategoryGridItem(category: category),
+                    ),
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Popup(
+                        popupLeading: const Icon(Icons.edit_outlined, size: 18),
+                        popupBody: NewCategory(
+                          initialCategory: category,
+                          onSave:
+                              ({
+                                required title,
+                                required iconKey,
+                                required description,
+                                required colorArgb,
+                              }) => ref
+                                  .read(categoriesProvider.notifier)
+                                  .editCategory(
+                                    category.id,
+                                    UpdateCategoryRequest(
+                                      title: title,
+                                      iconKey: iconKey,
+                                      description: description,
+                                      colorArgb: colorArgb,
+                                    ),
+                                  ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
             ],
           );

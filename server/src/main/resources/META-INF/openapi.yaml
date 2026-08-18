@@ -554,6 +554,78 @@ components:
             NEVER EMPTY ON A RESPONSE: the server resolves the default before answering, so a GET
             always names a real currency. Not required to be a currency any of the user's accounts
             holds — it is a display preference.
+    # -----------------------------------------------------------------------------------------
+    # Analytics — read-only, always scoped to one currency
+    # -----------------------------------------------------------------------------------------
+    Granularity:
+      type: string
+      description: >-
+        The bucketing width for GET /api/v1/analytics/spend-by-period. GRANULARITY_UNSPECIFIED is
+        what proto3 decodes an omitted field to and is REJECTED server-side, for the same reason
+        ACCOUNT_TYPE_UNSPECIFIED is.
+      enum:
+        - GRANULARITY_UNSPECIFIED
+        - GRANULARITY_MONTH
+        - GRANULARITY_YEAR
+    CategorySpend:
+      type: object
+      description: One category's total spend (expense magnitude, never signed) within scope.
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        amountMinor:
+          type: string
+          format: int64
+          description: POSITIVE — the magnitude of expense in this category, in the response's currency.
+    SpendByCategoryResponse:
+      type: object
+      description: >-
+        GET /api/v1/analytics/spend-by-category. THE EMPTY CASE: a user with no expenses in scope
+        gets `items` empty, never a CategorySpend with a zero amount standing in for "nothing
+        spent" — those are different facts and must stay visually different.
+      properties:
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: Echoes the request's currency.
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategorySpend'
+    PeriodSpend:
+      type: object
+      description: One period's total spend (expense magnitude, never signed).
+      properties:
+        period:
+          type: string
+          description: >-
+            "yyyy-MM" for GRANULARITY_MONTH, "yyyy" for GRANULARITY_YEAR — sorts lexicographically
+            in calendar order. Never a rendered month name; the client renders that from its own
+            locale.
+        amountMinor:
+          type: string
+          format: int64
+          description: POSITIVE — the magnitude of expense in this period, in the response's currency.
+    SpendByPeriodResponse:
+      type: object
+      description: >-
+        GET /api/v1/analytics/spend-by-period. Buckets with no expenses are OMITTED, not returned
+        with a zero amount, for the same empty-vs-zero reason as SpendByCategoryResponse. `periods`
+        is ordered oldest to newest.
+      properties:
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        granularity:
+          $ref: '#/components/schemas/Granularity'
+        periods:
+          type: array
+          items:
+            $ref: '#/components/schemas/PeriodSpend'
+
     UpdateSettingsRequest:
       type: object
       description: >-

@@ -185,6 +185,34 @@ hides, each verified by reading the code:
 column is **new product work**, labelled as such in Phase 4, and everything in the "broken" column
 is fixed by construction rather than transcribed.
 
+**As of 2026-08-18, Phase 4 has emptied the "stubbed" column above.** The table itself is left
+unedited as the historical record of what the *original* application was — that record is what
+"never worked" refers to throughout this document, and rewriting it in place would blur the line
+between the before-state and the product Prudent has become. What actually happened to each item:
+
+| Was stubbed | Now |
+|---|---|
+| Overview | Real per-currency totals (`docs/DECISIONS.md` ADR-014), honouring `isActive`, `includeInTotal`, `includeInOverview`. |
+| Analytics | Spend-by-month bar chart over `GET /api/v1/analytics/spend-by-period`. |
+| Chart | Spend-by-category donut over `GET /api/v1/analytics/spend-by-category`. Both charts are `CustomPainter`s, no dependency (ADR-015). |
+| `CategoryRecords` | Reachable — tapping a category opens it; editing moved to a small overlay so the tile's main gesture could carry the navigation. |
+| Settings' Corespondents | **Deleted**, not built (ADR-015) — no domain concept backs it and none was invented for it. |
+| Settings' Language | Unchanged; was already working. |
+| Settings' Profile | Wired to `zen_ui_identity`'s `ProfileScreen`. |
+| Settings' Help | **Deleted**, not built (ADR-015) — no content exists for it. |
+| Account tap | Opens `AccountEdit`; a trailing delete action was added alongside it, with the 409 "still has records" refusal surfaced to the user. |
+| `Account.description` | Still absent — ADR-006 dropped it from the contract entirely; nothing in Phase 4 needed it. |
+| `Account.isDefault` | Editable in both the create and edit forms, alongside `isActive`, `includeInTotal`, `includeInOverview`. |
+| `Account.includeInOverview` | Editable (see above), and now has an actual effect on the Overview screen. |
+| `RecordByCategory` | Still dead code — superseded by the server-side `spend-by-category` endpoint, which is where that aggregation actually belongs (ADR-014). |
+| `Category.toJson` | Still dead code — categories cross the wire as `prudent.v1.Category` (ADR-006); nothing calls the old Dart method. |
+| `AccountNotifier.totalBalance` | Superseded — the Riverpod notifier layer this method lived on was replaced in Phase 3 (ADR-013); its job is now the derived balance `AccountMapper` computes server-side (ADR-014). |
+
+Two things new in Phase 4 that were never stubs, because Phase 1 never had them: **records now
+carry a sign** (`Record.amount_minor` — negative expense, positive income) rather than being
+expense-only, and **an account's balance is derived from its records** rather than a number nobody
+updates. Both are ADR-014.
+
 ---
 
 # Phase 2 — Where each piece goes, and the rule that forces it

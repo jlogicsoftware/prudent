@@ -235,6 +235,40 @@ class RecordResourceTest {
 
   @Test
   @TestSecurity(user = PrudentTest.ALICE)
+  void zeroAmount_isRejected() throws Exception {
+    // SIGNED (ADR-014): negative is an expense, positive is income, and zero moves nothing — a
+    // record that does not change the balance is not a transaction.
+    Response response =
+        PrudentTest.body(
+                PrudentTest.request(PrudentTest.JSON),
+                PrudentTest.JSON,
+                validCreate().setAmountMinor(0L).build())
+            .when()
+            .post("/api/v1/records")
+            .andReturn();
+
+    assertEquals(400, response.statusCode());
+    assertEquals(
+        "invalid",
+        PrudentTest.decode(PrudentTest.JSON, response, ZenError.newBuilder()).build().getCode());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {PrudentTest.JSON, PrudentTest.PROTOBUF})
+  @TestSecurity(user = PrudentTest.ALICE)
+  void aNegativeAmount_isAnExpenseAndSurvivesTheRoundTrip(String mode) throws Exception {
+    Response created =
+        PrudentTest.body(PrudentTest.request(mode), mode, validCreate().setAmountMinor(-5_00L).build())
+            .when()
+            .post("/api/v1/records")
+            .andReturn();
+    assertEquals(201, created.statusCode());
+    assertEquals(
+        -5_00L, PrudentTest.decode(mode, created, Record.newBuilder()).build().getAmountMinor());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
   void anAccountThatIsNotTheCallers_isRejected() throws Exception {
     UUID bobsAccount = PrudentTest.seedAccount(PrudentTest.BOB, "Bob's wallet", "PLN");
 

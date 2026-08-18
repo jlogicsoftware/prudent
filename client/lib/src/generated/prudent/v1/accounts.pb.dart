@@ -242,7 +242,11 @@ class Account extends $pb.GeneratedMessage {
   @$pb.TagNumber(9)
   void clearIncludeInOverview() => $_clearField(9);
 
-  /// THE CURRENCIES THIS ACCOUNT HOLDS, one entry each. Never empty — an account that holds no
+  /// THE CURRENCIES THIS ACCOUNT HOLDS, one entry each, WITH THE CURRENT DERIVED BALANCE
+  /// (docs/DECISIONS.md ADR-014) — the opening balance set at create/update time PLUS the sum of
+  /// the account's records in that currency (records.proto's Record.amount_minor is signed, so no
+  /// separate sign flip is needed in that sum). The server computes this on every read; nothing
+  /// about it is stored beyond the opening amount. Never empty — an account that holds no
   /// currency cannot receive a record, and the server rejects an empty list rather than creating
   /// one that nothing can be spent from.
   ///
@@ -377,8 +381,9 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(8)
   void clearIncludeInOverview() => $_clearField(8);
 
-  /// The currencies the account opens with, and their opening balances. REQUIRED and non-empty.
-  /// Every later change to an amount is an act of the records, not of this field.
+  /// The currencies the account opens with, and their OPENING balances. REQUIRED and non-empty.
+  /// Every later change to the derived balance an Account response carries is an act of the
+  /// records, not of this field — see Account.balances.
   @$pb.TagNumber(9)
   $pb.PbList<CurrencyBalance> get balances => $_getList(6);
 }
@@ -508,8 +513,10 @@ class UpdateAccountRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(7)
   void clearIncludeInOverview() => $_clearField(7);
 
-  /// The account's currencies after this update — a full replacement like every other field here,
-  /// so an entry the client omits is an entry it is asking to remove.
+  /// The account's currencies and their OPENING balances after this update — a full replacement
+  /// like every other field here, so an entry the client omits is an entry it is asking to
+  /// remove. Changing the opening amount of a currency that already has records re-bases its
+  /// derived balance (Account.balances) by the same delta; it does not touch the records.
   ///
   /// TWO SERVER RULES THIS MESSAGE CANNOT EXPRESS, and both are refusals rather than best-effort
   /// repairs:

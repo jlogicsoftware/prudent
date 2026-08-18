@@ -49,9 +49,12 @@ class SettingsScreen extends ConsumerWidget {
               },
             ),
           ),
-          Text(t.settingsCorrespondents),
-          Text(t.settingsProfile),
-          Text(t.settingsHelp),
+          TextButton(
+            style: const ButtonStyle(splashFactory: NoSplash.splashFactory),
+            onPressed:
+                () => Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const ProfileScreen())),
+            child: Text(t.settingsProfile),
+          ),
           const Spacer(),
           TextButton(
             onPressed: () => ref.read(identitySessionStoreProvider.notifier).logout(),

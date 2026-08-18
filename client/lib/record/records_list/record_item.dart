@@ -48,8 +48,18 @@ class RecordItem extends StatelessWidget {
           ),
           const Spacer(),
           Text(
-            '${formatMinorUnits(record.amountMinor)} ${record.currency}',
-            style: Theme.of(context).textTheme.titleLarge,
+            // SIGNED (ADR-014): negative is an expense, positive is income. formatMinorUnits
+            // already prefixes a negative amount with '-'; a '+' is added here for income so the
+            // sign is never ambiguous with an unsigned amount from an earlier product.
+            '${record.amountMinor.isNegative ? '' : '+'}${formatMinorUnits(record.amountMinor)} ${record.currency}',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color:
+                  record.amountMinor.isNegative
+                      ? Theme.of(context).colorScheme.error
+                      : (Theme.of(context).brightness == Brightness.dark
+                          ? Colors.greenAccent
+                          : Colors.green.shade700),
+            ),
           ),
         ],
       ),

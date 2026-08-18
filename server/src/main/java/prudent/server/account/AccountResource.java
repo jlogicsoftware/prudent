@@ -16,6 +16,7 @@ import jakarta.ws.rs.core.Response;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -61,7 +62,10 @@ public class AccountResource {
       content = @Content(schema = @Schema(ref = "ListAccountsResponse")))
   public Response list() {
     UUID userId = currentUser.id();
-    return Response.ok(mapper.toListResponse(AccountEntity.listOwnedBy(userId))).build();
+    return Response.ok(
+            mapper.toListResponse(
+                AccountEntity.listOwnedBy(userId), RecordEntity.netByAccountForUser(userId)))
+        .build();
   }
 
   @GET
@@ -73,7 +77,9 @@ public class AccountResource {
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response get(@PathParam("id") String id) {
     UUID userId = currentUser.id();
-    return Response.ok(mapper.toProto(require(userId, id))).build();
+    AccountEntity entity = require(userId, id);
+    return Response.ok(mapper.toProto(entity, RecordEntity.netByAccount(userId, entity.id)))
+        .build();
   }
 
   @POST
@@ -100,7 +106,11 @@ public class AccountResource {
     applyBalances(entity, request.getBalancesList(), Set.of());
     entity.persist();
     enforceSingleDefault(userId, entity);
-    return Response.status(Response.Status.CREATED).entity(mapper.toProto(entity)).build();
+    // No record can reference an id that did not exist until this line, so the derived balance
+    // equals the opening one — Map.of() rather than a query that could only ever answer empty.
+    return Response.status(Response.Status.CREATED)
+        .entity(mapper.toProto(entity, Map.of()))
+        .build();
   }
 
   @PUT
@@ -127,7 +137,7 @@ public class AccountResource {
     // The currencies that must survive this update, because records are denominated in them.
     applyBalances(entity, request.getBalancesList(), RecordEntity.currenciesInUse(userId, entity.id));
     enforceSingleDefault(userId, entity);
-    return Response.ok(mapper.toProto(entity)).build();
+    return Response.ok(mapper.toProto(entity, RecordEntity.netByAccount(userId, entity.id))).build();
   }
 
   @DELETE

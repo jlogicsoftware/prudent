@@ -1190,3 +1190,146 @@ validates at deploy, not at request time). **Left as a known, non-blocking cosme
 - What Phase 4 inherits: full ARB coverage for Prudent's own strings landed in this phase (not
   deferred), so Phase 4's new screens (Overview, Analytics, Chart) start from zero hardcoded
   strings rather than retrofitting them later.
+
+---
+
+## ADR-014 — Analytics is server-side arithmetic over a signed ledger; balance is derived, not stored
+
+**Date:** 2026-08-18. **Status:** accepted.
+
+### Context
+
+Phase 4 built the parts of Prudent that never worked: `analytics.proto` and its two endpoints,
+the real Overview, the chart, `CategoryRecords`, account edit and delete, and the Settings items
+that were inert labels. Several of the plan's open questions (§"Ask me before assuming") had to be
+settled before any of that arithmetic could be written, and this entry is where they were settled.
+
+### Decision
+
+- **`Record.amount_minor` is signed.** Negative is an expense (money leaving the account),
+  positive is income (money entering it), and zero is refused server-side — a record that moves
+  nothing is not a transaction. This reopens `docs/prudent-migration-plan.md`'s §"Do records have
+  a sign" question: Phase 1's `int64` always permitted a negative value; the product now uses it.
+- **An account's balance is DERIVED, not stored.** `Account.balances` (accounts.proto) carries the
+  OPENING amount set at create/update time; the CURRENT balance a `GET`/`POST`/`PUT` response
+  reports is that opening amount plus the sum of the account's `Record.amount_minor` in that
+  currency — computed on every read (`RecordEntity.netByAccount`/`netByAccountForUser`,
+  `AccountMapper.toProto`), never written back to a column. Because the amount is already signed,
+  the formula is a plain sum with no separate sign flip. This answers §"Is Account.balance stored
+  or derived" and is the change accounts.proto's own comments already pointed at
+  ("every later change to an amount is an act of the records, not of this field") without this ADR
+  having existed yet to say so plainly.
+- **The period anchor is UTC, and it barely matters.** ADR-006 already made `Record.date` a civil
+  date with no time-of-day or zone — so a record's own bucket never depends on the answer. UTC is
+  used only to resolve "today" for `spend-by-period`'s trailing window
+  (`LocalDate.now(ZoneOffset.UTC)` in `AnalyticsResource`), which decides how many months back the
+  window reaches, not which bucket any individual record lands in.
+- **Granularity is month and year, both, on one endpoint.** `Granularity.GRANULARITY_MONTH` /
+  `GRANULARITY_YEAR` on `spend-by-period`, `year` + optional `month` on `spend-by-category`. No
+  week and no custom range in this phase.
+- **Currency is a required query parameter on both analytics endpoints, never inferred.** This is
+  the same refusal-by-construction ADR-008/009 already use: there is no field two currencies could
+  be summed into, because the caller names exactly one. `spend-by-category` and `spend-by-period`
+  both sum only the negative (expense) side of the ledger and report it as a POSITIVE magnitude —
+  "spend" excludes income by definition, named in `analytics.proto` rather than left to be
+  discovered from the arithmetic.
+- **The empty case is an empty list, never a zero-amount row.** Both response shapes
+  (`SpendByCategoryResponse.items`, `SpendByPeriodResponse.periods`) omit a category or period with
+  no expenses rather than reporting a `CategorySpend`/`PeriodSpend` of zero, so a caller can tell
+  "no data" from "zero was spent" from the shape of the response alone.
+
+### What the client does with it
+
+- **A record form gains an Expense/Income toggle** (`new_record.dart`); the amount field is
+  always a magnitude, and the toggle supplies the sign sent on the wire. Existing records render
+  signed: red with no prefix for an expense, green with a `+` for income
+  (`records_list/record_item.dart`).
+- **Overview totals are per-currency, honouring three flags nothing could previously set:**
+  `is_active` gates both the account list and the totals; `include_in_overview` controls the
+  account list; `include_in_total` controls the totals. The two inclusion flags are independent —
+  a savings account can be visible without counting toward spendable funds. Pulled out of the
+  widget into `lib/src/overview_totals.dart` (`totalsByCurrency`, `accountsForOverview`)
+  specifically so the flag combinations are unit-testable without pumping a screen.
+- **The chart (spend by category, a donut) and Analytics (spend by month, a bar chart) are both
+  `CustomPainter`s** (`lib/chart/donut_chart_painter.dart`, `lib/chart/bar_chart_painter.dart`),
+  not a charting package — see ADR-015.
+- **`CategoryRecords` is reachable**: tapping a category tile now opens it; editing moved to a
+  small pencil `Popup` overlaid on the tile, since the tile's main gesture was the only way to
+  reach the screen at all.
+- **Account edit and delete are real.** Edit is `AccountEdit`, reachable by tapping an account row;
+  it resends the account's existing `balances` unchanged on every save (a `PUT` is a full
+  replacement, so silently dropping them would trigger ADR-008's currency-with-records refusal).
+  Delete confirms, then surfaces the server's own message on a 409 — `ZenTransportError.message` is
+  already the decoded `ZenError.message` regardless of which `ZenError` subclass jZen's own domain
+  code might construct elsewhere, so the dialog reads it directly rather than special-casing a
+  type that a REST response never actually produces client-side.
+
+### Consequence
+
+- `task test:server` green at **73 tests**, up from 55: `AnalyticsResourceTest` (14 tests — the
+  empty case, income excluded from spend, month/year boundaries, single-currency and
+  missing-currency refusal, user scoping) plus a derived-balance test on `AccountResourceTest` and
+  a zero/negative-amount pair on `RecordResourceTest`.
+- `task zen:test:client` green at **67 tests**, up from 47: `overview_totals_test.dart` (the flag
+  combinations and the multi-currency presentation), `donut_chart_painter_test.dart` (zero, one and
+  many slices), and three new cases in `prudent_repository_test.dart` for the analytics query
+  strings and the empty-list decode.
+- Verified against the real local stack, not just the suites: registered a user, created an
+  account with a 100.00 PLN opening balance, posted a -50.00 PLN expense and a +200.00 PLN income,
+  and confirmed `GET /api/v1/accounts` answered **250.00 PLN** (100 − 50 + 200) — the derived-balance
+  formula, not asserted, computed. `spend-by-category` answered 50.00 PLN in Food (the income
+  excluded); `spend-by-period` answered the same 50.00 PLN in the current month and nothing in the
+  other eleven. Then ran the actual Flutter app against that server (Chrome, `flutter run -d
+  chrome`): Overview showed the 250.00 PLN total, Records showed the expense in red and the income
+  in green with a `+`, the donut chart showed one full green slice at 100%/50.00 PLN, the bar chart
+  showed one bar in the current month among eleven empty ones, and the account edit/delete flow
+  (including the 409 message) worked end to end.
+- **Phase 5 inherits** nothing new here beyond what earlier phases already left it: the admin panel
+  and `test:e2e` are unaffected by this phase's arithmetic, since they exercise the same REST
+  surface.
+
+---
+
+## ADR-015 — Charts are `CustomPainter`, no dependency; Corespondents and Help are deleted, not built
+
+**Date:** 2026-08-18. **Status:** accepted.
+
+### Context
+
+The plan's open questions asked which chart(s) ship, whether a charting dependency is worth its
+cost against a `CustomPainter`, and the fate of two Settings labels (`Corespondents` [sic] and
+`Help`) that rendered as inert `Text` widgets nothing could act on.
+
+### Decision
+
+- **Two charts ship: spend by category (a donut, on the Chart screen) and spend by month (a bar
+  chart, on the Analytics screen).** Both consume the two `analytics.proto` endpoints this phase
+  adds, so shipping only one would have left the other endpoint with no client at all.
+- **Both are hand-rolled `CustomPainter`s, not a charting package.** A donut is arcs summing to one
+  turn; a trailing-window bar chart is rectangles scaled to a maximum — neither shape earns a
+  dependency, and Zen Architecture's "utilities over abstractions" principle names exactly this
+  trade-off. The alternative cost was concrete, not hypothetical: ADR-024 (jZen) requires any
+  Flutter dependency to be proven Wasm-clean via `flutter build web --wasm`, which is a real
+  verification step a `CustomPainter` never has to pass because it adds nothing to the dependency
+  graph a web build's generated plugin registrant would need to import.
+- **`Corespondents` and `Help` are deleted, not built.** Neither is in this phase's deliverable
+  list, and CLAUDE.md's own words are exact: "an inert label that survives this phase is a promise
+  the app does not keep." `Corespondents` would have implied a payee/counterparty concept that
+  exists nowhere in the domain model; building it now would be inventing a product decision nobody
+  asked for, in the phase the migration prompt itself names as "the one most likely to grow into"
+  new products. `Help` needs real content this phase has none of.
+- **`Profile` is wired, not written** — `zen_ui_identity`'s `ProfileScreen`, reached from the same
+  `TextButton` slot the label occupied. This is the case the plan's own wording anticipated
+  ("Profile is `zen_ui_identity`'s ProfileScreen, so it is wired, not written") and settles nothing
+  new; it is recorded here only so this ADR accounts for all four Settings items in one place.
+
+### Consequence
+
+- `flutter build web --wasm` is green with icon tree-shaking unaffected
+  (`MaterialIcons-Regular.otf` still reduced 99.4%) — direct evidence the CustomPainter choice cost
+  nothing on the one platform a dependency choice could have.
+- `task zen:build:runners` is green on this host: iOS (simulator) and Android build; Linux and
+  Windows are skipped audibly (Darwin host, per ADR-003).
+- Settings now has exactly the items it can act on: Language, Profile (wired), Log Out. Two ARB
+  keys per locale (`settingsCorrespondents`, `settingsHelp`) are removed along with the labels —
+  deleting a hardcoded string is part of deleting the feature it labelled, not a separate cleanup.

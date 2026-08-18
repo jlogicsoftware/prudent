@@ -14,8 +14,11 @@
 
   "recordsTitleField": "Title",
   "recordsAmountField": "Amount",
+  "recordsExpense": "Expense",
+  "recordsIncome": "Income",
   "recordsNoDateSelected": "No date selected",
   "recordsSaveExpense": "Save Expense",
+  "recordsSaveIncome": "Save Income",
   "recordsInvalidInput": "Please make sure a valid title, amount, date, category and account were entered.",
   "recordsDeleted": "Record deleted.",
   "recordsUndo": "Undo",
@@ -35,7 +38,7 @@
   "categoryDescriptionField": "Description",
   "categorySave": "Save Category",
   "categoryInvalidInput": "Please make sure a valid title was entered.",
-  "categoryRecordsStub": "Category Records Screen",
+  "categoryRecordsEmpty": "No records in this category yet.",
 
   "accountsTitle": "Accounts",
   "accountsBanksAndCards": "Banks and Cards",
@@ -58,20 +61,42 @@
   "accountTypeCard": "Card",
   "accountTypeChecking": "Checking",
   "accountTypeSavings": "Savings",
+  "accountIsDefault": "Default account",
+  "accountIsActive": "Active",
+  "accountIncludeInTotal": "Include in total balance",
+  "accountIncludeInOverview": "Show on overview",
+  "accountSave": "Save Account",
+  "accountDelete": "Delete",
+  "accountDeleteTitle": "Delete account",
+  "accountDeleteConfirm": "Delete \"{name}\"? This cannot be undone.",
+  "@accountDeleteConfirm": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "accountDeleteBlockedGeneric": "This account could not be deleted.",
 
-  "overviewChartStub": "Chart",
-  "overviewAccountsStub": "Accounts overview",
+  "overviewEmpty": "No accounts to show. Add one to get started.",
+  "overviewTotalsTitle": "Total balance",
+  "overviewAccountsTitle": "Accounts",
 
   "analyticsTitle": "Analytics",
-  "analyticsOverviewStub": "Analytics Overview",
-  "analyticsDetailStub": "Detailed analytics will be available soon.",
+  "analyticsSpendByMonth": "Spend by month",
+  "analyticsEmpty": "No spending in the last 12 months.",
+  "analyticsLoadError": "Could not load analytics: {error}",
+  "@analyticsLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
 
-  "chartStub": "Chart diagram",
+  "chartTitle": "Chart",
+  "chartNoAccounts": "Add an account to see a chart.",
+  "chartEmpty": "No spending this month.",
+  "chartUnknownCategory": "Unknown category",
+  "chartLoadError": "Could not load the chart: {error}",
+  "@chartLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
 
   "settingsTitle": "Settings",
   "settingsLanguage": "Language",
-  "settingsCorrespondents": "Correspondents",
   "settingsProfile": "Profile",
-  "settingsHelp": "Help",
   "settingsLogOut": "Log Out"
 }

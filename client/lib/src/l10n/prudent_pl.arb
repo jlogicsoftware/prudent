@@ -14,8 +14,11 @@
 
   "recordsTitleField": "Tytuł",
   "recordsAmountField": "Kwota",
+  "recordsExpense": "Wydatek",
+  "recordsIncome": "Przychód",
   "recordsNoDateSelected": "Nie wybrano daty",
   "recordsSaveExpense": "Zapisz wydatek",
+  "recordsSaveIncome": "Zapisz przychód",
   "recordsInvalidInput": "Upewnij się, że podano poprawny tytuł, kwotę, datę, kategorię i rachunek.",
   "recordsDeleted": "Wpis usunięty.",
   "recordsUndo": "Cofnij",
@@ -35,7 +38,7 @@
   "categoryDescriptionField": "Opis",
   "categorySave": "Zapisz kategorię",
   "categoryInvalidInput": "Upewnij się, że podano poprawny tytuł.",
-  "categoryRecordsStub": "Ekran wpisów kategorii",
+  "categoryRecordsEmpty": "Brak wpisów w tej kategorii.",
 
   "accountsTitle": "Rachunki",
   "accountsBanksAndCards": "Banki i karty",
@@ -58,20 +61,42 @@
   "accountTypeCard": "Karta",
   "accountTypeChecking": "Rachunek bieżący",
   "accountTypeSavings": "Oszczędnościowy",
+  "accountIsDefault": "Rachunek domyślny",
+  "accountIsActive": "Aktywny",
+  "accountIncludeInTotal": "Uwzględnij w saldzie łącznym",
+  "accountIncludeInOverview": "Pokaż w przeglądzie",
+  "accountSave": "Zapisz rachunek",
+  "accountDelete": "Usuń",
+  "accountDeleteTitle": "Usuń rachunek",
+  "accountDeleteConfirm": "Usunąć „{name}”? Tej operacji nie można cofnąć.",
+  "@accountDeleteConfirm": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "accountDeleteBlockedGeneric": "Nie udało się usunąć tego rachunku.",
 
-  "overviewChartStub": "Wykres",
-  "overviewAccountsStub": "Przegląd rachunków",
+  "overviewEmpty": "Brak rachunków do pokazania. Dodaj pierwszy, aby zacząć.",
+  "overviewTotalsTitle": "Saldo łączne",
+  "overviewAccountsTitle": "Rachunki",
 
   "analyticsTitle": "Analityka",
-  "analyticsOverviewStub": "Przegląd analityki",
-  "analyticsDetailStub": "Szczegółowa analityka będzie dostępna wkrótce.",
+  "analyticsSpendByMonth": "Wydatki wg miesiąca",
+  "analyticsEmpty": "Brak wydatków w ostatnich 12 miesiącach.",
+  "analyticsLoadError": "Nie udało się wczytać analityki: {error}",
+  "@analyticsLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
 
-  "chartStub": "Diagram wykresu",
+  "chartTitle": "Wykres",
+  "chartNoAccounts": "Dodaj rachunek, aby zobaczyć wykres.",
+  "chartEmpty": "Brak wydatków w tym miesiącu.",
+  "chartUnknownCategory": "Nieznana kategoria",
+  "chartLoadError": "Nie udało się wczytać wykresu: {error}",
+  "@chartLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
 
   "settingsTitle": "Ustawienia",
   "settingsLanguage": "Język",
-  "settingsCorrespondents": "Korespondenci",
   "settingsProfile": "Profil",
-  "settingsHelp": "Pomoc",
   "settingsLogOut": "Wyloguj się"
 }

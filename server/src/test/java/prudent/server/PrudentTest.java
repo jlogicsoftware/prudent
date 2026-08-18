@@ -165,6 +165,15 @@ public final class PrudentTest {
   /** Persists a record owned by {@code userId}, against an account and category it already owns. */
   public static UUID seedRecord(
       String userId, UUID accountId, UUID categoryId, long amountMinor, String currency) {
+    return seedRecord(userId, accountId, categoryId, amountMinor, currency, LocalDate.of(2026, 8, 17));
+  }
+
+  /**
+   * The same as {@link #seedRecord(String, UUID, UUID, long, String)}, with an explicit date — for
+   * the analytics suite, which asserts against period BOUNDARIES rather than one fixed day.
+   */
+  public static UUID seedRecord(
+      String userId, UUID accountId, UUID categoryId, long amountMinor, String currency, LocalDate date) {
     UUID id = UUID.randomUUID();
     QuarkusTransaction.requiringNew()
         .run(
@@ -175,7 +184,7 @@ public final class PrudentTest {
               entity.title = "Seeded";
               entity.amountMinor = amountMinor;
               entity.currency = currency;
-              entity.date = LocalDate.of(2026, 8, 17);
+              entity.date = date;
               entity.accountId = accountId;
               entity.categoryId = categoryId;
               entity.persist();

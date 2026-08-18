@@ -12,6 +12,8 @@ import 'package:prudent/src/generated/prudent/v1/records.pb.dart';
 import 'package:prudent/src/prudent_repository.dart';
 import 'package:zen_transport/zen_transport.dart';
 
+Uri _uriOf(http.Request request) => request.url;
+
 ZenClient _clientAnswering(http.Response Function(http.Request) respond) => ZenClient(
   baseUrl: 'https://example.test',
   format: ZenTransportFormat.json,
@@ -125,6 +127,82 @@ void main() {
       final record = result.fold((r) => r, (e) => throw e);
       // Server-minted, not client-chosen — the create request above carried no id.
       expect(record.id, 'server-minted-id');
+    });
+  });
+
+  group('PrudentRepository.spendByCategory', () {
+    test('sends currency and year as query parameters, and decodes the response', () async {
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedUri = _uriOf(request);
+          return _jsonResponse({
+            'currency': 'PLN',
+            'items': [
+              {'categoryId': 'c1', 'amountMinor': '3500'},
+            ],
+          });
+        }),
+      );
+
+      final result = await repository.spendByCategory(currency: 'PLN', year: 2026, month: 8);
+
+      expect(capturedUri!.path, '/api/v1/analytics/spend-by-category');
+      expect(capturedUri!.queryParameters['currency'], 'PLN');
+      expect(capturedUri!.queryParameters['year'], '2026');
+      expect(capturedUri!.queryParameters['month'], '8');
+      final response = result.fold((r) => r, (e) => throw e);
+      expect(response.items.single.amountMinor.toInt(), 3500);
+    });
+
+    test('month is omitted from the query when null — the whole-year scope', () async {
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedUri = _uriOf(request);
+          return _jsonResponse({'currency': 'PLN', 'items': []});
+        }),
+      );
+
+      await repository.spendByCategory(currency: 'PLN', year: 2026);
+
+      expect(capturedUri!.queryParameters.containsKey('month'), isFalse);
+    });
+
+    test('the empty case decodes as an empty list, not a failure', () async {
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) => _jsonResponse({'currency': 'PLN', 'items': []})),
+      );
+
+      final result = await repository.spendByCategory(currency: 'PLN', year: 2026);
+
+      expect(result.isSuccess, isTrue);
+      expect(result.fold((r) => r.items, (e) => throw e), isEmpty);
+    });
+  });
+
+  group('PrudentRepository.spendByPeriod', () {
+    test('sends granularity and count as query parameters, and decodes the response', () async {
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedUri = _uriOf(request);
+          return _jsonResponse({
+            'currency': 'PLN',
+            'granularity': 'GRANULARITY_MONTH',
+            'periods': [
+              {'period': '2026-08', 'amountMinor': '1000'},
+            ],
+          });
+        }),
+      );
+
+      final result = await repository.spendByPeriod(currency: 'PLN', granularity: 'MONTH', count: 12);
+
+      expect(capturedUri!.queryParameters['granularity'], 'MONTH');
+      expect(capturedUri!.queryParameters['count'], '12');
+      final response = result.fold((r) => r, (e) => throw e);
+      expect(response.periods.single.period, '2026-08');
     });
   });
 }
