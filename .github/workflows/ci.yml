@@ -99,6 +99,29 @@ jobs:
           version: "3.52.0"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # jZen's OWN framework packages (zen_ui_identity, zen_ui_navigation, …) need their own
+      # localizations generated before anything that imports IdentityLocalizations/
+      # NavigationLocalizations can compile — Prudent's screens reference them through the
+      # framework's own widgets (LoginScreen, ProfileScreen, ZenNavigation's "more" label, …).
+      #
+      # task zen:generate:l10n discovers localized packages with `git ls-files` SCOPED TO THE
+      # REPOSITORY IT RUNS IN — run from Prudent's root it can only ever see client/l10n.yaml,
+      # never ../jZen/client/zen_ui_identity/l10n.yaml, because that file belongs to a DIFFERENT
+      # git repository a sibling-checkout `git ls-files` cannot reach. Invisible on a developer's
+      # machine (jZen's own local runs already generated and cached those files on disk long ago);
+      # a FRESH CI CLONE of both repositories has no such history. The first run of this workflow
+      # failed on exactly this ("IdentityLocalizations isn't a type") in gates, android-runner and
+      # windows-runner alike.
+      #
+      # The fix runs the identical task again, but FROM ../jZen, so git ls-files resolves against
+      # jZen's own tracked files and finds its packages' l10n.yaml. Reported upstream as a jZen-
+      # side finding (docs/jzen/README.md): a multi-repo consumer has no task-level way to ask the
+      # framework to generate its own localizations without cd-ing into the sibling checkout by
+      # hand — the same shape as the contract-loop findings already recorded there.
+      - name: Generate jZen's own framework l10n (multi-repo git ls-files gap)
+        working-directory: jZen
+        run: task zen:generate:l10n
+
       - name: Python (floor — scripts/verify_boundaries.py is written to 3.9)
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -217,6 +240,12 @@ jobs:
         with:
           version: "3.52.0"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # See gates' identically-named step: git ls-files can't reach a sibling repository, so
+      # jZen's own framework packages (zen_ui_identity, …) need their l10n generated from inside
+      # ../jZen, not from Prudent's root.
+      - name: Generate jZen's own framework l10n (multi-repo git ls-files gap)
+        working-directory: jZen
+        run: task zen:generate:l10n
       # Flutter's Linux desktop build shells out to CMake/ninja and links against GTK3; the
       # Linux keystore plugin backing SecureTokenStore needs libsecret.
       - name: Linux desktop toolchain (GTK3, libsecret, ninja)
@@ -263,6 +292,12 @@ jobs:
         with:
           version: "3.52.0"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # See gates' identically-named step: git ls-files can't reach a sibling repository, so
+      # jZen's own framework packages (zen_ui_identity, …) need their l10n generated from inside
+      # ../jZen, not from Prudent's root.
+      - name: Generate jZen's own framework l10n (multi-repo git ls-files gap)
+        working-directory: jZen
+        run: task zen:generate:l10n
       - working-directory: prudent
         run: task zen:deps
       - working-directory: prudent
