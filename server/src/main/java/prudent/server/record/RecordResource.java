@@ -169,6 +169,15 @@ public class RecordResource {
       throw PrudentException.invalid("A record needs a title.");
     }
 
+    // SIGNED (records.proto, ADR-014): negative is an expense, positive is income. Zero moves
+    // nothing and is refused rather than stored as a no-op transaction — a balance summed over a
+    // zero-amount row would be correct by accident, and a client that sent zero by mistake would
+    // get no signal that anything was wrong.
+    if (amountMinor == 0) {
+      throw PrudentException.invalid(
+          "A record needs a nonzero amount. Negative is an expense, positive is income.");
+    }
+
     // The owning account, looked up AS THE CALLER'S. An account id that is not theirs is refused
     // here rather than stored — a client that can name someone else's account can move money into
     // it.

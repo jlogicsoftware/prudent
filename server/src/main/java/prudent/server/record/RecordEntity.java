@@ -6,7 +6,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -127,5 +129,83 @@ public class RecordEntity extends PanacheEntityBase {
             .setParameter("userId", userId)
             .setParameter("accountId", accountId)
             .getResultList());
+  }
+
+  /**
+   * The net of one account's records, by currency — what {@link prudent.server.account.AccountMapper}
+   * adds to the opening balance to answer an account's CURRENT derived balance
+   * (docs/DECISIONS.md ADR-014). {@code amount_minor} is signed (negative expense, positive
+   * income), so a plain {@code sum} is the whole formula: no separate sign flip anywhere here.
+   *
+   * <p>A currency with no records for this account is simply absent from the map — the caller adds
+   * zero by not finding an entry, rather than this method inventing a zero row for every currency
+   * the account happens to hold.
+   */
+  public static Map<String, Long> netByAccount(UUID userId, UUID accountId) {
+    Map<String, Long> net = new HashMap<>();
+    for (Object[] row :
+        getEntityManager()
+            .createQuery(
+                "select r.currency, sum(r.amountMinor) from RecordEntity r"
+                    + " where r.userId = :userId and r.accountId = :accountId"
+                    + " group by r.currency",
+                Object[].class)
+            .setParameter("userId", userId)
+            .setParameter("accountId", accountId)
+            .getResultList()) {
+      net.put((String) row[0], (Long) row[1]);
+    }
+    return net;
+  }
+
+  /**
+   * The same net as {@link #netByAccount}, for every account of one user in a single query — what
+   * {@link prudent.server.account.AccountMapper} uses to answer {@code GET /api/v1/accounts}
+   * without one query per account in the list.
+   */
+  /**
+   * The expense rows (negative {@code amountMinor}) one user has in one currency within a civil
+   * date range, inclusive on both ends — the raw material for
+   * {@link prudent.server.analytics.AnalyticsResource}'s two endpoints. Each row is
+   * {@code {categoryId, date, amountMinor}}.
+   *
+   * <p><strong>Income is excluded here, not filtered by the caller.</strong> "Spend by category"
+   * and "spend by period" both mean expense only (proto/prudent/v1/analytics.proto); putting the
+   * {@code amountMinor < 0} filter in the one query both endpoints share is what keeps that
+   * meaning from being re-decided differently at each call site.
+   *
+   * <p>Bucketing (by category, by month, by year) happens in Java rather than in SQL: the
+   * personal-finance row counts this application deals with make that cheap, and it avoids a
+   * database-specific date-truncation function that would tie the query to Postgres.
+   */
+  public static List<Object[]> expenseRows(
+      UUID userId, String currency, LocalDate from, LocalDate to) {
+    return getEntityManager()
+        .createQuery(
+            "select r.categoryId, r.date, r.amountMinor from RecordEntity r"
+                + " where r.userId = :userId and r.currency = :currency and r.amountMinor < 0"
+                + " and r.date >= :from and r.date <= :to",
+            Object[].class)
+        .setParameter("userId", userId)
+        .setParameter("currency", currency)
+        .setParameter("from", from)
+        .setParameter("to", to)
+        .getResultList();
+  }
+
+  public static Map<UUID, Map<String, Long>> netByAccountForUser(UUID userId) {
+    Map<UUID, Map<String, Long>> net = new HashMap<>();
+    for (Object[] row :
+        getEntityManager()
+            .createQuery(
+                "select r.accountId, r.currency, sum(r.amountMinor) from RecordEntity r"
+                    + " where r.userId = :userId"
+                    + " group by r.accountId, r.currency",
+                Object[].class)
+            .setParameter("userId", userId)
+            .getResultList()) {
+      net.computeIfAbsent((UUID) row[0], id -> new HashMap<>()).put((String) row[1], (Long) row[2]);
+    }
+    return net;
   }
 }

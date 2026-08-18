@@ -1,0 +1,10 @@
+# Node / TypeScript / Vite (Prudent's admin panel).
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+*.local
+
+# Committed on purpose (do NOT ignore):
+#   pnpm-lock.yaml               - reproducible installs
+#   src/api/schema.generated.ts  - generated from ../server/openapi.json, tracked per CLAUDE.md

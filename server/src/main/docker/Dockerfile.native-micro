@@ -1,0 +1,27 @@
+####
+# Runs Prudent's Quarkus server as a native executable (no JVM) on a micro base image. Same
+# base image and shape as jZen's own reference (../jZen/apps/zen_demo/zen_demo_server's
+# Dockerfile.native-micro) — this is Prudent's own file because the build context is this
+# module's directory, not zen_demo's.
+#
+# Build (from the repository root):
+#   server/mvnw -B clean package -Dnative -DskipTests \
+#     -Dquarkus.native.container-build=true \
+#     -Dquarkus.native.container-runtime-options=--platform=linux/amd64
+#   docker build --platform=linux/amd64 \
+#     -f server/src/main/docker/Dockerfile.native-micro -t prudent/server server
+#
+# Or just: task build:server:native
+####
+FROM quay.io/quarkus/ubi9-quarkus-micro-image@sha256:d4295e70be7c3df55523bcbcc0fd696d518484de2579d5d87546d422649a1296
+
+WORKDIR /work/
+RUN chown 1001 /work \
+    && chmod "g+rwX" /work \
+    && chown 1001:root /work
+COPY --chown=1001:root --chmod=0755 target/*-runner /work/application
+
+EXPOSE 8085
+USER 1001
+
+ENTRYPOINT ["./application", "-Dquarkus.http.host=0.0.0.0"]

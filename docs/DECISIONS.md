@@ -1190,3 +1190,526 @@ validates at deploy, not at request time). **Left as a known, non-blocking cosme
 - What Phase 4 inherits: full ARB coverage for Prudent's own strings landed in this phase (not
   deferred), so Phase 4's new screens (Overview, Analytics, Chart) start from zero hardcoded
   strings rather than retrofitting them later.
+
+---
+
+## ADR-014 — Analytics is server-side arithmetic over a signed ledger; balance is derived, not stored
+
+**Date:** 2026-08-18. **Status:** accepted.
+
+### Context
+
+Phase 4 built the parts of Prudent that never worked: `analytics.proto` and its two endpoints,
+the real Overview, the chart, `CategoryRecords`, account edit and delete, and the Settings items
+that were inert labels. Several of the plan's open questions (§"Ask me before assuming") had to be
+settled before any of that arithmetic could be written, and this entry is where they were settled.
+
+### Decision
+
+- **`Record.amount_minor` is signed.** Negative is an expense (money leaving the account),
+  positive is income (money entering it), and zero is refused server-side — a record that moves
+  nothing is not a transaction. This reopens `docs/prudent-migration-plan.md`'s §"Do records have
+  a sign" question: Phase 1's `int64` always permitted a negative value; the product now uses it.
+- **An account's balance is DERIVED, not stored.** `Account.balances` (accounts.proto) carries the
+  OPENING amount set at create/update time; the CURRENT balance a `GET`/`POST`/`PUT` response
+  reports is that opening amount plus the sum of the account's `Record.amount_minor` in that
+  currency — computed on every read (`RecordEntity.netByAccount`/`netByAccountForUser`,
+  `AccountMapper.toProto`), never written back to a column. Because the amount is already signed,
+  the formula is a plain sum with no separate sign flip. This answers §"Is Account.balance stored
+  or derived" and is the change accounts.proto's own comments already pointed at
+  ("every later change to an amount is an act of the records, not of this field") without this ADR
+  having existed yet to say so plainly.
+- **The period anchor is UTC, and it barely matters.** ADR-006 already made `Record.date` a civil
+  date with no time-of-day or zone — so a record's own bucket never depends on the answer. UTC is
+  used only to resolve "today" for `spend-by-period`'s trailing window
+  (`LocalDate.now(ZoneOffset.UTC)` in `AnalyticsResource`), which decides how many months back the
+  window reaches, not which bucket any individual record lands in.
+- **Granularity is month and year, both, on one endpoint.** `Granularity.GRANULARITY_MONTH` /
+  `GRANULARITY_YEAR` on `spend-by-period`, `year` + optional `month` on `spend-by-category`. No
+  week and no custom range in this phase.
+- **Currency is a required query parameter on both analytics endpoints, never inferred.** This is
+  the same refusal-by-construction ADR-008/009 already use: there is no field two currencies could
+  be summed into, because the caller names exactly one. `spend-by-category` and `spend-by-period`
+  both sum only the negative (expense) side of the ledger and report it as a POSITIVE magnitude —
+  "spend" excludes income by definition, named in `analytics.proto` rather than left to be
+  discovered from the arithmetic.
+- **The empty case is an empty list, never a zero-amount row.** Both response shapes
+  (`SpendByCategoryResponse.items`, `SpendByPeriodResponse.periods`) omit a category or period with
+  no expenses rather than reporting a `CategorySpend`/`PeriodSpend` of zero, so a caller can tell
+  "no data" from "zero was spent" from the shape of the response alone.
+
+### What the client does with it
+
+- **A record form gains an Expense/Income toggle** (`new_record.dart`); the amount field is
+  always a magnitude, and the toggle supplies the sign sent on the wire. Existing records render
+  signed: red with no prefix for an expense, green with a `+` for income
+  (`records_list/record_item.dart`).
+- **Overview totals are per-currency, honouring three flags nothing could previously set:**
+  `is_active` gates both the account list and the totals; `include_in_overview` controls the
+  account list; `include_in_total` controls the totals. The two inclusion flags are independent —
+  a savings account can be visible without counting toward spendable funds. Pulled out of the
+  widget into `lib/src/overview_totals.dart` (`totalsByCurrency`, `accountsForOverview`)
+  specifically so the flag combinations are unit-testable without pumping a screen.
+- **The chart (spend by category, a donut) and Analytics (spend by month, a bar chart) are both
+  `CustomPainter`s** (`lib/chart/donut_chart_painter.dart`, `lib/chart/bar_chart_painter.dart`),
+  not a charting package — see ADR-015.
+- **`CategoryRecords` is reachable**: tapping a category tile now opens it; editing moved to a
+  small pencil `Popup` overlaid on the tile, since the tile's main gesture was the only way to
+  reach the screen at all.
+- **Account edit and delete are real.** Edit is `AccountEdit`, reachable by tapping an account row;
+  it resends the account's existing `balances` unchanged on every save (a `PUT` is a full
+  replacement, so silently dropping them would trigger ADR-008's currency-with-records refusal).
+  Delete confirms, then surfaces the server's own message on a 409 — `ZenTransportError.message` is
+  already the decoded `ZenError.message` regardless of which `ZenError` subclass jZen's own domain
+  code might construct elsewhere, so the dialog reads it directly rather than special-casing a
+  type that a REST response never actually produces client-side.
+
+### Consequence
+
+- `task test:server` green at **73 tests**, up from 55: `AnalyticsResourceTest` (14 tests — the
+  empty case, income excluded from spend, month/year boundaries, single-currency and
+  missing-currency refusal, user scoping) plus a derived-balance test on `AccountResourceTest` and
+  a zero/negative-amount pair on `RecordResourceTest`.
+- `task zen:test:client` green at **67 tests**, up from 47: `overview_totals_test.dart` (the flag
+  combinations and the multi-currency presentation), `donut_chart_painter_test.dart` (zero, one and
+  many slices), and three new cases in `prudent_repository_test.dart` for the analytics query
+  strings and the empty-list decode.
+- Verified against the real local stack, not just the suites: registered a user, created an
+  account with a 100.00 PLN opening balance, posted a -50.00 PLN expense and a +200.00 PLN income,
+  and confirmed `GET /api/v1/accounts` answered **250.00 PLN** (100 − 50 + 200) — the derived-balance
+  formula, not asserted, computed. `spend-by-category` answered 50.00 PLN in Food (the income
+  excluded); `spend-by-period` answered the same 50.00 PLN in the current month and nothing in the
+  other eleven. Then ran the actual Flutter app against that server (Chrome, `flutter run -d
+  chrome`): Overview showed the 250.00 PLN total, Records showed the expense in red and the income
+  in green with a `+`, the donut chart showed one full green slice at 100%/50.00 PLN, the bar chart
+  showed one bar in the current month among eleven empty ones, and the account edit/delete flow
+  (including the 409 message) worked end to end.
+- **Phase 5 inherits** nothing new here beyond what earlier phases already left it: the admin panel
+  and `test:e2e` are unaffected by this phase's arithmetic, since they exercise the same REST
+  surface.
+
+---
+
+## ADR-015 — Charts are `CustomPainter`, no dependency; Corespondents and Help are deleted, not built
+
+**Date:** 2026-08-18. **Status:** accepted.
+
+### Context
+
+The plan's open questions asked which chart(s) ship, whether a charting dependency is worth its
+cost against a `CustomPainter`, and the fate of two Settings labels (`Corespondents` [sic] and
+`Help`) that rendered as inert `Text` widgets nothing could act on.
+
+### Decision
+
+- **Two charts ship: spend by category (a donut, on the Chart screen) and spend by month (a bar
+  chart, on the Analytics screen).** Both consume the two `analytics.proto` endpoints this phase
+  adds, so shipping only one would have left the other endpoint with no client at all.
+- **Both are hand-rolled `CustomPainter`s, not a charting package.** A donut is arcs summing to one
+  turn; a trailing-window bar chart is rectangles scaled to a maximum — neither shape earns a
+  dependency, and Zen Architecture's "utilities over abstractions" principle names exactly this
+  trade-off. The alternative cost was concrete, not hypothetical: ADR-024 (jZen) requires any
+  Flutter dependency to be proven Wasm-clean via `flutter build web --wasm`, which is a real
+  verification step a `CustomPainter` never has to pass because it adds nothing to the dependency
+  graph a web build's generated plugin registrant would need to import.
+- **`Corespondents` and `Help` are deleted, not built.** Neither is in this phase's deliverable
+  list, and CLAUDE.md's own words are exact: "an inert label that survives this phase is a promise
+  the app does not keep." `Corespondents` would have implied a payee/counterparty concept that
+  exists nowhere in the domain model; building it now would be inventing a product decision nobody
+  asked for, in the phase the migration prompt itself names as "the one most likely to grow into"
+  new products. `Help` needs real content this phase has none of.
+- **`Profile` is wired, not written** — `zen_ui_identity`'s `ProfileScreen`, reached from the same
+  `TextButton` slot the label occupied. This is the case the plan's own wording anticipated
+  ("Profile is `zen_ui_identity`'s ProfileScreen, so it is wired, not written") and settles nothing
+  new; it is recorded here only so this ADR accounts for all four Settings items in one place.
+
+### Consequence
+
+- `flutter build web --wasm` is green with icon tree-shaking unaffected
+  (`MaterialIcons-Regular.otf` still reduced 99.4%) — direct evidence the CustomPainter choice cost
+  nothing on the one platform a dependency choice could have.
+- `task zen:build:runners` is green on this host: iOS (simulator) and Android build; Linux and
+  Windows are skipped audibly (Darwin host, per ADR-003).
+- Settings now has exactly the items it can act on: Language, Profile (wired), Log Out. Two ARB
+  keys per locale (`settingsCorrespondents`, `settingsHelp`) are removed along with the labels —
+  deleting a hardcoded string is part of deleting the feature it labelled, not a separate cleanup.
+
+---
+
+## ADR-016 — The admin panel: only `users`, and the first admin exists by an operator's own hand
+
+**Date:** 2026-08-18. **Status:** accepted.
+
+### Context
+
+Phase 5 built `admin/`, the last of the three client tiers CLAUDE.md's target structure names.
+jZen ships the scaffold (`@jzen/admin-core`) as a data provider, an auth provider and a login page;
+an application assembles it and registers its own resources.
+
+### Decision
+
+**`admin/` imports `@jzen/admin-core` from source**, via a TypeScript `paths` alias
+(`admin/tsconfig.json`) plus a Vite `resolve.alias` (`admin/vite.config.ts`) into
+`../jZen/admin/src` — not a pnpm dependency edge. This is the same mechanism as the Dart `path:`
+deps into `client/` and the Java empty-`<relativePath/>` parent (ADR-001): the repository root
+stays language-neutral, the app owns the single copy of React, and publishing later is a config
+edit rather than a rewrite.
+
+**Only the `users` resource is registered.** `zen-identity`'s `AdminUserResource` ships its path
+inside the framework jar (scanned into `server/openapi.json` automatically, ADR-011), so
+`admin/src/resources/User.tsx` is the whole of Prudent's own admin surface today. Accounts,
+categories and records are **not** administered: every one of Prudent's own resources is
+user-scoped by construction (`@Authenticated`, filtered on the JWT `sub`) with no cross-user
+listing endpoint, so there is nothing for a `<Resource>` to point at without first building one —
+and CLAUDE.md's own deliverable list does not ask for one. Adding cross-user visibility into a
+personal-finance app's transaction history is a product decision with its own privacy weight, not
+a byproduct of wiring a panel.
+
+**Role model: the framework enforces it, Prudent bootstraps the first holder.**
+`AdminUserResource` is `@RolesAllowed` on the `admin` role, resolved from the `users` table on
+every request — never from the JWT, so a role change takes effect on the next request rather than
+the next login. There is no self-serve admin signup: the first admin account is created by
+registering through the ordinary flow like any other user, then an operator runs one `UPDATE
+users SET role = 'admin' WHERE email = '<the operator's own address>'` against the deployed
+database. That single manual step is the entire bootstrap — deliberately outside any code path, so
+there is no admin-creation endpoint for the boundary or the auth gate to have to reason about.
+
+### Two gates this phase extended, and one it added
+
+- **`task verify:boundaries` gained TypeScript scopes** (`scripts/verify_boundaries.py`,
+  `admin/src`, checks A–C — no provider SDK, no provider host/credential, no absolute URL outside
+  the one compile-time base), with two exemptions: `admin/src/api/schema.generated.ts` (generated,
+  describes the API rather than calling it) and `admin/src/config.ts` (the one file allowed to
+  name the API base, mirroring the Dart side's `zen_identity_config.dart` exemption). **Demon­
+  strated failing**: a fake `@supabase/supabase-js` line was added to `admin/package.json`, the
+  gate caught it and named the exact line and file, and the line was reverted.
+- **CORS gained the Vite dev origin** (`http://localhost:5173`) and **exposed
+  `Content-Range`/`Accept-Ranges`** — `ra-data-simple-rest`'s pagination convention reads the
+  total off `Content-Range`, and a cross-origin `fetch` cannot read a header the server has not
+  explicitly exposed.
+- **`task generate:api:ts`** (openapi-typescript over `server/openapi.json`) joined
+  `generate:api`/`sync:contracts`. `admin/src/api/schema.generated.ts` is **tracked**,
+  `linguist-generated` — the same toolchain-boundary reasoning ADR-006 gives for the Dart side,
+  applied to the third language: a frontend developer must be able to compile the panel without a
+  JDK.
+
+### Consequence
+
+- `pnpm exec tsc -b` and `pnpm build` are both clean; `task sync:contracts` regenerates
+  `schema.generated.ts` deterministically from the current `openapi.json`.
+- `task verify:boundaries` is green with all four checks passing, including the two new
+  TypeScript ones, and was proven to fail on a real violation rather than only asserted to.
+- What Prudent inherits going forward: the day a domain resource needs administering, it arrives
+  with its own `@RolesAllowed(ADMIN)` listing endpoint on the server and its own `<Resource>` in
+  `admin/src/App.tsx` — this entry is not a ceiling on the panel, only a record of where it starts.
+
+---
+
+## ADR-017 — `task test:e2e`: a pure-Dart VM release gate, and the race it caught on its first run
+
+**Date:** 2026-08-18. **Status:** accepted.
+
+### Context
+
+Phase 5 built Prudent's end-to-end release gate: the real Supabase + Quarkus stack, no mocks,
+proving register → create → read-back the way no `@QuarkusTest` or widget test can, because
+neither drives the real cookie jar or the real HTTP boundary. `../jZen/apps/zen_demo`'s own
+`test:e2e` suite is the pattern: a pure-Dart VM suite over `package:test` (not `flutter_test`), so
+it runs headless under plain `dart test` and its import graph can never reach `dart:ui` — a
+`flutter_test`-based suite would not even compile that way.
+
+### Decision
+
+**`client/integration_test/e2e_test.dart`**, six cases against the live stack: the session cookie
+survives across requests after registration; an account is created with a 100.00 PLN opening
+balance; a record is created against it and read back, with the account's *derived* balance
+confirmed to have moved by the record's signed amount (ADR-014's formula, exercised against a real
+server rather than only asserted in `AccountResourceTest`); the same records endpoint is read
+through two independently-configured `ZenClient`s, one pinned to JSON and one to Protobuf, and
+both must decode to the same set of ids; an anonymous request is refused; logout clears the
+session.
+
+**`prudent.server.HealthResource`** (`GET /api/v1/health`, `@PermitAll`, returns the framework's
+`zen.proto.v1.HealthStatus`) is new — Prudent had no liveness endpoint before this phase, and
+`task test:e2e` needs one to poll before it can safely drive the suite against a server that might
+still be starting. Same shape as `zen_demo`'s own `HealthResource`; `HealthResourceTest` proves
+both transport modes, matching every other resource's suite.
+
+**`task test:e2e`** boots Prudent's own local Supabase project (ADR-010's `+10`-shifted ports),
+builds and runs the packaged server on `:8085` under the `%dev` profile, polls `/api/v1/health`,
+runs the suite, tears the server down by whatever is bound to the port, and propagates the suite's
+exit code. **Linux-only**, per the migration plan: Supabase needs Linux containers a Windows
+runner cannot practically host, so a Windows `test:e2e` would be a different, weaker test wearing
+the same name.
+
+### What the first run actually caught
+
+The very first run of the suite failed — not a synthetic demonstration, the real first attempt.
+`prudent.server.onboarding.NewUserSetup` is a jZen `@ObservesAsync` observer (ADR-010: it seeds
+Prudent's five default categories on the framework's `UserRegistered` event), and an async
+observer genuinely races the HTTP response that fired it: the suite's `listCategories()` call,
+made immediately after a successful `register`, came back empty. **Fixed with a poll** (up to 20
+attempts, 250ms apart) rather than a longer fixed sleep, because the actual wait is a function of
+machine load and container scheduling, not a constant — a fixed sleep long enough to be reliable
+on a loaded CI runner would be needlessly slow on every quiet developer machine, and a fixed sleep
+short enough to be fast would eventually flake again. This is the seeding race genuinely existing
+in the product, not a test artifact: any real client that creates a record in the instant after
+registration is racing the same observer.
+
+### Consequence
+
+- `task test:e2e` is green: 6/6, against the live stack, server torn down cleanly and the port
+  freed on both the failing and the passing run.
+- **The gate was demonstrated failing before it was demonstrated passing** — the category race
+  above — which is the strongest form of "a gate nobody has seen fail is a gate nobody knows
+  works" this phase produced anywhere.
+- `docs/prudent-migration-plan.md`'s Phase 5 suite table gains `test:e2e` as done, six cases,
+  Linux-only.
+
+---
+
+## ADR-018 — CI on two operating systems, and jZen pinned at a SHA rather than published now
+
+**Date:** 2026-08-18. **Status:** accepted.
+
+### Context
+
+Prudent had no CI. jZen ADR-026 named the trigger for this moment in advance: Dart's `path:`
+dependencies and the admin panel's TypeScript alias need no CI-side accommodation at all — they
+resolve against whatever is checked out at `../jZen`, on any machine — but **Java cannot reach
+across repositories on its own**, and a lone CI clone has neither a sibling checkout nor a
+populated local Maven repository. The first CI run is exactly the moment that stops being
+theoretical.
+
+### Decision
+
+**`.github/workflows/ci.yml`**, five jobs: `gates` (the boundary gate first, then
+`zen:framework:install`, `sync:contracts`, `zen:test:client`, `test:admin`, and a Wasm
+web-bundle-compiles gate — compiling the bundle *is* the gate, since no test does, and a
+non-Wasm-clean Flutter dependency would otherwise leave every suite green and the web app
+unbuildable); `backend` (`test:server`); `android-runner` (`zen:build:runners` on
+`ubuntu-latest` — Android and the Linux desktop app; Apple targets stay off CI per ADR-003's cost
+reasoning, covered locally instead); `windows-runner` (`zen:build:runners` on `windows-latest` —
+the only place the Windows app is ever built, build-only, no `test:e2e` there); `e2e`
+(`test:e2e`, Linux-only, matching ADR-017).
+
+**Every job checks out `../jZen` at a pinned SHA** (`env.JZEN_REF`, currently
+`5a36d1f7081527bef6e5045f586fa35ed5352154`, confirmed pushed to `jZenDev/jZen`'s `main`) into a
+sibling `jZen/` directory alongside `prudent/` under the runner's workspace, and any job building
+Java additionally runs `task zen:framework:install` before it. **This is the decision the ground
+rules asked to be made explicitly, and it is: pin at a SHA, do not force the publishing decision
+now.** The cost is stated plainly rather than hidden in a comment nobody reads: the pin is a
+dependency version like any other, and it is stale the moment `jZen`'s `main` moves past it —
+bumping it is a deliberate, reviewed step, the same as bumping any other pinned dependency, never
+a side effect of an unrelated change. This is the cost of deferring publication, not a substitute
+for it; the publishing ADR jZen ADR-026 anticipates remains open.
+
+**`task audit` stands outside `task test` and `ci.yml`, in its own `.github/workflows/audit.yml`**
+(weekly schedule + `workflow_dispatch`) — the same reasoning as jZen's own equivalent: it asks a
+remote service a question that changes when nothing in the repository changed, and folding it into
+the merge gate would make an unrelated PR red over an overnight advisory. `task audit:server`
+(`scripts/audit_maven.py`, Prudent's own — jZen's equivalent is `zen_demo`-shaped and not
+reusable through the include this repository consumes) resolves the Maven dependency tree and
+queries OSV in a batch; `task audit:admin` runs `pnpm audit` against `admin/`'s own dependencies.
+Suppressions (`scripts/audit-suppressions.txt`) require a reason on the same line as the advisory
+id or the file fails to parse — an unexplained suppression is a parse error, not a silent skip.
+
+### What it found on the first run
+
+`task audit:server` found a real, unsuppressed advisory on its first run:
+`io.netty:netty-codec-http:4.1.136.Final` — pinned transitively by Quarkus 3.38.0's own BOM in
+`zen-parent` — is vulnerable to **GHSA-8c42-7qj2-3j46** (`CorsHandler` silently overwriting an
+existing `Vary` header, enabling cache poisoning). **Fixed, not suppressed**: `server/pom.xml`
+gained a `<dependencyManagement>` override to `4.1.137.Final`, the same patch-release-override move
+`admin/package.json`'s `pnpm.overrides` already makes for `react-router` and others. A suppression
+was available and was rejected: the fix costs one dependency version and closes the finding
+outright, where a suppression would only have argued the exploit path is unreachable.
+
+### Consequence
+
+- `task audit:server` reports zero unsuppressed findings against 334 Java dependencies;
+  `task audit:admin` reports none. `task test:server` stayed green at 79/79 after the override.
+- **The audit gate was demonstrated failing before it was demonstrated passing** — the netty
+  finding above — on the very first run, not a synthetic injection.
+- Bumping `JZEN_REF` is now a named, deliberate act with a place to make it (`ci.yml`'s and
+  `audit.yml`'s `env:` block), rather than an implicit consequence of whoever next touches CI.
+
+---
+
+## ADR-019 — GDPR: Prudent's own tables are swept when `zen-identity` anonymises an account
+
+**Date:** 2026-08-18. **Status:** accepted.
+
+### Context
+
+`zen-identity` ships `UserRetentionService`, a GDPR Art. 5(1)(e) **dormancy-based** retention
+cycle — not a self-service "delete my account" flow; no such flow exists in `zen-identity` today.
+After two confirmed-delivered warnings, `anonymiseExpiredAccounts()` mutates a dormant `users` row
+directly, inside its own transaction, and **fires no event** an application could observe —
+unlike `UserRegistered`, which exists for exactly the symmetric case on the way in (jZen ADR-007).
+ADR-010 already named the consequence: with `zen-jobs` absent, "Prudent's GDPR retention cycle is
+currently UNRUN rather than unneeded... an obligation deferred to the deploy phase." This is that
+phase, and the obligation has a second half ADR-010 could not yet see: even a *running* retention
+cycle only anonymises `users`, leaving every Prudent row still keyed to that `user_id` — the
+account's financial history — in the database indefinitely.
+
+### Decision
+
+**Prudent's financial records do not outlive the account they belong to.** `server/pom.xml` now
+assembles `zen-jobs` (keeping `zen-ratelimit`; `zen-email` stays absent, unchanged from ADR-010 —
+Prudent sends no mail). Two `ZenJob`s, both under `prudent.server.retention`, both daily:
+
+- **`UserRetentionZenJob`** wires the framework's own `UserRetentionJob.runCycle()` as a scheduled
+  job — identical in shape to `zen_demo`'s own registration of the same class, because the
+  framework offers the cycle as a plain callable and knows nothing about scheduling.
+- **`PrudentRetentionCleanupJob`**, Prudent's own, sweeps what the framework cannot reach. It
+  scans `users` for the anonymisation marker `UserRetentionService` writes
+  (`anon_<uuid>@deleted.invalid` — package-private there, so the literal is **duplicated** here
+  rather than referenced, a coupling worth naming plainly), and for every match hard-deletes every
+  Prudent row still keyed to that `user_id`: records first (a bulk delete — `RecordEntity` owns no
+  child collection), then accounts **entity-by-entity** (so Hibernate cascades the
+  `@ElementCollection` balances table, `prudent_account_balance`, that a bulk HQL delete would
+  bypass and orphan), then categories and the singleton settings row (both bulk deletes). Running
+  it twice is exactly as harmless as running it once: a swept user has nothing left to find.
+
+### What this doesn't fix, and is reported rather than forked
+
+`UserRetentionService`'s silence is a framework gap, not a Prudent one, and `../jZen` is
+read-only from here: the fix — `UserRetentionService` firing a `UserAnonymised(UUID userId)`
+event mirroring `UserRegistered`'s own shape — is recorded in `docs/jzen/README.md`'s findings
+table rather than built here. Until it exists, Prudent's job is a scan against a private naming
+convention that could change without warning; that fragility is the cost of not waiting for the
+framework to grow the hook first.
+
+### Consequence
+
+- `task test:server` green at **79 tests**, up from 76: `PrudentRetentionCleanupJobTest` asserts
+  every row for an anonymised user is swept, that running the job twice is harmless, and that a
+  live user (the suite's fixed `ALICE` identity) is left untouched.
+- The boot log now registers three jobs (`user-retention`, `prudent-retention-cleanup`,
+  `zen-ratelimit-cleanup`), confirmed by reading it rather than only by the tests passing.
+- **Still open, and named as such rather than left implicit**: the `users` row itself is never
+  touched by Prudent's job — its retention (or eventual removal) is `zen-identity`'s to own, and
+  this entry does not extend Prudent's authority into a table it does not own.
+
+---
+
+## ADR-020 — The deploy path is proven against a throwaway environment; a real deploy is not this phase's
+
+**Date:** 2026-08-18. **Status:** accepted.
+
+### Context
+
+Phase 5 asked whether a real deploy happens this phase or whether it ends at "the deploy path
+exists and is proven against a throwaway environment." Answered explicitly: **throwaway only.**
+No GCP project, no Cloud Run service, nothing billable, and — regardless of the answer — CLAUDE.md
+already forbids a committed cloud account, project, region or service name, since this repository
+outlives any one environment.
+
+### Decision
+
+**Built and proven, entirely locally:**
+
+- `server/src/main/docker/Dockerfile.native-micro` — the same base image and shape as jZen's own
+  `zen_demo_server` reference (`ubi9-quarkus-micro-image`), `EXPOSE 8085` matching ADR-010's port
+  rather than the framework's default `8080`.
+- `task build:server:native` — a `linux/amd64` container build
+  (`quarkus.native.container-build=true`) so the image matches Cloud Run regardless of the
+  developer's own CPU architecture, `clean`ing the module first so a file removed from the staged
+  web bundle cannot survive in `target/classes` and be baked in anyway.
+- `task build:web` — stages the Flutter Wasm bundle into
+  `server/src/main/resources/META-INF/resources` so the native image serves it **same-origin**,
+  which is load-bearing for the `zen_access_token` `SameSite=Lax` cookie, not cosmetic.
+  `WEB_API_URL` is **required**, with no `gcloud`-lookup fallback — CLAUDE.md forbids the
+  committed project/service name such a lookup would need. The task discards the previous Flutter
+  web-build cache before rebuilding (the cache does not invalidate on a `--dart-define` change
+  alone) and then **byte-searches the built `main.dart.wasm`** for the configured host, because a
+  build define that silently fails to apply must fail the build rather than report success.
+- `task build:web:admin` — stages the react-admin panel at `/admin/`, same-origin, same reason.
+- **Migration is an act of the deploy, not of a boot** (jZen ADR-038) — and needed **zero new
+  code**: `zen-identity`'s `MigrateOnlyRunner` already reads `zen.migrate-only` /
+  `ZEN_MIGRATE_ONLY` and `zen.allow-schema-rollback` / `ZEN_ALLOW_SCHEMA_ROLLBACK`, and Prudent
+  already assembles `zen-identity`. The only work here was assembling `zen-jobs` (ADR-019) and
+  setting the right environment variables at the right moment.
+- **`task test:native`** — Prudent's own local proof, in Docker, against a throwaway Postgres,
+  the same shape as jZen's own `test:native`: runs the packaged image with
+  `ZEN_MIGRATE_ONLY=true` to completion first and asserts exit 0, that migrations were actually
+  applied (not a vacuously-clean exit against a schema nothing touched), and that no HTTP port was
+  bound; asserts the schema-rollback gate refuses a database whose `flyway_schema_history` is
+  ahead of the image with exit 2, and that `ZEN_ALLOW_SCHEMA_ROLLBACK=true` is a deliberate
+  override that lets it through; only then starts the same image serving and runs
+  `task verify:endpoints` (Prudent's adaptation of jZen's own endpoint-assertion shape) — both
+  transport modes on `/api/v1/health` and 401s on every owned resource, the admin surface
+  correctly answering 406 rather than 500 on Protobuf (JSON-only by design), `/` serving the
+  Flutter shell, `/main.dart.wasm` served with the correct content type, `/admin/` serving the
+  react-admin shell.
+
+### The native locale check, folded into the same gate
+
+`quarkus.locales` bakes JDK locale data into the native image at **build** time; a JVM run cannot
+see whether it was set correctly. `task test:native` registers a user with
+`Accept-Language: pl-PL` against the **actual native binary** (real Supabase auth is needed to
+mint the session, so this reuses Prudent's own local Supabase project rather than a second
+fabricated identity provider) and reads `users.language` back from Postgres directly, bypassing
+the API. This is the one assertion in the gate that a `@QuarkusTest` — which always runs on the
+JVM — structurally cannot make on Prudent's behalf.
+
+### A real gap found and fixed while wiring this
+
+`zen.i18n.supported` was **hardcoded** to `en,uk,pl` in `application.properties`, with no
+environment-variable override at all — directly contradicting the requirement that a deploy carry
+`ZEN_I18N_SUPPORTED` explicitly (a `--set-env-vars` deploy replaces the whole environment, so a
+value set by hand on a live service is silently wiped by the next deploy). Changed to
+`zen.i18n.supported=${ZEN_I18N_SUPPORTED:en,uk,pl}`. The existing default preserves every
+current test's behaviour, confirmed by running the full suite again (still green, 79/79) —
+including `ApplicationLocaleSetTest`, whose `@TestProfile` config override was unaffected, since a
+profile override always wins over `application.properties` regardless of this expression.
+
+### What stays an explicit placeholder rather than silently unset
+
+`AUTH_REDIRECT_URIS` and a real custom domain / App Links host have no value yet, and per the
+decision behind this entry they are **not** left implicitly unset: the placeholder is
+`prudent.invalid` (RFC 2606's reserved `.invalid` TLD — the same convention
+`UserRetentionService`'s own `@deleted.invalid` anonymisation marker already uses), named as a
+placeholder everywhere it appears rather than a value someone could mistake for real.
+
+### The secret inventory a real deploy would need
+
+Recorded here because none of it exists yet, and this is where whoever does the real deploy will
+look first: `SUPABASE_URL` / `SUPABASE_KEY` (service role, server-side only, never reaching a
+client); `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` for **two** roles — the runtime role and
+Flyway's separate DDL role; `AUTH_REDIRECT_URIS`; `ZEN_I18N_SUPPORTED`; `CORS_ORIGINS`;
+`WEB_API_URL` (build-time only — it is baked into the Wasm bundle, never a runtime secret). None
+of these may ever be committed (CLAUDE.md). `task test:native`'s `smoke_env` is the shape a real
+deploy's `--set-env-vars` would carry — every value in it deliberately fake except the throwaway
+datasource and, for the native-locale check specifically, the local Supabase project's own
+(already-local, already-non-secret) anon key.
+
+### A second real finding, caught by running the gate rather than by inspection
+
+The first full run of `task test:native` failed at the serving-container check: the assertion
+that %prod logs no Flyway activity grepped the raw log for the bare word `flyway`, and Quarkus's
+own "Installed features" boot banner **always** names the `flyway` extension because it is present
+on the classpath — regardless of whether `migrate-at-start` ever ran. The check was failing a
+serving container that had correctly migrated nothing. Narrowed to the actual migration verbs
+(`Migrating schema`, `Successfully applied`, `schema history`) rather than the extension's own
+name; re-run, green.
+
+### Consequence
+
+- **`task test:native` is fully green, run against the real linux/amd64 native image**: both
+  migrate-only schema-gate directions (refuses ahead-of-image with exit 2, the override lets it
+  through), an empty database actually migrated (not a vacuous exit 0), a serving container with
+  zero migration log activity, every owned resource answering 401 in all three probes and the
+  admin surface's JSON-only 406, the Flutter shell at `/`, the Wasm bundle served with the correct
+  content type, the react-admin shell at `/admin/` — and **the native-only locale check itself**:
+  registering with `Accept-Language: pl-PL` against the actual native binary left `users.language
+  = 'pl'` in Postgres, which is the one assertion in this whole phase a JVM-only run structurally
+  cannot make. Docker containers and network torn down cleanly on both the failing and the
+  passing run.
+- `task test:native` is Prudent's release gate for everything a deploy would exercise before the
+  first `gcloud run deploy` is ever typed, and it runs on nothing but a local Docker daemon.
+- **What remains open, named rather than glossed over**: the publishing decision jZen ADR-026
+  anticipates (no Prudent ADR yet — it is explicitly not this phase's to close), a real cloud
+  project/region/service name, and `AUTH_REDIRECT_URIS` resolving to something other than
+  `prudent.invalid`. None of the three is this phase's to close.

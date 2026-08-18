@@ -1,6 +1,7 @@
 package prudent.server.account;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -39,8 +40,14 @@ public abstract class AccountMapper {
   @Mapping(target = "id", source = "id", qualifiedByName = "uuidToString")
   abstract AccountView toView(AccountEntity entity);
 
-  /** Assembles the immutable {@link Account} proto from the mapped view. */
-  public Account toProto(AccountEntity entity) {
+  /**
+   * Assembles the immutable {@link Account} proto from the mapped view.
+   *
+   * @param net this account's records, summed by currency (docs/DECISIONS.md ADR-014's derived
+   *     balance) — {@link prudent.server.record.RecordEntity#netByAccount}, or an empty map for an
+   *     account that provably has none yet (just created).
+   */
+  public Account toProto(AccountEntity entity, Map<String, Long> net) {
     if (entity == null) {
       return Account.getDefaultInstance();
     }
@@ -63,21 +70,33 @@ public abstract class AccountMapper {
 
     // Order is preserved from the entity's @OrderColumn: the client renders the order the server
     // sent, so a list that reshuffled between requests would read as data changing.
+    //
+    // THE CURRENT BALANCE, not the stored one: opening amount plus the account's net for that
+    // currency (0 when the currency has no records). amount_minor is signed, so the plus is the
+    // whole formula.
     for (AccountBalance balance : entity.balances) {
+      String currency = balance.currency != null ? balance.currency : "";
       builder.addBalances(
           CurrencyBalance.newBuilder()
-              .setCurrency(balance.currency != null ? balance.currency : "")
-              .setAmountMinor(balance.amountMinor)
+              .setCurrency(currency)
+              .setAmountMinor(balance.amountMinor + net.getOrDefault(currency, 0L))
               .build());
     }
     return builder.build();
   }
 
-  /** The list response, in the order the entity query returned. */
-  public ListAccountsResponse toListResponse(List<AccountEntity> entities) {
+  /**
+   * The list response, in the order the entity query returned.
+   *
+   * @param netByAccount every listed account's id mapped to its currency net — {@link
+   *     prudent.server.record.RecordEntity#netByAccountForUser}, one query for the whole list
+   *     rather than one per account.
+   */
+  public ListAccountsResponse toListResponse(
+      List<AccountEntity> entities, Map<UUID, Map<String, Long>> netByAccount) {
     ListAccountsResponse.Builder builder = ListAccountsResponse.newBuilder();
     for (AccountEntity entity : entities) {
-      builder.addAccounts(toProto(entity));
+      builder.addAccounts(toProto(entity, netByAccount.getOrDefault(entity.id, Map.of())));
     }
     return builder.build();
   }

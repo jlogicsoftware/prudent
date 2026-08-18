@@ -22,6 +22,10 @@ class _AccountNewState extends State<AccountNew> {
   var _balanceInput = '0';
   var _currency = 'PLN';
   var _selectedType = AccountType.ACCOUNT_TYPE_CARD;
+  var _isDefault = false;
+  var _isActive = true;
+  var _includeInTotal = true;
+  var _includeInOverview = true;
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
@@ -34,10 +38,10 @@ class _AccountNewState extends State<AccountNew> {
       CreateAccountRequest(
         name: _name,
         type: _selectedType,
-        isDefault: false,
-        isActive: true,
-        includeInTotal: true,
-        includeInOverview: true,
+        isDefault: _isDefault,
+        isActive: _isActive,
+        includeInTotal: _includeInTotal,
+        includeInOverview: _includeInOverview,
         balances: [CurrencyBalance(currency: _currency, amountMinor: minor)],
       ),
     );
@@ -57,7 +61,7 @@ class _AccountNewState extends State<AccountNew> {
     final t = PrudentLocalizations.of(context);
     return Form(
       key: _formKey,
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 32.0),
         child: Column(
           children: [
@@ -101,6 +105,26 @@ class _AccountNewState extends State<AccountNew> {
               },
               decoration: InputDecoration(labelText: t.accountTypeField),
               validator: (value) => value == null ? t.accountTypeRequired : null,
+            ),
+            SwitchListTile(
+              title: Text(t.accountIsDefault),
+              value: _isDefault,
+              onChanged: (value) => setState(() => _isDefault = value),
+            ),
+            SwitchListTile(
+              title: Text(t.accountIsActive),
+              value: _isActive,
+              onChanged: (value) => setState(() => _isActive = value),
+            ),
+            SwitchListTile(
+              title: Text(t.accountIncludeInTotal),
+              value: _includeInTotal,
+              onChanged: (value) => setState(() => _includeInTotal = value),
+            ),
+            SwitchListTile(
+              title: Text(t.accountIncludeInOverview),
+              value: _includeInOverview,
+              onChanged: (value) => setState(() => _includeInOverview = value),
             ),
             const SizedBox(height: 32.0),
             Row(

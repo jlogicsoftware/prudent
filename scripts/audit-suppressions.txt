@@ -1,0 +1,10 @@
+# Accepted vulnerability findings for `task audit:server`.
+#
+# One per line: <ADVISORY-ID>  <why this one is accepted here>
+#
+# THE REASON IS NOT OPTIONAL. audit_maven.py refuses to parse a line without one. A suppression is
+# an accepted risk, not a fix — write what makes the advisory not apply to Prudent (an unreachable
+# code path, a scope that is never shipped), or the plan and the date it is upgraded by.
+# "Not exploitable" with nothing after it is not a reason.
+#
+# Empty is the correct state. It is empty now.

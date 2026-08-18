@@ -65,3 +65,10 @@ client/lib/src/l10n/generated/
 # will not stay that way.
 target/
 .mvn/wrapper/maven-wrapper.jar
+
+# The staged web (Flutter) and admin (react-admin) bundles `task build:web`/`build:web:admin`
+# rsync into META-INF/resources so the native image serves them same-origin (docs/prudent-
+# migration-plan.md Phase 5). Staged, never committed: a build artifact baked from a build-time
+# API URL has no business in git, and the tracked openapi.yaml one directory up is untouched by
+# either task's --delete.
+server/src/main/resources/META-INF/resources/

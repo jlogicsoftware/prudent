@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// Prudent's analytics — spend by category and spend by period. CANONICAL SOURCE OF TRUTH for the
+// model: the Java DTOs and the Dart messages are GENERATED from this file and are never
+// hand-edited. Change this file and run `task sync:contracts`.
+//
+// DELIBERATELY DEFERRED FROM PHASE 1 (docs/DECISIONS.md ADR-006): a message with no endpoint and
+// no agreed arithmetic behind it is a guess committed to a contract. Both exist now.
+//
+// THE API RETURNS VALUES, NEVER FORMATTED STRINGS. Amounts stay int64 minor units plus a
+// currency; periods stay a plain string the client parses, never a pre-rendered month name — a
+// server that returned "sierpień 2026" would be doing the client's locale-rendering job, and
+// getting it wrong for whichever locale the request came from.
+//
+// "SPEND" MEANS EXPENSE ONLY. records.proto's Record.amount_minor is signed — negative is an
+// expense, positive is income — and analytics sums only the negative side, reporting it as a
+// POSITIVE total spent. Income is not part of either endpoint below; if income analytics is ever
+// wanted it is its own field or its own endpoint, not a sign flip hidden in this one.
+//
+// CURRENCY IS NEVER OPTIONAL AND NEVER MIXED. Prudent does no FX (accounts.proto, ADR-008/009), so
+// a total is always a total in one currency. Both endpoints below take `currency` as a REQUIRED
+// query parameter rather than summing across every currency the caller's accounts hold — the
+// refusal is structural (there is no field two currencies could be added into), not a runtime
+// check that could be forgotten.
+//
+// Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that message
+// is not imported here (proto/README.md records why).
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+option java_outer_classname = "AnalyticsProto";
+
+// The bucketing width for GET /api/v1/analytics/spend-by-period.
+//
+// proto3 requires a zero value; GRANULARITY_UNSPECIFIED is rejected server-side rather than
+// defaulted to a month, for the same reason ACCOUNT_TYPE_UNSPECIFIED is rejected in
+// accounts.proto — a default would make "the client forgot" and "the client meant month"
+// indistinguishable.
+enum Granularity {
+  GRANULARITY_UNSPECIFIED = 0;
+  GRANULARITY_MONTH = 1;
+  GRANULARITY_YEAR = 2;
+}
+
+// One category's total spend within the requested scope.
+message CategorySpend {
+  // The category, by id. A category deleted after the records it labels still contributed to
+  // still appears here by the id it had; the client resolves the id against the category list it
+  // already holds, exactly as records.proto's Record.category_id does.
+  string category_id = 1;
+
+  // POSITIVE — the magnitude of expense in this category, never the signed ledger amount. Minor
+  // units, in the response's `currency`.
+  int64 amount_minor = 2;
+}
+
+// GET /api/v1/analytics/spend-by-category
+//
+// Query parameters: `currency` (required, ISO-4217), `year` (required, e.g. 2026), `month`
+// (optional, 1-12 — a scoped single month; omitted means the whole year named by `year`).
+//
+// THE EMPTY CASE: a user with no expenses in scope gets `items` empty, never a `CategorySpend`
+// with a zero amount standing in for "nothing spent" and never a 500. An empty list and "spent
+// zero in one category" are different facts and must stay visually different to a caller.
+message SpendByCategoryResponse {
+  // Echoes the request's currency, so a client rendering this response has no reason to also
+  // remember which currency it asked for.
+  string currency = 1;
+  repeated CategorySpend items = 2;
+}
+
+// One period's total spend.
+message PeriodSpend {
+  // ISO-ish and sorts lexicographically in calendar order, matching records.proto's civil-date
+  // convention: "2026-08" for GRANULARITY_MONTH, "2026" for GRANULARITY_YEAR. Never a rendered
+  // month name — the client renders that from its own locale.
+  string period = 1;
+
+  // POSITIVE — the magnitude of expense in this period, never the signed ledger amount. Minor
+  // units, in the response's `currency`.
+  int64 amount_minor = 2;
+}
+
+// GET /api/v1/analytics/spend-by-period
+//
+// Query parameters: `currency` (required, ISO-4217), `granularity` (required,
+// GRANULARITY_MONTH or GRANULARITY_YEAR), `count` (required, 1-60 — the number of trailing
+// buckets, ending at the current period as resolved server-side in UTC (docs/DECISIONS.md
+// ADR-014); a record on the first or last civil day of a bucket is bucketed by that date alone,
+// with no timezone conversion applied to it — see records.proto's Record.date).
+//
+// Buckets with no expenses are OMITTED, not returned with a zero amount, for the same reason
+// SpendByCategoryResponse omits empty categories: a caller must be able to tell "no data for this
+// month" from "zero was spent this month" from the shape of the response alone. `periods` is
+// ordered oldest to newest.
+message SpendByPeriodResponse {
+  string currency = 1;
+  Granularity granularity = 2;
+  repeated PeriodSpend periods = 3;
+}

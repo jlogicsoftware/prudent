@@ -6,6 +6,25 @@
   },
   "components" : {
     "schemas" : {
+      "HealthStatus" : {
+        "type" : "object",
+        "description" : "Liveness/readiness payload returned by GET /api/v1/health.",
+        "properties" : {
+          "status" : {
+            "type" : "string",
+            "description" : "Overall status, e.g. \"ok\"."
+          },
+          "service" : {
+            "type" : "string",
+            "description" : "Logical service name."
+          },
+          "timestampMs" : {
+            "type" : "string",
+            "format" : "int64",
+            "description" : "Server wall-clock time in ms since the Unix epoch."
+          }
+        }
+      },
       "ZenError" : {
         "type" : "object",
         "description" : "The error body every Prudent endpoint returns in place of a response on any status >= 400. There is no envelope: HTTP status carries the status, X-Request-ID carries the request id, and this carries the error. A client parses it with the same codec it would a success, because the transport seam serialises it in the negotiated format.",
@@ -565,6 +584,79 @@
           }
         }
       },
+      "Granularity" : {
+        "type" : "string",
+        "description" : "The bucketing width for GET /api/v1/analytics/spend-by-period. GRANULARITY_UNSPECIFIED is what proto3 decodes an omitted field to and is REJECTED server-side, for the same reason ACCOUNT_TYPE_UNSPECIFIED is.",
+        "enum" : [ "GRANULARITY_UNSPECIFIED", "GRANULARITY_MONTH", "GRANULARITY_YEAR" ]
+      },
+      "CategorySpend" : {
+        "type" : "object",
+        "description" : "One category's total spend (expense magnitude, never signed) within scope.",
+        "properties" : {
+          "categoryId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "amountMinor" : {
+            "type" : "string",
+            "format" : "int64",
+            "description" : "POSITIVE — the magnitude of expense in this category, in the response's currency."
+          }
+        }
+      },
+      "SpendByCategoryResponse" : {
+        "type" : "object",
+        "description" : "GET /api/v1/analytics/spend-by-category. THE EMPTY CASE: a user with no expenses in scope gets `items` empty, never a CategorySpend with a zero amount standing in for \"nothing spent\" — those are different facts and must stay visually different.",
+        "properties" : {
+          "currency" : {
+            "type" : "string",
+            "minLength" : 3,
+            "maxLength" : 3,
+            "description" : "Echoes the request's currency."
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CategorySpend"
+            }
+          }
+        }
+      },
+      "PeriodSpend" : {
+        "type" : "object",
+        "description" : "One period's total spend (expense magnitude, never signed).",
+        "properties" : {
+          "period" : {
+            "type" : "string",
+            "description" : "\"yyyy-MM\" for GRANULARITY_MONTH, \"yyyy\" for GRANULARITY_YEAR — sorts lexicographically in calendar order. Never a rendered month name; the client renders that from its own locale."
+          },
+          "amountMinor" : {
+            "type" : "string",
+            "format" : "int64",
+            "description" : "POSITIVE — the magnitude of expense in this period, in the response's currency."
+          }
+        }
+      },
+      "SpendByPeriodResponse" : {
+        "type" : "object",
+        "description" : "GET /api/v1/analytics/spend-by-period. Buckets with no expenses are OMITTED, not returned with a zero amount, for the same empty-vs-zero reason as SpendByCategoryResponse. `periods` is ordered oldest to newest.",
+        "properties" : {
+          "currency" : {
+            "type" : "string",
+            "minLength" : 3,
+            "maxLength" : 3
+          },
+          "granularity" : {
+            "$ref" : "#/components/schemas/Granularity"
+          },
+          "periods" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PeriodSpend"
+            }
+          }
+        }
+      },
       "UpdateSettingsRequest" : {
         "type" : "object",
         "description" : "Body for PUT /api/v1/settings. A FULL REPLACEMENT, and the response carries the resulting Settings rather than an empty body — the server may have substituted a default, and a client that has to re-read to learn what it just wrote is a round trip the response could have saved.",
@@ -1062,6 +1154,143 @@
         "tags" : [ "Admin User Resource" ],
         "security" : [ {
           "SecurityScheme" : [ "admin" ]
+        } ]
+      }
+    },
+    "/api/v1/analytics/spend-by-category" : {
+      "get" : {
+        "summary" : "Spend by category, in one currency, for a year or one month of it",
+        "description" : "Query parameters: currency (required, ISO-4217), year (required), month (optional, 1-12 — a single month; omitted means the whole year).",
+        "parameters" : [ {
+          "name" : "currency",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "month",
+          "in" : "query",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "year",
+          "in" : "query",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SpendByCategoryResponse"
+                }
+              },
+              "application/x-protobuf" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SpendByCategoryResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "A missing/invalid currency, a missing year, or an out-of-range month",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ZenError"
+                }
+              },
+              "application/x-protobuf" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ZenError"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Not Authorized"
+          },
+          "403" : {
+            "description" : "Not Allowed"
+          }
+        },
+        "tags" : [ "Analytics Resource" ],
+        "security" : [ {
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/analytics/spend-by-period" : {
+      "get" : {
+        "summary" : "Spend by period, in one currency, over a trailing window of buckets",
+        "description" : "Query parameters: currency (required, ISO-4217), granularity (required, MONTH or YEAR), count (required, 1-60 — the number of trailing buckets, ending at the current period resolved in UTC).",
+        "parameters" : [ {
+          "name" : "count",
+          "in" : "query",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "currency",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "granularity",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SpendByPeriodResponse"
+                }
+              },
+              "application/x-protobuf" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SpendByPeriodResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "A missing/invalid currency, granularity, or an out-of-range count",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ZenError"
+                }
+              },
+              "application/x-protobuf" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ZenError"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Not Authorized"
+          },
+          "403" : {
+            "description" : "Not Allowed"
+          }
+        },
+        "tags" : [ "Analytics Resource" ],
+        "security" : [ {
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -1641,6 +1870,29 @@
         "security" : [ {
           "SecurityScheme" : [ ]
         } ]
+      }
+    },
+    "/api/v1/health" : {
+      "get" : {
+        "summary" : "Liveness/readiness probe",
+        "responses" : {
+          "200" : {
+            "description" : "Service is healthy",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HealthStatus"
+                }
+              },
+              "application/x-protobuf" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        },
+        "tags" : [ "Health Resource" ]
       }
     },
     "/api/v1/jobs/trigger" : {

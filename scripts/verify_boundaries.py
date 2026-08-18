@@ -16,6 +16,15 @@ own retired Firebase project (`firebaseio.com`, `prudent-60fcf`), which a generi
 would not catch since Firebase Realtime Database is not an identity provider. D is Prudent's own:
 no direct `package:http` import outside the composition root, and no `google_fonts`.
 
+A, B and C ALSO run over the admin panel (`admin/src`, TypeScript), added in Phase 5. The admin
+panel is a client too, by the same one-server rule — `@supabase/supabase-js` is one `pnpm add`
+away and better documented than the Dart SDK, and a panel that used it would lose the session, the
+roles and the enforcement point exactly as silently. Two exemptions, both named once so a
+StaleScope run can still see the tree: `admin/src/api/schema.generated.ts` (generated, describes
+the API rather than calling it) and `admin/src/config.ts` (the one file allowed to name the API
+base — the analogue of `zen_identity_config.dart`). D does not apply to TypeScript: it names two
+Dart-specific dependencies (`package:http`, `google_fonts`) that have no TypeScript equivalent.
+
 Written to the 3.9 floor, stdlib only — Prudent has no Python elsewhere, but this is Rule-3 work
 (reads source, returns a verdict), the same reasoning jZen's STANDARDS "Scripting" gives for why
 its own equivalent is Python rather than sh.
@@ -43,6 +52,19 @@ CONFIG_FILE_SUFFIX = "zen_identity_config.dart"
 # it exists solely to TYPE the shared session client `createSessionClient()` returns (see
 # lib/main.dart's own comment). Every actual request goes through ZenClient.
 COMPOSITION_ROOT = "lib/main.dart"
+
+# The admin panel's TypeScript scope (Phase 5). Both exemptions live directly under it, so a typo
+# in either constant below shows up as the exempted file suddenly failing check B/C rather than as
+# a silent no-op — there is no separate "does the exemption path exist" assertion needed.
+ADMIN_SRC_SCOPE = "admin/src"
+ADMIN_GENERATED_FILE = "admin/src/api/schema.generated.ts"
+ADMIN_CONFIG_FILE = "admin/src/config.ts"
+
+TS_PROVIDER_SDK = re.compile(
+    r"""^\s*"(@supabase/supabase-js|gotrue-js|@supabase/postgrest-js|@supabase/realtime-js"""
+    r"""|@supabase/storage-js|@supabase/functions-js|firebase|@firebase/[a-z-]+)"\s*:""",
+)
+TS_COMMENT = re.compile(r"^\s*//")
 
 PROVIDER_SDK = re.compile(
     r"^[ \t]{2}(supabase|gotrue|postgrest|realtime_client|storage_client|functions_client"
@@ -106,6 +128,31 @@ def pubspecs(root: Path) -> "list[Path]":
     return sorted(found)
 
 
+def ts_sources(root: Path) -> "list[Path]":
+    """Every TypeScript/TSX source under the admin panel's own scope, generated output excluded."""
+    src_dir = root / ADMIN_SRC_SCOPE
+    if not src_dir.is_dir():
+        raise StaleScope(f"scope '{ADMIN_SRC_SCOPE}' matched no directory under {root}")
+    files = [
+        f
+        for f in list(src_dir.rglob("*.ts")) + list(src_dir.rglob("*.tsx"))
+        if f.relative_to(root).as_posix() != ADMIN_GENERATED_FILE
+    ]
+    if not files:
+        raise StaleScope(f"scope '{ADMIN_SRC_SCOPE}' matched no TypeScript source under {root}")
+    return sorted(files)
+
+
+def admin_package_jsons(root: Path) -> "list[Path]":
+    admin_dir = root / "admin"
+    if not admin_dir.is_dir():
+        raise StaleScope(f"tree 'admin/' does not exist under {root}")
+    package_json = admin_dir / "package.json"
+    if not package_json.is_file():
+        raise StaleScope(f"no package.json found under 'admin/' in {root}")
+    return [package_json]
+
+
 def _scan(files: "list[Path]", root: Path, keep) -> "list[Hit]":
     hits: "list[Hit]" = []
     for f in files:
@@ -117,24 +164,39 @@ def _scan(files: "list[Path]", root: Path, keep) -> "list[Hit]":
 
 
 def check_provider_sdk(root: Path) -> "list[Hit]":
-    """A. No client package depends on an identity-provider SDK or on `firebase_*`."""
-    return _scan(pubspecs(root), root, lambda rel, t: PROVIDER_SDK.search(t) is not None)
+    """A. No client package depends on an identity-provider SDK or on `firebase_*`/`firebase`."""
+    dart_hits = _scan(pubspecs(root), root, lambda rel, t: PROVIDER_SDK.search(t) is not None)
+    ts_hits = _scan(
+        admin_package_jsons(root), root, lambda rel, t: TS_PROVIDER_SDK.search(t) is not None
+    )
+    return dart_hits + ts_hits
 
 
 def check_provider_secret(root: Path) -> "list[Hit]":
     """B. No client source names a provider host or credential — Prudent's own Firebase included."""
-    return _scan(dart_sources(root), root, lambda rel, t: PROVIDER_SECRET.search(t) is not None)
+    dart_hits = _scan(
+        dart_sources(root), root, lambda rel, t: PROVIDER_SECRET.search(t) is not None
+    )
+    ts_hits = _scan(ts_sources(root), root, lambda rel, t: PROVIDER_SECRET.search(t) is not None)
+    return dart_hits + ts_hits
 
 
 def check_absolute_url(root: Path) -> "list[Hit]":
     """C. No absolute URL literal in client source, except the one compile-time base."""
 
-    def keep(rel: str, text: str) -> bool:
+    def keep_dart(rel: str, text: str) -> bool:
         if rel.endswith(CONFIG_FILE_SUFFIX) or DART_COMMENT.match(text):
             return False
         return ABSOLUTE_URL.search(text) is not None
 
-    return _scan(dart_sources(root), root, keep)
+    def keep_ts(rel: str, text: str) -> bool:
+        if rel == ADMIN_CONFIG_FILE or TS_COMMENT.match(text):
+            return False
+        return ABSOLUTE_URL.search(text) is not None
+
+    dart_hits = _scan(dart_sources(root), root, keep_dart)
+    ts_hits = _scan(ts_sources(root), root, keep_ts)
+    return dart_hits + ts_hits
 
 
 def check_prudent_own(root: Path) -> "list[Hit]":

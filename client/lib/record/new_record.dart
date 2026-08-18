@@ -34,6 +34,9 @@ class _NewRecordState extends ConsumerState<NewRecord> {
   String? _selectedCategoryId;
   String? _selectedAccountId;
   String _currency = 'PLN';
+  // SIGNED (proto/prudent/v1/records.proto, ADR-014): negative is an expense, positive is
+  // income. The field only ever holds a magnitude; this toggle supplies the sign.
+  bool _isExpense = true;
 
   @override
   void initState() {
@@ -41,7 +44,9 @@ class _NewRecordState extends ConsumerState<NewRecord> {
     final initial = widget.initialRecord;
     if (initial != null) {
       _titleController.text = initial.title;
-      _amountController.text = formatMinorUnits(initial.amountMinor);
+      final amount = initial.amountMinor;
+      _isExpense = amount.isNegative;
+      _amountController.text = formatMinorUnits(amount.isNegative ? -amount : amount);
       _selectedDate = DateTime.tryParse(initial.date);
       _selectedCategoryId = initial.categoryId;
       _selectedAccountId = initial.accountId;
@@ -75,10 +80,13 @@ class _NewRecordState extends ConsumerState<NewRecord> {
   }
 
   void _submit() {
-    final amount = parseMinorUnits(_amountController.text);
+    final raw = _amountController.text.trim();
+    // The field only ever holds a magnitude, regardless of what the user typed; the toggle is the
+    // sole source of the sign that goes on the wire.
+    final magnitude = parseMinorUnits(raw.startsWith('-') ? raw.substring(1) : raw);
     if (_titleController.text.trim().isEmpty ||
-        amount == null ||
-        amount <= 0 ||
+        magnitude == null ||
+        magnitude <= 0 ||
         _selectedDate == null ||
         _selectedCategoryId == null ||
         _selectedAccountId == null) {
@@ -86,9 +94,10 @@ class _NewRecordState extends ConsumerState<NewRecord> {
       return;
     }
 
+    final signed = _isExpense ? -magnitude : magnitude;
     widget.onSave(
       title: _titleController.text.trim(),
-      amountInput: _amountController.text,
+      amountInput: formatMinorUnits(signed),
       date: DateFormat('yyyy-MM-dd').format(_selectedDate!),
       categoryId: _selectedCategoryId!,
       accountId: _selectedAccountId!,
@@ -122,6 +131,16 @@ class _NewRecordState extends ConsumerState<NewRecord> {
             maxLength: 50,
             decoration: InputDecoration(label: Text(t.recordsTitleField)),
           ),
+          const SizedBox(height: 8),
+          SegmentedButton<bool>(
+            segments: [
+              ButtonSegment(value: true, label: Text(t.recordsExpense)),
+              ButtonSegment(value: false, label: Text(t.recordsIncome)),
+            ],
+            selected: {_isExpense},
+            onSelectionChanged: (selection) => setState(() => _isExpense = selection.first),
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -181,7 +200,10 @@ class _NewRecordState extends ConsumerState<NewRecord> {
                 ),
               const Spacer(),
               TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
-              ElevatedButton(onPressed: _submit, child: Text(t.recordsSaveExpense)),
+              ElevatedButton(
+                onPressed: _submit,
+                child: Text(_isExpense ? t.recordsSaveExpense : t.recordsSaveIncome),
+              ),
             ],
           ),
         ],
