@@ -39,6 +39,27 @@ components:
   schemas:
 
     # -----------------------------------------------------------------------------------------
+    # Prudent's own HealthResource, returning a framework message (zen.proto.v1.HealthStatus,
+    # from zen-proto — already a dependency). The PATH is Prudent's own annotation and is scanned
+    # normally; the SCHEMA still needs declaring here for the same reason the framework messages
+    # below do: SmallRye cannot introspect a protobuf-generated class into a clean schema.
+    # -----------------------------------------------------------------------------------------
+    HealthStatus:
+      type: object
+      description: Liveness/readiness payload returned by GET /api/v1/health.
+      properties:
+        status:
+          type: string
+          description: Overall status, e.g. "ok".
+        service:
+          type: string
+          description: Logical service name.
+        timestampMs:
+          type: string
+          format: int64
+          description: Server wall-clock time in ms since the Unix epoch.
+
+    # -----------------------------------------------------------------------------------------
     # Framework messages — declared here because the merge does not carry them (see the header)
     # -----------------------------------------------------------------------------------------
     ZenError:

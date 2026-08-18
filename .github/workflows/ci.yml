@@ -1,0 +1,312 @@
+# Prudent CI — runs the SAME `task` targets a developer runs, never a reimplementation. See
+# docs/prudent-migration-plan.md Phase 5 §4 and docs/DECISIONS.md for the jZen-in-CI decision this
+# workflow is built around.
+#
+# THE SEAM THIS WORKFLOW EXISTS TO PROVE: Prudent consumes jZen from a sibling checkout at
+# ../jZen (docs/DECISIONS.md ADR-001), which works with no extra machinery on a developer's
+# machine because the checkout is already there. A FRESH CI RUNNER HAS NO SIBLING CHECKOUT AND NO
+# LOCAL MAVEN REPOSITORY — this is the trigger jZen ADR-026 named in advance for when Java (which,
+# unlike Dart's path: deps and TypeScript's alias, cannot reach across repositories on its own)
+# first needs to build in an environment that is not a developer's machine.
+#
+# THE DECISION: pin jZen at a SHA in CI rather than forcing the publishing decision now. Every job
+# below checks out jZenDev/jZen at JZEN_REF and runs `task zen:framework:install` before anything
+# that needs the framework's Java libraries. This makes the lockstep coupling EXPLICIT AND DATED —
+# bumping JZEN_REF is a deliberate, reviewed step, exactly like bumping a dependency version, not
+# something that happens as a side effect of an unrelated change. It is not a substitute for
+# publishing: docs/jzen/README.md's publishing ADR remains open, and this pin is the cost of
+# deferring it, stated in the one place a contributor debugging a red CI run will look.
+#
+# Deliberately NOT here, matching jZen's own ci.yml reasoning:
+#   - build:server:native / the native locale check — slow, and proven against a throwaway
+#     Postgres by a person before a deploy, not on every PR (docs/prudent-migration-plan.md
+#     Phase 5 §6).
+#   - deploy — manual, by a person, and only after explicit approval (CLAUDE.md working
+#     agreement). CI verifies; it never ships.
+#   - macOS and iOS runners — need Xcode, which means a macos-latest runner at several times the
+#     Linux rate. A cost decision (docs/DECISIONS.md ADR-003), not an oversight; covered locally
+#     and the skip is announced by `task zen:build:runners`, never silent.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # jZen pinned at a SHA — see the header comment. Bump deliberately; this is a dependency
+  # version, not a detail. Confirmed pushed to jZenDev/jZen's main at the time this was written
+  # (docs/DECISIONS.md records the "jZen build is clean" checkpoint this pin was taken from).
+  JZEN_REF: 5a36d1f7081527bef6e5045f586fa35ed5352154
+
+jobs:
+  # Contract drift, the boundary gate, the Dart/Flutter suites, and the admin typecheck. Needs the
+  # full toolchain because sync:contracts regenerates across all three languages.
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Prudent
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: prudent
+
+      - name: Checkout jZen (pinned)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jZenDev/jZen
+          ref: ${{ env.JZEN_REF }}
+          path: jZen
+
+      - name: JDK 25 (Temurin — the native build is not run here, so GraalVM is not needed)
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Flutter 3.44.2 (brings Dart) — pinned by client/.fvmrc's own value
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+
+      - name: Node + pnpm via corepack
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - run: corepack enable
+
+      # sync:contracts generates the Dart messages with protoc + protoc-gen-dart, delegated to
+      # jZen's zen:generate:proto:dart (ADR-007). Pin protoc_plugin to the version that produced
+      # the committed .pb.dart output, or the drift gate false-fails on codegen-format
+      # differences alone.
+      - uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        with:
+          version: "29.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: dart pub global activate protoc_plugin 25.0.0
+      - run: echo "$HOME/.pub-cache/bin" >> "$GITHUB_PATH"
+
+      - name: go-task
+        uses: arduino/setup-task@bfe25a35f5c1f609e1d6153197b3b42a04ae054c # v3.0.0
+        with:
+          version: "3.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Python (floor — scripts/verify_boundaries.py is written to 3.9)
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.9"
+
+      # First because it is the cheapest thing here and the only one that catches a defect no
+      # other test can: a client package calling a provider directly still authenticates, still
+      # renders, and still passes every other suite. See CLAUDE.md "The client talks to one
+      # server". Runs BEFORE zen:framework:install so the gate does not itself depend on the
+      # framework build having succeeded.
+      - name: Client/server boundary gate
+        working-directory: prudent
+        run: task verify:boundaries
+
+      # THE STEP THE SEAM DIAGRAM ABOVE IS ABOUT. server/pom.xml's parent has an empty
+      # <relativePath/>, resolved from the local Maven repository — a fresh runner has none, so
+      # this installs jZen's framework artifacts into it before anything below tries to resolve
+      # zen-parent.
+      - name: Install jZen framework libraries
+        working-directory: prudent
+        run: task zen:framework:install
+
+      - name: Resolve Dart + admin dependencies
+        working-directory: prudent
+        run: |
+          task zen:deps
+          task deps:admin
+
+      - name: Contract drift gate
+        working-directory: prudent
+        run: task sync:contracts
+
+      - name: Client suites
+        working-directory: prudent
+        run: task zen:test:client
+
+      - name: Admin panel typecheck
+        working-directory: prudent
+        run: task test:admin
+
+      # Compiling the web bundle IS a gate, not a build step. No test compiles it, so a Flutter
+      # dependency whose web implementation is not Wasm-clean would leave every suite green and
+      # the web app unbuildable — exactly how jZen's own ADR-024 finding was discovered, by a
+      # deploy rather than a test. The API URL is a placeholder: this artifact is thrown away, and
+      # pinning a real environment here would put an environment fact in the repository (CLAUDE.md
+      # "No deployed environment fact is written into the repository").
+      - name: Web bundle compiles (WebAssembly)
+        working-directory: prudent/client
+        run: flutter build web --wasm --dart-define=ZEN_API_URL=https://ci.invalid
+
+  # The backend @QuarkusTest suite. Uses Quarkus Dev Services, which starts Postgres in Docker —
+  # available on ubuntu-latest by default, so no extra service setup.
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Prudent
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: prudent
+      - name: Checkout jZen (pinned)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jZenDev/jZen
+          ref: ${{ env.JZEN_REF }}
+          path: jZen
+      - name: JDK 25 (Temurin)
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: go-task
+        uses: arduino/setup-task@bfe25a35f5c1f609e1d6153197b3b42a04ae054c # v3.0.0
+        with:
+          version: "3.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install jZen framework libraries
+        working-directory: prudent
+        run: task zen:framework:install
+      - working-directory: prudent
+        run: task test:server
+
+  # The delivery runners this Linux host can build: Android, plus the Linux desktop app (jZen
+  # ADR-045). Its own job so a Gradle/manifest/GTK fault is reported as itself rather than buried
+  # in `gates`, and so it runs in parallel.
+  #
+  # APPLE TARGETS STAY OUT, deliberately (docs/DECISIONS.md ADR-003): they need Xcode, which means
+  # a macos-latest runner at several times the Linux rate. Covered locally on the delivery
+  # machine; `task zen:build:runners` announces the skip rather than passing silently.
+  android-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Prudent
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: prudent
+      - name: Checkout jZen (pinned)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jZenDev/jZen
+          ref: ${{ env.JZEN_REF }}
+          path: jZen
+      # Temurin, not GraalVM: AGP's jdkImage transform shells out to jlink, which GraalVM's
+      # cannot run (docs/DECISIONS.md ADR-005).
+      - name: JDK 25 (Temurin)
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Flutter 3.44.2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+      - name: go-task
+        uses: arduino/setup-task@bfe25a35f5c1f609e1d6153197b3b42a04ae054c # v3.0.0
+        with:
+          version: "3.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # Flutter's Linux desktop build shells out to CMake/ninja and links against GTK3; the
+      # Linux keystore plugin backing SecureTokenStore needs libsecret.
+      - name: Linux desktop toolchain (GTK3, libsecret, ninja)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev libsecret-1-dev
+      - working-directory: prudent
+        run: task zen:deps
+      - working-directory: prudent
+        run: task zen:build:runners
+
+  # THE Windows runner, and the one place the Windows app is ever built (jZen ADR-045): Flutter
+  # refuses `build windows` off any other host, by name, so this job is the only evidence Prudent
+  # has that the Windows target works. `shell: bash` throughout — the runner ships Git Bash, and
+  # go-task interprets its recipes itself and resolves each program from the Windows PATH, where
+  # System32 comes first.
+  #
+  # Build only. `task test:e2e` stays Linux-only (docs/prudent-migration-plan.md §3): it boots
+  # Supabase, which needs Linux containers this runner cannot practically host, and a weaker check
+  # wearing the same name would be worse than no check.
+  windows-runner:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout Prudent
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: prudent
+      - name: Checkout jZen (pinned)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jZenDev/jZen
+          ref: ${{ env.JZEN_REF }}
+          path: jZen
+      - name: Flutter 3.44.2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+      - name: go-task
+        uses: arduino/setup-task@bfe25a35f5c1f609e1d6153197b3b42a04ae054c # v3.0.0
+        with:
+          version: "3.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - working-directory: prudent
+        run: task zen:deps
+      - working-directory: prudent
+        run: task zen:build:runners
+
+  # The end-to-end release gate: boots real Supabase + Quarkus and runs Prudent's own integration
+  # suite (client/integration_test/e2e_test.dart) with no mocks. LINUX-ONLY — see windows-runner's
+  # comment above.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Prudent
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: prudent
+      - name: Checkout jZen (pinned)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jZenDev/jZen
+          ref: ${{ env.JZEN_REF }}
+          path: jZen
+      - name: JDK 25 (Temurin)
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Flutter 3.44.2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+      - name: Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: "2.113.0"
+      - name: go-task
+        uses: arduino/setup-task@bfe25a35f5c1f609e1d6153197b3b42a04ae054c # v3.0.0
+        with:
+          version: "3.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install jZen framework libraries
+        working-directory: prudent
+        run: task zen:framework:install
+      - working-directory: prudent
+        run: task zen:deps
+      - working-directory: prudent
+        run: task test:e2e

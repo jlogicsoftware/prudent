@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import prudent.proto.v1.AccountType;
 import prudent.proto.v1.CreateAccountRequest;
+import prudent.proto.v1.CreateRecordRequest;
 import prudent.proto.v1.CurrencyBalance;
 import prudent.proto.v1.ListAccountsResponse;
 import prudent.proto.v1.ListCategoriesResponse;
@@ -255,7 +256,7 @@ class UserScopingTest {
         PrudentTest.body(
                 PrudentTest.request(PrudentTest.JSON),
                 PrudentTest.JSON,
-                prudent.proto.v1.CreateRecordRequest.newBuilder()
+                CreateRecordRequest.newBuilder()
                     .setTitle("Into Bob's account")
                     .setAmountMinor(1_00L)
                     .setDate("2026-08-17")

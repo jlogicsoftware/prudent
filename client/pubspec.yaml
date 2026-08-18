@@ -86,6 +86,11 @@ dev_dependencies:
   custom_lint: ^0.8.0
   riverpod_lint: ^3.0.0-dev.17
 
+  # The pure-Dart end-to-end suite (integration_test/) runs on the VM via `dart test`, hitting
+  # the live Supabase + Quarkus stack. It uses package:test (not flutter_test) so it stays
+  # headless and its import graph never reaches dart:ui — see task test:e2e.
+  test: ^1.25.0
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

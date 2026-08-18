@@ -65,6 +65,11 @@ vars:
   PROTO_DIR: proto
   CLIENT_DIR: client
   SERVER_DIR: server
+  ADMIN_DIR: admin
+  # Where the web (Flutter) and admin (react-admin) bundles are staged so the native image
+  # serves them same-origin with the API (load-bearing for the session cookie — see build:web's
+  # own summary). Gitignored; never committed.
+  WEB_RESOURCES: server/src/main/resources/META-INF/resources
   # NO DART_OUT HERE. The generated Dart messages' location is declared ONCE, as PROTO_DART_OUT on
   # the include above, because the framework's task is what writes them. A second copy of the path
   # in this map would be a value nothing reads until someone changes the wrong one.
@@ -204,29 +209,52 @@ tasks:
           echo "openapi.json -> {{.SERVER_DIR}}/openapi.json"
         silent: true
 
+  generate:api:ts:
+    desc: Generate the admin panel's TypeScript types from server/openapi.json
+    dir: "{{.ADMIN_DIR}}"
+    summary: |
+      openapi-typescript over ../server/openapi.json, producing src/api/schema.generated.ts.
+      TRACKED (a frontend developer must be able to compile the panel without a JDK) — the same
+      toolchain-boundary reasoning as the Dart side of generate:proto (ADR-006), applied to the
+      third language.
+
+      status: SKIPS rather than fails when server/openapi.json does not exist yet — but that guard
+      is exactly the trap docs/prudent-migration-prompt.md names: inverting the server's openapi
+      Maven profile makes generate:api:schema silently write nothing, this step then skips rather
+      than fails, and sync:verify diffs a file nobody regenerated and reports success. The guard
+      is correct for a fresh checkout that has not run generate:api:schema yet in the SAME
+      invocation; sync:contracts always runs generate:api:schema first, so in the gate this step
+      never actually skips. task verify:endpoints (Phase 5 §4) is the check that catches the
+      profile-inversion case this status guard cannot.
+    status:
+      - test ! -f ../server/openapi.json
+    cmds:
+      - pnpm install --silent
+      - pnpm run generate:types
+
   generate:api:
     desc: Generate every artifact derived from the REST surface
     summary: |
-      Only the schema half exists today. generate:api:ts — openapi-typescript over openapi.json,
-      producing the admin panel's types — arrives with the admin panel in Phase 5. Its absence is
-      SEQUENCING, not an omission: there is no panel to type.
+      generate:api:schema (openapi.json) then generate:api:ts (the admin panel's types) — the
+      contract loop's OpenAPI half in full, per docs/prudent-migration-plan.md Phase 5.
     cmds:
       - task: generate:api:schema
+      - task: generate:api:ts
 
   sync:contracts:
     desc: Regenerate every cross-language artifact and FAIL if anything drifted
     summary: |
-      THE GATE. Regenerates the Java DTOs and the Dart messages, then fails if any tracked
-      generated file changed.
+      THE GATE. Regenerates the Java DTOs, the Dart messages, openapi.json and the admin
+      TypeScript, then fails if any tracked generated file changed.
 
-      A failure means a generated file was hand-edited, or a .proto changed without the output
-      being regenerated. Fix it by running `task generate:proto` and committing the result, never
-      by editing generated output.
+      A failure means a generated file was hand-edited, or a .proto/resource changed without the
+      output being regenerated. Fix it by running `task generate:proto generate:api` and
+      committing the result, never by editing generated output.
 
       WHAT IT CATCHES, EXACTLY — worth knowing, because the obvious mental model is wrong. This
       gate REGENERATES FIRST and then diffs against HEAD, so it catches:
 
-        - a .proto changed without its generated output being regenerated and committed;
+        - a .proto or resource changed without its generated output being regenerated and committed;
         - a hand-edited generated file that reached a COMMIT.
 
       It does NOT fail on an uncommitted hand-edit, because regeneration OVERWRITES it before the
@@ -238,9 +266,6 @@ tasks:
       It also asserts the MIRROR-IMAGE property for the artifacts the tracking rule sends the
       other way: generated localizations are built, not tracked (jZen ADR-009), so for those the
       failure is being committed at all.
-
-      Gains generate:api (openapi.json + admin types) in Phase 2, when there is a resource to
-      document.
     cmds:
       - task: generate:proto
       - task: generate:api
@@ -273,7 +298,7 @@ tasks:
         # Scoped to the .proto SOURCES and the tracked generated output, not to everything under
         # proto/: this gate detects CONTRACT DRIFT, and proto/README.md is documentation beside the
         # contract rather than part of it.
-        dirty=$(git status --porcelain -- '*.pb.dart' '*.pbjson.dart' '*.pbenum.dart' '*.pbserver.dart' 'proto/**/*.proto' 'server/openapi.json')
+        dirty=$(git status --porcelain -- '*.pb.dart' '*.pbjson.dart' '*.pbenum.dart' '*.pbserver.dart' 'proto/**/*.proto' 'server/openapi.json' 'admin/src/api/schema.generated.ts')
         if [ -n "$dirty" ]; then
           echo "Contracts are OUT OF SYNC. Regenerated output differs from what is committed:" >&2
           echo "$dirty" >&2
@@ -312,8 +337,512 @@ tasks:
       WHY THIS MATTERS MORE THAN IT LOOKS: an app that called a third-party backend directly
       would still authenticate, still render, and still pass every other suite here — the defect
       is invisible from inside a single test. This is the one gate that would have caught it.
+
+      GAINS A TYPESCRIPT SCOPE IN PHASE 5 (admin/src): the admin panel is a client too, by the
+      same one-server rule, and @supabase/supabase-js is one `pnpm add` away — a panel that used
+      it would lose the session, the roles and the enforcement point exactly as silently. Two
+      exemptions: admin/src/api/schema.generated.ts (generated, describes the API rather than
+      calling it) and admin/src/config.ts (the one file allowed to name the API base). A scope
+      that matches nothing is a failure, not a pass — enforced by the same StaleScope guard the
+      Dart scopes already use.
     cmds:
       - python3 scripts/verify_boundaries.py
+
+  deps:admin:
+    desc: Install the admin panel's dependencies (pnpm)
+    dir: "{{.ADMIN_DIR}}"
+    cmds:
+      - pnpm install
+
+  test:admin:
+    desc: Typecheck the admin panel (also typechecks the @jzen/admin-core scaffold it imports)
+    dir: "{{.ADMIN_DIR}}"
+    cmds:
+      - pnpm exec tsc -b
+
+  build:admin:
+    desc: Production build of the admin panel
+    dir: "{{.ADMIN_DIR}}"
+    cmds:
+      - pnpm build
+
+  build:web:
+    desc: Build the Flutter web app (WebAssembly) and stage it so the backend serves it SAME-ORIGIN
+    summary: |
+      Stages the bundle under the server's static resources (WEB_RESOURCES), so
+      build:server:native bakes it into the image and Quarkus serves it at / on the same origin
+      as the API. Same-origin is not a preference — it is what lets the session cookie flow: the
+      backend sets zen_access_token SameSite=Lax, and *.run.app is on the Public Suffix List, so a
+      page and an API on two different Cloud Run URLs would be cross-site and the browser would
+      never send it (jZen BLUEPRINT "Deployment model").
+
+      WEB_API_URL IS REQUIRED, not defaulted from a deployed service — CLAUDE.md "No deployed
+      environment fact is written into the repository" rules out a gcloud lookup with a repo-
+      committed project/service name to look up. Callers pass it explicitly, always.
+
+      The API URL is baked into the bundle at BUILD time (client config is compile-time), so it
+      MUST equal the origin the page will be served from.
+    requires:
+      vars: [WEB_API_URL]
+    cmds:
+      - |
+        set -eu
+        # {{.WEB_API_URL}} IS TEMPLATED, not read from the shell environment: a `vars:` value
+        # passed by a caller (task: build:web / vars: {WEB_API_URL: ...}) is a go-task template
+        # variable, not an exported env var, and only CLI-prefixed invocations
+        # (WEB_API_URL=... task build:web) happen to also land in the process environment. Using
+        # $WEB_API_URL here worked for the CLI case and failed as "unbound variable" for every
+        # caller that passes it as a task var — found running task test:native, which calls this
+        # task exactly that way.
+        WEB_API_URL="{{.WEB_API_URL}}"
+        echo "Building web bundle (WebAssembly) against $WEB_API_URL"
+        # DISCARD THE PREVIOUS WEB BUILD FIRST — correctness, not hygiene. Flutter's web build
+        # cache does NOT invalidate on a --dart-define change alone, so a build differing only in
+        # ZEN_API_URL can be answered from cache and keep the previous URL while reporting
+        # success. See jZen's own build:web, which found exactly this shipping a bundle calling
+        # localhost to Cloud Run.
+        ( cd {{.CLIENT_DIR}} && rm -rf build/web .dart_tool/flutter_build )
+        ( cd {{.CLIENT_DIR}} && flutter build web --wasm --release \
+            --no-web-resources-cdn \
+            --dart-define=ZEN_ENV=prd --dart-define=ZEN_PLATFORM=web \
+            --dart-define=ZEN_API_URL="$WEB_API_URL" )
+        mkdir -p {{.WEB_RESOURCES}}
+        rsync -a --delete --exclude=admin --filter='-s *.symbols' \
+          {{.CLIENT_DIR}}/build/web/ {{.WEB_RESOURCES}}/
+        # ASSERT THE URL IS ACTUALLY IN THE BUNDLE — a build define that silently does not apply
+        # must fail the build, not report success. Byte search rather than `strings`: dart2wasm
+        # packs string literals without the terminators `strings` looks for and would pass
+        # vacuously.
+        python3 - "$WEB_API_URL" {{.WEB_RESOURCES}}/main.dart.wasm <<'PYEOF'
+        import sys
+        url, bundle = sys.argv[1], sys.argv[2]
+        host = url.split("//", 1)[-1].split("/", 1)[0]
+        blob = open(bundle, "rb").read()
+        if host.encode() in blob:
+            print(f"  verified: the bundle calls {host}")
+            sys.exit(0)
+        print(f"FAIL: the built bundle does not contain {host}.", file=sys.stderr)
+        print("       The app would load and then fail its first API call.", file=sys.stderr)
+        sys.exit(1)
+        PYEOF
+        echo "Staged web bundle -> {{.WEB_RESOURCES}} ($(du -sh {{.WEB_RESOURCES}} | cut -f1))"
+
+  build:web:admin:
+    desc: Build the admin panel and stage it at /admin/ for same-origin serving
+    summary: |
+      Vite's base=/admin/ on `build` (admin/vite.config.ts) plus this staging is what lets the
+      native image serve the panel at /admin/ on the API's own origin — same cookie-flow reason
+      as build:web. Needs no baked API URL: the panel's data provider calls /api/v1 relative
+      (admin/src/config.ts), so it hits whatever origin served the page.
+    cmds:
+      - task: build:admin
+      - |
+        set -eu
+        mkdir -p {{.WEB_RESOURCES}}/admin
+        rsync -a --delete {{.ADMIN_DIR}}/dist/ {{.WEB_RESOURCES}}/admin/
+        echo "Staged admin panel -> {{.WEB_RESOURCES}}/admin ($(du -sh {{.WEB_RESOURCES}}/admin | cut -f1))"
+
+  build:server:native:
+    desc: Build Prudent's server as a native executable (what a deploy would ship)
+    dir: "{{.SERVER_DIR}}"
+    summary: |
+      Container build, pinned to linux/amd64 so the image matches Cloud Run regardless of the
+      developer's machine (jZen STANDARDS "Deployment model") — a native binary is not portable
+      across CPU architectures the way a JVM one is.
+
+      `clean` on THIS MODULE, and it is correctness rather than hygiene: Maven copies
+      src/main/resources into target/classes but never deletes from it, so a file removed from
+      the staged web bundle survives in target/classes and is baked into the image anyway
+      (measured against jZen's own build:server:native, which found exactly this).
+    cmds:
+      - ./mvnw -B install -DskipTests
+      - >-
+        ./mvnw -B clean package -Dnative -DskipTests
+        -Dquarkus.native.container-build=true
+        -Dquarkus.native.container-runtime-options=--platform=linux/amd64
+
+  run:admin:
+    desc: Start the admin panel dev server on :5173 (proxies /api and /openapi to :8085)
+    dir: "{{.ADMIN_DIR}}"
+    cmds:
+      - pnpm dev
+
+  audit:
+    desc: Fail if any shipped dependency (Java + TypeScript) has a known CVE. Needs network.
+    summary: |
+      STANDS OUTSIDE task test, deliberately. It asks a REMOTE service (api.osv.dev, npm's
+      advisory database) a question that changes when nothing in this repository changed, and
+      task test is the release gate — a suite that turns red overnight because a new advisory
+      was published teaches people to ignore it, which is how a gate stops being one. So this
+      runs on its own, on a schedule and before a release, and fails LOUDLY when it cannot reach
+      the database rather than reporting clean having checked nothing.
+    cmds:
+      - task: audit:server
+      - task: audit:admin
+
+  audit:server:
+    desc: Check every shipped Java dependency against the OSV database (needs network)
+    summary: |
+      Maven resolves the dependency tree (the only thing that can, for zen-* SNAPSHOT modules
+      resolved from the local repository); scripts/audit_maven.py understands the result and
+      queries OSV, which needs no key. Prudent's OWN script — jZen's equivalent is invoked from
+      its own root Taskfile against zen_demo's paths and is not reusable through the include this
+      repository consumes (docs/prudent-migration-plan.md §3.7).
+    silent: true
+    cmds:
+      - |
+        set -eu
+        list=$(mktemp)
+        trap 'rm -f "$list"' EXIT
+        {{.SERVER_DIR}}/mvnw -B -f {{.SERVER_DIR}}/pom.xml dependency:list > "$list"
+        python3 scripts/audit_maven.py "$list"
+
+  audit:admin:
+    desc: Check the admin panel's npm dependencies (needs network)
+    summary: |
+      pnpm audit already exits non-zero on a finding, so it is the gate as it stands. No
+      --audit-level flag: raising the floor is the same move as a suppression with no reason.
+    dir: "{{.ADMIN_DIR}}"
+    cmds:
+      - pnpm audit
+
+  verify:endpoints:
+    desc: Assert a running Prudent backend serves BOTH transport modes (SERVICE_URL required)
+    silent: true
+    summary: |
+      The shared assertion set: used by test:native against a local container, and by
+      verify:deploy against a real environment if one ever exists. One definition, so the gate
+      before shipping and the check after it cannot drift apart. Same shape as jZen's own
+      verify:endpoints, adapted to Prudent's paths (docs/prudent-migration-plan.md §2.6 —
+      SmallRye's OpenAPI merge is what makes /openapi honest about which resources actually
+      exist, and this is the runtime half of that same claim).
+
+      WHY BOTH MODES, ALWAYS. Binary serialisation uses generated code; canonical proto3 JSON
+      resolves field accessors reflectively and needs them registered for native
+      (zen.transport.ZenProtoReflection). A single-format smoke test would pass on a build that
+      served no browser client at all — and JSON is the default, and what both the Flutter web
+      app and the admin panel speak.
+    cmds:
+      - |
+        set -eu
+        URL="${SERVICE_URL:?set SERVICE_URL}"
+        echo "Verifying $URL"
+        fail=0
+        probe() {
+          path=$1
+          for spec in "nohdr:$2:" "json:$3:X-Zen-Transport: json" "protobuf:$4:X-Zen-Transport: protobuf"; do
+            mode=${spec%%:*}; rest=${spec#*:}; want=${rest%%:*}; hdr=${rest#*:}
+            if [ -n "$hdr" ]; then
+              code=$(curl -s -o /dev/null -w '%{http_code}' -H "$hdr" "$URL$path")
+            else
+              code=$(curl -s -o /dev/null -w '%{http_code}' "$URL$path")
+            fi
+            if [ "$code" = "$want" ]; then
+              printf '  \033[32mok\033[0m   %-24s %-9s %s\n' "$path" "$mode" "$code"
+            else
+              printf '  \033[31mFAIL\033[0m %-24s %-9s %s (want %s)\n' "$path" "$mode" "$code" "$want"
+              fail=1
+            fi
+          done
+        }
+        # A 500 in any row means a proto message could not be serialised in that format.
+        probe /api/v1/health        200 200 200
+        # Rejections must serialise too: ZenError is itself a proto message, so an auth failure
+        # returning 500 instead of 401 is the same bug wearing a hat.
+        probe /api/v1/accounts      401 401 401
+        probe /api/v1/records       401 401 401
+        probe /api/v1/categories    401 401 401
+        probe /api/v1/settings      401 401 401
+        # The admin surface is JSON-only by design (bare array + Content-Range, jZen ADR-005), so
+        # protobuf is correctly Not Acceptable rather than an error.
+        probe /api/v1/admin/users   401 401 406
+        # Body-level: the default must be canonical proto3 JSON, not merely a 200.
+        body=$(curl -s "$URL/api/v1/health")
+        case "$body" in
+          *'"status":"ok"'*) printf '  \033[32mok\033[0m   %-24s %-9s %s\n' /api/v1/health body "canonical proto3 JSON" ;;
+          *) printf '  \033[31mFAIL\033[0m %-24s %-9s %s\n' /api/v1/health body "$body"; fail=1 ;;
+        esac
+        # The web app is served SAME-ORIGIN from the backend: / must return the Flutter shell.
+        root=$(curl -s "$URL/")
+        case "$root" in
+          *flutter_bootstrap.js*) printf '  \033[32mok\033[0m   %-24s %-9s %s\n' / web "Flutter app shell" ;;
+          *) printf '  \033[31mFAIL\033[0m %-24s %-9s %s\n' / web "root did not serve the app"; fail=1 ;;
+        esac
+        # WASM-specific: the app binary must be served AND carry Content-Type application/wasm,
+        # or the browser cannot stream-compile it.
+        wcode=$(curl -s -o /dev/null -w '%{http_code}' "$URL/main.dart.wasm")
+        wtype=$(curl -s -o /dev/null -w '%{content_type}' "$URL/main.dart.wasm")
+        if [ "$wcode" = "200" ] && [ "${wtype%%;*}" = "application/wasm" ]; then
+          printf '  \033[32mok\033[0m   %-24s %-9s %s\n' /main.dart.wasm web "200 application/wasm"
+        else
+          printf '  \033[31mFAIL\033[0m %-24s %-9s %s\n' /main.dart.wasm web "HTTP $wcode, type '${wtype:-none}' (want 200 application/wasm)"
+          fail=1
+        fi
+        # The admin panel is served SAME-ORIGIN at /admin/.
+        admin=$(curl -s "$URL/admin/")
+        case "$admin" in
+          *'<div id="root">'*) printf '  \033[32mok\033[0m   %-24s %-9s %s\n' /admin/ web "react-admin shell" ;;
+          *) printf '  \033[31mFAIL\033[0m %-24s %-9s %s\n' /admin/ web "root did not serve the panel"; fail=1 ;;
+        esac
+        [ "$fail" -eq 0 ] && echo "All endpoints verified." || { echo "One or more endpoints failed."; exit 1; }
+
+  test:native:
+    desc: Build the native image and smoke it IN DOCKER, against a throwaway Postgres — the long check before a deploy
+    summary: |
+      THE LAST GATE BEFORE A DEPLOY, and entirely local — it costs nothing but time. Builds the
+      linux/amd64 native image with both frontends baked in, runs it in Docker against a
+      throwaway Postgres, and asserts: the deploy's migration half (migrate-only, the schema
+      rollback gate, the Data API exposure gate — all framework-provided by zen-identity's
+      MigrateOnlyRunner, exercised here rather than trusted), the serving half (both transport
+      modes, both frontends), and the native-only locale check §6 (docs/prudent-migration-plan.md
+      Phase 5) — registering under `pl` against the ACTUAL NATIVE BINARY, which is the one thing
+      a JVM run cannot see, because quarkus.locales bakes JDK locale/currency data at native-image
+      BUILD time and a JVM test never exercises that narrower table.
+
+      WHY IN DOCKER RATHER THAN ON THE HOST. The image is built for linux/amd64 so it matches
+      Cloud Run regardless of the developer's machine. On an arm64 host that binary cannot be
+      executed directly — it is an x86-64 Linux ELF — which rules out @QuarkusIntegrationTest,
+      since that launches the runner as a host process. The container has no such problem and
+      tests the exact artifact a deploy would ship.
+
+      WHY PLAIN POSTGRES AND NOT SUPABASE. R__prudent_row_level_security.sql (and zen-identity's
+      own repeatables) are guarded on `to_regprocedure('auth.uid()')`, so they no-op off Supabase.
+      A disposable container is enough, cannot collide with a Supabase stack another checkout left
+      running, and keeps this gate free of network dependencies.
+
+      WHY IT MIGRATES IN A SEPARATE CONTAINER FIRST. %prod does not migrate at boot (jZen
+      ADR-038), so a serving container started against an empty database would fail its smoke
+      assertions in a way that looks like a bug in the app. This runs the SAME sequence a deploy
+      would: the same image with zen.migrate-only=true, to completion, and only then the serving
+      container — asserting what each half must be true of.
+    cmds:
+      - task: build:web
+        vars: {WEB_API_URL: "http://localhost:18085"}
+      - task: build:web:admin
+      - task: build:server:native
+      - |
+        set -eu
+        IMG=prudent-native-smoke:local
+        NET=prudent-smoke-net
+        cleanup() {
+          docker rm -f prudent-smoke-app prudent-smoke-migrate prudent-smoke-db >/dev/null 2>&1 || true
+          docker network rm "$NET" >/dev/null 2>&1 || true
+        }
+        trap cleanup EXIT
+        cleanup
+
+        docker build --platform=linux/amd64 -q \
+          -f {{.SERVER_DIR}}/src/main/docker/Dockerfile.native-micro \
+          -t "$IMG" {{.SERVER_DIR}} >/dev/null
+        docker network create "$NET" >/dev/null
+
+        docker run -d --name prudent-smoke-db --network "$NET" \
+          -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=postgres postgres:18-alpine >/dev/null
+        for _ in $(seq 1 30); do
+          docker exec prudent-smoke-db pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1
+        done
+
+        # THE APP'S OWN DATABASE is a disposable container — the migrations and RLS policies
+        # need A Postgres, not Supabase specifically (R__prudent_row_level_security.sql no-ops
+        # off Supabase). AUTH is different: the native-i18n check below actually registers a
+        # user, which needs a real Supabase auth API to mint a session against — so this reuses
+        # Prudent's own local Supabase project (already the one every other local gate runs
+        # against) rather than fabricating a second identity provider for one check.
+        supabase status >/dev/null 2>&1 || supabase start
+        eval "$(supabase status -o env | sed 's/^/export SB_/')"
+        smoke_env() {
+          printf '%s ' \
+            -e DB_URL=jdbc:postgresql://prudent-smoke-db:5432/postgres \
+            -e DB_USERNAME=postgres -e DB_PASSWORD=smoke \
+            -e SUPABASE_URL="http://host.docker.internal:54331" -e SUPABASE_KEY="${SB_ANON_KEY}" \
+            -e SITE_URL=http://localhost:18085 \
+            -e AUTH_REDIRECT_URI=http://localhost:18085/auth/callback \
+            -e CORS_ORIGINS=http://localhost:18085 \
+            -e ZEN_I18N_SUPPORTED=en,uk,pl
+        }
+        migrate_only() {
+          docker rm -f prudent-smoke-migrate >/dev/null 2>&1 || true
+          docker run --name prudent-smoke-migrate --network "$NET" --platform=linux/amd64 \
+            $(smoke_env) -e ZEN_MIGRATE_ONLY=true -e QUARKUS_HTTP_HOST_ENABLED=false \
+            "$@" "$IMG" >/dev/null 2>&1
+        }
+        psql_smoke() { docker exec -i prudent-smoke-db psql -qtAX -U postgres -d postgres -c "$1"; }
+
+        # ── The deploy's first half: migrate, with the same image, before anything serves. ──
+        set +e
+        migrate_only
+        rc=$?
+        set -e
+        if [ "$rc" -ne 0 ]; then
+          echo "Migrate-only exited $rc against an empty database. Log:"
+          docker logs prudent-smoke-migrate 2>&1 | tail -30
+          exit 1
+        fi
+        applied=$(docker logs prudent-smoke-migrate 2>&1 | grep -c 'Successfully applied' || true)
+        if [ "$applied" -lt 1 ]; then
+          echo "Migrate-only exited 0 without applying anything to an EMPTY database — the shape"
+          echo "of an undiscovered bean (a Jandex index gap), and it would let a deploy ship over"
+          echo "a schema that was never created."
+          docker logs prudent-smoke-migrate 2>&1 | tail -30
+          exit 1
+        fi
+        if docker logs prudent-smoke-migrate 2>&1 | grep -q 'Listening on: http'; then
+          echo "The migration job bound an HTTP port. It must not: a job that serves is a job"
+          echo "that can be reached, and QUARKUS_HTTP_HOST_ENABLED=false is what stops it."
+          exit 1
+        fi
+        printf '  \033[32mok\033[0m   %-24s %-9s %s\n' migrate-only empty-db "created the schema, exit 0, no port bound"
+
+        # ── The deploy-time schema gate, in both directions — a migration row above everything
+        # the image carries is what a rollback onto a newer schema looks like. ──
+        psql_smoke "insert into flyway_schema_history
+            (installed_rank, version, description, type, script, checksum, installed_by,
+             execution_time, success)
+          values (9001, '99999999999999', 'a future migration this image does not carry', 'SQL',
+                  'V99999999999999__future.sql', 0, 'postgres', 0, true)" >/dev/null
+        set +e
+        migrate_only
+        rc=$?
+        set -e
+        if [ "$rc" -ne 2 ]; then
+          echo "The schema gate did NOT refuse a database ahead of the image (exit $rc, want 2)."
+          docker logs prudent-smoke-migrate 2>&1 | tail -30
+          exit 1
+        fi
+        printf '  \033[32mok\033[0m   %-24s %-9s %s\n' migrate-only schema-gate "refused a newer schema with exit 2"
+        set +e
+        migrate_only -e ZEN_ALLOW_SCHEMA_ROLLBACK=true
+        rc=$?
+        set -e
+        if [ "$rc" -ne 0 ]; then
+          echo "The deliberate override did not let the rollback through (exit $rc, want 0)."
+          docker logs prudent-smoke-migrate 2>&1 | tail -30
+          exit 1
+        fi
+        printf '  \033[32mok\033[0m   %-24s %-9s %s\n' migrate-only override "ZEN_ALLOW_SCHEMA_ROLLBACK=true proceeds"
+        psql_smoke "delete from flyway_schema_history where installed_rank = 9001" >/dev/null
+        docker rm -f prudent-smoke-migrate >/dev/null 2>&1 || true
+
+        # ── The deploy's second half: the same image, serving, against the migrated schema. ──
+        docker run -d --name prudent-smoke-app --network "$NET" -p 18085:8085 --platform=linux/amd64 \
+          $(smoke_env) "$IMG" >/dev/null
+
+        up=0
+        for _ in $(seq 1 60); do
+          curl -sf http://localhost:18085/api/v1/health >/dev/null 2>&1 && { up=1; break; }
+          sleep 1
+        done
+        if [ "$up" -ne 1 ]; then
+          echo "The serving container never answered /api/v1/health. Log:"
+          docker logs prudent-smoke-app 2>&1 | tail -40
+          exit 1
+        fi
+        # Scoped to ACTUAL MIGRATION VERBS, not to the word "flyway" — Quarkus's own "Installed
+        # features" boot banner always names the flyway extension because it is present on the
+        # classpath, regardless of whether migrate-at-start ever ran. Grepping the bare word
+        # found that banner line and failed a serving container that never migrated at all —
+        # caught running this gate for real, not by inspection.
+        if docker logs prudent-smoke-app 2>&1 | grep -qiE 'Migrating schema|Successfully applied|schema history'; then
+          echo "The SERVING container logged Flyway MIGRATION activity. %prod must neither"
+          echo "migrate nor validate at boot (ADR-038) — migration is an act of the deploy, not"
+          echo "of a boot."
+          docker logs prudent-smoke-app 2>&1 | grep -i flyway
+          exit 1
+        fi
+        printf '  \033[32mok\033[0m   %-24s %-9s %s\n' serving boot "healthy, no Flyway migration activity"
+
+        SERVICE_URL=http://localhost:18085 task verify:endpoints
+
+        # ── The native locale check (Phase 5 §6) — the one thing a JVM run cannot see. ──
+        # Registers a user with Accept-Language: pl-PL against the ACTUAL NATIVE BINARY and reads
+        # users.language back from Postgres, bypassing the API (no session to authenticate with
+        # here — this asserts what registration WROTE, not what a later read renders).
+        reg=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:18085/api/v1/auth/register \
+          -H 'Content-Type: application/json' -H 'X-Zen-Transport: json' -H 'Accept-Language: pl-PL' \
+          -d '{"email":"native-smoke@example.com","password":"secret123"}')
+        if [ "$reg" != "200" ] && [ "$reg" != "201" ]; then
+          echo "Registration against the native image answered $reg, not 200/201."
+          docker logs prudent-smoke-app 2>&1 | tail -30
+          exit 1
+        fi
+        lang=$(psql_smoke "select language from users where email = 'native-smoke@example.com'")
+        lang=$(echo "$lang" | tr -d '[:space:]')
+        if [ "$lang" != "pl" ]; then
+          echo "FAIL: users.language = '$lang', want 'pl'. ZEN_I18N_SUPPORTED=en,uk,pl was set on"
+          echo "this exact image; a JVM run passing this same assertion would NOT prove the"
+          echo "native image also accepts it, which is the whole reason this check exists here."
+          exit 1
+        fi
+        printf '  \033[32mok\033[0m   %-24s %-9s %s\n' native-i18n register "Accept-Language: pl-PL -> users.language = pl"
+
+        echo "test:native: all assertions passed against the linux/amd64 native image."
+
+  test:e2e:
+    desc: The release gate — drive client/integration_test against the LIVE Quarkus + Supabase stack
+    summary: |
+      NO MOCKS. Brings up Prudent's own local Supabase project (supabase/config.toml, ports
+      shifted +10 from jZen's — ADR-010), builds and starts the packaged server (%dev profile) on
+      :8085, waits for /api/v1/health, runs the pure-Dart integration suite on the VM (register,
+      the session cookie surviving across requests, an account and a record created and read
+      back, both transport modes on the records endpoint, an anonymous 401, and logout), tears
+      the server down, and propagates the suite's exit code.
+
+      A pure-Dart VM suite (package:test under client/integration_test, NOT flutter
+      integration_test) keeps this headless and cheap in CI, and because the VM is a dart:io
+      platform it exercises the native session cookie jar for real — the same reason jZen's own
+      test:e2e is shaped this way. LINUX-ONLY (docs/prudent-migration-prompt.md §3): a Windows
+      runner cannot practically host the containers Supabase needs, so a Windows end-to-end would
+      be a different, weaker test wearing the same name.
+    cmds:
+      - |
+        set -uo pipefail
+        PORT="${ZEN_APP_PORT:-8085}"
+        API="http://localhost:${PORT}"
+
+        # Tear the server down by whatever is bound to the test port, and wait for the port to
+        # actually free (Quarkus shuts down gracefully over a few seconds) so a following run
+        # cannot collide on it; escalate to SIGKILL if it lingers.
+        stop_server() {
+          pkill -f 'server/target/quarkus-app/quarkus-run.jar' 2>/dev/null || true
+          port_pid=$(lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN -t 2>/dev/null || true)
+          [ -n "${port_pid}" ] && kill "${port_pid}" 2>/dev/null || true
+          for _ in $(seq 1 15); do
+            lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN -t >/dev/null 2>&1 || return 0
+            sleep 1
+          done
+          port_pid=$(lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN -t 2>/dev/null || true)
+          [ -n "${port_pid}" ] && kill -9 "${port_pid}" 2>/dev/null || true
+        }
+
+        set -e
+        # Bring up Prudent's own local Supabase stack if it is not already running.
+        supabase status >/dev/null 2>&1 || supabase start
+        eval "$(supabase status -o env | sed 's/^/export SB_/')"
+        export SUPABASE_URL="${SB_API_URL}"
+        export SUPABASE_KEY="${SB_ANON_KEY}"
+
+        # Install the framework libs, then build Prudent's server (fast when already built).
+        ( cd {{.SERVER_DIR}} && ./mvnw -B -q install -DskipTests )
+        set +e
+        java -Dquarkus.profile=dev -Dquarkus.http.port="${PORT}" \
+          -jar {{.SERVER_DIR}}/target/quarkus-app/quarkus-run.jar &
+
+        # Wait for the server to answer /api/v1/health before driving it.
+        ready=0
+        for _ in $(seq 1 60); do
+          if curl -sf "${API}/api/v1/health" >/dev/null 2>&1; then ready=1; break; fi
+          sleep 1
+        done
+        if [ "${ready}" -ne 1 ]; then echo "server did not become healthy on ${API}"; stop_server; exit 1; fi
+
+        # The suite runs on the VM (native), exercising the real cookie jar. Capture its exit
+        # code, tear the server down, and propagate the code — the gate's result is the suite's.
+        # ZEN_API_URL is read at RUNTIME by the suite (dart test does not forward --define to the
+        # compiled test).
+        ( cd {{.CLIENT_DIR}} && ZEN_API_URL="${API}" dart test integration_test/e2e_test.dart )
+        rc=$?
+        stop_server
+        exit "${rc}"
 
 # NO `sources:`/`generates:` FINGERPRINTING ON ANY TASK ABOVE, and this is the subtle one.
 #

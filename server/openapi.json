@@ -6,6 +6,25 @@
   },
   "components" : {
     "schemas" : {
+      "HealthStatus" : {
+        "type" : "object",
+        "description" : "Liveness/readiness payload returned by GET /api/v1/health.",
+        "properties" : {
+          "status" : {
+            "type" : "string",
+            "description" : "Overall status, e.g. \"ok\"."
+          },
+          "service" : {
+            "type" : "string",
+            "description" : "Logical service name."
+          },
+          "timestampMs" : {
+            "type" : "string",
+            "format" : "int64",
+            "description" : "Server wall-clock time in ms since the Unix epoch."
+          }
+        }
+      },
       "ZenError" : {
         "type" : "object",
         "description" : "The error body every Prudent endpoint returns in place of a response on any status >= 400. There is no envelope: HTTP status carries the status, X-Request-ID carries the request id, and this carries the error. A client parses it with the same codec it would a success, because the transport seam serialises it in the negotiated format.",
@@ -1851,6 +1870,29 @@
         "security" : [ {
           "SecurityScheme" : [ ]
         } ]
+      }
+    },
+    "/api/v1/health" : {
+      "get" : {
+        "summary" : "Liveness/readiness probe",
+        "responses" : {
+          "200" : {
+            "description" : "Service is healthy",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HealthStatus"
+                }
+              },
+              "application/x-protobuf" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        },
+        "tags" : [ "Health Resource" ]
       }
     },
     "/api/v1/jobs/trigger" : {

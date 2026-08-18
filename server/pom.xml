@@ -75,6 +75,28 @@
   <name>Prudent :: server</name>
   <packaging>quarkus</packaging>
 
+  <!--
+    A single dependency-version override, taken here rather than reported upstream. task audit
+    (docs/prudent-migration-plan.md Phase 5 §4) found io.netty:netty-codec-http:4.1.136.Final —
+    pinned transitively by Quarkus 3.38.0's own BOM in zen-parent — vulnerable to GHSA-8c42-7qj2-3j46
+    (CorsHandler overwriting an existing Vary header, enabling cache poisoning). Fixed in
+    4.1.137.Final, which exists on Maven Central and is API-compatible (a patch release within the
+    4.1.x line). This is the same "override a transitive dependency for a CVE" move admin/package.json
+    already makes for react-router et al. — a routine child-POM override, not a jZen-side concern:
+    the vulnerable class (io.netty.handler.codec.http.cors.CorsHandler) is not one Quarkus's own CORS
+    handling routes through, but a patch release costs nothing and closes the finding outright rather
+    than arguing the exploit path is unreachable in a suppressions file.
+  -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-codec-http</artifactId>
+        <version>4.1.137.Final</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
     <!--
       The framework libraries. No <version> on any of them: zen-parent's dependencyManagement
@@ -118,19 +140,28 @@
       <groupId>zen</groupId>
       <artifactId>zen-ratelimit</artifactId>
     </dependency>
+    <!--
+      ASSEMBLED IN PHASE 5, closing the obligation the comment below used to defer. zen-identity
+      ships UserRetentionJob (the GDPR Art. 5(1)(e) dormancy-anonymisation cycle) as a plain
+      callable with no scheduling of its own; zen-jobs is what gives it an external trigger — one
+      that fires whether or not an instance happened to be awake under min-instances=0, which is
+      what a cron inside the process could never do. PrudentRetentionCleanupJob (see
+      prudent.server.retention) is the second job this dependency exists for: zen-identity's
+      anonymisation has no application-observable event, so Prudent's own job sweeps for accounts
+      it anonymised and removes the financial rows GDPR requires not to outlive them
+      (docs/DECISIONS.md — the retention ADR this phase adds).
+    -->
+    <dependency>
+      <groupId>zen</groupId>
+      <artifactId>zen-jobs</artifactId>
+    </dependency>
 
     <!--
-      NO zen-email AND NO zen-jobs, each for its own reason, and neither absence is an oversight.
-
-      zen-email: Prudent sends no mail. zen-identity does not need it either — UserRegistered is
-      fired as an event precisely so the framework stays free of any dependency on zen-email, and
-      an application that wants no welcome message simply observes nothing (jZen ADR-007). This
-      was checked against that class's contract rather than assumed.
-
-      zen-jobs: Prudent has no scheduled work of its own. But zen-identity ships UserRetentionJob,
-      and zen-jobs is what triggers it — so this absence means Prudent's GDPR retention cycle is
-      currently UNRUN rather than unneeded. That is an obligation deferred to the deploy phase,
-      where there is an external trigger to fire it, not a decision that retention does not apply.
+      NO zen-email, and this absence is still not an oversight. Prudent sends no mail; zen-identity
+      does not need it either — UserRegistered is fired as an event precisely so the framework
+      stays free of any dependency on zen-email, and an application that wants no welcome message
+      simply observes nothing (jZen ADR-007). This was checked against that class's contract
+      rather than assumed.
     -->
 
     <!--
@@ -318,6 +349,79 @@
             <goals>
               <goal>generate</goal>
             </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!--
+        ONE RULE: `UnnecessaryFullyQualifiedName` (pmd-ruleset.xml), flagging code like
+        `prudent.server.account.AccountBalance("PLN", 100_00L)` written inline instead of
+        `import prudent.server.account.AccountBalance;` plus the simple name.
+
+        BOUND TO `test-compile`, WITH `failOnViolation=true` — a violation turns the build red, not
+        a warning line nobody reads. Not `compile`: a fully qualified reference compiles fine, so
+        nothing about compilation would ever catch this on its own; the rule needs to run somewhere
+        `task test:server` (`./mvnw -B test`) actually reaches, and `test-compile` is the last phase
+        before `test` that both `mvn test` and `mvn package`/`verify` pass through — so the same
+        check covers `task test:server`, the contract loop's `generate:api:schema`
+        (`mvn package`), and a native build alike, rather than only an explicit `mvn verify`.
+
+        `includeTests=true` because the one violation this rule found on introduction
+        (server/src/test/java/prudent/server/UserScopingTest.java) was in a test class — the
+        default scans main sources only, which would have missed it.
+
+        `skipEmptyReport=false` — an empty report is a legitimate outcome (no violations) and PMD
+        skipping its own summary in that case has caused "did this even run?" confusion elsewhere;
+        cheap to pin here rather than rediscover.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-pmd-plugin</artifactId>
+        <!--
+          NO <version> HERE ANY MORE — CONSUMED FROM jZen (issue #61, fixed upstream in PR #62,
+          jZen commit 9425e9a, inside this repository's pinned JZEN_REF). zen-parent's own
+          pluginManagement now supplies the version via ${maven-pmd-plugin.version} (3.27.0),
+          pluginManagement-only exactly as this repository proposed upstream — the version is the
+          framework's concern now, the ruleset and the execution below stay this module's own,
+          since each consuming module opts in rather than every inheriting module being linted
+          unconditionally. The reasoning for WHY 3.27.0 (the default PMD 6.55.0's bundled ASM
+          cannot parse a Java 25 class file — "Unsupported class file major version 69" — and the
+          plugin still reports BUILD SUCCESS having checked nothing) now lives in zen-parent's own
+          pom.xml, next to the property it explains, rather than duplicated here.
+        -->
+        <configuration>
+          <rulesets>
+            <ruleset>${project.basedir}/pmd-ruleset.xml</ruleset>
+          </rulesets>
+          <includeTests>true</includeTests>
+          <linkXRef>false</linkXRef>
+          <skipEmptyReport>false</skipEmptyReport>
+          <!--
+            EXCLUDES two generated-sources roots, both otherwise scanned: this plugin walks every
+            compile source root, and generator plugins add theirs to that list. `protobuf`
+            (protobuf-maven-plugin's output — never hand-edited, ../proto/README.md,
+            docs/DECISIONS.md ADR-006) and `annotations` (MapStruct's *MapperImpl classes — also
+            never hand-edited, see e.g. AccountMapper's own javadoc on why only entity->proto is
+            written by hand). A style rule about how code is WRITTEN has nothing to check in code
+            nobody writes; PMD 7 parses both directories fine and genuinely flags qualifiers in the
+            generated mapper impls ("'AccountMapper': 'uuidToString' is already in scope") that
+            MapStruct itself chose to write fully qualified — a real finding about generated code,
+            not a bug in this rule, and not this rule's job to fix.
+          -->
+          <excludeRoots>
+            <excludeRoot>${project.build.directory}/generated-sources/protobuf</excludeRoot>
+            <excludeRoot>${project.build.directory}/generated-sources/annotations</excludeRoot>
+          </excludeRoots>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>test-compile</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <failOnViolation>true</failOnViolation>
+            </configuration>
           </execution>
         </executions>
       </plugin>

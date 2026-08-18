@@ -1,0 +1,66 @@
+# The dependency vulnerability gate (task audit). Wired to actually run, on its own schedule —
+# NOT as a ci.yml job. `task audit` asks a REMOTE service (api.osv.dev, npm's advisory database) a
+# question that changes when nothing in this repository changed, so a third-party advisory
+# published overnight must not block an unrelated pull request the way a red ci.yml would. See
+# CLAUDE.md "Nothing swallows a failure" and Taskfile.yml's `audit` task.
+name: Audit
+
+on:
+  schedule:
+    # Weekly, arbitrary off-peak day/time. Due-ness here is "did a new advisory land since last
+    # week", not a deadline, so a missed tick costs nothing a re-run doesn't fix.
+    - cron: "23 6 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  # Same pin as ci.yml's — see that file's header for why jZen is pinned rather than checked out
+  # at main. Bump both together.
+  JZEN_REF: 5a36d1f7081527bef6e5045f586fa35ed5352154
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Prudent
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: prudent
+      - name: Checkout jZen (pinned)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jZenDev/jZen
+          ref: ${{ env.JZEN_REF }}
+          path: jZen
+
+      - name: JDK 25 (Temurin)
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Node + pnpm via corepack
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - run: corepack enable
+
+      - name: go-task
+        uses: arduino/setup-task@bfe25a35f5c1f609e1d6153197b3b42a04ae054c # v3.0.0
+        with:
+          version: "3.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install jZen framework libraries
+        working-directory: prudent
+        run: task zen:framework:install
+
+      - name: task deps:admin
+        working-directory: prudent
+        run: task deps:admin
+
+      - name: task audit
+        working-directory: prudent
+        run: task audit

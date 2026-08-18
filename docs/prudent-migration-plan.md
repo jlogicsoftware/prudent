@@ -680,6 +680,23 @@ followed by `task verify:deploy`.
 history says configuration is where it fails — a missing env var produces a working-looking service
 that is quietly wrong.
 
+**As of 2026-08-18, Phase 5 is done to the scope actually decided, which is narrower than this
+section originally described in two explicit, asked-and-answered ways.** `task deploy:cloudrun` and
+`task verify:deploy` against a **real** environment are **not built** — the deploy was scoped to
+"the path exists and is proven against a throwaway environment," not a real Cloud Run deploy, so
+there is no cloud account, project, region or service name anywhere, committed or otherwise. What
+*is* built and green: `admin/` (only the framework's `users` resource — Prudent's own resources are
+user-scoped with no cross-user listing endpoint to administer); `task test:e2e` (six cases against
+the live local Supabase + Quarkus stack, which caught a real registration/category-seeding race on
+its first run); CI on `ubuntu-latest` and `windows-latest` with `../jZen` pinned at a SHA
+(`docs/DECISIONS.md` ADR-018); `task audit` on its own schedule (which found and fixed a real CVE on
+its first run); GDPR retention now sweeps Prudent's own tables when `zen-identity` anonymises an
+account (ADR-019, not originally scoped in this section at all — found necessary while doing the
+work); `task build:server:native`, `task build:web`, `task build:web:admin` and `task test:native`
+(the local Docker smoke gate that stands in for `deploy:cloudrun` + `verify:deploy` against a
+throwaway Postgres, including the native-only locale check this section names). See ADR-016 through
+ADR-020 for the full record of each decision and what each gate found.
+
 ---
 
 # 5 — Open questions

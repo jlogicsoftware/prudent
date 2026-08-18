@@ -18,7 +18,10 @@ prudent/
 ├── Taskfile.yml   the single entry point; includes ../jZen/Taskfile.app.yml
 ├── client/        the Flutter application (Android, iOS, web, macOS, Linux, Windows)
 ├── server/        the Quarkus backend
+├── admin/         the react-admin panel (assembles @jzen/admin-core)
+├── proto/         the wire contract (canonical for models)
 ├── docs/          the architecture, the plan, and the decision log
+├── .github/       CI (two operating systems) and the scheduled dependency audit
 └── LICENSE
 ```
 
@@ -104,19 +107,40 @@ never replaces them**: `mvnw` owns Java, `flutter`/`dart pub` owns Dart, `pnpm` 
 | `task zen:info` | Which jZen checkout, which revision, dirty or not |
 | `task zen:framework:install` | Installs jZen's Java libraries into the local Maven repository |
 | `task zen:deps` | `flutter pub get` across the client tier |
-| `task zen:generate:l10n` | `flutter gen-l10n` in every package declaring an `l10n.yaml` |
+| `task deps:admin` | `pnpm install` for the admin panel |
+| `task sync:contracts` | Regenerate every generated artifact (proto, OpenAPI, admin types); fails on drift |
+| `task verify:boundaries` | Fails if the client (or the admin panel) reaches past Prudent's own server |
+| `task test:server` | The backend suites against a throwaway Postgres |
 | `task zen:test:client` | Every Dart/Flutter suite |
+| `task test:admin` | Typechecks the admin panel |
+| `task test:e2e` | The release gate — the real Supabase + Quarkus stack, no mocks (Linux-only) |
+| `task test:native` | Builds the native image and smokes it in Docker — the long check before a deploy |
+| `task audit` | Dependency CVE scan (Java + TypeScript); needs network, runs on a schedule, not in CI |
+| `task run:admin` | Admin panel dev server on `:5173` |
 | `task zen:build:runners` | Every delivery runner this host can build; skips are announced |
-| `(cd server && ./mvnw -B package -DskipTests)` | Builds the backend |
 | `(cd client && flutter run)` | Runs the application |
 
 The `zen:` tasks come from jZen's `Taskfile.app.yml`, which Prudent **includes rather than copies** —
 jZen runs the same file for its own reference application, so these are shared tasks rather than a
-lookalike that drifts.
+lookalike that drifts. Every other task above is Prudent's own, written phase by phase as each phase
+produced something for it to act on — see `docs/DECISIONS.md` for what each one found along the way.
 
-Tasks Prudent still has to write — the contract loop, the server build, the local stack, the deploy
-and every gate — are not in that file yet, and arrive with the work they verify. `Taskfile.yml` says
-which phase each one belongs to.
+## CI
+
+`.github/workflows/ci.yml` runs on `ubuntu-latest` and `windows-latest` — Windows exists only to
+build the Windows desktop app, which Flutter refuses to cross-compile. Every job checks out `../jZen`
+at a **pinned SHA** (`env.JZEN_REF`) rather than `main`, because a CI runner has no sibling checkout
+and no local Maven repository of its own — see `docs/DECISIONS.md` ADR-018 for the full reasoning and
+its cost. `.github/workflows/audit.yml` runs `task audit` on a weekly schedule, deliberately outside
+the merge gate.
+
+## Deploying
+
+**Nothing is deployed anywhere today.** The deploy path — a native image, a same-origin-staged web
+and admin bundle, migration run as a one-shot job ahead of the serving revision — is built and proven
+against a throwaway, local Docker + Postgres stack (`task test:native`), not against a real cloud
+project. See `docs/DECISIONS.md` ADR-020 for what was built, what a real deploy's secret inventory
+looks like, and what stays an explicit `prudent.invalid` placeholder until a real domain exists.
 
 ## Platforms
 

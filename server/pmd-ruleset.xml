@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="prudent"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+  <description>
+    Prudent's own PMD ruleset — deliberately ONE rule, not a suite. See maven-pmd-plugin's binding
+    in server/pom.xml for why: a build that fails on a style rule needs the rule to be legible from
+    the failure alone, and a ruleset importing an entire PMD category (correctness, performance,
+    ...) would fail the build on things nobody asked this check to catch.
+
+    UnnecessaryFullyQualifiedName flags exactly `prudent.server.account.AccountBalance(...)` used
+    inline instead of `import prudent.server.account.AccountBalance;` plus the simple name — a
+    fully qualified reference where an import would resolve the same class. It found one real
+    instance on introduction (server/src/test/java/prudent/server/UserScopingTest.java), which is
+    why the rule exists rather than an assumption that the codebase was already clean.
+  </description>
+
+  <rule ref="category/java/codestyle.xml/UnnecessaryFullyQualifiedName"/>
+
+</ruleset>
