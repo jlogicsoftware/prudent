@@ -144,6 +144,20 @@ jobs:
         working-directory: prudent
         run: task zen:framework:install
 
+      # admin/src imports @jzen/admin-core FROM SOURCE (a TS paths alias + Vite resolve.alias
+      # into ../jZen/admin/src, not a pnpm dependency edge — docs/DECISIONS.md ADR-016), which
+      # means TypeScript resolves react-admin/ra-data-simple-rest/react by walking up from
+      # ../jZen/admin/src looking for a node_modules — and finds none, because nothing has ever
+      # run `pnpm install` INSIDE ../jZen/admin itself in this checkout. jZen's own admin/
+      # package.json already declares exactly those packages as its own devDependencies
+      # (they're what a bare `tsc -b` on the scaffold needs to typecheck against), so installing
+      # there is enough; no separate build step. Same shape as the l10n finding above: invisible
+      # on a developer's machine that has jZen's admin/ pnpm-installed from unrelated local work,
+      # real on a fresh CI clone. Reported upstream (docs/jzen/README.md).
+      - name: Install jZen's admin scaffold dependencies (multi-repo node_modules gap)
+        working-directory: jZen/admin
+        run: pnpm install
+
       - name: Resolve Dart + admin dependencies
         working-directory: prudent
         run: |
