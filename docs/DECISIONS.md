@@ -2005,3 +2005,48 @@ flattering: every framework gap Prudent has hit since the conversion began has b
 fixed upstream rather than worked around permanently here, and the reason is that jZen and its second
 consumer are the same hands on the same day. ADR-023 already names what changes when publishing puts
 a release boundary between them; this entry is the last cheap one.
+
+---
+
+## ADR-025 — The auth callback scheme was configured everywhere except the operating system
+
+**Date:** 2026-08-19. **Status:** accepted. **Corrects a claim in:** ADR-013.
+
+### Decision
+
+`prudent://auth-callback` is now registered where the OS actually reads it: a `BROWSABLE`
+intent-filter in `client/android/app/src/main/AndroidManifest.xml`, and `CFBundleURLTypes` in the
+iOS and macOS `Info.plist`s. Prudent also gains `run:supabase`, `run:server` and `run:client`, so
+the stack can be brought up interactively rather than only inside `test:e2e`.
+
+### What this corrects, and why it survived a whole phase
+
+ADR-013 recorded: **"Native auth redirects use the custom scheme only — `prudent://auth-callback`,
+registered as the sole entry in `AUTH_REDIRECT_URIS` and mirrored in `supabase/config.toml`'s
+`additional_redirect_urls`."** Both halves were true, and both are server-side. **No client platform
+claimed the scheme**, so nothing on the device would ever have received the link.
+
+Every participant behaved correctly, which is why nothing reported it: the server permits the
+return address, Supabase mails it, `app_links` (a declared dependency) listens for it, and the OS
+delivers it to nobody because no app claims `prudent://`. Password recovery and email confirmation
+would have done nothing on Android, iOS and macOS — while the web build, being same-origin, worked
+perfectly. No suite could see it: widget tests never register a URL scheme, and `test:e2e` drives
+the API directly rather than following a mail link.
+
+It was found by asking what a live local run would need, not by a gate. That is the honest account:
+this class of defect — configuration that is complete on every side except the platform manifest —
+has no test in this repository today, and adding one would mean driving a real link through a real
+device.
+
+### Consequence
+
+Verified against the running stack rather than by reading: registration through
+`POST /api/v1/auth/register` with `Accept-Language: pl-PL` leaves **`pl`** in `users.language`; an
+account, a category and a record round-trip; the same list returns `application/x-protobuf` under
+`X-Zen-Transport: protobuf`; and the account's derived balance reads **248001** after a −1999 record
+against a 250000 opening balance — ADR-014's "balance is derived, not stored", proven live rather
+than in a fixture.
+
+**Not verified, and stated rather than implied:** that a mail link actually opens the app. That needs
+a device, the local mailbox at `http://localhost:54334`, and a human tapping it. The registration is
+necessary and is not by itself sufficient.

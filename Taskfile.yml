@@ -70,6 +70,9 @@ vars:
   # serves them same-origin with the API (load-bearing for the session cookie — see build:web's
   # own summary). Gitignored; never committed.
   WEB_RESOURCES: server/src/main/resources/META-INF/resources
+  # The port the backend serves on locally. 8085, not 8080: jZen's own stack holds 8080,
+  # and Taskfile.app.yml already defaults an application's API to 8085 (ADR-010).
+  APP_PORT: '8085'
   # NO DART_OUT HERE. The generated Dart messages' location is declared ONCE, as PROTO_DART_OUT on
   # the include above, because the framework's task is what writes them. A second copy of the path
   # in this map would be a value nothing reads until someone changes the wrong one.
@@ -460,6 +463,122 @@ tasks:
         ./mvnw -B clean package -Dnative -DskipTests
         -Dquarkus.native.container-build=true
         -Dquarkus.native.container-runtime-options=--platform=linux/amd64
+
+  # ---------------------------------------------------------------------------
+  # Running the stack locally, interactively. The gate that already knew how to
+  # do this is test:e2e — these tasks take the same shapes and keep the stack UP.
+  # ---------------------------------------------------------------------------
+  run:supabase:
+    desc: Start Prudent's own local Supabase (auth + Postgres) — idempotent
+    silent: true
+    summary: |
+      Prudent's Supabase project, not jZen's, and the ports say so: API 54331, Postgres 54332,
+      Studio 54333, Inbucket 54334 (supabase/config.toml). jZen's own stack holds 54321/54322, so
+      both products can run at once — which is the whole reason the ports were shifted rather than
+      inherited (the plan's open question §5.4, answered in Phase 2).
+
+      INBUCKET IS THE ONE TO REMEMBER when testing sign-up: a local Supabase mails nothing to the
+      outside world, so the confirmation and recovery links land at http://localhost:54334 rather
+      than in a real mailbox. That is where the `prudent://auth-callback` link is, and following it
+      from there is what exercises the deep-link path a real user would take.
+
+      Idempotent: an already-running stack is left alone rather than restarted, so this is safe to
+      run before anything else.
+    cmds:
+      - |
+        set -eu
+        command -v supabase >/dev/null || { echo "supabase CLI not found: https://supabase.com/docs/guides/cli"; exit 1; }
+        if supabase status >/dev/null 2>&1; then
+          echo "Supabase already running."
+        else
+          supabase start
+        fi
+        echo
+        echo "  Studio:    http://localhost:54333"
+        echo "  Mailbox:   http://localhost:54334   <- confirmation + recovery links arrive here"
+        echo "  Postgres:  postgresql://postgres:postgres@localhost:54332/postgres"
+
+  run:server:
+    desc: Run the backend in Quarkus dev mode on :8085, against the local Supabase
+    silent: true
+    summary: |
+      Quarkus DEV MODE (live reload), not the packaged jar test:e2e runs — the difference is the
+      point: a code change here is picked up without a restart, which is what makes this worth
+      having beside the gate.
+
+      It reads SUPABASE_URL and SUPABASE_KEY out of the running local stack rather than asking for
+      them, the same way test:e2e does. There is no fallback if Supabase is down: the server would
+      start, serve, and 500 every auth call, which looks like a broken backend rather than a stack
+      that was never started. So it fails first, saying what to run.
+
+      %dev points the datasource at Prudent's own Supabase Postgres (127.0.0.1:54332) and migrates
+      at boot, so the schema is applied by simply running this. %prod does neither — migration is
+      an act of the deploy (jZen ADR-038).
+
+      Holds the terminal. Ctrl-C stops it.
+    deps: [run:supabase]
+    cmds:
+      - |
+        set -eu
+        eval "$(supabase status -o env | sed 's/^/export SB_/')"
+        export SUPABASE_URL="${SB_API_URL}"
+        export SUPABASE_KEY="${SB_ANON_KEY}"
+        echo ">> Supabase at ${SUPABASE_URL}; starting Quarkus dev on :{{.APP_PORT}}"
+        cd {{.SERVER_DIR}} && ./mvnw -B quarkus:dev -Dquarkus.http.port={{.APP_PORT}}
+
+  run:client:
+    desc: Run the Flutter app against the local backend (DEVICE=<flutter device id>)
+    silent: true
+    summary: |
+      Every value the client needs is COMPILE-TIME (STANDARDS "Client config is compile-time"), so
+      they are --dart-defines here rather than environment variables the app reads at runtime:
+      ZEN_ENV, ZEN_PLATFORM, ZEN_API_URL, and ZEN_AUTH_REDIRECT_URI.
+
+      ZEN_PLATFORM is derived from the target, not from the host, because it is what zenIsDesktop
+      and the codec seam branch on — passing the host's platform for a phone build would compile
+      the wrong branch of both.
+
+      ZEN_AUTH_REDIRECT_URI must match the scheme registered in the platform manifests AND the
+      server's AUTH_REDIRECT_URIS exactly; the server matches return addresses by exact string on
+      purpose, so a near-miss is refused rather than approximated (ADR-013).
+
+      DEVICE selects the target the way `flutter run -d` does: `task run:client DEVICE=chrome`,
+      `DEVICE=macos`, or a device id from `flutter devices`. Defaults to macOS, the one target that
+      needs no simulator running.
+    vars:
+      DEVICE: '{{.DEVICE | default "macos"}}'
+      # The Flutter device id and ZEN_PLATFORM disagree on names for the web target, and only
+      # there: `chrome` is a browser, `web` is the platform the client's constants know about.
+      PLATFORM:
+        sh: |
+          case "{{.DEVICE | default "macos"}}" in
+            chrome|edge|web-server) echo web ;;
+            macos)                  echo macos ;;
+            linux)                  echo linux ;;
+            windows)                echo windows ;;
+            *)                      echo "" ;;
+          esac
+    cmds:
+      - |
+        set -eu
+        PLATFORM='{{.PLATFORM}}'
+        if [ -z "${PLATFORM}" ]; then
+          # An emulator or a phone: the id is arbitrary (emulator-5554, a UDID), so it cannot be
+          # mapped by name. Ask rather than guess — a wrong ZEN_PLATFORM compiles cleanly and is
+          # wrong at runtime, which is the failure this refuses to make quietly.
+          echo "Cannot infer ZEN_PLATFORM from DEVICE='{{.DEVICE}}'."
+          echo "Pass it explicitly, e.g.:  task run:client DEVICE={{.DEVICE}} PLATFORM=android"
+          exit 1
+        fi
+        curl -sf "http://localhost:{{.APP_PORT}}/api/v1/health" >/dev/null 2>&1 || {
+          echo "No backend answering on :{{.APP_PORT}} — run 'task run:server' in another terminal."
+          exit 1
+        }
+        cd {{.CLIENT_DIR}} && flutter run -d '{{.DEVICE}}' \
+          --dart-define=ZEN_ENV=dev \
+          --dart-define=ZEN_PLATFORM="${PLATFORM}" \
+          --dart-define=ZEN_API_URL="http://localhost:{{.APP_PORT}}" \
+          --dart-define=ZEN_AUTH_REDIRECT_URI=prudent://auth-callback
 
   run:admin:
     desc: Start the admin panel dev server on :5173 (proxies /api and /openapi to :8085)
