@@ -547,6 +547,15 @@ tasks:
       needs no simulator running.
     vars:
       DEVICE: '{{.DEVICE | default "macos"}}'
+      # PINNED, not left to Flutter. `flutter run -d chrome` picks a RANDOM port each run, which
+      # makes the browser's Origin different every time — and the backend's CORS allowlist
+      # (quarkus.http.cors.origins, default http://localhost:8090,http://localhost:5173) can only
+      # ever name fixed origins. An unpinned port therefore fails every cross-origin call with
+      # "403 CORS Rejected - Invalid origin", which surfaces in the browser as an opaque network
+      # error on /register and looks like a broken backend. 8090 is the port that default list was
+      # written for. Overriding it means overriding CORS_ORIGINS to match — the check below says so
+      # rather than letting the request fail three layers away from the cause.
+      WEB_PORT: '{{.WEB_PORT | default "8090"}}'
       # The Flutter device id and ZEN_PLATFORM disagree on names for the web target, and only
       # there: `chrome` is a browser, `web` is the platform the client's constants know about.
       PLATFORM:
@@ -574,11 +583,36 @@ tasks:
           echo "No backend answering on :{{.APP_PORT}} — run 'task run:server' in another terminal."
           exit 1
         }
-        cd {{.CLIENT_DIR}} && flutter run -d '{{.DEVICE}}' \
+        # Web targets are cross-origin against :{{.APP_PORT}} and need the pinned port; native
+        # targets have no origin at all and ignore it.
+        WEB_ARGS=""
+        if [ "${PLATFORM}" = "web" ]; then
+          WEB_ARGS="--web-hostname localhost --web-port {{.WEB_PORT}}"
+          case ",${CORS_ORIGINS:-http://localhost:8090,http://localhost:5173}," in
+            *",http://localhost:{{.WEB_PORT}},"*) ;;
+            *)
+              echo "WEB_PORT={{.WEB_PORT}} is not in the server's CORS allowlist, so every call from"
+              echo "the browser will be rejected with 403 CORS Rejected - Invalid origin."
+              echo "Either drop WEB_PORT, or restart the server with:"
+              echo "  CORS_ORIGINS=http://localhost:{{.WEB_PORT}} task run:server"
+              exit 1 ;;
+          esac
+          echo ">> serving the app on http://localhost:{{.WEB_PORT}} (origin the backend allows)"
+        fi
+        # ZEN_AUTH_REDIRECT_URI IS NATIVE-ONLY, and passing it on web is a defect rather than a
+        # harmless extra. Empty — the web default — means "wherever the server sends people by
+        # default", which for a browser is the same origin it was served from. A web build that
+        # asks to be returned to `prudent://auth-callback` is asking the browser to hand an email
+        # link to a native app that may not be installed, and the server refuses the unlisted
+        # address outright: `invalid_redirect`, which reads as a broken backend and is not.
+        AUTH_ARGS=""
+        if [ "${PLATFORM}" != "web" ]; then
+          AUTH_ARGS="--dart-define=ZEN_AUTH_REDIRECT_URI=prudent://auth-callback"
+        fi
+        cd {{.CLIENT_DIR}} && flutter run -d '{{.DEVICE}}' ${WEB_ARGS} ${AUTH_ARGS} \
           --dart-define=ZEN_ENV=dev \
           --dart-define=ZEN_PLATFORM="${PLATFORM}" \
-          --dart-define=ZEN_API_URL="http://localhost:{{.APP_PORT}}" \
-          --dart-define=ZEN_AUTH_REDIRECT_URI=prudent://auth-callback
+          --dart-define=ZEN_API_URL="http://localhost:{{.APP_PORT}}"
 
   run:admin:
     desc: Start the admin panel dev server on :5173 (proxies /api and /openapi to :8085)
