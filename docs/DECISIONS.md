@@ -1960,3 +1960,48 @@ consumer are being developed together by the same hands. That is a property of t
 architecture. The moment jZen is published and versioned, "consume the fix" becomes "wait for a
 release", and the workarounds recorded above become things Prudent carries for months rather than
 hours. That is an argument for the publishing ADR to be taken deliberately, not an argument against it.
+
+---
+
+## ADR-024 — The last hand-written reach into the framework checkout is gone
+
+**Date:** 2026-08-19. **Status:** accepted. **Extends:** ADR-023.
+**Consumes:** [jZen#69](https://github.com/jZenDev/jZen/issues/69) → jZen `3a450b2`.
+
+### Decision
+
+jZen split `zen:framework:prepare` into `prepare:l10n` and `prepare:admin`, keeping the combined
+task, which is the shape Prudent proposed. Applied here:
+
+- `android-runner` and `windows-runner` call **`task zen:framework:prepare:l10n`** from Prudent's own
+  root. The `working-directory: jZen` + `task zen:generate:l10n` pair ADR-023 kept deliberately is
+  deleted, and with it the comment explaining why it had to stay.
+- `gates` continues to call the combined `zen:framework:prepare`; it wants both halves.
+- `JZEN_REF` moves to `3a450b2` in `ci.yml` and `audit.yml`.
+
+**No CI job now names a path inside the framework checkout.** The only place `.github/workflows/`
+mentions `jZen` as a directory is the `actions/checkout` step that creates it; every other touch goes
+through a `zen:` task. That was #64's whole point, and it took two rounds to actually reach — the
+first fix removed the coupling from the job that needed both halves and left it in the two that
+needed one.
+
+### What this supersedes, and why
+
+- **ADR-023's "the two Flutter runner jobs still reach into the sibling checkout by hand … Prudent's
+  two-line CI workaround stays until it is answered"** → **resolved.** *Why:* it was answered, in
+  under a day. The entry stands as written; the workaround it justified no longer exists.
+
+### Consequence
+
+Verified: `task zen:framework:prepare:l10n` runs green from Prudent's root, both workflows parse with
+five jobs intact, and `grep 'working-directory: jZen'` over `.github/workflows/` returns nothing.
+
+Nothing in Prudent's Java, Dart or TypeScript changed, so no suite could have caught a regression
+here and none was run for show — the change is orchestration, and the only honest proof of it is a
+fresh multi-repo CI clone, which is what the next push exercises.
+
+**Six findings, six consumed.** Worth stating once, plainly, because the number will not stay
+flattering: every framework gap Prudent has hit since the conversion began has been reported and
+fixed upstream rather than worked around permanently here, and the reason is that jZen and its second
+consumer are the same hands on the same day. ADR-023 already names what changes when publishing puts
+a release boundary between them; this entry is the last cheap one.
