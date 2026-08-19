@@ -1,11 +1,17 @@
 # Prudent — the plan for becoming a full-stack jZen application
 
-**Status:** proposed, awaiting approval. **Date:** 2026-08-15. **Written against:** this repository at
-`d6d6373`, and the `../jZen` checkout as it stands today (`task zen:info` reports its revision once
-`Taskfile.yml` exists — until then, `git -C ../jZen rev-parse --short HEAD`).
+**Status:** implemented. Phases 0–5 landed between 2026-08-15 and 2026-08-18; `main` is green on
+both CI operating systems. **Written against:** this repository at `d6d6373`, before any of it
+existed. **Date:** 2026-08-15, completed 2026-08-18.
 
-This document is the analysis and the sequence. **No application code is written until it is
-approved**, and nothing here restructures the repository yet.
+This document is the analysis and the sequence that produced the application, and it is kept as the
+record of both. Where the work disproved it, the text says so at the point of the claim rather than
+being quietly corrected — `docs/DECISIONS.md` is where each phase's outcome is actually recorded,
+and it wins on conflict. The one thing this document is not is a description of the app as it
+stands today; read the ADRs for that.
+
+**Not done, deliberately:** a real deploy. The deploy path is built and proven against throwaway
+environments only (ADR-020) — no cloud project, nothing billable, no live service.
 
 Prudent is a minimalist personal-finance application — accounts, categories, records, an overview
 and analytics. It is its own product and its own repository, and it is built on **jZen**, which
@@ -457,9 +463,17 @@ on an out-of-order version. A timestamp does both by construction, is above the 
 by orders of magnitude, and cannot be got wrong by omission. Recorded as a Prudent ADR before the
 first migration exists.
 
-Three further rules that come with it: every migration ships **RLS + a `zen_runtime` policy** in the
+Three further rules that come with it: every table ships **RLS and a `zen_runtime` policy** in the
 same change (§2.3); repeatables (`R__prudent_*.sql`) are for grants and policies only; **an applied
 migration is immutable, including its comments** — Flyway checksums the whole file.
+
+> **Corrected in build (ADR-010).** This section originally said the policy ships *in the same
+> migration*, which does not work: `zen_runtime` is created by `zen-identity`'s own **repeatable**
+> `R__identity_application_role.sql`, and repeatables run after every versioned migration — so a
+> versioned `CREATE POLICY … TO zen_runtime` references a role that does not exist yet on a fresh
+> database. The table creation and its `ENABLE ROW LEVEL SECURITY` are versioned; the policies live
+> in `R__prudent_row_level_security.sql`, which is what `zen-jobs` and `zen-ratelimit` already do.
+> "In the same change" is the rule; "in the same file" was the mistake.
 
 ## 3.5 Database and the local stack
 

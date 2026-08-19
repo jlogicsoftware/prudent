@@ -1713,3 +1713,250 @@ name; re-run, green.
   anticipates (no Prudent ADR yet — it is explicitly not this phase's to close), a real cloud
   project/region/service name, and `AUTH_REDIRECT_URIS` resolving to something other than
   `prudent.invalid`. None of the three is this phase's to close.
+
+---
+
+## ADR-021 — The deploy contract: every environment fact is passed in, and the gap that writing it exposed
+
+**Date:** 2026-08-18. **Status:** accepted. **Refines:** ADR-020. **Closes:** ADR-020's "a real
+cloud project/region/service name" only in the sense that it defines how one is supplied — none is
+named here, and none ever will be.
+
+### Decision
+
+`task deploy:cloudrun` and `task verify:deploy` exist. ADR-020 built the artifact half — the native
+image, the staged Wasm and admin bundles, `test:native` — and deliberately stopped before the cloud.
+This is the other half, written **without deploying anything**: no project, no billing, nothing
+billable, no live service.
+
+- **Six required variables, no defaults, and their absence is a loud failure naming each one:**
+  `GCP_PROJECT`, `GCP_REGION`, `SERVICE_NAME`, `ARTIFACT_REPO`, `RUNTIME_SERVICE_ACCOUNT`,
+  `WEB_API_URL`. This is CLAUDE.md's "no deployed environment fact is written into the repository"
+  applied literally, including to the service name. The reason is teardown: this repository outlives
+  any environment it deploys to, and a stale task *default* is worse than a stale doc line because
+  the task keeps working while pointing every build at a host that no longer exists.
+- **`WEB_API_URL` is not resolved automatically**, and the chicken-and-egg is stated rather than
+  hidden: client config is compile-time, so the bundle is built before the service exists, and the
+  first deploy of a new service is two — deploy to learn the URL, re-run with it set. Looking it up
+  would require the task to know the service name it is forbidden to commit.
+- **Eleven secrets**, fewer than jZen's fourteen because Prudent assembles no `zen-email`:
+  `SUPABASE_URL`, `SUPABASE_KEY`, `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `APP_DB_USERNAME`,
+  `APP_DB_PASSWORD`, `SITE_URL`, `AUTH_REDIRECT_URI`, `AUTH_REDIRECT_URIS`, `CORS_ORIGINS`, plus
+  `ZEN_JOBS_TRIGGER_TOKEN` (see below). `--set-secrets` fails the deploy when one is missing, which
+  is the point: a service that boots without one has a security control that is *absent* rather than
+  failing.
+- **Migrate, then deploy, and the exit code is the gate** (jZen ADR-038). The image just pushed runs
+  as a one-shot Cloud Run Job with `ZEN_MIGRATE_ONLY=true` on the DDL credentials — `APP_DB_*` is
+  deliberately absent from that job's secret list — and the service deploys only on exit 0. Exit 2
+  means the database is ahead of the image's migrations and aborts; `ALLOW_SCHEMA_ROLLBACK=true`
+  overrides it deliberately and gives up the only remaining check that binary and schema agree.
+- **`ZEN_I18N_SUPPORTED` is carried on every deploy, and blank is refused.** `--set-env-vars`
+  replaces the whole environment, so a value set by hand on the service is wiped by the next deploy;
+  and a blank variable — what an unset export actually produces — is *unconfigured*, not an empty
+  set (jZen ADR-044).
+- **`verify:deploy` asserts configuration, not only code**: both transport modes, guarded resources,
+  the web shell, the Wasm bundle, `/admin/`, `/openapi` **absent** from the native image, and the
+  redirect allowlist via a `restore-password` for a nonexistent account (204 regardless of whether
+  the account exists, so it reads the allowlist and nothing else, and mails no one).
+
+### The gap writing it exposed, and where the fault actually lies
+
+`application.properties` had **no `zen.jobs` configuration at all**, so `zen.jobs.trigger.token` was
+unset in `%prod`. Prudent assembles `zen-jobs` for exactly one reason — ADR-019's
+`PrudentRetentionCleanupJob`, which sweeps Prudent's own tables when `zen-identity` anonymises a
+dormant account — and that job could never have run in production.
+
+Nothing would have reported it. The trigger endpoint fails closed, which is correct; every suite was
+green (79/79), every request would have been served correctly, and every assertion in `verify:deploy`
+would have passed. A GDPR erasure control was present in the code and absent in production.
+
+**The configuration is Prudent's** (jZen ADR-007's split: the framework provides the mechanism, the
+application supplies the credential), and it is now supplied — `%prod.zen.jobs.trigger.token` reads
+`ZEN_JOBS_TRIGGER_TOKEN`, **empty by default** so an unset secret keeps the endpoint refusing rather
+than falling back to a token committed in this repository and therefore known to anyone who can read
+it. The scheduler entry is step 3 of `deploy:cloudrun`'s runbook.
+
+**The unobservability is jZen's**, filed as [jZen#65](https://github.com/jZenDev/jZen/issues/65) and
+tracked in [`docs/jzen/README.md`](jzen/README.md)'s findings table, which is where the state of every
+framework finding lives — reported / filed / fixed and consumed — so a later session can tell them
+apart without re-reading this log: the
+framework's only warning is call-time, and an application that has not configured the token has not
+created the scheduler entry either — so nothing calls it and the warning never fires. jZen is loud
+about a half-configured deployment and silent about a wholly unconfigured one.
+
+**Prudent does not wait on that.** (jZen fixed it on 2026-08-19 — see ADR-023; the sentence below described the state on the day this was written and stays as written, because the decision it justifies is unchanged: the two checks cover different halves.) `verify:deploy` asserts the Cloud Scheduler entry exists, so the
+inert state fails a gate Prudent owns, today, whatever upstream does. Where the scheduler cannot be
+inspected (no `GCP_PROJECT`/`GCP_REGION`), the check **announces itself as skipped** — "not checked
+here" and "passed" must never look alike.
+
+### What this supersedes, and why
+
+- **"What remains open … a real cloud project/region/service name"** (ADR-020, Consequence) →
+  **refined, not closed.** *Why:* the values remain unchosen and unnamed on purpose. What changes is
+  that there is now a defined way to supply them and a gate that refuses to proceed without them —
+  the open item was never "pick a project", it was "there is no path".
+- **`docs/prudent-migration-plan.md` §3.4's "every migration ships RLS + a `zen_runtime` policy in
+  the same change"** → **corrected in the plan itself** to name the repeatable, per ADR-010. *Why:*
+  the rule was right and the file placement was wrong, and the plan is kept as a record, so the
+  correction is annotated at the point of the claim rather than silently rewritten.
+- **`docs/prudent-migration-plan.md`'s status line, "proposed, awaiting approval"** → **updated to
+  implemented**, with the plan reframed as the record of how the application was built rather than a
+  description of what it now is. `docs/prudent-migration-prompt.md` gained a "historical — do not run
+  it again" banner for the same reason.
+
+### Consequence
+
+The deploy is a written, reviewable path rather than a set of commands someone types once. It has
+been exercised as far as it can be without an account: `task deploy:cloudrun` with nothing set fails
+naming all six variables and exits non-zero, `task verify:deploy` reports every check against an
+unreachable host as a failure and announces the scheduler check as skipped, and the Taskfile parses
+with both tasks discoverable in `task --list`.
+
+Verified green after the configuration change: `task test:server` **79/79**, `./mvnw test-compile`
+clean. Nothing was deployed, nothing billable was created, and `gcloud`'s active project — an
+unrelated one — was never used, because every call in these tasks passes `--project` explicitly and
+neither task touches global `gcloud` config.
+
+**Still open, and named rather than glossed over:** the publishing decision jZen ADR-026 anticipates
+(no Prudent ADR yet); a real cloud project, region, service name and Supabase production project;
+and the first actual deploy, which is the only thing that can prove the runbook's one-time setup
+steps are complete and correctly ordered.
+
+---
+
+## ADR-022 — The retention cascade becomes an observer, and the test that "proved" it is replaced because it could not fail
+
+**Date:** 2026-08-18. **Status:** accepted. **Supersedes the mechanism of:** ADR-019.
+**Consumes:** [jZen#63](https://github.com/jZenDev/jZen/issues/63) → jZen PR #66.
+
+### Decision
+
+jZen now fires `UserAnonymised(UUID)` per row, synchronously, from inside the transaction that
+anonymises it — the shape Prudent proposed. Prudent consumes it:
+
+- **`PrudentRetentionCleanupJob` is deleted**, along with the marker literal
+  `email like 'anon\_%@deleted.invalid'` it matched on.
+- **`PrudentRetentionCleanup` replaces it**: `void onUserAnonymised(@Observes UserAnonymised)`,
+  annotated `@Transactional(MANDATORY)`. `MANDATORY` states the requirement rather than assuming
+  it — the cascade must join the framework's transaction, so a cascade that throws rolls the
+  anonymisation back with it rather than leaving an anonymised identity beside orphaned financial
+  data. An event fired outside a transaction fails loudly instead of quietly committing alone.
+- **`JZEN_REF` is bumped to `9a0b5cc`** in `ci.yml` and `audit.yml`. Until this, the local checkout
+  was at the post-fix merge while CI pinned the commit before it — the two disagreed about whether a
+  data-protection control worked, and nothing said so.
+- `zen-jobs` is still assembled and the trigger token still matters: `UserRetentionZenJob` drives the
+  framework cycle that fires the event. If the trigger never fires, nothing is anonymised and no
+  cascade runs — the erasure path is inert end to end, which is what `verify:deploy`'s scheduler
+  assertion (ADR-021) exists to catch.
+
+### The part that matters more than the class: the test could not fail
+
+`PrudentRetentionCleanupJobTest` built its fixture by writing the anonymisation marker as a literal
+in the test, then asserted that a job matching *that same literal* swept it. Both sides were
+Prudent's own assumption about jZen, so it asserted a tautology. Had the framework renamed the
+marker, the sweep would have matched nothing, the GDPR cascade would have stopped, **and the test
+would have stayed green** — a data-protection control failing in complete silence, with a passing
+suite over it.
+
+`PrudentRetentionCleanupTest` replaces it and fabricates no anonymised user. It seeds a genuinely
+expired account — final warning delivered ten years ago, not premium, not already anonymised, which
+is what `UserRetentionService.anonymiseExpiredAccounts()` actually selects on — and calls the
+framework's own service. The ten years are deliberate: any plausible
+`zen.identity.retention.anonymise-offset-days` is shorter, so the test does not duplicate a config
+value, which is the same mistake in a smaller costume.
+
+**Verified by breaking it.** With the cascade short-circuited, the suite fails on "the record must be
+gone"; restored, it passes. A test that has never been seen to fail is not evidence.
+
+### What this supersedes, and why
+
+- **ADR-019's mechanism — "a second `ZenJob` that scans `users` for the anonymisation marker"** →
+  **replaced.** *Why:* the scan existed only because no event did. ADR-019's *decision* — that a
+  GDPR erasure must cascade into Prudent's tables — is unchanged and is now implemented properly.
+- **`docs/jzen/README.md`'s row for #63, "Filed upstream, awaiting a fix"** → **fixed and consumed**,
+  with the consumption described rather than asserted.
+- **`UserRetentionZenJob`'s "runs before `PrudentRetentionCleanupJob` by id ordering"** →
+  **moot, and said to be moot.** *Why:* an observer inside the anonymising transaction has no
+  ordering relationship to reason about. The old reasoning is kept, marked, because it is the
+  question the next reader will ask.
+
+### Consequence
+
+Prudent no longer depends on any framework implementation detail for its erasure path, and the
+dependency it does have is asserted against the framework's real behaviour on every CI run — so a
+future change upstream fails a test at the moment `JZEN_REF` moves, which is the only moment it can
+matter. `task test:server` green, **79/79**, against jZen `9a0b5cc`.
+
+**The general lesson, recorded because it is not about retention.** Watching an upstream issue is a
+human process and will fail eventually; this repository's answer to a coupling it cannot control is a
+test that goes red when the coupling breaks. The finding that started this (#63) was ultimately less
+valuable than noticing that the test defending against it asserted nothing.
+
+**Still open:** #64 and #65 remain filed and unfixed upstream, both with working local workarounds —
+and both, unlike this one, fail loudly rather than silently if the framework moves (#64 breaks the
+build; #65 is gated by `verify:deploy`).
+
+---
+
+## ADR-023 — Both remaining framework findings are consumed; where a workaround survives, it survives for a stated reason
+
+**Date:** 2026-08-19. **Status:** accepted.
+**Consumes:** [jZen#64](https://github.com/jZenDev/jZen/issues/64) → jZen PR #67,
+[jZen#65](https://github.com/jZenDev/jZen/issues/65) → jZen PR #68. **Follows:** ADR-021, ADR-022.
+
+### Decision
+
+`JZEN_REF` moves to `36c0ca8` in `ci.yml` and `audit.yml`, and both fixes are consumed:
+
+- **#64 — `zen:framework:prepare`.** The `gates` job calls it, and **both** hand-written
+  workarounds are deleted: the `task zen:generate:l10n` run with `working-directory: jZen`, and the
+  `pnpm install` scoped to `jZen/admin`.
+- **#65 — the boot-time inertness warning.** No Prudent code changed. `JobScheduler` now checks
+  both facts at startup, so an application that registers jobs with no trigger token is told so on
+  the first `%prod` boot rather than at whatever later moment someone audits secrets.
+
+### Two consequences that are not "delete the workaround"
+
+**`%test.zen.jobs.trigger.token` had to be set, and the reason is the point of the finding.** The
+new warning fired on **every Prudent test run** — correctly, by its own logic: `%test` registers two
+jobs and had no token. But it is true of nothing there, since a `@QuarkusTest` calls its jobs
+directly and needs no trigger. A warning that always fires is a warning nobody reads, which would
+have cost exactly the signal #65 was filed to gain. Consuming a fix includes not drowning it.
+
+**The two Flutter runner jobs still reach into the sibling checkout by hand**, and that is recorded
+rather than quietly kept. `zen:framework:prepare` does two things — generate jZen's l10n *and*
+`pnpm install` its admin scaffold — and `android-runner` and `windows-runner` have no Node toolchain
+at all, so calling it would fail on the half they never consume. Adding Node to two jobs to satisfy a
+task's shape would cost minutes per run for an install nothing reads. So those jobs keep
+`task zen:generate:l10n` with `working-directory: jZen`, with a comment saying it is deliberate and
+why. **Follow-up finding, filed as [jZen#69](https://github.com/jZenDev/jZen/issues/69):** `prepare`
+is all-or-nothing, and the l10n half is what a Flutter runner job needs on its own. Prudent's
+two-line CI workaround stays until it is answered, and is commented as deliberate rather than
+left to look like an oversight.
+
+**`verify:deploy`'s scheduler assertion stays** (ADR-021). The startup warning proves a *token*
+exists; it cannot see whether anything actually calls the trigger. A deployment with a token and no
+Cloud Scheduler entry is silent under both checks individually and caught by Prudent's. They cover
+different halves, and neither is the other's backstop.
+
+### What this supersedes, and why
+
+- **`docs/jzen/README.md`'s rows for #64 and #65, "Filed upstream, awaiting a fix"** → **fixed and
+  consumed**, with the surviving workaround and its reason stated in the row rather than left to be
+  rediscovered. No row in that table now reads "awaiting".
+- **ADR-021's implication that the jobs-token gap is invisible until a deploy** → **narrowed.** *Why:*
+  it is now visible at the first `%prod` boot, upstream. Prudent's own gate is no longer the only
+  thing standing between a misconfiguration and an inert erasure path — it is the second thing.
+
+### Consequence
+
+Every framework finding Prudent has raised is now consumed (#54, #61, #63, #64, #65), and the only
+outstanding item is a follow-up worth one issue rather than a workaround worth carrying. `task
+test:server` green **79/79** against jZen `36c0ca8`, with the startup warning correctly silent.
+
+**What made this cheap, stated because it will not always be:** three findings were filed on
+2026-08-18 and all three were fixed and consumable within a day, because the framework and its second
+consumer are being developed together by the same hands. That is a property of today, not of the
+architecture. The moment jZen is published and versioned, "consume the fix" becomes "wait for a
+release", and the workarounds recorded above become things Prudent carries for months rather than
+hours. That is an argument for the publishing ADR to be taken deliberately, not an argument against it.
