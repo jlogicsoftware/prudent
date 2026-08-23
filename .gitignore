@@ -72,3 +72,6 @@ target/
 # API URL has no business in git, and the tracked openapi.yaml one directory up is untouched by
 # either task's --delete.
 server/src/main/resources/META-INF/resources/
+
+# Python bytecode from the .claude/hooks guards
+__pycache__/
