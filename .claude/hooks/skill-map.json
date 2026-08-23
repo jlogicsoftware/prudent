@@ -1,0 +1,58 @@
+{
+  "//": "Path-triggered skill delivery. See .claude/hooks/skill_guard.py.",
+  "rules": [
+    {
+      "skill": "sync-contracts",
+      "why": "it is a contract source or a tracked generated artifact -- a generated file is never hand-edited",
+      "paths": [
+        "proto/prudent/v1/*.proto",
+        "client/lib/src/generated/*",
+        "admin/src/api/schema.generated.ts",
+        "*.pb.dart",
+        "*.pbjson.dart",
+        "*.pbenum.dart"
+      ],
+      "exclude": [
+        "target/*",
+        "*/node_modules/*",
+        "build/*"
+      ]
+    },
+    {
+      "skill": "add-endpoint",
+      "why": "it is a JAX-RS resource, where the OpenAPI merge rule, the Jandex rule and the no-Jackson rule all apply",
+      "paths": [
+        "*Resource.java",
+        "*/META-INF/openapi.yaml"
+      ],
+      "exclude": [
+        "target/*"
+      ]
+    },
+    {
+      "skill": "add-adr",
+      "why": "ADRs are append-only -- add an entry, never edit an accepted one",
+      "paths": [
+        "docs/DECISIONS.md"
+      ]
+    },
+    {
+      "skill": "long-job",
+      "why": "it is a build or suite; never wait on it in the foreground",
+      "commands": [
+        "\\btask\\s+(test|build)\\b",
+        "\\bmvnw\\b[^|;&]*\\b(test|verify|package)\\b",
+        "\\bsupabase\\s+start\\b",
+        "\\bflutter\\s+build\\b"
+      ]
+    },
+    {
+      "skill": "jzen-reference",
+      "why": "the sibling jZen checkout is read-only from here; read it, never write to it",
+      "commands": [
+        "\\.\\./jZen/",
+        "\\bcd\\s+\\.\\./jZen\\b"
+      ]
+    }
+  ]
+}

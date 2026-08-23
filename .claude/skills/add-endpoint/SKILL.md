@@ -5,9 +5,6 @@ description: Add a REST endpoint to Prudent's Quarkus backend the contract-first
 
 # Adding a Prudent backend endpoint
 
-**Status: `server/` does not exist yet.** Until the conversion lands it, this describes the shape
-to build, not a tree to edit.
-
 Prudent is **proto-first and contract-first**. A resource method names only domain/proto types;
 jZen's transport seam negotiates the wire format via the `X-Zen-Transport` header
 (`json`/`protobuf`), and echoes it back. Read `../jZen/docs/architecture/BLUEPRINT.md` (transport
@@ -42,7 +39,9 @@ public Response get(@PathParam("id") String id) {
 Map the Panache entity ⇄ proto with **MapStruct** (or a hand-written `toProto`). Persistence is
 Hibernate Panache in **active-record** style — no repository classes.
 
-The reference implementations live in the jZen checkout:
+Prudent's own resources are the closest examples — `server/src/main/java/prudent/server/record/
+RecordResource.java` with `RecordMapper`, and `settings/SettingsResource.java` with
+`SettingsMapper`. Beyond those, the reference implementations live in the jZen checkout:
 `../jZen/server/zen-identity/**/AdminUserResource.java` and `**/auth/AuthResource.java`, and the
 reference application is `../jZen/apps/zen_demo/zen_demo_server`. Read them; do not copy framework
 source into this repository.
@@ -77,7 +76,7 @@ backend suite. A `@QuarkusTest` needs an assembled app and Docker running (Dev S
 
 ## Admin/list endpoints
 
-If Prudent has a react-admin panel, it is JSON-only. List endpoints return a **bare JSON array plus
-a `Content-Range` header** (the `ra-data-simple-rest` convention), each element the declared proto
+The react-admin panel lives in `admin/` and is JSON-only. List endpoints return a **bare JSON array
+plus a `Content-Range` header** (the `ra-data-simple-rest` convention), each element the declared proto
 rendered with `JsonFormat.printer().alwaysPrintFieldsWithNoPresence()`. Add
 `Content-Range`/`Accept-Ranges` to the CORS `exposed-headers`.
