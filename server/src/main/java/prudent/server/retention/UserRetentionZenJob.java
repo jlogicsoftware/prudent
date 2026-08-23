@@ -14,7 +14,11 @@ import zen.jobs.ZenJob;
  * nothing about users — Prudent, the only party that knows it wants dormant accounts erased,
  * joins them.
  *
- * <p><strong>Runs before {@link PrudentRetentionCleanupJob}</strong> by id ordering is not
+ * <p><strong>Prudent's own cascade is no longer a second job</strong> and no longer depends on
+ * ordering at all: {@link PrudentRetentionCleanup} observes {@code UserAnonymised}, fired inside
+ * this cycle's own transaction (ADR-022). What follows is kept because the ordering question it
+ * answers is the one a reader will ask next — it is now moot, and that is worth saying rather
+ * than leaving the reasoning to be reconstructed. Ordering was
  * something either job depends on — both are read the framework's own way (idempotent, safe in
  * any order or interleaving), but this one is what actually produces the anonymised accounts the
  * other sweeps for, so a fresh deployment's first tick anonymises before it has anything to

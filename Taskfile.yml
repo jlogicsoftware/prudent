@@ -70,6 +70,9 @@ vars:
   # serves them same-origin with the API (load-bearing for the session cookie — see build:web's
   # own summary). Gitignored; never committed.
   WEB_RESOURCES: server/src/main/resources/META-INF/resources
+  # The port the backend serves on locally. 8085, not 8080: jZen's own stack holds 8080,
+  # and Taskfile.app.yml already defaults an application's API to 8085 (ADR-010).
+  APP_PORT: '8085'
   # NO DART_OUT HERE. The generated Dart messages' location is declared ONCE, as PROTO_DART_OUT on
   # the include above, because the framework's task is what writes them. A second copy of the path
   # in this map would be a value nothing reads until someone changes the wrong one.
@@ -461,6 +464,156 @@ tasks:
         -Dquarkus.native.container-build=true
         -Dquarkus.native.container-runtime-options=--platform=linux/amd64
 
+  # ---------------------------------------------------------------------------
+  # Running the stack locally, interactively. The gate that already knew how to
+  # do this is test:e2e — these tasks take the same shapes and keep the stack UP.
+  # ---------------------------------------------------------------------------
+  run:supabase:
+    desc: Start Prudent's own local Supabase (auth + Postgres) — idempotent
+    silent: true
+    summary: |
+      Prudent's Supabase project, not jZen's, and the ports say so: API 54331, Postgres 54332,
+      Studio 54333, Inbucket 54334 (supabase/config.toml). jZen's own stack holds 54321/54322, so
+      both products can run at once — which is the whole reason the ports were shifted rather than
+      inherited (the plan's open question §5.4, answered in Phase 2).
+
+      INBUCKET IS THE ONE TO REMEMBER when testing sign-up: a local Supabase mails nothing to the
+      outside world, so the confirmation and recovery links land at http://localhost:54334 rather
+      than in a real mailbox. That is where the `prudent://auth-callback` link is, and following it
+      from there is what exercises the deep-link path a real user would take.
+
+      Idempotent: an already-running stack is left alone rather than restarted, so this is safe to
+      run before anything else.
+    cmds:
+      - |
+        set -eu
+        command -v supabase >/dev/null || { echo "supabase CLI not found: https://supabase.com/docs/guides/cli"; exit 1; }
+        if supabase status >/dev/null 2>&1; then
+          echo "Supabase already running."
+        else
+          supabase start
+        fi
+        echo
+        echo "  Studio:    http://localhost:54333"
+        echo "  Mailbox:   http://localhost:54334   <- confirmation + recovery links arrive here"
+        echo "  Postgres:  postgresql://postgres:postgres@localhost:54332/postgres"
+
+  run:server:
+    desc: Run the backend in Quarkus dev mode on :8085, against the local Supabase
+    silent: true
+    summary: |
+      Quarkus DEV MODE (live reload), not the packaged jar test:e2e runs — the difference is the
+      point: a code change here is picked up without a restart, which is what makes this worth
+      having beside the gate.
+
+      It reads SUPABASE_URL and SUPABASE_KEY out of the running local stack rather than asking for
+      them, the same way test:e2e does. There is no fallback if Supabase is down: the server would
+      start, serve, and 500 every auth call, which looks like a broken backend rather than a stack
+      that was never started. So it fails first, saying what to run.
+
+      %dev points the datasource at Prudent's own Supabase Postgres (127.0.0.1:54332) and migrates
+      at boot, so the schema is applied by simply running this. %prod does neither — migration is
+      an act of the deploy (jZen ADR-038).
+
+      Holds the terminal. Ctrl-C stops it.
+    deps: [run:supabase]
+    cmds:
+      - |
+        set -eu
+        eval "$(supabase status -o env | sed 's/^/export SB_/')"
+        export SUPABASE_URL="${SB_API_URL}"
+        export SUPABASE_KEY="${SB_ANON_KEY}"
+        echo ">> Supabase at ${SUPABASE_URL}; starting Quarkus dev on :{{.APP_PORT}}"
+        cd {{.SERVER_DIR}} && ./mvnw -B quarkus:dev -Dquarkus.http.port={{.APP_PORT}}
+
+  run:client:
+    desc: Run the Flutter app against the local backend (DEVICE=<flutter device id>)
+    silent: true
+    summary: |
+      Every value the client needs is COMPILE-TIME (STANDARDS "Client config is compile-time"), so
+      they are --dart-defines here rather than environment variables the app reads at runtime:
+      ZEN_ENV, ZEN_PLATFORM, ZEN_API_URL, and ZEN_AUTH_REDIRECT_URI.
+
+      ZEN_PLATFORM is derived from the target, not from the host, because it is what zenIsDesktop
+      and the codec seam branch on — passing the host's platform for a phone build would compile
+      the wrong branch of both.
+
+      ZEN_AUTH_REDIRECT_URI must match the scheme registered in the platform manifests AND the
+      server's AUTH_REDIRECT_URIS exactly; the server matches return addresses by exact string on
+      purpose, so a near-miss is refused rather than approximated (ADR-013).
+
+      DEVICE selects the target the way `flutter run -d` does: `task run:client DEVICE=chrome`,
+      `DEVICE=macos`, or a device id from `flutter devices`. Defaults to macOS, the one target that
+      needs no simulator running.
+    vars:
+      DEVICE: '{{.DEVICE | default "macos"}}'
+      # PINNED, not left to Flutter. `flutter run -d chrome` picks a RANDOM port each run, which
+      # makes the browser's Origin different every time — and the backend's CORS allowlist
+      # (quarkus.http.cors.origins, default http://localhost:8090,http://localhost:5173) can only
+      # ever name fixed origins. An unpinned port therefore fails every cross-origin call with
+      # "403 CORS Rejected - Invalid origin", which surfaces in the browser as an opaque network
+      # error on /register and looks like a broken backend. 8090 is the port that default list was
+      # written for. Overriding it means overriding CORS_ORIGINS to match — the check below says so
+      # rather than letting the request fail three layers away from the cause.
+      WEB_PORT: '{{.WEB_PORT | default "8090"}}'
+      # The Flutter device id and ZEN_PLATFORM disagree on names for the web target, and only
+      # there: `chrome` is a browser, `web` is the platform the client's constants know about.
+      PLATFORM:
+        sh: |
+          case "{{.DEVICE | default "macos"}}" in
+            chrome|edge|web-server) echo web ;;
+            macos)                  echo macos ;;
+            linux)                  echo linux ;;
+            windows)                echo windows ;;
+            *)                      echo "" ;;
+          esac
+    cmds:
+      - |
+        set -eu
+        PLATFORM='{{.PLATFORM}}'
+        if [ -z "${PLATFORM}" ]; then
+          # An emulator or a phone: the id is arbitrary (emulator-5554, a UDID), so it cannot be
+          # mapped by name. Ask rather than guess — a wrong ZEN_PLATFORM compiles cleanly and is
+          # wrong at runtime, which is the failure this refuses to make quietly.
+          echo "Cannot infer ZEN_PLATFORM from DEVICE='{{.DEVICE}}'."
+          echo "Pass it explicitly, e.g.:  task run:client DEVICE={{.DEVICE}} PLATFORM=android"
+          exit 1
+        fi
+        curl -sf "http://localhost:{{.APP_PORT}}/api/v1/health" >/dev/null 2>&1 || {
+          echo "No backend answering on :{{.APP_PORT}} — run 'task run:server' in another terminal."
+          exit 1
+        }
+        # Web targets are cross-origin against :{{.APP_PORT}} and need the pinned port; native
+        # targets have no origin at all and ignore it.
+        WEB_ARGS=""
+        if [ "${PLATFORM}" = "web" ]; then
+          WEB_ARGS="--web-hostname localhost --web-port {{.WEB_PORT}}"
+          case ",${CORS_ORIGINS:-http://localhost:8090,http://localhost:5173}," in
+            *",http://localhost:{{.WEB_PORT}},"*) ;;
+            *)
+              echo "WEB_PORT={{.WEB_PORT}} is not in the server's CORS allowlist, so every call from"
+              echo "the browser will be rejected with 403 CORS Rejected - Invalid origin."
+              echo "Either drop WEB_PORT, or restart the server with:"
+              echo "  CORS_ORIGINS=http://localhost:{{.WEB_PORT}} task run:server"
+              exit 1 ;;
+          esac
+          echo ">> serving the app on http://localhost:{{.WEB_PORT}} (origin the backend allows)"
+        fi
+        # ZEN_AUTH_REDIRECT_URI IS NATIVE-ONLY, and passing it on web is a defect rather than a
+        # harmless extra. Empty — the web default — means "wherever the server sends people by
+        # default", which for a browser is the same origin it was served from. A web build that
+        # asks to be returned to `prudent://auth-callback` is asking the browser to hand an email
+        # link to a native app that may not be installed, and the server refuses the unlisted
+        # address outright: `invalid_redirect`, which reads as a broken backend and is not.
+        AUTH_ARGS=""
+        if [ "${PLATFORM}" != "web" ]; then
+          AUTH_ARGS="--dart-define=ZEN_AUTH_REDIRECT_URI=prudent://auth-callback"
+        fi
+        cd {{.CLIENT_DIR}} && flutter run -d '{{.DEVICE}}' ${WEB_ARGS} ${AUTH_ARGS} \
+          --dart-define=ZEN_ENV=dev \
+          --dart-define=ZEN_PLATFORM="${PLATFORM}" \
+          --dart-define=ZEN_API_URL="http://localhost:{{.APP_PORT}}"
+
   run:admin:
     desc: Start the admin panel dev server on :5173 (proxies /api and /openapi to :8085)
     dir: "{{.ADMIN_DIR}}"
@@ -843,6 +996,303 @@ tasks:
         rc=$?
         stop_server
         exit "${rc}"
+
+  # ---------------------------------------------------------------------------
+  # Deploy (Phase 5). NOTHING HERE NAMES AN ENVIRONMENT.
+  # ---------------------------------------------------------------------------
+  deploy:cloudrun:
+    desc: Build, push, migrate, and deploy Prudent to Cloud Run — every environment fact passed in
+    silent: true
+    summary: |
+      Deploys the artifact `task test:native` already proved locally. Read that task first: this
+      one adds a registry, a service account and a bill, and changes nothing about what is shipped.
+
+      NO ENVIRONMENT FACT IS WRITTEN INTO THIS REPOSITORY — not the project, not the region, not
+      the service name, not the URL, not the image tag (CLAUDE.md; jZen STANDARDS "Deployment
+      model"). They are REQUIRED VARIABLES and their absence is a loud failure naming what to set,
+      never a default. The reason is teardown: this repository outlives any environment it deploys
+      to, and a stale task default keeps working while pointing every build at a host that no
+      longer exists — which presents as a bug in the application.
+
+        GCP_PROJECT              the project to deploy into
+        GCP_REGION               e.g. europe-west1
+        SERVICE_NAME             the Cloud Run service
+        ARTIFACT_REPO            the Artifact Registry docker repository
+        RUNTIME_SERVICE_ACCOUNT  the runtime identity (NOT the default Compute SA — see 1f)
+        WEB_API_URL              the origin the web bundle is compiled to call
+
+      WEB_API_URL IS A CHICKEN AND EGG, AND IT IS DELIBERATELY NOT RESOLVED FOR YOU. The bundle is
+      compiled before the service exists, and client config is compile-time, so the first deploy of
+      a new service is two: deploy once to learn the URL, then re-run with WEB_API_URL set to it.
+      Looking it up automatically would require this task to know the service name it is forbidden
+      to commit, and would silently produce a bundle calling the wrong origin on the run where the
+      lookup failed.
+
+      ORDER, AND WHY THE MIGRATION COMES FIRST (jZen ADR-038). In %prod the application neither
+      migrates nor validates at boot. The image just pushed is run as a one-shot Cloud Run Job with
+      ZEN_MIGRATE_ONLY=true, on the DDL credentials, and the service is deployed ONLY if that job
+      exits 0. Its exit code is read and acted on: a zero returned over a failed migration would
+      let a revision serve a schema that was never created. Exit 2 means the DATABASE IS AHEAD of
+      the image's migrations — a rollback onto a newer schema — and aborts the deploy;
+      ALLOW_SCHEMA_ROLLBACK=1 overrides it deliberately and gives up the only remaining check that
+      the running binary and its schema agree.
+
+      ONE-TIME SETUP, done once per environment by an operator:
+
+        1a. gcloud projects create PROJECT --name="Prudent"
+        1b. gcloud billing projects link PROJECT --billing-account=BILLING_ACCOUNT_ID
+        1c. gcloud services enable run.googleapis.com artifactregistry.googleapis.com \
+              secretmanager.googleapis.com cloudscheduler.googleapis.com --project=PROJECT
+        1d. gcloud artifacts repositories create prudent --repository-format=docker \
+              --location=REGION --project=PROJECT
+        1e. gcloud auth configure-docker REGION-docker.pkg.dev
+        1f. A dedicated runtime service account, because omitting it does NOT fail: gcloud
+            silently assigns the project's default Compute service account, which is an editor on
+            everything in the project.
+              gcloud iam service-accounts create prudent-runtime --project=PROJECT
+              gcloud projects add-iam-policy-binding PROJECT --condition=None \
+                --member=serviceAccount:prudent-runtime@PROJECT.iam.gserviceaccount.com \
+                --role=roles/secretmanager.secretAccessor
+
+        2. THE ELEVEN CONFIGURATION SECRETS. --set-secrets below fails the deploy if any is
+           missing, which is the point: a service that boots without one is a service whose
+           security control is absent rather than failing.
+
+             mk() { printf '%s' "$2" | gcloud secrets create "$1" --data-file=- --project=PROJECT; }
+             mk SUPABASE_URL            https://PROJECT.supabase.co
+             mk SUPABASE_KEY            <the service_role key — server-side only, NEVER a client>
+             mk DB_URL                  jdbc:postgresql://…pooler.supabase.com:5432/postgres
+             mk DB_USERNAME             <DDL role: migrations run as this>
+             mk DB_PASSWORD             <DDL role password>
+             mk APP_DB_USERNAME         zen_runtime          # least privilege at runtime
+             mk APP_DB_PASSWORD         <zen_runtime password>
+             mk SITE_URL                https://<service host>
+             mk AUTH_REDIRECT_URI       https://<service host>/auth/callback
+             mk AUTH_REDIRECT_URIS      prudent://auth-callback
+             mk CORS_ORIGINS            https://<service host>
+             mk ZEN_JOBS_TRIGGER_TOKEN  "$(openssl rand -base64 32)"
+
+           AUTH_REDIRECT_URIS IS PART OF THE CONTRACT, not an extra. Empty means the native app's
+           return address is refused with 400 invalid_redirect, and nothing in any suite can see
+           the difference — the image is byte-identical either way. The Supabase dashboard's own
+           Redirect URLs list must carry the same values, and it fails DIFFERENTLY and silently:
+           GoTrue drops an unlisted target and falls back to the Site URL, so the email arrives and
+           opens the wrong application.
+
+        3. The scheduler entry that drives zen-jobs, INCLUDING Prudent's GDPR sweep (ADR-019).
+           Without it the retention cascade never runs in production, and nothing reports that:
+           the trigger endpoint fails closed, so an unconfigured deployment looks healthy.
+
+             gcloud scheduler jobs create http prudent-jobs-tick \
+               --location=REGION --project=PROJECT --schedule="0 * * * *" \
+               --uri="https://<service host>/api/v1/jobs/trigger" --http-method=POST \
+               --headers="X-Zen-Job-Token=$(gcloud secrets versions access latest \
+                  --secret=ZEN_JOBS_TRIGGER_TOKEN --project=PROJECT)"
+
+      This task never touches your global gcloud config, so it cannot leave your shell pointed at
+      a project you did not choose. Every call passes --project explicitly.
+    vars:
+      ROLLBACK: '{{.ALLOW_SCHEMA_ROLLBACK | default "false"}}'
+      # The image tag is the commit, resolved now and never written down. A tag in a file is an
+      # environment fact by another name.
+      IMAGE_TAG:
+        sh: git rev-parse --short HEAD
+    cmds:
+      - |
+        set -eu
+
+        # ── Preflight. Each missing value names itself; none of them has a default. ──
+        missing=0
+        for v in GCP_PROJECT GCP_REGION SERVICE_NAME ARTIFACT_REPO RUNTIME_SERVICE_ACCOUNT WEB_API_URL; do
+          eval "val=\${$v:-}"
+          if [ -z "$val" ]; then echo "MISSING: $v"; missing=1; fi
+        done
+        if [ "$missing" -ne 0 ]; then
+          echo
+          echo "Every environment fact is passed in, never committed (CLAUDE.md)."
+          echo "See 'task deploy:cloudrun --summary' for what each one is and how to create it."
+          exit 1
+        fi
+        command -v gcloud >/dev/null || { echo "gcloud not found."; exit 1; }
+        gcloud auth print-access-token >/dev/null 2>&1 || { echo "Not authenticated: gcloud auth login"; exit 1; }
+
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "WORKING TREE IS DIRTY. The image would be tagged {{.IMAGE_TAG}}, which names a"
+          echo "commit that does not describe what is being shipped. Commit or stash first."
+          exit 1
+        fi
+
+        IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/${ARTIFACT_REPO}/prudent-server:{{.IMAGE_TAG}}"
+        echo ">> image: ${IMAGE}"
+
+      # The bundles must be staged BEFORE the native build bakes them in. build:web reads the
+      # produced artifact back to prove WEB_API_URL actually applied (a --dart-define change does
+      # not invalidate Flutter's web build cache — jZen ADR-037).
+      - task: build:web
+      - task: build:web:admin
+      - task: build:server:native
+      - |
+        set -eu
+        IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/${ARTIFACT_REPO}/prudent-server:{{.IMAGE_TAG}}"
+
+        # linux/amd64 regardless of the developer's CPU: the image must match Cloud Run, and a
+        # native binary is not portable across architectures.
+        docker build --platform linux/amd64 \
+          -f {{.SERVER_DIR}}/src/main/docker/Dockerfile.native-micro \
+          -t "${IMAGE}" {{.SERVER_DIR}}
+        docker push "${IMAGE}"
+
+        SECRETS="SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_KEY=SUPABASE_KEY:latest,DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,SITE_URL=SITE_URL:latest,AUTH_REDIRECT_URI=AUTH_REDIRECT_URI:latest,AUTH_REDIRECT_URIS=AUTH_REDIRECT_URIS:latest,CORS_ORIGINS=CORS_ORIGINS:latest,ZEN_JOBS_TRIGGER_TOKEN=ZEN_JOBS_TRIGGER_TOKEN:latest"
+        APP_DB="APP_DB_USERNAME=APP_DB_USERNAME:latest,APP_DB_PASSWORD=APP_DB_PASSWORD:latest"
+
+        # ZEN_I18N_SUPPORTED is carried EXPLICITLY on every deploy. --set-env-vars replaces the
+        # whole environment, so a value set by hand on the service is wiped by the next deploy;
+        # and a blank value is UNCONFIGURED, not an empty set, so it is refused here rather than
+        # silently narrowing the languages Prudent answers in to the framework's own.
+        LOCALES="${ZEN_I18N_SUPPORTED:-en,uk,pl}"
+        if [ -z "${LOCALES}" ]; then
+          echo "ZEN_I18N_SUPPORTED is blank. Blank is unconfigured, not an empty set."
+          exit 1
+        fi
+
+        # ── The deploy's first half: migrate, with the image just built, before anything serves.
+        # Runs on the DDL credentials, so APP_DB_* is deliberately absent from its secret list.
+        echo ">> migration job"
+        gcloud run jobs deploy "${SERVICE_NAME}-migrate" \
+          --image="${IMAGE}" --region="${GCP_REGION}" --project="${GCP_PROJECT}" \
+          --service-account="${RUNTIME_SERVICE_ACCOUNT}" \
+          --memory=512Mi --cpu=1 --max-retries=0 --task-timeout=10m \
+          --set-env-vars="ZEN_MIGRATE_ONLY=true,QUARKUS_HTTP_HOST_ENABLED=false,ZEN_ALLOW_SCHEMA_ROLLBACK={{.ROLLBACK}}" \
+          --set-secrets="${SECRETS}" \
+          --quiet
+
+        # The exit code IS the gate. Nothing here tolerates a non-zero: a migration that failed
+        # must abort the deploy rather than let a revision serve a schema nobody created.
+        if ! gcloud run jobs execute "${SERVICE_NAME}-migrate" \
+               --region="${GCP_REGION}" --project="${GCP_PROJECT}" --wait --quiet; then
+          echo
+          echo "MIGRATION FAILED — the service was NOT deployed, and the running revision is"
+          echo "untouched. Exit 2 from the job means the database is AHEAD of this image's"
+          echo "migrations (a rollback onto a newer schema); re-run with ALLOW_SCHEMA_ROLLBACK=true"
+          echo "only if you accept that nothing then checks that the binary and its schema agree."
+          echo "Logs:"
+          echo "  gcloud logging read 'resource.type=cloud_run_job' --project=${GCP_PROJECT} --limit=50"
+          exit 1
+        fi
+
+        # ── The deploy's second half: the same image, serving, against the migrated schema. ──
+        echo ">> service"
+        gcloud run deploy "${SERVICE_NAME}" \
+          --image="${IMAGE}" --region="${GCP_REGION}" --project="${GCP_PROJECT}" \
+          --service-account="${RUNTIME_SERVICE_ACCOUNT}" \
+          --port=8085 \
+          --max-instances=1 --min-instances=0 --concurrency=200 \
+          --memory=256Mi --cpu=1 \
+          --allow-unauthenticated \
+          --set-env-vars="ZEN_I18N_SUPPORTED=${LOCALES}" \
+          --set-secrets="${SECRETS},${APP_DB}" \
+          --quiet
+
+        URL=$(gcloud run services describe "${SERVICE_NAME}" --region="${GCP_REGION}" \
+                --project="${GCP_PROJECT}" --format='value(status.url)')
+        echo
+        echo "Deployed: ${URL}"
+        echo "Now run:  SERVICE_URL=${URL} task verify:deploy"
+        echo
+        echo "This URL is deliberately not written anywhere in this repository."
+
+  verify:deploy:
+    desc: Assert a deployed Prudent is actually correct — configuration included, not just code
+    silent: true
+    summary: |
+      "Is the deployment healthy?" is answered by running this, never by reading a status recorded
+      in a document: a recorded status is true for exactly one deploy.
+
+      It asserts CONFIGURATION as well as code, which is the half no suite can reach. jZen's own
+      history is the argument: an empty AUTH_REDIRECT_URIS produced a deployment where every other
+      assertion passed green, the image was byte-identical to a working one, and no native client
+      could authenticate at all.
+
+      Pass SERVICE_URL, or GCP_PROJECT + GCP_REGION + SERVICE_NAME to resolve it.
+
+      NOT ASSERTED HERE, and deliberately: that `pl` formats as Polish in the native image. That
+      check registers a user and reads users.language back from the database, which is a thing to
+      do against a throwaway environment and not against production. It lives in `task test:native`
+      and runs against the same binary this deploys.
+    cmds:
+      - |
+        set -eu
+        URL="${SERVICE_URL:-}"
+        if [ -z "${URL}" ]; then
+          for v in GCP_PROJECT GCP_REGION SERVICE_NAME; do
+            eval "val=\${$v:-}"
+            [ -n "$val" ] || { echo "Set SERVICE_URL, or GCP_PROJECT + GCP_REGION + SERVICE_NAME."; exit 1; }
+          done
+          URL=$(gcloud run services describe "${SERVICE_NAME}" --region="${GCP_REGION}" \
+                  --project="${GCP_PROJECT}" --format='value(status.url)')
+        fi
+        echo ">> verifying ${URL}"
+        fail=0
+        check() { # name expected actual
+          if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"
+          else printf '  FAIL  %s (expected %s, got %s)\n' "$1" "$2" "$3"; fail=1; fi
+        }
+        code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+
+        check "health (json)"     200 "$(code -H 'X-Zen-Transport: json'     "${URL}/api/v1/health")"
+        check "health (protobuf)" 200 "$(code -H 'X-Zen-Transport: protobuf' "${URL}/api/v1/health")"
+        check "records are guarded" 401 "$(code "${URL}/api/v1/records")"
+        check "web shell"         200 "$(code "${URL}/")"
+        check "wasm bundle"       200 "$(code "${URL}/main.dart.wasm")"
+        check "admin shell"       200 "$(code "${URL}/admin/")"
+
+        # /openapi must NOT be served: quarkus-smallrye-openapi is build tooling and is absent
+        # from the native image, so a 200 here means prod shipped a complete map of every route,
+        # verb and status code the service accepts.
+        check "openapi absent"    404 "$(code "${URL}/openapi")"
+
+        # The one that reads CONFIGURATION rather than code. restore-password answers 204 whether
+        # or not the account exists, so it reads the redirect allowlist and nothing else, and mails
+        # no one. A 400 here means AUTH_REDIRECT_URIS is unset and no native client can sign in.
+        check "redirect allowlist" 204 "$(code -X POST -H 'Content-Type: application/json' \
+          -d '{"email":"nobody@prudent.invalid","redirectUri":"prudent://auth-callback"}' \
+          "${URL}/api/v1/auth/restore-password")"
+
+        # ── Is scheduled work actually reachable? ──
+        #
+        # Prudent assembles zen-jobs for one reason: UserRetentionZenJob drives the framework's
+        # GDPR retention cycle, and Prudent's cascade observes the UserAnonymised it fires. It sweeps
+        # own tables when zen-identity anonymises a dormant account (ADR-019). If the trigger
+        # credential or the scheduler entry is missing, that job never runs — and NOTHING SAYS SO.
+        # The framework's only warning is call-time (jZenDev/jZen#65), so it cannot fire when the
+        # thing that would call it does not exist; the service serves every request correctly and
+        # every assertion above passes green while a data-protection control is inert.
+        #
+        # So this is asserted here, from outside, because the deployment is the only place both
+        # halves are visible. It is a check of CONFIGURATION, like the redirect allowlist above,
+        # and it exists because 'the code is right' and 'the control is running' are different
+        # claims.
+        if [ -n "${GCP_PROJECT:-}" ] && [ -n "${GCP_REGION:-}" ]; then
+          if gcloud scheduler jobs describe "${SCHEDULER_JOB:-prudent-jobs-tick}" \
+               --location="${GCP_REGION}" --project="${GCP_PROJECT}" >/dev/null 2>&1; then
+            printf '  ok    scheduled work is triggered (%s)\n' "${SCHEDULER_JOB:-prudent-jobs-tick}"
+          else
+            printf '  FAIL  no Cloud Scheduler entry — the GDPR retention sweep can never run\n'
+            printf '        create it per: task deploy:cloudrun --summary (step 3)\n'
+            fail=1
+          fi
+        else
+          # Announced, never silent: "not checked here" and "passed" must not look alike.
+          printf '  SKIP  scheduled work: needs GCP_PROJECT + GCP_REGION to inspect the scheduler\n'
+        fi
+
+        echo
+        if [ "$fail" -ne 0 ]; then
+          echo "verify:deploy FAILED. The service is running and is not correct — which is the"
+          echo "state this task exists to distinguish from a healthy one."
+          exit 1
+        fi
+        echo "Deployment verified."
 
 # NO `sources:`/`generates:` FINGERPRINTING ON ANY TASK ABOVE, and this is the subtle one.
 #

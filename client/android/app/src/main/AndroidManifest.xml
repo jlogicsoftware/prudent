@@ -25,6 +25,33 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- The custom scheme Supabase confirmation and recovery links come back on
+                 (ADR-013). Without this filter nothing on the device claims "prudent://", so the
+                 link a user taps in their mail client does nothing at all: the server permits the
+                 return address, Supabase mails it, app_links listens for it, and the OS never
+                 delivers it. That failure is silent on every side, which is why it survived Phase
+                 3 with the scheme configured everywhere except the one place the OS reads.
+
+                 The value must match the build's ZEN_AUTH_REDIRECT_URI and the server's
+                 AUTH_REDIRECT_URIS exactly — the server matches return addresses by exact string,
+                 deliberately, so a near-miss is refused rather than approximated.
+
+                 BROWSABLE is what lets a link opened from a mail client reach the app at all.
+                 android:launchMode is singleTop above, so a link arriving while the app is already
+                 running is delivered to the live activity instead of starting a second one — the
+                 warm case, which the app handles separately from a cold start.
+
+                 NO App Link (verified https) beside it, per ADR-013: that needs a real domain
+                 serving assetlinks.json and a signing fingerprint, and Prudent has neither yet. The
+                 known cost is stated there rather than implied here — a private-use scheme cannot
+                 be owned, so any app may register "prudent" and receive a link carrying a live
+                 token (RFC 8252 §8.6). Closing that is a domain away, not a code change. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="prudent" android:host="auth-callback"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

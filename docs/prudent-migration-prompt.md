@@ -1,5 +1,12 @@
 # Prompt — analyze this app and plan its conversion to jZen
 
+> **Historical.** This is the brief that produced `docs/prudent-migration-plan.md` on 2026-08-15,
+> when this repository was still a standalone Flutter app. That conversion is done: Phases 0–5
+> landed by 2026-08-18 and the outcomes are recorded in `docs/DECISIONS.md`, which supersedes both
+> this brief and the plan wherever they disagree. It is kept because it is the record of what was
+> asked for and what was known at the time — **do not run it again.** Its description of the
+> repository is no longer true of anything.
+
 > Paste everything below the line into a fresh Claude Code session started in
 > `/Users/amerezhanyi/Developer/jZenDev/prudent`.
 

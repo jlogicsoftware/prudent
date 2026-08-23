@@ -44,7 +44,7 @@ env:
   # jZen pinned at a SHA — see the header comment. Bump deliberately; this is a dependency
   # version, not a detail. Confirmed pushed to jZenDev/jZen's main at the time this was written
   # (docs/DECISIONS.md records the "jZen build is clean" checkpoint this pin was taken from).
-  JZEN_REF: 5a36d1f7081527bef6e5045f586fa35ed5352154
+  JZEN_REF: 3a450b2279d133c2909f51c2da9b76e161c6f49d
 
 jobs:
   # Contract drift, the boundary gate, the Dart/Flutter suites, and the admin typecheck. Needs the
@@ -118,9 +118,9 @@ jobs:
       # side finding (docs/jzen/README.md): a multi-repo consumer has no task-level way to ask the
       # framework to generate its own localizations without cd-ing into the sibling checkout by
       # hand — the same shape as the contract-loop findings already recorded there.
-      - name: Generate jZen's own framework l10n (multi-repo git ls-files gap)
-        working-directory: jZen
-        run: task zen:generate:l10n
+      - name: Prepare the jZen framework checkout (zen:framework:prepare)
+        working-directory: prudent
+        run: task zen:framework:prepare
 
       - name: Python (floor — scripts/verify_boundaries.py is written to 3.9)
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -154,9 +154,6 @@ jobs:
       # there is enough; no separate build step. Same shape as the l10n finding above: invisible
       # on a developer's machine that has jZen's admin/ pnpm-installed from unrelated local work,
       # real on a fresh CI clone. Reported upstream (docs/jzen/README.md).
-      - name: Install jZen's admin scaffold dependencies (multi-repo node_modules gap)
-        working-directory: jZen/admin
-        run: pnpm install
 
       - name: Resolve Dart + admin dependencies
         working-directory: prudent
@@ -257,9 +254,15 @@ jobs:
       # See gates' identically-named step: git ls-files can't reach a sibling repository, so
       # jZen's own framework packages (zen_ui_identity, …) need their l10n generated from inside
       # ../jZen, not from Prudent's root.
-      - name: Generate jZen's own framework l10n (multi-repo git ls-files gap)
-        working-directory: jZen
-        run: task zen:generate:l10n
+      # jZen's own localizations, generated from ITS checkout rather than this one: Prudent's
+      # screens reach IdentityLocalizations and NavigationLocalizations through the framework's own
+      # widgets, and `git ls-files` in Prudent's root structurally cannot see a sibling repository's
+      # tracked files. This job needs that half and only that half — it builds a Flutter runner and
+      # has no Node toolchain — which is why it calls prepare:l10n rather than the combined task
+      # (jZen #69: the split exists because this job asked for it).
+      - name: Generate jZen's own framework l10n
+        working-directory: prudent
+        run: task zen:framework:prepare:l10n
       # Flutter's Linux desktop build shells out to CMake/ninja and links against GTK3; the
       # Linux keystore plugin backing SecureTokenStore needs libsecret.
       - name: Linux desktop toolchain (GTK3, libsecret, ninja)
@@ -309,9 +312,15 @@ jobs:
       # See gates' identically-named step: git ls-files can't reach a sibling repository, so
       # jZen's own framework packages (zen_ui_identity, …) need their l10n generated from inside
       # ../jZen, not from Prudent's root.
-      - name: Generate jZen's own framework l10n (multi-repo git ls-files gap)
-        working-directory: jZen
-        run: task zen:generate:l10n
+      # jZen's own localizations, generated from ITS checkout rather than this one: Prudent's
+      # screens reach IdentityLocalizations and NavigationLocalizations through the framework's own
+      # widgets, and `git ls-files` in Prudent's root structurally cannot see a sibling repository's
+      # tracked files. This job needs that half and only that half — it builds a Flutter runner and
+      # has no Node toolchain — which is why it calls prepare:l10n rather than the combined task
+      # (jZen #69: the split exists because this job asked for it).
+      - name: Generate jZen's own framework l10n
+        working-directory: prudent
+        run: task zen:framework:prepare:l10n
       - working-directory: prudent
         run: task zen:deps
       - working-directory: prudent
