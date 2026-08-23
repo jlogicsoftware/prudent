@@ -27,17 +27,28 @@ from the `../jZen` checkout rather than copied here, so they cannot drift.
 jZen rule and a Prudent rule conflict on something **Prudent** owns, Prudent's wins and the
 divergence is recorded as a Prudent ADR.
 
-## Current state: Phases 0 and 1 are done; the rest is not
+## Current state: Phases 0-5 have landed; deploy has not
 
-As of 2026-08-15 the repository has a **language-neutral root over three tiers**: `client/` (the
-Flutter app), `server/` (a Quarkus module that compiles and serves nothing), `proto/prudent/v1/`
-(the wire contract), and a `Taskfile.yml` that includes jZen's. The contract, its generate/verify
-loop and the round-trip suite that proves it are in place — `task sync:contracts` and
-`task zen:test:client` are the commands that check them.
+As of 2026-08-23 the repository has a **language-neutral root over four tiers**: `client/` (the
+Flutter app), `server/` (a Quarkus backend), `admin/` (the react-admin panel),
+`proto/prudent/v1/` (the wire contract), and a `Taskfile.yml` that includes jZen's. The contract,
+its generate/verify loop and the round-trip suite that proves it are in place —
+`task sync:contracts` and `task zen:test:client` are the commands that check them.
 
-What is **not** built yet: no Quarkus resources, no Panache entities, no migrations, no auth, no
-`ZenClient` on the client. The client is still Riverpod state over in-memory seed lists, and it now
-persists nothing — the third-party backend call was removed ahead of its replacement (ADR-004).
+Built and merged: the backend (`AccountResource`, `CategoryResource`, `RecordResource`,
+`SettingsResource`, `AnalyticsResource`, `HealthResource` over four Panache entities), the Flyway
+migration and its row-level security, and the client rewired onto `ZenClient` with auth and the
+navigation shell (`client/lib/src/prudent_repository.dart`). The third-party backend call the
+conversion existed to remove is gone.
+
+**Not built: a deploy path.** `verify:deploy` is written against a real environment "if one ever
+exists", and there is no `deploy` task. Treat deploying Prudent as conversion work, not as
+something to attempt.
+
+**Keep this section true.** It is the first thing a session reads, and it was wrong for a week —
+it still claimed no resources, no entities, no migrations and no `ZenClient` after all four had
+merged, which sends every session looking for work that was already done. When a phase lands,
+update it in the same commit.
 
 **`docs/prudent-migration-plan.md` is the approved plan the remaining phases execute**, and
 `docs/prudent-migration-prompt.md` is the brief behind it — read them before proposing structural
@@ -179,3 +190,33 @@ rather than by memory. A fresh clone has no git-side guard until
 `sh .claude/hooks/install-git-hooks.sh` runs, because `.git/hooks` is not tracked.
 `.claude/hooks/skill_guard.py` delivers a skill's rules the first time a file it governs is
 edited in a session; the path-to-skill mapping is `.claude/hooks/skill-map.json`.
+
+**Branch names are `<type>/<slug>`** — `feature/`, `fix/`, `docs/`.
+
+**When a command fails twice with the same error, escalate instead of retrying** — hand over the
+exact command for the user to run with the `!` prefix. Interactive authentication is never a
+retry problem.
+
+**There is no deploy path yet.** `verify:deploy` is written against a real environment "if one
+ever exists". Do not write skills, plans or docs that describe deploying Prudent as though it
+were possible today; say it is conversion work instead.
+
+### What is in `.claude/`
+
+| | Purpose |
+|---|---|
+| `skills/add-adr` | record a decision in `docs/DECISIONS.md` (append-only, Prudent's own numbering) |
+| `skills/add-endpoint` | add a REST endpoint contract-first (OpenAPI merge, Jandex, no-Jackson) |
+| `skills/sync-contracts` | the proto → Java/Dart/TS regeneration loop and its drift gate |
+| `skills/jzen-reference` | find a pattern in the sibling `../jZen` checkout, read-only |
+| `skills/long-job` | how to wait on a slow command, with this repo's measured durations |
+| `agents/visual-verify` | drive a change in a real browser; returns pass/fail + screenshots |
+| `agents/regression-guard` | review a diff for what it broke and what it duplicated |
+| `hooks/` | the guards above, their config, and their tests |
+
+Run the hook tests with `python3 .claude/hooks/test_git_guard.py` and
+`python3 .claude/hooks/test_skill_guard.py`.
+
+Permissions are prefix rules in the tracked `.claude/settings.json` (read-only git, inspection
+tools, this repo's own build and test entry points). `settings.local.json` is for genuine
+one-offs; it is gitignored and never the place for a rule everyone needs.
