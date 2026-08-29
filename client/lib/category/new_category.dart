@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../src/generated/prudent/v1/categories.pb.dart';
-import '../src/l10n/generated/prudent_localizations.dart';
+import '../generated/prudent/v1/categories.pb.dart';
+import '../l10n/generated/prudent_localizations.dart';
 import 'category_icons.dart';
 
 /// Shared create/edit form. The caller decides whether the result becomes a

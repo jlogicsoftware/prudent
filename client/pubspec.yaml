@@ -39,7 +39,7 @@ dependencies:
   intl: ^0.20.2
   flutter_riverpod: ^3.0.0-dev.17
 
-  # The runtime for the messages generated from ../proto into lib/src/generated. protobuf
+  # The runtime for the messages generated from ../proto into lib/generated. protobuf
   # supplies GeneratedMessage; fixnum supplies the Int64 that backs every int64 field — money is
   # an int64 count of minor units, so Int64 is not incidental here, it is the money type.
   protobuf: ^6.0.0
@@ -103,7 +103,7 @@ flutter:
   uses-material-design: true
 
   # Drives `flutter gen-l10n` from l10n.yaml (task zen:generate:l10n). The ARB files under
-  # lib/src/l10n are tracked; the generated accessors are not (jZen ADR-009) — the contract gate
+  # lib/l10n are tracked; the generated accessors are not (jZen ADR-009) — the contract gate
   # asserts they stay untracked.
   generate: true
 

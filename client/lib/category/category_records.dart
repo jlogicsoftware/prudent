@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../record/records_list/record_item.dart';
-import '../src/generated/prudent/v1/categories.pb.dart';
-import '../src/l10n/generated/prudent_localizations.dart';
-import '../src/providers.dart';
+import '../record/record_item.dart';
+import '../generated/prudent/v1/categories.pb.dart';
+import '../l10n/generated/prudent_localizations.dart';
+import '../providers.dart';
 
 /// Every record in one category — made reachable in Phase 4
 /// (docs/prudent-migration-plan.md); it had a `routeName` `main.dart` never wired up.

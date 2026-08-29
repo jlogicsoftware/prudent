@@ -28,11 +28,11 @@ includes:
       # client tier holds a package per concern. Prudent's client tier IS the Flutter package, so
       # its messages live inside it.
       #
-      # Under lib/src/ rather than lib/ deliberately: jZen keeps ITS messages at the public
-      # lib/generated because other packages import them by URI, which is the whole mechanism the
-      # framework fix below relies on. Nothing outside this package imports Prudent's, so they stay
-      # an implementation detail. If Prudent ever splits a shared client package out, they move.
-      PROTO_DART_OUT: client/lib/src/generated
+      # Flat at lib/generated/, not lib/src/generated/ (ADR-026). Prudent's client is a leaf
+      # application imported by nobody, so the lib/src/ privacy split buys nothing; every
+      # capability folder and cross-cutting file sits directly under lib/, and the generated
+      # messages are one more directory there.
+      PROTO_DART_OUT: client/lib/generated
 
 # WHAT IS DELIBERATELY NOT HERE YET.
 #
@@ -114,7 +114,7 @@ tasks:
       - ./mvnw -B -q generate-sources
 
   generate:proto:dart:
-    desc: Generate Dart messages from proto/ into client/lib/src/generated
+    desc: Generate Dart messages from proto/ into client/lib/generated
     summary: |
       DELEGATED TO THE FRAMEWORK, and this task exists only to keep the name — `generate:proto`
       and any future gate compose it, and CI and docs say it.

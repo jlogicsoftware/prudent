@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../src/generated/prudent/v1/categories.pb.dart';
+import '../generated/prudent/v1/categories.pb.dart';
 import 'category_item.dart';
 
 class CategoryGridItem extends StatelessWidget {

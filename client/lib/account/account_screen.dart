@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../src/l10n/generated/prudent_localizations.dart';
-import '../src/providers.dart';
-import '../widgets/popup/popup.dart';
+import '../l10n/generated/prudent_localizations.dart';
+import '../providers.dart';
+import '../popup.dart';
 import 'account_list.dart';
 import 'account_new.dart';
 

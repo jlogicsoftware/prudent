@@ -146,7 +146,7 @@
       callable with no scheduling of its own; zen-jobs is what gives it an external trigger — one
       that fires whether or not an instance happened to be awake under min-instances=0, which is
       what a cron inside the process could never do. PrudentRetentionCleanupJob (see
-      prudent.server.retention) is the second job this dependency exists for: zen-identity's
+      prudent.retention) is the second job this dependency exists for: zen-identity's
       anonymisation has no application-observable event, so Prudent's own job sweeps for accounts
       it anonymised and removes the financial rows GDPR requires not to outlive them
       (docs/DECISIONS.md — the retention ADR this phase adds).
@@ -355,8 +355,8 @@
 
       <!--
         ONE RULE: `UnnecessaryFullyQualifiedName` (pmd-ruleset.xml), flagging code like
-        `prudent.server.account.AccountBalance("PLN", 100_00L)` written inline instead of
-        `import prudent.server.account.AccountBalance;` plus the simple name.
+        `prudent.account.AccountBalance("PLN", 100_00L)` written inline instead of
+        `import prudent.account.AccountBalance;` plus the simple name.
 
         BOUND TO `test-compile`, WITH `failOnViolation=true` — a violation turns the build red, not
         a warning line nobody reads. Not `compile`: a fully qualified reference compiles fine, so
@@ -367,7 +367,7 @@
         (`mvn package`), and a native build alike, rather than only an explicit `mvn verify`.
 
         `includeTests=true` because the one violation this rule found on introduction
-        (server/src/test/java/prudent/server/UserScopingTest.java) was in a test class — the
+        (server/src/test/java/prudent/UserScopingTest.java) was in a test class — the
         default scans main sources only, which would have missed it.
 
         `skipEmptyReport=false` — an empty report is a legitimate outcome (no violations) and PMD

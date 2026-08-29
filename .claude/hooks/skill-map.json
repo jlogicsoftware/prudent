@@ -6,7 +6,7 @@
       "why": "it is a contract source or a tracked generated artifact -- a generated file is never hand-edited",
       "paths": [
         "proto/prudent/v1/*.proto",
-        "client/lib/src/generated/*",
+        "client/lib/generated/*",
         "admin/src/api/schema.generated.ts",
         "*.pb.dart",
         "*.pbjson.dart",

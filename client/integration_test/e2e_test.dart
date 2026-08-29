@@ -24,10 +24,10 @@ import 'package:zen_core/zen_core.dart' show ZenResult;
 import 'package:zen_identity/zen_identity.dart';
 import 'package:zen_transport/zen_transport.dart';
 
-import 'package:prudent/src/generated/prudent/v1/accounts.pb.dart';
-import 'package:prudent/src/generated/prudent/v1/categories.pb.dart';
-import 'package:prudent/src/generated/prudent/v1/records.pb.dart';
-import 'package:prudent/src/prudent_repository.dart';
+import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent/generated/prudent/v1/records.pb.dart';
+import 'package:prudent/prudent_repository.dart';
 
 void main() {
   // ZEN_API_URL is read at RUNTIME here (Platform.environment), not via --dart-define: this is a

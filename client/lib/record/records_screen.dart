@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_core/zen_core.dart';
 
-import '../src/generated/prudent/v1/records.pb.dart';
-import '../src/l10n/generated/prudent_localizations.dart';
-import '../src/money.dart';
-import '../src/providers.dart';
+import '../generated/prudent/v1/records.pb.dart';
+import '../l10n/generated/prudent_localizations.dart';
+import '../money.dart';
+import '../providers.dart';
 import 'new_record.dart';
-import 'records_list/records_list.dart';
+import 'records_list.dart';
 
 class RecordsScreen extends ConsumerStatefulWidget {
   const RecordsScreen({super.key});

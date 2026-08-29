@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../src/generated/prudent/v1/accounts.pb.dart';
-import '../src/l10n/generated/prudent_localizations.dart';
-import '../src/money.dart';
+import '../generated/prudent/v1/accounts.pb.dart';
+import '../l10n/generated/prudent_localizations.dart';
+import '../money.dart';
 
 /// Opens an account with a single starting currency and balance. An account can hold several
 /// currencies at once (docs/DECISIONS.md ADR-008); adding a second one is an edit, not part of

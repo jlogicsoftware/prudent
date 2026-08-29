@@ -79,7 +79,7 @@ CREATE TABLE prudent_category (
     -- A STABLE KEY, never an icon code point. Flutter's --tree-shake-icons only works when every
     -- IconData constant is statically known, and building one from a number the server sent
     -- defeats it -- the whole Material icon font then ships in every bundle on every platform.
-    -- Validated against a known set server-side (prudent.server.category.IconKeys).
+    -- Validated against a known set server-side (prudent.category.IconKeys).
     icon_key    TEXT   NOT NULL,
     description TEXT   NOT NULL DEFAULT '',
     -- BIGINT, not INTEGER, because the wire type is uint32: a colour with a non-zero alpha exceeds
