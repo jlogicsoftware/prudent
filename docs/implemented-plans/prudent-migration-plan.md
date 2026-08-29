@@ -5,7 +5,31 @@ both CI operating systems. **Written against:** this repository at `d6d6373`, be
 existed. **Date:** 2026-08-15, completed 2026-08-18.
 
 This document is the analysis and the sequence that produced the application, and it is kept as the
-record of both. Where the work disproved it, the text says so at the point of the claim rather than
+record of both.
+
+> **Completion status (reviewed 2026-08-29 against the working tree).** Every phase 0–5 has landed
+> and is verifiable in the repo. Phase-level and item-level markers are inline below:
+> **`[DONE]`** — built, tested, present in the tree · **`[DONE — scoped down]`** — delivered, but
+> to a narrower scope than originally written, with the divergence recorded in an ADR ·
+> **`[NOT DONE — deliberate]`** — explicitly out of scope, not a gap.
+>
+> | Phase | Status | Proof in tree |
+> |---|---|---|
+> | 0 — Repo scaffolding + the seam | **`[DONE]`** | `client/`, `server/`, `Taskfile.yml`, `docs/DECISIONS.md` ADR-001/002 |
+> | 1 — The contract | **`[DONE]`** | `proto/prudent/v1/*.proto` (5 files), `client/lib/src/generated/`, ADR-006/007 |
+> | 2 — The server | **`[DONE]`** | 6 resources, `V20260817090000__prudent_init.sql` + `R__prudent_row_level_security.sql`, 12 `@QuarkusTest` classes, ADR-010/011/012 |
+> | 3 — The client rewired | **`[DONE]`** | `prudent_repository.dart` over `ZenClient`, `l10n/` with `{en,uk,pl}` + `pl` delegates, Firebase call gone (ADR-004), ADR-013 |
+> | 4 — Overview / analytics / chart | **`[DONE]`** | `AnalyticsResource`, `analytics.proto`, `CustomPainter` charts, ADR-014/015; "stubbed" column emptied (see table below) |
+> | 5 — Admin / e2e / deploy / docs | **`[DONE — scoped down]`** | `admin/` (users only, ADR-016), `task test:e2e` (ADR-017), CI `ci.yml` + `audit.yml` on ubuntu+windows (ADR-018), retention cascade (ADR-019/022), native locale check. **Real Cloud Run deploy: `[NOT DONE — deliberate]`** (ADR-020) — the path exists and is proven against throwaway environments only; no cloud account, project or billable service. |
+>
+> The open questions in §5 are all resolved — see the per-question markers there.
+>
+> **Follow-on, not part of this plan:** the source layout Phases 0–5 produced is being flattened
+> onto a Zen capability-folder layout — client code moves out of `client/lib/src/` into
+> `client/lib/`, the server package `prudent.server.*` becomes `prudent.*`, and layer folders
+> (`lib/screens/`, `lib/widgets/`) are dissolved. That is **`docs/DECISIONS.md` ADR-026**, driven
+> by **`docs/prudent-restructure-prompt.md`**. Every `lib/src/…` and `prudent.server.…` path in
+> this document is superseded by ADR-026 once that pass lands. Where the work disproved it, the text says so at the point of the claim rather than
 being quietly corrected — `docs/DECISIONS.md` is where each phase's outcome is actually recorded,
 and it wins on conflict. The one thing this document is not is a description of the app as it
 stands today; read the ADRs for that.
@@ -561,7 +585,7 @@ None of these are fixed by editing `../jZen`; they are reported.
 
 Every phase ends **green and verifiable**, with the exact command that proves it.
 
-## Phase 0 — Repo scaffolding and the seam, proven by a build that does nothing else
+## Phase 0 — Repo scaffolding and the seam, proven by a build that does nothing else — `[DONE]`
 
 **Creates/changes:** `git mv` of `lib/`, `pubspec.*`, `analysis_options.yaml`, `.metadata` and the
 six platform folders into `client/`; `Taskfile.yml`; `.gitignore` (drop `build/`,
@@ -583,7 +607,7 @@ task zen:deps && (cd client && flutter run)    # the app still runs, unchanged
 the empty `<relativePath/>`: forget `zen:framework:install` and Maven reports a missing parent, which
 reads like a broken POM.
 
-## Phase 1 — The contract
+## Phase 1 — The contract — `[DONE]`
 
 **Creates:** `proto/prudent/v1/{records,accounts,categories,analytics}.proto` (package `prudent.v1`,
 `java_package = "prudent.proto.v1"`); `server/` compiles them via `protobuf-maven-plugin`; Dart
@@ -604,7 +628,10 @@ generated code is present and correct.
 **Risk:** the money and icon-key decisions are baked in here. Getting `amount_minor` wrong is a
 migration later; getting `icon_key` wrong costs the icon tree-shaking §2.2 protects.
 
-## Phase 2 — The server
+## Phase 2 — The server — `[DONE]`
+
+_Delivered with more than planned: a `SettingsResource` + `settings.proto` and a `HealthResource`
+beyond the three CRUD resources originally listed._
 
 **Creates:** Panache entities (`Record`, `Account`, `Category`, each with `user_id`); one Flyway
 migration `V<ts>__prudent_init.sql` creating three tables **with RLS and a `zen_runtime` policy
@@ -630,7 +657,7 @@ rejected.
 **Risk:** the two silent failures above, plus RLS-without-a-policy, which returns zero rows instead
 of raising. All three pass a naive smoke test.
 
-## Phase 3 — The client rewired
+## Phase 3 — The client rewired — `[DONE]`
 
 **Creates/changes:** `client/lib/src/prudent_repository.dart` over `ZenClient` (pattern:
 `../jZen/apps/zen_demo/zen_demo_client/lib/src/demo_repository.dart`); providers rewritten over it;
@@ -660,7 +687,7 @@ sessions have to work on six platforms, and where any Flutter dependency added m
 (a web build compiles a generated registrant importing *every* web plugin, so no conditional import
 or `zenIsWeb` guard can keep a `dart:html` plugin out). Run a web build after any dependency change.
 
-## Phase 4 — Overview, analytics and the chart — **new work, not a port**
+## Phase 4 — Overview, analytics and the chart — **new work, not a port** — `[DONE]`
 
 Everything here was a placeholder `Text` or a "coming soon" screen; none of it is being transcribed.
 
@@ -678,7 +705,12 @@ tests for the overview totals.
 
 **Risk:** scope. This is product design, not conversion, and it is the phase most likely to grow.
 
-## Phase 5 — Admin, the end-to-end gate, deploy and docs
+## Phase 5 — Admin, the end-to-end gate, deploy and docs — `[DONE — scoped down]`
+
+_Admin, `test:e2e`, CI, native locale check, retention cascade and the ADRs are all done. The
+**real Cloud Run deploy is `[NOT DONE — deliberate]`** (ADR-020): `deploy:cloudrun` /
+`verify:deploy` exist and are proven only against throwaway environments; there is no cloud
+account, project, region or service. ADR-021/022/023/024/025 were added while doing the work._
 
 **Creates:** `admin/` over `@jzen/admin-core` with `openapi-typescript` types generated from
 Prudent's `openapi.json`; `task test:e2e` against the real stack; `task deploy:cloudrun` carrying
@@ -713,19 +745,21 @@ ADR-020 for the full record of each decision and what each gate found.
 
 ---
 
-# 5 — Open questions
+# 5 — Open questions — all resolved
+
+_Every question below was settled during the build; the resolving ADR is named inline._
 
 **5.1 Does a `Record` belong to an `Account`?** Today it does not — accounts and records are
 unconnected, and `totalBalance()` never changes when money is spent. An expense tracker almost
 certainly wants `Record.account_id`, but adding it changes the create form, the seed data and the
 overview arithmetic. **Assumed in the plan: yes, `account_id` is required**, decided in Phase 1
-because the contract cannot be vague about it.
+because the contract cannot be vague about it. **`[RESOLVED]` — yes; `account_id` is on `records.proto` and the domain link exists (ADR-006, ADR-014).**
 
 **5.2 Multi-currency and FX.** Accounts already carry a currency string. Does Prudent convert
 between currencies (which needs a rate source, a rate date on every record, and a base currency), or
 does it keep per-currency totals and refuse to add across them? **Assumed: no FX** — totals are
 per-currency, and mixing currencies is refused rather than silently summed. FX is a product feature
-with a third-party rate dependency, which the one-server rule routes through Prudent's own server.
+with a third-party rate dependency, which the one-server rule routes through Prudent's own server. **`[RESOLVED]` — no FX; an account holds several currencies and the main currency labels but never converts (ADR-008, ADR-009).**
 
 **5.3 Prudent's namespaces.** Four separate identifiers, only one of which is cosmetic:
 proto package `prudent.v1` / Java `prudent.proto.v1`; Maven `groupId prudent`, `artifactId
@@ -733,18 +767,20 @@ prudent-server` (mirroring jZen ADR-006's bare `zen`); the application id
 `com.example.prudent`, which is a `flutter create` default and **must change** before any store
 submission or App Links configuration; and a custom URI scheme for auth email links
 (`prudent://auth-callback`), which the server must be configured to accept by exact match.
-**Assumed: the above**, with the application id awaiting a real reverse-DNS domain.
+**Assumed: the above**, with the application id awaiting a real reverse-DNS domain. **`[RESOLVED]` — namespaces as assumed; the auth callback scheme is now configured at the OS level too (ADR-025). Application id still `com.example.prudent`, still awaiting a real domain before store submission.**
 
 **5.4 The local Supabase stack.** Does Prudent get its own Supabase project with shifted local ports,
 or does only one of the two products run at a time? **Assumed: Prudent's own project and its own
-ports**, because a developer working on both otherwise cannot.
+ports**, because a developer working on both otherwise cannot. **`[RESOLVED]` — Prudent has its own `supabase/` config; server on 8085.**
 
 **5.5 Deployment target.** Cloud Run, following jZen's model (single instance, scale-to-zero, native
 image), is assumed — Prudent inherits the whole deploy path that way. A different target means
-writing the deploy from scratch and re-deciding migration-at-deploy.
+writing the deploy from scratch and re-deciding migration-at-deploy. **`[RESOLVED]` — Cloud Run, native image, migration-at-deploy; the deploy contract passes every environment fact in (ADR-020, ADR-021). Not exercised against a real project.**
 
 **5.6 Does anything about the current Firebase project need decommissioning?** The data is
 disposable, but the project, its API key and its billing are not this repository's to leave running.
+**`[OPEN — outside this repo]` — no ADR; decommissioning the old Firebase project is an operator
+action, not conversion work. The code-side removal is complete (ADR-004).**
 
 ---
 

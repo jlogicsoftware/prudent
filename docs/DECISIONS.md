@@ -13,6 +13,105 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-026 — A Zen layout: client code lives flat in `lib/`, server code in `prudent.*`, and a directory must be a capability
+
+**Date:** 2026-08-29. **Status:** accepted. **Not yet executed** — the work is driven by
+`docs/prudent-restructure-prompt.md`; this entry is the decision it carries out.
+
+### Context
+
+Phases 0–5 left the source tree in a shape that no phase ever designed and that contradicts
+`docs/zen-architecture.md` ("Packages as capabilities … not layers, tiers, or technical
+boundaries"):
+
+- **The client is half-migrated.** Phase 0 moved the original `lib/` into `client/` "changing no
+  file contents", so the app's own feature code stayed at `client/lib/{account,category,record,
+  chart,screens,widgets}/`. Phases 1 and 3 then put every *new* file under `client/lib/src/`
+  (`prudent_repository.dart`, `providers.dart`, `l10n/`, `generated/`, later `app.dart`,
+  `auth_deep_links*.dart`, `src/screens/`). Nothing ever reconciled the two. `lib/src/` is a
+  published-package privacy convention; Prudent's client is an application, and the split is just
+  drift.
+- **Layer folders and lone containers.** `lib/screens/` holds five unrelated screens — a layer,
+  not a capability. `lib/widgets/popup/` and `lib/record/records_list/` wrap one or two files in a
+  directory that names a role. `lib/src/screens/` holds `home_shell.dart` and `auth_flow.dart`
+  next to unrelated files.
+- **The server package is `prudent.server.*` under `server/`.** `server/` already scopes the tier;
+  `prudent/server/` is a wrapper package whose only child is `server` and whose root holds seven
+  loose files (`CurrentUser`, `HealthResource`, `PrudentStatus`, `PrudentException`,
+  `PrudentExceptionMapper`, `Currencies`, `Ids`) with no capability around them.
+
+### Decision
+
+**One layout rule, both tiers:**
+
+1. A directory names a **product capability**, never a technical role. `screens/`, `widgets/`,
+   `services/`, `mappers/`, `models/`, `utils/` are not directory names.
+2. A directory must hold **two or more files** of one capability. A single-file concern is a file
+   at the parent level, not a lone-child directory.
+3. A wrapper directory with exactly **one child directory** is removed.
+4. **Exception to (2):** a cross-cutting single-file utility may sit flat at the package root
+   (`prudent/Ids.java`, `prudent/Currencies.java`).
+5. The pass is **pure structure** — `git mv` plus `package` / `import` / path-string edits, zero
+   behaviour change, no test lost.
+
+**Client** — `client/lib/src/` is deleted; everything moves up to `client/lib/`.
+`lib/{screens,widgets,chart}/` and `lib/record/records_list/` are dissolved. Capabilities that
+earn a directory: `account/`, `category/`, `record/`, `overview/`, `analytics/` (the charts fold
+in here), `auth/` (the deep-link files plus `auth_flow.dart`), `l10n/`, `generated/`. Everything
+else is a flat file at `lib/`: `main.dart`, `app.dart`, `home_shell.dart`,
+`prudent_repository.dart`, `providers.dart`, `money.dart`, `settings.dart`, `popup.dart`. Full map
+in `docs/prudent-restructure-prompt.md`.
+
+**Server** — the base package `prudent.server` becomes `prudent` (main and test). `server/` the
+directory stays; `prudent/server/` the package goes. New capability packages `health/` and
+`error/`; existing `record/ account/ category/ settings/ retention/` keep their shape.
+`onboarding/` and `analytics/` collapse to flat files (`NewUserSetup.java`,
+`AnalyticsResource.java`) until a second class joins each. `CurrentUser.java`, `Ids.java`,
+`Currencies.java` are flat. **No `prudent/auth/` package** — auth is `zen-identity`'s; `CurrentUser`
+is Prudent's only auth class, so rule 2 keeps it flat.
+
+The generated-DTO namespace **`prudent.proto.v1`** (proto `java_package`, ADR-006) is unchanged.
+
+### What this supersedes, and why
+
+- **"today's root package moves here" / `client/lib/src/prudent_repository.dart` /
+  `client/lib/src/l10n/prudent_{en,uk,pl}.arb`** (`docs/implemented-plans/prudent-migration-plan.md`
+  §2, §2.5, Phase 3) → **refined.** The plan named `lib/src/` for new client code by following
+  `zen_demo`'s package layout; a `zen_demo` *package* is imported by URI by other packages, which
+  is why its implementation sits under `src/`. Prudent's client is a leaf application imported by
+  nobody, so the privacy split buys nothing and the plan's own Phase 0 ("changing no file
+  contents") guaranteed it would only ever be half-applied.
+- **`prudent.server.*` as the server package** (implicit since Phase 2; the path appears in ADR-001
+  "Proving it" and throughout `server/pom.xml`) → **changed** to `prudent.*`. It was convention,
+  never a decision; `server/` the directory already carries the tier, so the `server` package
+  segment is rule 3's wrapper-with-one-child.
+- **"Each package owns `lib/src/l10n/*.arb`"** (`CLAUDE.md`, "Typed, generated i18n") → **changed**
+  to `lib/l10n/*.arb`. Prose updated in the same change.
+- ADR-001's reference to `server/src/main/java/prudent/server/PrudentStatus.java` is **not edited**
+  (ADRs are append-only); the file moves to `prudent/health/PrudentStatus.java` and this entry is
+  the record of it.
+
+*Why now:* the tree is small (≈40 Java files, ≈35 Dart), the seam is fully tested, and every extra
+week of feature work deepens the `import` graph that has to be rewritten. A half-migrated `lib/`
+also teaches every new session the wrong convention by example.
+
+### Consequence
+
+When executed and green, the following hold — to be **verified**, not assumed, by
+`task sync:contracts && task test:server && task zen:test:client && task verify:boundaries` plus a
+web build, with no drop in either suite's test count:
+
+- One place for client code (`client/lib/`), one base package for server code (`prudent`).
+- Every directory in either tier answers "what capability is this?"; none answers "what layer?".
+- `client/l10n.yaml`, `client/analysis_options.yaml`, both `.gitattributes`, `Taskfile.yml`'s
+  `PROTO_DART_OUT`, and `.claude/hooks/skill-map.json` point at `client/lib/generated` /
+  `client/lib/l10n/generated`; `scripts/verify_boundaries.py` needs no change (its scope is
+  `client/lib` and it excludes `/generated/` by substring).
+- The path-dependency imports (`package:zen_core/…`, `zen-parent`) are untouched — this pass does
+  not interact with ADR-001's seam or its exit.
+
+---
+
 ## ADR-001 — Three tiers under a language-neutral root, and jZen consumed from a sibling checkout
 
 **Date:** 2026-08-15. **Status:** accepted.

@@ -45,6 +45,13 @@ conversion existed to remove is gone.
 exists", and there is no `deploy` task. Treat deploying Prudent as conversion work, not as
 something to attempt.
 
+**Pending: a structural flattening (ADR-026).** The tree Phases 0–5 produced splits client code
+across `client/lib/` and `client/lib/src/` and puts the server under a `prudent.server.*` package.
+ADR-026 flattens both — client code all under `client/lib/` on a capability-folder layout, server
+package `prudent.*` — as a pure `git mv` pass with no behaviour change. It is driven by
+`docs/prudent-restructure-prompt.md` and is not yet executed; until it is, `lib/src/…` and
+`prudent.server.…` paths in this file and the migration plan are still current.
+
 **Keep this section true.** It is the first thing a session reads, and it was wrong for a week —
 it still claimed no resources, no entities, no migrations and no `ZenClient` after all four had
 merged, which sends every session looking for work that was already done. When a phase lands,
