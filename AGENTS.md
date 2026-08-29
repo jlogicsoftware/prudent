@@ -49,7 +49,7 @@ something to attempt.
 capability-folder layout (`account/ analytics/ auth/ category/ generated/ l10n/ overview/ record/`
 plus flat files) — `client/lib/src/` is gone. The server package is `prudent.*` (`prudent/server/`
 gone; new `health/` and `error/` capability packages). Tests flattened to match. It was a pure
-`git mv` pass with no behaviour change, driven by `docs/prudent-restructure-prompt.md`. Any
+`git mv` pass with no behaviour change, driven by `docs/implemented-plans/prudent-restructure-prompt.md`. Any
 `lib/src/…` or `prudent.server.…` path in an older doc or ADR is historical — the current tree is
 the one described here.
 

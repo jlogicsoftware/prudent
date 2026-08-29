@@ -1,5 +1,12 @@
 # Prompt — flatten Prudent onto a Zen layout (client `lib/`, server `prudent.*`)
 
+> **Historical.** This is the brief that drove the ADR-026 flattening. That pass is done —
+> `client/lib/src/` and the `prudent.server.*` package are gone, the tests are flattened to match,
+> and `task test:server` / `task zen:test:client` / `task sync:contracts` are green. The outcome
+> is recorded in `docs/DECISIONS.md` ADR-026, which supersedes this brief wherever they disagree.
+> Kept as the record of what was asked for — **do not run it again;** every `lib/src/…` and
+> `prudent.server.…` path below describes the *before* state.
+
 > Paste everything below the line into a fresh Claude Code session started in
 > `/Users/amerezhanyi/Developer/jZenDev/prudent`. This is a **pure structural pass** — `git mv` and
 > import rewrites only, no behaviour change. The decision it executes is `docs/DECISIONS.md`

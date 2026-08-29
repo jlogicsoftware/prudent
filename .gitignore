@@ -58,7 +58,7 @@ client/android/app/release
 # the Flutter SDK every consumer already has, so there is no toolchain boundary to carry the
 # output across. Listed now so the first ARB file cannot land with its output tracked by
 # accident. Prudent's contract gate asserts none of it is tracked (Phase 1).
-client/lib/src/l10n/generated/
+client/lib/l10n/generated/
 
 # --- server/ : Java/Maven ----------------------------------------------------------------------
 # `target/` is unanchored for the same reason as build/: the server is one Maven module today and

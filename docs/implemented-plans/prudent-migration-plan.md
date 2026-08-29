@@ -28,7 +28,7 @@ record of both.
 > onto a Zen capability-folder layout — client code moves out of `client/lib/src/` into
 > `client/lib/`, the server package `prudent.server.*` becomes `prudent.*`, and layer folders
 > (`lib/screens/`, `lib/widgets/`) are dissolved. That is **`docs/DECISIONS.md` ADR-026**, driven
-> by **`docs/prudent-restructure-prompt.md`**. Every `lib/src/…` and `prudent.server.…` path in
+> by **`docs/implemented-plans/prudent-restructure-prompt.md`**. Every `lib/src/…` and `prudent.server.…` path in
 > this document is superseded by ADR-026 once that pass lands. Where the work disproved it, the text says so at the point of the claim rather than
 being quietly corrected — `docs/DECISIONS.md` is where each phase's outcome is actually recorded,
 and it wins on conflict. The one thing this document is not is a description of the app as it

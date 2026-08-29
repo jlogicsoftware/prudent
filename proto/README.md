@@ -29,7 +29,7 @@ to a contract, and a contract is the one place a guess is expensive to withdraw.
 | Side | Output | Tracked? |
 |---|---|---|
 | Java | `server/target/generated-sources/protobuf/` | **No** |
-| Dart | `client/lib/src/generated/prudent/v1/*.pb*.dart` | **Yes** |
+| Dart | `client/lib/generated/prudent/v1/*.pb*.dart` | **Yes** |
 
 The split is a **toolchain-boundary** question, not a preference. `protobuf-maven-plugin`
 resolves the `protoc` binary from Maven Central, so any consumer with Maven regenerates the Java
@@ -59,8 +59,8 @@ halves were run before this file was written, against a throwaway `probe.proto` 
   `zen.v1` classes are resolved from the `zen-proto` jar already on the classpath, so nothing is
   generated twice and there is no second copy of a framework message.
 - **Dart — broken.** `protoc --dart_out` emitted `import '../../zen/v1/common.pb.dart'` — a
-  **relative** path. From `client/lib/src/generated/prudent/v1/` that resolves to
-  `client/lib/src/generated/zen/v1/common.pb.dart`, which does not exist. `protoc_plugin` has no
+  **relative** path. From `client/lib/generated/prudent/v1/` that resolves to
+  `client/lib/generated/zen/v1/common.pb.dart`, which does not exist. `protoc_plugin` has no
   package-mapping option, so the only way to satisfy it is to generate the framework's messages
   into Prudent's tree — producing a **second `ZenError` type** alongside the one
   `package:zen_transport` exports. Two Dart classes from one message are not assignable to each

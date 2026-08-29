@@ -39,7 +39,7 @@ public Response get(@PathParam("id") String id) {
 Map the Panache entity ⇄ proto with **MapStruct** (or a hand-written `toProto`). Persistence is
 Hibernate Panache in **active-record** style — no repository classes.
 
-Prudent's own resources are the closest examples — `server/src/main/java/prudent/server/record/
+Prudent's own resources are the closest examples — `server/src/main/java/prudent/record/
 RecordResource.java` with `RecordMapper`, and `settings/SettingsResource.java` with
 `SettingsMapper`. Beyond those, the reference implementations live in the jZen checkout:
 `../jZen/server/zen-identity/**/AdminUserResource.java` and `**/auth/AuthResource.java`, and the
