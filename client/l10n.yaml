@@ -2,11 +2,13 @@
 # identity and navigation wording it renders comes from zen_ui_identity / zen_ui_navigation,
 # each of which generates its own accessors and delegate.
 #
-# The ARB files are the tracked source; lib/src/l10n/generated is built by
-# `task zen:generate:l10n` and is NOT tracked — the contract gate asserts that.
-arb-dir: lib/src/l10n
+# The ARB files are the tracked source; lib/l10n/generated is built by
+# `task zen:generate:l10n` and is NOT tracked — the contract gate asserts that. Flat under
+# lib/ rather than lib/src/ (ADR-026): Prudent's client is a leaf application, so it has no
+# lib/src/ privacy layer.
+arb-dir: lib/l10n
 template-arb-file: prudent_en.arb
-output-dir: lib/src/l10n/generated
+output-dir: lib/l10n/generated
 output-localization-file: prudent_localizations.dart
 output-class: PrudentLocalizations
 nullable-getter: false

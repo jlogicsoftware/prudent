@@ -7,10 +7,10 @@ import 'package:zen_secure_store/zen_secure_store.dart';
 import 'package:zen_transport/zen_transport.dart';
 import 'package:zen_ui_identity/zen_ui_identity.dart';
 
-import 'src/app.dart';
-import 'src/auth_deep_links.dart';
-import 'src/prudent_repository.dart';
-import 'src/providers.dart';
+import 'app.dart';
+import 'auth/auth_deep_links.dart';
+import 'prudent_repository.dart';
+import 'providers.dart';
 
 /// Wires Prudent to the real backend. One session [http.Client] ([createSessionClient], the
 /// compile-time platform seam: a native cookie jar or a credentialed browser client) is shared by

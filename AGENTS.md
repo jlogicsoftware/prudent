@@ -38,20 +38,28 @@ its generate/verify loop and the round-trip suite that proves it are in place �
 Built and merged: the backend (`AccountResource`, `CategoryResource`, `RecordResource`,
 `SettingsResource`, `AnalyticsResource`, `HealthResource` over four Panache entities), the Flyway
 migration and its row-level security, and the client rewired onto `ZenClient` with auth and the
-navigation shell (`client/lib/src/prudent_repository.dart`). The third-party backend call the
+navigation shell (`client/lib/prudent_repository.dart`). The third-party backend call the
 conversion existed to remove is gone.
 
 **Not built: a deploy path.** `verify:deploy` is written against a real environment "if one ever
 exists", and there is no `deploy` task. Treat deploying Prudent as conversion work, not as
 something to attempt.
 
+**Done: the structural flattening (ADR-026).** Client code is now flat under `client/lib/` on a
+capability-folder layout (`account/ analytics/ auth/ category/ generated/ l10n/ overview/ record/`
+plus flat files) — `client/lib/src/` is gone. The server package is `prudent.*` (`prudent/server/`
+gone; new `health/` and `error/` capability packages). Tests flattened to match. It was a pure
+`git mv` pass with no behaviour change, driven by `docs/implemented-plans/prudent-restructure-prompt.md`. Any
+`lib/src/…` or `prudent.server.…` path in an older doc or ADR is historical — the current tree is
+the one described here.
+
 **Keep this section true.** It is the first thing a session reads, and it was wrong for a week —
 it still claimed no resources, no entities, no migrations and no `ZenClient` after all four had
 merged, which sends every session looking for work that was already done. When a phase lands,
 update it in the same commit.
 
-**`docs/prudent-migration-plan.md` is the approved plan the remaining phases execute**, and
-`docs/prudent-migration-prompt.md` is the brief behind it — read them before proposing structural
+**`docs/implemented-plans/prudent-migration-plan.md` is the approved plan the remaining phases execute**, and
+`docs/implemented-plans/prudent-migration-prompt.md` is the brief behind it — read them before proposing structural
 change, and do not invent a different target shape. Check what actually exists before building on
 it: parts of the structure described below are built and parts are still the target, `docs/DECISIONS.md`
 is the record of which, and a session must not speak about the unbuilt half as if it already exists.
@@ -148,13 +156,13 @@ consumer that bends them stops being a consumer:
   Runtime config on the client is **forbidden** — it is what lets the toolchain tree-shake the
   native-only Protobuf path out of the web bundle. The server is the deliberate opposite: runtime
   MicroProfile config.
-- **Typed, generated i18n.** No hardcoded user-facing strings. Each package owns `lib/src/l10n/*.arb`
+- **Typed, generated i18n.** No hardcoded user-facing strings. Each package owns `lib/l10n/*.arb`
   + `l10n.yaml` and generates accessors with `flutter gen-l10n`; the generated output is built, not
   committed. **Prudent supports `{en, uk, pl}`** — its own decision, not the framework's (jZen
   ADR-044). `ZenLocales.shipped` is jZen's inventory (`{en, uk}`) and is a floor, not a ceiling:
   Prudent declares its set as a compile-time `const` on the client and as `zen.i18n.supported` on
   the server, and framework screens degrade to English under `pl` rather than crashing. See
-  `docs/prudent-migration-plan.md` for how Polish is delivered.
+  `docs/implemented-plans/prudent-migration-plan.md` for how Polish is delivered.
 - **Flyway is the single migration authority.** Never two migration systems on one database.
   Prudent owns a Flyway version band that cannot collide with jZen's `zen-identity` band — pin the
   band in an ADR before writing the first migration.
@@ -168,7 +176,7 @@ consumer that bends them stops being a consumer:
 A comment earns its place by saying *why* a constraint exists, in language a reader with no
 history here can follow. Prudent is described on its own terms — as an application built on jZen,
 which is a declared dependency, not as anything "ported", "migrated from", or "derived". The
-conversion's own record (`docs/DECISIONS.md`, `docs/prudent-migration-prompt.md`) is where the
+conversion's own record (`docs/DECISIONS.md`, `docs/implemented-plans/prudent-migration-prompt.md`) is where the
 before-state is discussed.
 
 ## Decisions

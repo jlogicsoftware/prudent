@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../src/generated/prudent/v1/categories.pb.dart';
+import '../generated/prudent/v1/categories.pb.dart';
 import 'category_icons.dart';
 
 /// Converts the wire's `color_argb` / `icon_key` into `dart:ui` types at the widget boundary —

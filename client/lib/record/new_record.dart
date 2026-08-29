@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../src/generated/prudent/v1/accounts.pb.dart';
-import '../src/generated/prudent/v1/categories.pb.dart';
-import '../src/generated/prudent/v1/records.pb.dart';
-import '../src/l10n/generated/prudent_localizations.dart';
-import '../src/money.dart';
-import '../src/providers.dart';
+import '../generated/prudent/v1/accounts.pb.dart';
+import '../generated/prudent/v1/categories.pb.dart';
+import '../generated/prudent/v1/records.pb.dart';
+import '../l10n/generated/prudent_localizations.dart';
+import '../money.dart';
+import '../providers.dart';
 
 class NewRecord extends ConsumerStatefulWidget {
   const NewRecord({super.key, required this.onSave, this.initialRecord});

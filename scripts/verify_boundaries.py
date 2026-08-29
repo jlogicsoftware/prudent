@@ -38,7 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Only the client's own source is in scope. Not `client/test`: a test double's fake server URL is
-# not a call the product makes. Not `client/lib/src/generated`: generated code is a derived
+# not a call the product makes. Not `client/lib/generated`: generated code is a derived
 # artifact, and editing it is already a defect `task sync:contracts` catches.
 CLIENT_LIB_SCOPE = "client/lib"
 GENERATED_DIR = "/generated/"

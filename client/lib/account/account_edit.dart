@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../src/generated/prudent/v1/accounts.pb.dart';
-import '../src/l10n/generated/prudent_localizations.dart';
+import '../generated/prudent/v1/accounts.pb.dart';
+import '../l10n/generated/prudent_localizations.dart';
 
 /// Edits an account's name, type and the three flags nothing could previously set
 /// (docs/prudent-migration-plan.md Phase 4). `balances` travels through UNCHANGED: a `PUT` is a

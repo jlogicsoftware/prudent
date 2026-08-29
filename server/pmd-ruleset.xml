@@ -10,10 +10,10 @@
     the failure alone, and a ruleset importing an entire PMD category (correctness, performance,
     ...) would fail the build on things nobody asked this check to catch.
 
-    UnnecessaryFullyQualifiedName flags exactly `prudent.server.account.AccountBalance(...)` used
-    inline instead of `import prudent.server.account.AccountBalance;` plus the simple name — a
+    UnnecessaryFullyQualifiedName flags exactly `prudent.account.AccountBalance(...)` used
+    inline instead of `import prudent.account.AccountBalance;` plus the simple name — a
     fully qualified reference where an import would resolve the same class. It found one real
-    instance on introduction (server/src/test/java/prudent/server/UserScopingTest.java), which is
+    instance on introduction (server/src/test/java/prudent/UserScopingTest.java), which is
     why the rule exists rather than an assumption that the codebase was already clean.
   </description>
 

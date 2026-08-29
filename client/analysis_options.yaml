@@ -32,6 +32,13 @@ analyzer:
     # generated code is unactionable by construction: the only honest fix would be to hand-edit the
     # file, which is exactly what `task sync:contracts` exists to forbid. They are still COMPILED
     # and still type-checked wherever they are used — this suppresses style lints, not errors.
-    - lib/src/generated/**
+    - lib/generated/**
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_core/zen_core.dart';
 
-import '../src/generated/prudent/v1/categories.pb.dart';
-import '../src/l10n/generated/prudent_localizations.dart';
-import '../src/providers.dart';
-import '../widgets/popup/popup.dart';
+import '../generated/prudent/v1/categories.pb.dart';
+import '../l10n/generated/prudent_localizations.dart';
+import '../providers.dart';
+import '../popup.dart';
 import 'category_grid_items.dart';
 import 'category_records.dart';
 import 'new_category.dart';
