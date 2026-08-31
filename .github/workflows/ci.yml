@@ -42,13 +42,16 @@ permissions:
 
 env:
   # jZen pinned at a SHA — see the header comment. Bump deliberately; this is a dependency
-  # version, not a detail. Confirmed pushed to jZenDev/jZen's main at the time this was written
-  # (docs/DECISIONS.md records the "jZen build is clean" checkpoint this pin was taken from).
-  JZEN_REF: 3a450b2279d133c2909f51c2da9b76e161c6f49d
+  # version, not a detail. Confirmed pushed to jZenDev/jZen's main at the time this was written.
+  # Consumes jZen #74 (contract-loop / deps rollups — ADR-027), #78 (run:* operator guards —
+  # ADR-028), #81/#82 (standalone run primitives + one-Ctrl-C run:dev — ADR-029). The tasks this
+  # workflow calls (verify:contracts, the all-tier zen:deps) do not exist before #74; the later
+  # bumps keep CI's jZen in step with the run:* tasks Prudent now delegates wholesale.
+  JZEN_REF: b74b73ac0710bdd35524352176b86709c63460e4
 
 jobs:
   # Contract drift, the boundary gate, the Dart/Flutter suites, and the admin typecheck. Needs the
-  # full toolchain because sync:contracts regenerates across all three languages.
+  # full toolchain because verify:contracts regenerates across all three languages.
   gates:
     runs-on: ubuntu-latest
     steps:
@@ -82,9 +85,9 @@ jobs:
           node-version: "22"
       - run: corepack enable
 
-      # sync:contracts generates the Dart messages with protoc + protoc-gen-dart, delegated to
-      # jZen's zen:generate:proto:dart (ADR-007). Pin protoc_plugin to the version that produced
-      # the committed .pb.dart output, or the drift gate false-fails on codegen-format
+      # verify:contracts generates the Dart messages with protoc + protoc-gen-dart, delegated to
+      # jZen's zen:generate:proto:dart (ADR-007, ADR-027). Pin protoc_plugin to the version that
+      # produced the committed .pb.dart output, or the drift gate false-fails on codegen-format
       # differences alone.
       - uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
         with:
@@ -155,15 +158,18 @@ jobs:
       # on a developer's machine that has jZen's admin/ pnpm-installed from unrelated local work,
       # real on a fresh CI clone. Reported upstream (docs/jzen/README.md).
 
-      - name: Resolve Dart + admin dependencies
+      # zen:deps is the all-tier aggregate now (jZen #74); this job never builds the server, so it
+      # asks for the client and admin tiers by name rather than paying for a Maven go-offline it
+      # has no consumer for.
+      - name: Resolve client + admin dependencies
         working-directory: prudent
         run: |
-          task zen:deps
-          task deps:admin
+          task zen:deps:client
+          task zen:deps:admin
 
       - name: Contract drift gate
         working-directory: prudent
-        run: task sync:contracts
+        run: task verify:contracts
 
       - name: Client suites
         working-directory: prudent
@@ -269,8 +275,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build libgtk-3-dev libsecret-1-dev
+      # zen:deps:client, not the all-tier zen:deps (jZen #74): this runner has no Node toolchain
+      # and (on Windows) no JDK — it only builds Flutter runners.
       - working-directory: prudent
-        run: task zen:deps
+        run: task zen:deps:client
       - working-directory: prudent
         run: task zen:build:runners
 
@@ -321,8 +329,10 @@ jobs:
       - name: Generate jZen's own framework l10n
         working-directory: prudent
         run: task zen:framework:prepare:l10n
+      # zen:deps:client, not the all-tier zen:deps (jZen #74): this runner has no Node toolchain
+      # and (on Windows) no JDK — it only builds Flutter runners.
       - working-directory: prudent
-        run: task zen:deps
+        run: task zen:deps:client
       - working-directory: prudent
         run: task zen:build:runners
 
@@ -364,7 +374,9 @@ jobs:
       - name: Install jZen framework libraries
         working-directory: prudent
         run: task zen:framework:install
+      # zen:deps:client only (jZen #74): test:e2e builds the server through its own mvnw, and this
+      # job has no Node toolchain for the admin tier.
       - working-directory: prudent
-        run: task zen:deps
+        run: task zen:deps:client
       - working-directory: prudent
         run: task test:e2e

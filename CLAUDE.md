@@ -33,7 +33,11 @@ As of 2026-08-23 the repository has a **language-neutral root over four tiers**:
 Flutter app), `server/` (a Quarkus backend), `admin/` (the react-admin panel),
 `proto/prudent/v1/` (the wire contract), and a `Taskfile.yml` that includes jZen's. The contract,
 its generate/verify loop and the round-trip suite that proves it are in place —
-`task sync:contracts` and `task zen:test:client` are the commands that check them.
+`task verify:contracts` (the drift gate; `task generate` regenerates without it) and
+`task zen:test:client` are the commands that check them. The whole loop is consumed from jZen's
+`Taskfile.app.yml`, not hand-rolled: ADR-027 (jZen #74) finished the migration ADR-007 began, and
+`server/openapi.json` is no longer tracked — the admin panel's `schema.generated.ts` is the
+tracked artifact the gate watches.
 
 Built and merged: the backend (`AccountResource`, `CategoryResource`, `RecordResource`,
 `SettingsResource`, `AnalyticsResource`, `HealthResource` over four Panache entities), the Flyway
@@ -127,8 +131,9 @@ includes:
 Included tasks run in **this** repository's directory, and jZen consumes the same file for its own
 reference app, so it is shared code rather than a lookalike. `task zen:info` reports which jZen
 checkout is in use, at which revision, and whether it is dirty — run it first when a build behaves
-oddly. Tasks jZen has not yet made app-agnostic (the contract loop, the server build, the local
-stack, the deploy) are Prudent's own for now.
+oddly. The contract loop and `deps` are consumed from the include (ADR-027), and so is the whole
+`run:*` family — one-line aliases to `zen:run:*` (ADR-028, ADR-029); the server build, the gates
+and the deploy are still Prudent's own.
 
 ## The rules Prudent inherits and cannot bend
 

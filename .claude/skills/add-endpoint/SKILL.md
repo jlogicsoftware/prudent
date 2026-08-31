@@ -70,7 +70,7 @@ Two rules that fail **silently** if broken:
 
 ## 5. Regenerate and test
 
-Run the `sync-contracts` skill (`task generate:proto generate:api`, then `task sync:contracts`).
+Run the `sync-contracts` skill (`task generate`, then `task verify:contracts`).
 Add a `@QuarkusTest` asserting **both** transport modes and the `ZenError` error path, then run the
 backend suite. A `@QuarkusTest` needs an assembled app and Docker running (Dev Services Postgres).
 

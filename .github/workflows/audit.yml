@@ -18,7 +18,7 @@ permissions:
 env:
   # Same pin as ci.yml's — see that file's header for why jZen is pinned rather than checked out
   # at main. Bump both together.
-  JZEN_REF: 3a450b2279d133c2909f51c2da9b76e161c6f49d
+  JZEN_REF: b74b73ac0710bdd35524352176b86709c63460e4
 
 jobs:
   audit:
@@ -57,9 +57,9 @@ jobs:
         working-directory: prudent
         run: task zen:framework:install
 
-      - name: task deps:admin
+      - name: Install admin dependencies
         working-directory: prudent
-        run: task deps:admin
+        run: task zen:deps:admin
 
       - name: task audit
         working-directory: prudent

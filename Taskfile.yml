@@ -33,33 +33,52 @@ includes:
       # capability folder and cross-cutting file sits directly under lib/, and the generated
       # messages are one more directory there.
       PROTO_DART_OUT: client/lib/generated
+      # OVERRIDDEN for the same reason as PROTO_DART_OUT: zen:run:client / zen:run:dev default the
+      # Flutter package to `<client>/<app>_client`, the per-concern-package layout. Prudent's
+      # client tier IS the Flutter package, so it is `client/` itself. (build:runners already
+      # defaults this to CLIENT_DIR; run:* use the suffixed form, hence this line.)
+      APP_CLIENT_DIR: client
+      # zen:run:dev / zen:run:server / zen:run:client serve the web client on this port and name it
+      # in CORS_ORIGINS. 8090, not jZen's 5200 default, because that is the origin
+      # server/src/main/resources/application.properties' CORS allowlist is written for (ADR-028).
+      ZEN_WEB_PORT: '8090'
+      # Prudent's native auth deep-link scheme (ADR-013/025). zen:run:client / zen:run:dev pass it
+      # as --dart-define ONLY for a native target — a web build must not carry a custom-scheme
+      # redirect or the server refuses it as invalid_redirect (jZen #81). Must equal the server's
+      # %dev.auth.redirect-uris and the value registered in the platform manifests, exactly.
+      ZEN_AUTH_REDIRECT_URI: prudent://auth-callback
 
-# WHAT IS DELIBERATELY NOT HERE YET.
+# THE CONTRACT LOOP AND THE DEPENDENCY INSTALL ARE CONSUMED FROM THE INCLUDE, NOT HAND-ROLLED
+# (Prudent ADR-027, jZen ADR-049 / issue #74). jZen's Taskfile.app.yml now carries the whole loop
+# written against vars — proto -> Java/Dart, openapi.json, admin TS, typed l10n — plus the
+# dependency aggregate and the local-stack tasks, and jZen's own Taskfile.yml delegates to every
+# one of them, so the framework runs the same code Prudent does rather than a lookalike that
+# drifts. Prudent deleted its copies on the pattern ADR-007 set: report, wait, delete the local
+# copy, prove the regenerated artifacts byte-identical.
 #
-# The tasks an application eventually needs are NOT in jZen's Taskfile.app.yml. jZen ADR-046
-# records that limit explicitly: only generate:l10n and build:runners have been made app-agnostic
-# so far, and the rest of jZen's orchestration is still shaped around its own reference app (its
-# generate:proto:dart writes into client/zen_transport/lib/src/generated and its sync:verify globs
-# proto/zen/v1, so an application cannot reuse either). Prudent writes its own, phase by phase, as
-# each phase produces something for the task to act on.
+# AVAILABLE FROM THE INCLUDE (task zen:<name>):
+#   info                Which jZen checkout, which revision, dirty or not
+#   framework:install   Installs the jZen Java libraries into the local Maven repository —
+#                       the prerequisite server/pom.xml cannot express (see that file)
+#   deps                Resolve every tier: Maven (server) + pub (client) + pnpm (admin)
+#   generate            Regenerate every cross-language artifact — no gate, always green
+#   verify:contracts    generate, then FAIL if the tree drifted (was Prudent's sync:contracts)
+#   generate:proto[:java|:dart] / generate:api[:schema|:ts] / generate:l10n   the loop's parts
+#   test:client         Every Dart/Flutter suite
+#   build:runners       Every delivery runner this host can build; skips are announced
+#   run:supabase / run:server / run:client / run:admin / run:dev   the local stack — #78/#81/#82
+#                       folded every operator guard, the standalone-primitive wiring and the
+#                       one-Ctrl-C teardown into jZen's versions, so all five below are one-line
+#                       delegations (ADR-029).
 #
-# NO STUBS. A task that exists and does nothing is worse than no task: it reports success, and a
-# gate composed from it then passes without having checked anything. Each task arrives with the
-# work it verifies.
+# The bare names above are Prudent's — one-line aliases to a zen: task, exactly as jZen's own
+# Taskfile.yml aliases them for zen_demo (ADR-049). CI, the docs and the skills say the bare name;
+# the zen: prefix is an implementation detail.
 #
-#   Phase 1  generate:proto:{java,dart}, sync:contracts, sync:verify   <- below
-#   Phase 2  build:server, test:server, the local stack
-#   Phase 3  verify:boundaries   <- the gate that proves the Firebase call is gone
-#   Phase 5  test:e2e, deploy:cloudrun, verify:deploy, the composed `task test`
-#
-# AVAILABLE FROM THE INCLUDE:
-#   task zen:info                Which jZen checkout, which revision, dirty or not
-#   task zen:framework:install   Installs the jZen Java libraries into the local Maven repository —
-#                                the prerequisite server/pom.xml cannot express (see that file)
-#   task zen:deps                flutter pub get across the client tier
-#   task zen:generate:l10n       flutter gen-l10n in every package declaring an l10n.yaml
-#   task zen:test:client         Every Dart/Flutter suite
-#   task zen:build:runners       Every delivery runner this host can build; skips are announced
+# WHAT IS STILL PRUDENT'S OWN, BELOW: the server build, the web/admin bundle staging, the native
+# image, every gate (verify:boundaries, verify:endpoints, audit, test:native, test:e2e) and the
+# deploy — all genuinely Prudent-shaped or not yet app-agnostic upstream. A task that exists and
+# does nothing is worse than no task: each one below arrives with the work it verifies.
 
 vars:
   PROTO_DIR: proto
@@ -70,9 +89,10 @@ vars:
   # serves them same-origin with the API (load-bearing for the session cookie — see build:web's
   # own summary). Gitignored; never committed.
   WEB_RESOURCES: server/src/main/resources/META-INF/resources
-  # The port the backend serves on locally. 8085, not 8080: jZen's own stack holds 8080,
-  # and Taskfile.app.yml already defaults an application's API to 8085 (ADR-010).
-  APP_PORT: '8085'
+  # The local backend port is 8085 — jZen's own stack holds 8080, and Taskfile.app.yml already
+  # defaults an application's API to 8085 (ADR-010). It is not a var here: the run:* tasks that
+  # used it are jZen's now (they default APP_PORT to 8085), and test:e2e reads ZEN_APP_PORT from
+  # the environment. A second copy would be a value nothing reads until someone changed the wrong one.
   # NO DART_OUT HERE. The generated Dart messages' location is declared ONCE, as PROTO_DART_OUT on
   # the include above, because the framework's task is what writes them. A second copy of the path
   # in this map would be a value nothing reads until someone changes the wrong one.
@@ -83,64 +103,36 @@ tasks:
   #
   #   proto/prudent/v1/*.proto              (canonical models)
   #     |-- protoc --> Java DTOs            (protobuf-maven-plugin; NOT tracked)
-  #     |-- protoc --> Dart messages        (protoc_plugin;         TRACKED)
+  #     |-- protoc --> Dart messages        (protoc_plugin;         TRACKED at client/lib/generated)
+  #   annotated resources + SmallRye --> openapi.json (target/, NOT tracked) --> admin TS
+  #     (openapi-typescript --> admin/src/api/schema.generated.ts; TRACKED)
   #
-  # THE OPENAPI HALF ARRIVES IN PHASE 2, and its absence here is sequencing rather than an
-  # omission. openapi.json is emitted by SmallRye from ANNOTATED RESOURCES, and Prudent has no
-  # resources yet — so a generate:api task today would package a backend with no routes, write a
-  # document describing nothing, and report success. sync:contracts gains `generate:api` and the
-  # '*.generated.ts' watch the moment the first resource exists.
+  # THE WHOLE LOOP IS THE FRAMEWORK'S NOW (Prudent ADR-027, jZen #74). `task generate` regenerates
+  # every artifact and always exits 0; `task verify:contracts` regenerates then FAILS on drift —
+  # jZen ADR-049's split of "regenerate my code" from "the CI gate", so the first never fails you
+  # because the regeneration worked. Both delegate; the aliases below keep the names Prudent's CI
+  # and docs use. The drift gate watches the TRACKED artifacts (*.pb.dart, *.generated.ts) and
+  # asserts the built-not-tracked localizations stay untracked — server/openapi.json is no longer
+  # one of them (ADR-027 supersedes ADR-011: the admin panel now carries the tracked artifact).
   # ---------------------------------------------------------------------------------------------
 
-  generate:proto:
-    desc: Generate the Java DTOs and the Dart messages from proto/
+  generate:
+    desc: Regenerate every cross-language artifact — proto, openapi, admin TS, l10n (no gate)
     cmds:
-      - task: generate:proto:java
-      - task: generate:proto:dart
+      - task: zen:generate
 
-  generate:proto:java:
-    desc: Generate Java DTOs from proto/ (protoc resolved from Maven Central)
-    dir: "{{.SERVER_DIR}}"
-    summary: |
-      NOT TRACKED. The output is target/generated-sources/protobuf, which is gitignored.
-
-      protobuf-maven-plugin resolves the protoc binary from Maven Central itself, so anyone with
-      the Maven wrapper regenerates this hermetically and there is no toolchain boundary to carry
-      the result across. Committing it would only add a second copy to keep honest.
-
-      Needs the framework artifacts in the local Maven repository first (`task
-      zen:framework:install`) — server/pom.xml's parent has an empty <relativePath/>.
+  verify:contracts:
+    desc: Regenerate, then FAIL if a tracked generated file drifted (was sync:contracts)
     cmds:
-      - ./mvnw -B -q generate-sources
+      - task: zen:verify:contracts
 
-  generate:proto:dart:
-    desc: Generate Dart messages from proto/ into client/lib/generated
-    summary: |
-      DELEGATED TO THE FRAMEWORK, and this task exists only to keep the name — `generate:proto`
-      and any future gate compose it, and CI and docs say it.
-
-      Prudent hand-rolled this in Phase 1 because jZen's version wrote into its own tree. Prudent
-      reported that (jZenDev/jZen#54), jZen made the task app-agnostic (PR #55), and Prudent
-      DELETED ITS COPY rather than keeping one that resembles it — a task sitting in both files is
-      drift waiting to happen. See docs/DECISIONS.md ADR-007.
-
-      What the framework's version does that Prudent's could not: it gives protoc BOTH contract
-      roots with -I but only the application's protos as arguments, then rewrites the dangling
-      relative imports protoc leaves behind into `package:zen_transport/generated/zen/v1/…`. That
-      is what makes a Prudent proto able to `import "zen/v1/common.proto"` at all — the thing
-      measured as impossible in Phase 1. It also REFUSES if a zen/v1 file lands in Prudent's tree,
-      which is the type-identity rule enforced rather than documented.
-
-      TRACKING IS UNCHANGED and is still Prudent's decision, not the framework's: this output is
-      committed, because regenerating it needs a system protoc plus protoc-gen-dart that a Flutter
-      developer has no other reason to install. The Java side is the opposite, for the opposite
-      reason. .gitattributes marks this output linguist-generated, and a tracked generated file is
-      never hand-edited.
+  deps:
+    desc: Resolve every tier's dependencies — Maven (server) + pub (client) + pnpm (admin)
     cmds:
-      - task: zen:generate:proto:dart
+      - task: zen:deps
 
   # ---------------------------------------------------------------------------------------------
-  # The server: build, test, and the OpenAPI half of the contract loop.
+  # The server: build and test. The contract loop's OpenAPI half is `task generate` (delegated).
   # ---------------------------------------------------------------------------------------------
 
   build:server:
@@ -172,156 +164,6 @@ tasks:
     cmds:
       - ./mvnw -B test
 
-  generate:api:schema:
-    desc: Emit openapi.json from the annotated resources (SmallRye) and track it
-    summary: |
-      THE OPENAPI HALF OF THE CONTRACT. Packaging the server runs SmallRye's scanner over the
-      annotated resources and merges the result onto the static component schemas in
-      server/src/main/resources/META-INF/openapi.yaml — PATHS COME FROM THE ANNOTATIONS, SCHEMAS
-      COME FROM THE APPLICATION. store-schema-directory (application.properties) is what makes it
-      write the file at all.
-
-      WHY THE RESULT IS COPIED TO A TRACKED PATH. Everything Maven writes lives under target/, which
-      is gitignored — so a gate that regenerated openapi.json there and then diffed the working tree
-      would find nothing, always, and report the contract in sync HAVING CHECKED NOTHING. That is
-      precisely the vacuous-gate failure the no-fingerprinting rule at the bottom of this file
-      exists to prevent, in a different disguise. Tracking the document makes REST-surface drift
-      reviewable in a diff the same way a .proto change is.
-
-      In jZen the tracked downstream artifact is the admin panel's schema.generated.ts, and
-      openapi.json stays in target/. Prudent has no admin panel until Phase 5, so until then the
-      document itself is the artifact worth tracking; generate:api:ts joins this task then.
-
-      -DskipTests, deliberately: this task exists to produce a document, and `task test:server` is
-      where the suites run. Running them here would make every contract check pay for a full
-      database-backed suite, and a slow gate is a gate people stop running.
-    cmds:
-      - "{{.SERVER_DIR}}/mvnw -B -q -f {{.SERVER_DIR}}/pom.xml package -DskipTests"
-      - cmd: |
-          set -euo pipefail
-          generated="{{.SERVER_DIR}}/target/openapi/openapi.json"
-          if [ ! -f "$generated" ]; then
-            echo "SmallRye wrote no openapi.json at $generated." >&2
-            echo >&2
-            echo "The usual cause is that the 'openapi' Maven profile did not activate, which" >&2
-            echo "removes quarkus-smallrye-openapi from the build. The profile is ON unless" >&2
-            echo "-Dnative is passed; check server/pom.xml if that has been changed." >&2
-            exit 1
-          fi
-          cp "$generated" "{{.SERVER_DIR}}/openapi.json"
-          echo "openapi.json -> {{.SERVER_DIR}}/openapi.json"
-        silent: true
-
-  generate:api:ts:
-    desc: Generate the admin panel's TypeScript types from server/openapi.json
-    dir: "{{.ADMIN_DIR}}"
-    summary: |
-      openapi-typescript over ../server/openapi.json, producing src/api/schema.generated.ts.
-      TRACKED (a frontend developer must be able to compile the panel without a JDK) — the same
-      toolchain-boundary reasoning as the Dart side of generate:proto (ADR-006), applied to the
-      third language.
-
-      status: SKIPS rather than fails when server/openapi.json does not exist yet — but that guard
-      is exactly the trap docs/prudent-migration-prompt.md names: inverting the server's openapi
-      Maven profile makes generate:api:schema silently write nothing, this step then skips rather
-      than fails, and sync:verify diffs a file nobody regenerated and reports success. The guard
-      is correct for a fresh checkout that has not run generate:api:schema yet in the SAME
-      invocation; sync:contracts always runs generate:api:schema first, so in the gate this step
-      never actually skips. task verify:endpoints (Phase 5 §4) is the check that catches the
-      profile-inversion case this status guard cannot.
-    status:
-      - test ! -f ../server/openapi.json
-    cmds:
-      - pnpm install --silent
-      - pnpm run generate:types
-
-  generate:api:
-    desc: Generate every artifact derived from the REST surface
-    summary: |
-      generate:api:schema (openapi.json) then generate:api:ts (the admin panel's types) — the
-      contract loop's OpenAPI half in full, per docs/prudent-migration-plan.md Phase 5.
-    cmds:
-      - task: generate:api:schema
-      - task: generate:api:ts
-
-  sync:contracts:
-    desc: Regenerate every cross-language artifact and FAIL if anything drifted
-    summary: |
-      THE GATE. Regenerates the Java DTOs, the Dart messages, openapi.json and the admin
-      TypeScript, then fails if any tracked generated file changed.
-
-      A failure means a generated file was hand-edited, or a .proto/resource changed without the
-      output being regenerated. Fix it by running `task generate:proto generate:api` and
-      committing the result, never by editing generated output.
-
-      WHAT IT CATCHES, EXACTLY — worth knowing, because the obvious mental model is wrong. This
-      gate REGENERATES FIRST and then diffs against HEAD, so it catches:
-
-        - a .proto or resource changed without its generated output being regenerated and committed;
-        - a hand-edited generated file that reached a COMMIT.
-
-      It does NOT fail on an uncommitted hand-edit, because regeneration OVERWRITES it before the
-      diff runs. That is the gate doing its job rather than a hole in it — the edit is destroyed,
-      which is the outcome the rule wants — but it means "the gate catches hand-editing" is only
-      true at the point the edit would otherwise enter the repository. Both behaviours were run,
-      not assumed.
-
-      It also asserts the MIRROR-IMAGE property for the artifacts the tracking rule sends the
-      other way: generated localizations are built, not tracked (jZen ADR-009), so for those the
-      failure is being committed at all.
-    cmds:
-      - task: generate:proto
-      - task: generate:api
-      - task: generate:l10n
-      - task: sync:verify
-
-  generate:l10n:
-    desc: Generate the typed client localizations from the ARB files
-    summary: |
-      Delegated to jZen's app-agnostic implementation (ADR-046) — it discovers packages by
-      l10n.yaml and is not about jZen's own tree.
-
-      Prudent has no ARB files yet (they arrive in Phase 3), so this generates nothing today. It
-      is composed into sync:contracts now anyway, because the assertion that matters in the
-      meantime is the one in sync:verify: that no generated localization is ever TRACKED. That
-      guard has to be in place BEFORE the first ARB file lands, not after.
-    cmds:
-      - task: zen:generate:l10n
-
-  sync:verify:
-    desc: Fail if regeneration produced a dirty working tree, or tracked what must not be
-    internal: true
-    silent: true
-    cmds:
-      - |
-        set -euo pipefail
-        if ! git rev-parse --git-dir >/dev/null 2>&1; then
-          echo "Not a git repository, cannot verify contract sync." >&2; exit 1
-        fi
-        # Scoped to the .proto SOURCES and the tracked generated output, not to everything under
-        # proto/: this gate detects CONTRACT DRIFT, and proto/README.md is documentation beside the
-        # contract rather than part of it.
-        dirty=$(git status --porcelain -- '*.pb.dart' '*.pbjson.dart' '*.pbenum.dart' '*.pbserver.dart' 'proto/**/*.proto' 'server/openapi.json' 'admin/src/api/schema.generated.ts')
-        if [ -n "$dirty" ]; then
-          echo "Contracts are OUT OF SYNC. Regenerated output differs from what is committed:" >&2
-          echo "$dirty" >&2
-          echo >&2
-          echo "Run 'task generate:proto' and commit the result. Never edit generated output." >&2
-          exit 1
-        fi
-        echo "Contracts in sync."
-      - |
-        set -euo pipefail
-        tracked=$(git ls-files -- '*/l10n/generated/*')
-        if [ -n "$tracked" ]; then
-          echo "Generated localizations are TRACKED, and must not be (jZen ADR-009):" >&2
-          echo "$tracked" >&2
-          echo >&2
-          echo "Run 'git rm --cached' on them; they are produced by 'task generate:l10n'." >&2
-          exit 1
-        fi
-        echo "Generated localizations correctly untracked."
-
   verify:boundaries:
     desc: Fail if the client reaches past Prudent's own server
     summary: |
@@ -350,12 +192,6 @@ tasks:
       Dart scopes already use.
     cmds:
       - python3 scripts/verify_boundaries.py
-
-  deps:admin:
-    desc: Install the admin panel's dependencies (pnpm)
-    dir: "{{.ADMIN_DIR}}"
-    cmds:
-      - pnpm install
 
   test:admin:
     desc: Typecheck the admin panel (also typechecks the @jzen/admin-core scaffold it imports)
@@ -465,160 +301,70 @@ tasks:
         -Dquarkus.native.container-runtime-options=--platform=linux/amd64
 
   # ---------------------------------------------------------------------------
-  # Running the stack locally, interactively. The gate that already knew how to
-  # do this is test:e2e — these tasks take the same shapes and keep the stack UP.
+  # Running the stack locally, interactively — the whole family is jZen's now (ADR-029).
+  #
+  # #78 folded Prudent's four operator guards (platform inference, health check, CORS preflight,
+  # the Supabase URL hints) into jZen's run tasks; #81 taught zen:run:server / zen:run:client to
+  # stand alone (Supabase credentials wired, the native-only auth-redirect gated); #82 made
+  # zen:run:dev exit cleanly on one Ctrl-C. So every task below is a one-line delegation, the
+  # bare name kept the way jZen's own Taskfile.yml keeps them for zen_demo (ADR-049). The
+  # Prudent-specific wiring — port 8090, the client package at client/, the prudent:// scheme —
+  # is passed once on the include, not re-implemented here.
   # ---------------------------------------------------------------------------
+  run:dev:
+    desc: Bring up Supabase + the backend + the web client together; one Ctrl-C tears it down
+    summary: |
+      Delegated to zen:run:dev (ADR-028/029). The rollup: Supabase up, its URL and anon key
+      exported, the backend on :8085 with a CORS allowlist that names the web origin, /health
+      awaited, then the web client on :8090. The client runs with stdin closed so one Ctrl-C
+      shuts it down at once (jZen #82) — use `task run:client` for a hot-reload loop. Supabase is
+      left up (`supabase stop` when done).
+
+      `task run:dev DEVICE=macos CLIENT_PLATFORM=macos` for a native target; the web default is
+      what makes this a one-command quickstart.
+    cmds:
+      - task: zen:run:dev
+
   run:supabase:
     desc: Start Prudent's own local Supabase (auth + Postgres) — idempotent
-    silent: true
     summary: |
-      Prudent's Supabase project, not jZen's, and the ports say so: API 54331, Postgres 54332,
-      Studio 54333, Inbucket 54334 (supabase/config.toml). jZen's own stack holds 54321/54322, so
-      both products can run at once — which is the whole reason the ports were shifted rather than
-      inherited (the plan's open question §5.4, answered in Phase 2).
-
-      INBUCKET IS THE ONE TO REMEMBER when testing sign-up: a local Supabase mails nothing to the
-      outside world, so the confirmation and recovery links land at http://localhost:54334 rather
-      than in a real mailbox. That is where the `prudent://auth-callback` link is, and following it
-      from there is what exercises the deep-link path a real user would take.
-
-      Idempotent: an already-running stack is left alone rather than restarted, so this is safe to
-      run before anything else.
+      Delegated to zen:run:supabase — idempotent, checks the CLI is on PATH, prints the Studio /
+      mailbox / Postgres URLs from `supabase status` (Prudent's shifted ports need no special
+      case; supabase/config.toml sets them). The mailbox is where a local sign-up's confirmation
+      and `prudent://auth-callback` links land.
     cmds:
-      - |
-        set -eu
-        command -v supabase >/dev/null || { echo "supabase CLI not found: https://supabase.com/docs/guides/cli"; exit 1; }
-        if supabase status >/dev/null 2>&1; then
-          echo "Supabase already running."
-        else
-          supabase start
-        fi
-        echo
-        echo "  Studio:    http://localhost:54333"
-        echo "  Mailbox:   http://localhost:54334   <- confirmation + recovery links arrive here"
-        echo "  Postgres:  postgresql://postgres:postgres@localhost:54332/postgres"
+      - task: zen:run:supabase
 
   run:server:
     desc: Run the backend in Quarkus dev mode on :8085, against the local Supabase
-    silent: true
     summary: |
-      Quarkus DEV MODE (live reload), not the packaged jar test:e2e runs — the difference is the
-      point: a code change here is picked up without a restart, which is what makes this worth
-      having beside the gate.
-
-      It reads SUPABASE_URL and SUPABASE_KEY out of the running local stack rather than asking for
-      them, the same way test:e2e does. There is no fallback if Supabase is down: the server would
-      start, serve, and 500 every auth call, which looks like a broken backend rather than a stack
-      that was never started. So it fails first, saying what to run.
-
-      %dev points the datasource at Prudent's own Supabase Postgres (127.0.0.1:54332) and migrates
-      at boot, so the schema is applied by simply running this. %prod does neither — migration is
-      an act of the deploy (jZen ADR-038).
-
-      Holds the terminal. Ctrl-C stops it.
-    deps: [run:supabase]
+      Delegated to zen:run:server (jZen #81, ADR-029). Depends on run:supabase, wires
+      SUPABASE_URL / SUPABASE_KEY from the running stack (the anon key is per-stack, not a
+      constant — a backend without it 500s every auth call), exports a CORS allowlist that names
+      the :8090 web origin, then runs `quarkus:dev` with live reload. %dev migrates at boot, so
+      the schema is applied by simply running this. Ctrl-C stops it.
     cmds:
-      - |
-        set -eu
-        eval "$(supabase status -o env | sed 's/^/export SB_/')"
-        export SUPABASE_URL="${SB_API_URL}"
-        export SUPABASE_KEY="${SB_ANON_KEY}"
-        echo ">> Supabase at ${SUPABASE_URL}; starting Quarkus dev on :{{.APP_PORT}}"
-        cd {{.SERVER_DIR}} && ./mvnw -B quarkus:dev -Dquarkus.http.port={{.APP_PORT}}
+      - task: zen:run:server
 
   run:client:
-    desc: Run the Flutter app against the local backend (DEVICE=<flutter device id>)
-    silent: true
+    desc: Run the Flutter app against the local backend (DEVICE selects the target, default web)
     summary: |
-      Every value the client needs is COMPILE-TIME (STANDARDS "Client config is compile-time"), so
-      they are --dart-defines here rather than environment variables the app reads at runtime:
-      ZEN_ENV, ZEN_PLATFORM, ZEN_API_URL, and ZEN_AUTH_REDIRECT_URI.
-
-      ZEN_PLATFORM is derived from the target, not from the host, because it is what zenIsDesktop
-      and the codec seam branch on — passing the host's platform for a phone build would compile
-      the wrong branch of both.
-
-      ZEN_AUTH_REDIRECT_URI must match the scheme registered in the platform manifests AND the
-      server's AUTH_REDIRECT_URIS exactly; the server matches return addresses by exact string on
-      purpose, so a near-miss is refused rather than approximated (ADR-013).
-
-      DEVICE selects the target the way `flutter run -d` does: `task run:client DEVICE=chrome`,
-      `DEVICE=macos`, or a device id from `flutter devices`. Defaults to macOS, the one target that
-      needs no simulator running.
-    vars:
-      DEVICE: '{{.DEVICE | default "macos"}}'
-      # PINNED, not left to Flutter. `flutter run -d chrome` picks a RANDOM port each run, which
-      # makes the browser's Origin different every time — and the backend's CORS allowlist
-      # (quarkus.http.cors.origins, default http://localhost:8090,http://localhost:5173) can only
-      # ever name fixed origins. An unpinned port therefore fails every cross-origin call with
-      # "403 CORS Rejected - Invalid origin", which surfaces in the browser as an opaque network
-      # error on /register and looks like a broken backend. 8090 is the port that default list was
-      # written for. Overriding it means overriding CORS_ORIGINS to match — the check below says so
-      # rather than letting the request fail three layers away from the cause.
-      WEB_PORT: '{{.WEB_PORT | default "8090"}}'
-      # The Flutter device id and ZEN_PLATFORM disagree on names for the web target, and only
-      # there: `chrome` is a browser, `web` is the platform the client's constants know about.
-      PLATFORM:
-        sh: |
-          case "{{.DEVICE | default "macos"}}" in
-            chrome|edge|web-server) echo web ;;
-            macos)                  echo macos ;;
-            linux)                  echo linux ;;
-            windows)                echo windows ;;
-            *)                      echo "" ;;
-          esac
+      Delegated to zen:run:client (jZen #78/#81, ADR-029). Infers ZEN_PLATFORM from DEVICE
+      (`chrome`→web, `macos`/`linux`/`windows`→themselves; an emulator/UDID needs CLIENT_PLATFORM
+      passed), curls /api/v1/health first, checks the :8090 origin against the server's CORS
+      allowlist, and passes `ZEN_AUTH_REDIRECT_URI=prudent://auth-callback` only for a native
+      target — a web build must not get a custom-scheme redirect (the server would refuse it as
+      `invalid_redirect`). The scheme and the web port are set once on the include.
     cmds:
-      - |
-        set -eu
-        PLATFORM='{{.PLATFORM}}'
-        if [ -z "${PLATFORM}" ]; then
-          # An emulator or a phone: the id is arbitrary (emulator-5554, a UDID), so it cannot be
-          # mapped by name. Ask rather than guess — a wrong ZEN_PLATFORM compiles cleanly and is
-          # wrong at runtime, which is the failure this refuses to make quietly.
-          echo "Cannot infer ZEN_PLATFORM from DEVICE='{{.DEVICE}}'."
-          echo "Pass it explicitly, e.g.:  task run:client DEVICE={{.DEVICE}} PLATFORM=android"
-          exit 1
-        fi
-        curl -sf "http://localhost:{{.APP_PORT}}/api/v1/health" >/dev/null 2>&1 || {
-          echo "No backend answering on :{{.APP_PORT}} — run 'task run:server' in another terminal."
-          exit 1
-        }
-        # Web targets are cross-origin against :{{.APP_PORT}} and need the pinned port; native
-        # targets have no origin at all and ignore it.
-        WEB_ARGS=""
-        if [ "${PLATFORM}" = "web" ]; then
-          WEB_ARGS="--web-hostname localhost --web-port {{.WEB_PORT}}"
-          case ",${CORS_ORIGINS:-http://localhost:8090,http://localhost:5173}," in
-            *",http://localhost:{{.WEB_PORT}},"*) ;;
-            *)
-              echo "WEB_PORT={{.WEB_PORT}} is not in the server's CORS allowlist, so every call from"
-              echo "the browser will be rejected with 403 CORS Rejected - Invalid origin."
-              echo "Either drop WEB_PORT, or restart the server with:"
-              echo "  CORS_ORIGINS=http://localhost:{{.WEB_PORT}} task run:server"
-              exit 1 ;;
-          esac
-          echo ">> serving the app on http://localhost:{{.WEB_PORT}} (origin the backend allows)"
-        fi
-        # ZEN_AUTH_REDIRECT_URI IS NATIVE-ONLY, and passing it on web is a defect rather than a
-        # harmless extra. Empty — the web default — means "wherever the server sends people by
-        # default", which for a browser is the same origin it was served from. A web build that
-        # asks to be returned to `prudent://auth-callback` is asking the browser to hand an email
-        # link to a native app that may not be installed, and the server refuses the unlisted
-        # address outright: `invalid_redirect`, which reads as a broken backend and is not.
-        AUTH_ARGS=""
-        if [ "${PLATFORM}" != "web" ]; then
-          AUTH_ARGS="--dart-define=ZEN_AUTH_REDIRECT_URI=prudent://auth-callback"
-        fi
-        cd {{.CLIENT_DIR}} && flutter run -d '{{.DEVICE}}' ${WEB_ARGS} ${AUTH_ARGS} \
-          --dart-define=ZEN_ENV=dev \
-          --dart-define=ZEN_PLATFORM="${PLATFORM}" \
-          --dart-define=ZEN_API_URL="http://localhost:{{.APP_PORT}}"
+      - task: zen:run:client
 
   run:admin:
     desc: Start the admin panel dev server on :5173 (proxies /api and /openapi to :8085)
-    dir: "{{.ADMIN_DIR}}"
+    summary: |
+      Delegated to zen:run:admin — `pnpm dev` in admin/. The :5173 proxy to :8085 is
+      admin/vite.config.ts, not this task.
     cmds:
-      - pnpm dev
+      - task: zen:run:admin
 
   audit:
     desc: Fail if any shipped dependency (Java + TypeScript) has a known CVE. Needs network.
@@ -1298,6 +1044,8 @@ tasks:
 #
 # go-task can skip a task whose inputs have not changed. On a codegen task that a gate composes,
 # that is a defect rather than an optimisation: the skipped regeneration leaves the working tree
-# clean, sync:verify then finds nothing dirty, and the gate reports "Contracts in sync." WITHOUT
-# HAVING REGENERATED ANYTHING — which is precisely the drift it exists to catch. Regeneration is
-# cheap; a gate that passes vacuously is not.
+# clean, the drift check then finds nothing dirty, and the gate reports "Contracts in sync."
+# WITHOUT HAVING REGENERATED ANYTHING — which is precisely the drift it exists to catch.
+# Regeneration is cheap; a gate that passes vacuously is not. The contract loop itself now lives
+# in jZen's Taskfile.app.yml, which holds the same rule on `zen:generate` (jZen ADR-049 / #74);
+# this note governs the Prudent-owned tasks that remain above.

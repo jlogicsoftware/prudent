@@ -2,7 +2,7 @@
 
 `proto/prudent/v1/*.proto` is the **canonical source of truth for Prudent's models**. The Java
 DTOs and the Dart messages are *generated* from it; a tracked generated file is never
-hand-edited. Fix the `.proto` and run `task sync:contracts`.
+hand-edited. Fix the `.proto` and run `task generate` (`task verify:contracts` is the drift gate).
 
 The directory mirrors the proto package the way `../jZen/proto/zen/v1/` mirrors `zen.v1`.
 **`v1` is the API version and is independent of the product version** — Prudent's server is

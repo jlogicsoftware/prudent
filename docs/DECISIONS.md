@@ -13,6 +13,240 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-029 — The whole local run stack is jZen's: `run:server` / `run:client` deleted and delegated
+
+**Date:** 2026-08-31. **Status:** accepted. **Follows:** ADR-028 (which deferred these two).
+**Consumes:** [jZen#79](https://github.com/jZenDev/jZen/issues/79) →
+[jZen#81](https://github.com/jZenDev/jZen/pull/81), and
+[jZen#80](https://github.com/jZenDev/jZen/issues/80) →
+[jZen#82](https://github.com/jZenDev/jZen/pull/82) → jZen `b74b73a`.
+
+### Context
+
+ADR-028 consumed the `run:*` operator guards (jZen#78) but kept Prudent's own `run:server` and
+`run:client` because jZen's single-tier primitives had two gaps (jZen#79): `zen:run:server` did
+not wire the local Supabase anon key, and `zen:run:client` passed a custom-scheme auth redirect
+on every platform. It also noted `zen:run:dev`'s one-Ctrl-C teardown hung ~15 s (jZen#80).
+
+jZen#81 closed #79 — `zen:run:server` now `deps: [run:supabase]` and evals `SUPABASE_URL` /
+`SUPABASE_KEY`; `zen:run:client` / `zen:run:dev` pass `AUTH_REDIRECT_URI` only when the resolved
+platform is not `web`. jZen#82 closed #80 — the client runs with stdin closed and is killed from
+a `--pid-file` by the exit handler, so one Ctrl-C ends `run:dev` at once.
+
+### Decision
+
+**`run:server` and `run:client` are deleted and become one-line delegations** to `zen:run:server`
+/ `zen:run:client` — the whole `run:*` family (`run:supabase`, `run:server`, `run:client`,
+`run:admin`, `run:dev`) is now a bare-name alias to a jZen task, the way jZen's own `Taskfile.yml`
+aliases them for zen_demo (ADR-049). `run:admin` is folded in too; it was already `pnpm dev` in
+`admin/`, identical to `zen:run:admin`.
+
+The Prudent-specific wiring the deleted bodies carried is passed **once, on the include**, not
+re-implemented per task:
+
+- `ZEN_WEB_PORT: 8090` (from ADR-028) — the origin `application.properties`' CORS allowlist is
+  written for.
+- `APP_CLIENT_DIR: client` (from ADR-028) — Prudent's client tier is the Flutter package itself.
+- `ZEN_AUTH_REDIRECT_URI: prudent://auth-callback` — Prudent's native deep-link scheme.
+  `zen:run:client` / `zen:run:dev` now apply it only for a native target (jZen#81), so setting it
+  globally is safe: a `task run:client` web run does not get it, a `DEVICE=macos` run does.
+
+The unused local `APP_PORT` var is dropped — the run tasks that read it are jZen's now (they
+default `APP_PORT` to 8085) and `test:e2e` reads `ZEN_APP_PORT` from the environment.
+
+`JZEN_REF` moves to `b74b73a` in `ci.yml` and `audit.yml`.
+
+### What this supersedes, and why
+
+- **"`run:server` and `run:client` stay Prudent's own, pending jZen#79 … When it lands, both
+  tasks are deleted and delegated, completing this consumption"** (ADR-028, *Decision* point 4)
+  → **done.** *Why:* jZen#81 landed with exactly the two fixes ADR-028 named, so the reason to
+  keep a Prudent body is gone.
+- **"One Ctrl-C does not cleanly end `run:dev`" and the Taskfile `run:dev` summary's slow-teardown
+  note** (ADR-028, *Consequence*) → **resolved.** *Why:* jZen#82. The `run:dev` `desc` is back to
+  "one Ctrl-C tears it down"; the workaround note is removed.
+
+### Consequence
+
+- `task --list` parses; `task zen:info` reports `b74b73a`.
+- `task run:dev` verified end to end against `b74b73a`: full stack up, then **one SIGINT to the
+  process group and the task exited in ~1.5 s** — backend and Chrome gone, ports `:8085` /
+  `:8090` free, no trace of the ~15 s hang ADR-028 recorded.
+- `task run:server` verified: `deps: [run:supabase]` brought the stack up, Quarkus dev reached
+  "Profile dev activated" on `:8085`, and `POST /api/v1/auth/restore-password` answered `204`
+  (not `500`) — the anon key `zen:run:server` wired is what lets the server reach Supabase's auth
+  API at all.
+- Prudent's `Taskfile.yml` now owns no local-stack process management at all — every finding the
+  hand-rolled versions were built around (the CORS-403 trap, the platform-inference guard, the
+  mailbox hint, the teardown) lives upstream, exercised by jZen's own zen_demo runs.
+- `docs/jzen/README.md` records #79 and #80 as fixed and consumed; no `run:*` row reads "awaiting".
+
+---
+
+## ADR-028 — The local run stack: `run:dev` is jZen's, `run:supabase` is delegated, `run:server`/`run:client` wait on one more fix
+
+**Date:** 2026-08-30. **Status:** accepted. **Follows:** ADR-007, ADR-027 (the consume-and-delete pattern).
+**Consumes:** [jZen#77](https://github.com/jZenDev/jZen/issues/77) →
+[jZen#78](https://github.com/jZenDev/jZen/pull/78) → jZen `0038919` (jZen ADR-049).
+**Defers:** [jZen#79](https://github.com/jZenDev/jZen/issues/79).
+
+### Context
+
+ADR-027 recorded that the `run:*` tasks stayed Prudent's own "pending jZen#77" — jZen's generic
+`run:client` / `run:dev` dropped the four operator guards Prudent's tasks carry (a wrong platform
+compiles clean and fails at runtime; a missing backend reads as an opaque browser error; a web
+origin outside the CORS allowlist is a 403 three layers from its cause; a local Supabase mails
+nothing, so the confirmation link is in a mailbox a developer has to be told about).
+
+jZen#78 folded all four into `Taskfile.app.yml`, against vars, closing #77. `run:supabase` is now
+idempotent and prints the Studio/mailbox/Postgres URLs from `supabase status` (port-agnostic —
+Prudent's shifted ports need no special case). `run:dev` starts Supabase, exports its URL and
+anon key, brings the backend up with a CORS allowlist that already names the web origin, waits
+for `/health`, and runs the client — with the platform-inference and CORS guards inline.
+
+### Decision
+
+**1. `run:dev` is added as a straight delegation to `zen:run:dev`.** Prudent had none. Issue #20
+asked for "one command to run the stack"; this is it — `zen:run:dev` does the Supabase
+credential wiring itself, so it needs nothing from Prudent's own `run:server`.
+
+**2. `run:supabase` becomes a one-line delegation** to `zen:run:supabase` (idempotent,
+port-agnostic, prints the Studio/mailbox/Postgres URLs) — the bare name kept as a thin alias, the
+same way jZen's own `Taskfile.yml` aliases `run:supabase` / `run:server` / `run:demo` for
+zen_demo (jZen ADR-049), and the same way ADR-027 kept `generate` / `deps` / `verify:contracts`.
+CI, the docs and the skills say the bare name; the `zen:` prefix is an implementation detail.
+`run:server`'s `deps:` stays `[run:supabase]`.
+
+**3. Two include vars are set for the delegated run tasks.** `ZEN_WEB_PORT: 8090` — jZen defaults
+the web client to `:5200`, but Prudent's `server/src/main/resources/application.properties` CORS
+allowlist is written for `:8090`, so passing the port makes a delegated `run:dev` and a
+hand-started `task run:server` agree without either naming the other's number. `APP_CLIENT_DIR:
+client` — `zen:run:*` default the Flutter package to `<client>/<app>_client`, and Prudent's
+client tier is `client/` itself (the same override reason as `PROTO_DART_OUT`).
+
+**4. `run:server` and `run:client` stay Prudent's own, pending jZen#79.** Two gaps remain in the
+single-tier primitives: `zen:run:server` does not eval the local Supabase credentials the way
+`zen:run:dev` does (so `SUPABASE_KEY` is unset and auth 500s), and `zen:run:client` passes
+`AUTH_REDIRECT_URI` on every platform when a custom-scheme redirect is native-only. Both are
+app-agnostic — filed as jZen#79. When it lands, both tasks are deleted and delegated, completing
+this consumption.
+
+### What this supersedes, and why
+
+- **"Prudent's `run:supabase` / `run:server` / `run:client` stay as they are until #77 lands,
+  then are deleted and delegated"** (`docs/jzen/README.md`, the #77 findings row; ADR-027's
+  *Consequence*) → **partially done.** *Why:* #78 closed #77 but left the two primitive gaps
+  above, which #77 as filed did not cover. `run:supabase` is delegated and `run:dev` is added
+  now; `run:server` / `run:client` follow on jZen#79 rather than being kept indefinitely.
+
+### Consequence
+
+- `JZEN_REF` moves to `0038919` in `ci.yml` and `audit.yml` — CI's jZen in step with what
+  `run:dev` delegates to. `task --list` parses; `task zen:info` reports `0038919`.
+- `task run:dev` brings up the full local stack in one command (verified against jZen `0038919`:
+  `zen:run:supabase` printed the Studio/mailbox URLs, the backend reached "Profile dev activated"
+  and passed the `/health` wait, and `flutter run -d chrome` compiled and served the web client on
+  `:8090` with its debug service connected). `APP_CLIENT_DIR: client` is set on the include —
+  `zen:run:*` default the Flutter package to `<client>/<app>_client`, and Prudent's client tier
+  is `client/` itself (same override reason as `PROTO_DART_OUT`).
+- `task run:server` and `task run:client` are unchanged in behaviour — same four guards, now
+  duplicated with jZen's until #79 lets them be deleted. The duplication is stated, not hidden:
+  `docs/jzen/README.md` carries the #79 row.
+- **One Ctrl-C does not cleanly end `run:dev`** (jZen#80): the apps stop within a second but the
+  task then sits ~15 s with `flutter run`'s leftover prompt before exiting — `flutter run` traps
+  SIGINT and `zen:run:dev` has `trap … EXIT` only, no `INT`/`TERM` handler. A second Ctrl-C ends
+  it at once. Reproduced against `0038919`; filed upstream since `run:dev` is a one-line alias.
+  The Taskfile `run:dev` summary carries the workaround.
+
+---
+
+## ADR-027 — The rest of the contract loop is consumed from jZen, and `server/openapi.json` is no longer tracked
+
+**Date:** 2026-08-30. **Status:** accepted. **Follows:** ADR-007 (the consume-and-delete pattern).
+**Consumes:** [jZen#74](https://github.com/jZenDev/jZen/issues/74) → jZen `b443780`
+([jZen ADR-049](https://github.com/jZenDev/jZen/blob/main/docs/architecture/DECISIONS.md)).
+**Supersedes:** ADR-011's tracked-artifact half.
+
+### Context
+
+ADR-007 set the pattern for the contract loop: when jZen makes a task app-agnostic in
+`Taskfile.app.yml`, Prudent deletes its hand-rolled copy, delegates, and proves the regenerated
+artifacts byte-identical — "a task that exists in two files is drift waiting to happen". ADR-007
+did this for `generate:proto:dart` alone and named the rest as "separate migrations to consume
+when jZen makes them app-agnostic, on this same pattern".
+
+jZen #74 makes them app-agnostic. jZen's `Taskfile.app.yml` now carries the whole loop written
+against vars — `deps` (+ per-tier), `generate` / `generate:proto*` / `generate:api*` /
+`generate:l10n`, and `verify:contracts` (+ its internal `verify:contracts:check`) — plus the
+local-stack `run:*` tasks. jZen's own `Taskfile.yml` delegates to every one, so the framework
+runs the same code Prudent does.
+
+### Decision
+
+**1. Prudent deletes its copies and delegates.** `Taskfile.yml` loses `generate:proto`,
+`generate:proto:java`, `generate:proto:dart`, `generate:api`, `generate:api:schema`,
+`generate:api:ts`, `generate:l10n`, `sync:contracts`, `sync:verify`, and `deps:admin`. Three
+thin local aliases remain for the names CI and the `sync-contracts` skill type — `generate`,
+`verify:contracts`, `deps` — each a one-line delegation to `zen:<name>` (the same reason ADR-007
+kept the `generate:proto:dart` name).
+
+**2. `sync:contracts` / `sync:verify` are retired, not aliased under the old names.** The gate is
+`task verify:contracts`; regeneration on its own is `task generate` (always green — jZen ADR-049's
+split, so "regenerate my code" never fails you because the regeneration worked). A stale
+`sync:contracts` reference now fails with "task not found" rather than silently resolving.
+
+**3. `server/openapi.json` is no longer tracked.** jZen's model — openapi.json stays in
+`server/target/openapi/` (under the ignored `target/`), and the tracked downstream artifact the
+drift gate watches is the admin panel's `admin/src/api/schema.generated.ts`. `git rm --cached
+server/openapi.json`; a `.gitignore` line stops it coming back. `admin/package.json`'s
+`generate:types` script now reads `../server/target/openapi/openapi.json` (matching
+`zen_demo_admin`).
+
+**4. `JZEN_REF` in `ci.yml` moves to `b443780`.** The tasks the workflow calls (`verify:contracts`,
+the all-tier `zen:deps`) do not exist in jZen before that commit. `zen:deps` is now an aggregate,
+so CI jobs that only need one tier call `zen:deps:client` / `zen:deps:admin` by name rather than
+paying for a Maven `go-offline` (or, on the Windows runner, failing on a JDK it does not have).
+
+### What this supersedes, and why
+
+- **"So `generate:api:schema` copies the document to `server/openapi.json`, which is tracked …
+  Prudent has no admin panel until Phase 5, so until then the document itself is the artifact
+  worth tracking. `generate:api:ts` joins the task then"** (ADR-011, *`openapi.json` is tracked,
+  because otherwise the gate checks nothing*) → **refined: the "until then" has arrived.** *Why:*
+  ADR-011 tracked the document only as a stand-in for a tracked downstream artifact, to keep the
+  drift gate from checking nothing (everything Maven writes is under gitignored `target/`). The
+  admin panel exists now, `schema.generated.ts` is tracked and watched by
+  `zen:verify:contracts:check`, so the stand-in has a real thing to stand down for. ADR-011's
+  *component-schema* findings (framework messages an application must declare in its static
+  `openapi.yaml`, dangling `$ref` detection) are untouched — that document is the hand-authored
+  source and stays tracked.
+- **"the rest of the loop is still Prudent's own … Each is a separate migration to consume when
+  jZen makes it app-agnostic, on this same pattern — report, wait, delete the local copy, prove
+  it green"** (ADR-007, *Consequence*) → **done for the contract loop and `deps`.** The server
+  *build* (native image, web/admin staging), the `run:*` tasks and the deploy stay Prudent's own —
+  the first two genuinely prod-shaped, `run:*` pending
+  [jZen#77](https://github.com/jZenDev/jZen/issues/77).
+
+### Consequence
+
+- One cost, recorded: regenerating admin types now needs a packaged server (a JDK), where the
+  tracked `server/openapi.json` let a Node-only developer do it. Mitigation: `schema.generated.ts`
+  stays tracked, so *compiling* the panel never needs regeneration — only a contract change does,
+  and that is already a backend/JDK change. This is jZen's own model (jZen ADR-005; `zen_demo`).
+- `task generate` produces **byte-identical** `client/lib/generated/**/*.pb.dart` and
+  `admin/src/api/schema.generated.ts` — the delegation changed the mechanism, not the artifact,
+  which is the only evidence the swap was faithful (the same check ADR-007 used).
+- `task verify:contracts`, `task zen:test:client`, `task test:admin`, `task test:server` green
+  against jZen `b443780`.
+- The `run:*` operator guards Prudent's tasks carry (CORS-allowlist preflight, pre-launch health
+  check, `DEVICE`→`ZEN_PLATFORM` inference, local-Supabase mailbox hints) are app-agnostic and
+  filed as jZen#77 — Prudent's `run:*` are left as-is until it lands, then deleted on this same
+  pattern.
+- `docs/jzen/README.md`'s findings table records #74 reported → landed → consumed; no row reads
+  "awaiting".
+
+---
+
 ## ADR-026 — A Zen layout: client code lives flat in `lib/`, server code in `prudent.*`, and a directory must be a capability
 
 **Date:** 2026-08-29. **Status:** accepted. **Not yet executed** — the work is driven by
