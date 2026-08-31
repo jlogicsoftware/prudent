@@ -30,7 +30,7 @@ analyzer:
   exclude:
     # The protobuf messages generated from ../proto. Excluded from analysis because a lint on
     # generated code is unactionable by construction: the only honest fix would be to hand-edit the
-    # file, which is exactly what `task sync:contracts` exists to forbid. They are still COMPILED
+    # file, which is exactly what `task verify:contracts` exists to forbid. They are still COMPILED
     # and still type-checked wherever they are used — this suppresses style lints, not errors.
     - lib/generated/**
     - build/**

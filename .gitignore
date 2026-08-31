@@ -66,6 +66,12 @@ client/lib/l10n/generated/
 target/
 .mvn/wrapper/maven-wrapper.jar
 
+# openapi.json is a BUILD OUTPUT, not tracked (Prudent ADR-027, superseding ADR-011). SmallRye
+# writes server/target/openapi/openapi.json; the tracked downstream artifact is the admin panel's
+# src/api/schema.generated.ts, which the drift gate watches. This line stops the retired tracked
+# copy from being re-added by an old habit or an old task.
+server/openapi.json
+
 # The staged web (Flutter) and admin (react-admin) bundles `task build:web`/`build:web:admin`
 # rsync into META-INF/resources so the native image serves them same-origin (docs/prudent-
 # migration-plan.md Phase 5). Staged, never committed: a build artifact baked from a build-time

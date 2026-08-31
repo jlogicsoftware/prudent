@@ -9,7 +9,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "generate:types": "openapi-typescript ../server/openapi.json -o src/api/schema.generated.ts"
+    "generate:types": "openapi-typescript ../server/target/openapi/openapi.json -o src/api/schema.generated.ts"
   },
   "dependencies": {
     "ra-data-simple-rest": "^5.4.4",

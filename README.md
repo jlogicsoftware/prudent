@@ -57,9 +57,9 @@ are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md) ADR-001.
 ```bash
 task zen:info                 # run this FIRST — see below
 task zen:framework:install    # build jZen's Java libraries into your local Maven repository
-task zen:deps                 # resolve the client's Dart dependencies
+task deps                     # resolve every tier's dependencies (Maven + pub + pnpm)
 
-cd client && flutter run      # run the application
+task run:dev                  # Supabase + backend + web client together, one Ctrl-C stops it
 ```
 
 ### Run `task zen:info` first
@@ -106,9 +106,9 @@ never replaces them**: `mvnw` owns Java, `flutter`/`dart pub` owns Dart, `pnpm` 
 |---|---|
 | `task zen:info` | Which jZen checkout, which revision, dirty or not |
 | `task zen:framework:install` | Installs jZen's Java libraries into the local Maven repository |
-| `task zen:deps` | `flutter pub get` across the client tier |
-| `task deps:admin` | `pnpm install` for the admin panel |
-| `task sync:contracts` | Regenerate every generated artifact (proto, OpenAPI, admin types); fails on drift |
+| `task deps` | Resolve every tier's dependencies — Maven (server) + pub (client) + pnpm (admin) |
+| `task generate` | Regenerate every generated artifact (proto, OpenAPI, admin types, l10n); no gate |
+| `task verify:contracts` | `generate`, then fail if a tracked generated file drifted (the CI gate) |
 | `task verify:boundaries` | Fails if the client (or the admin panel) reaches past Prudent's own server |
 | `task test:server` | The backend suites against a throwaway Postgres |
 | `task zen:test:client` | Every Dart/Flutter suite |
@@ -116,14 +116,17 @@ never replaces them**: `mvnw` owns Java, `flutter`/`dart pub` owns Dart, `pnpm` 
 | `task test:e2e` | The release gate — the real Supabase + Quarkus stack, no mocks (Linux-only) |
 | `task test:native` | Builds the native image and smokes it in Docker — the long check before a deploy |
 | `task audit` | Dependency CVE scan (Java + TypeScript); needs network, runs on a schedule, not in CI |
-| `task run:admin` | Admin panel dev server on `:5173` |
+| `task run:dev` | Supabase + backend + web client together, one Ctrl-C tears it down |
+| `task run:server` / `task run:client` / `task run:supabase` / `task run:admin` | The tiers separately |
 | `task zen:build:runners` | Every delivery runner this host can build; skips are announced |
 | `(cd client && flutter run)` | Runs the application |
 
-The `zen:` tasks come from jZen's `Taskfile.app.yml`, which Prudent **includes rather than copies** —
-jZen runs the same file for its own reference application, so these are shared tasks rather than a
-lookalike that drifts. Every other task above is Prudent's own, written phase by phase as each phase
-produced something for it to act on — see `docs/DECISIONS.md` for what each one found along the way.
+The `zen:` tasks — and `deps` / `generate` / `verify:contracts` plus the whole `run:*` family,
+which are one-line aliases to them — come from jZen's `Taskfile.app.yml`, which Prudent
+**includes rather than copies**: jZen runs the same file for its own reference application, so
+these are shared tasks rather than a lookalike that drifts (ADR-027 through ADR-029). The build,
+the gates and the deploy are Prudent's own, written phase by phase as each phase produced
+something for them to act on — see `docs/DECISIONS.md` for what each one found along the way.
 
 ## CI
 
