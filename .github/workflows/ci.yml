@@ -47,7 +47,7 @@ env:
   # ADR-028), #81/#82 (standalone run primitives + one-Ctrl-C run:dev — ADR-029). The tasks this
   # workflow calls (verify:contracts, the all-tier zen:deps) do not exist before #74; the later
   # bumps keep CI's jZen in step with the run:* tasks Prudent now delegates wholesale.
-  JZEN_REF: b74b73ac0710bdd35524352176b86709c63460e4
+  JZEN_REF: 8a21f83e0be6013765d03430e17132c635a90664
 
 jobs:
   # Contract drift, the boundary gate, the Dart/Flutter suites, and the admin typecheck. Needs the

@@ -13,6 +13,61 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-030 — `run:dev`'s one-Ctrl-C teardown: jZen #84 + #88 + #89
+
+**Date:** 2026-09-01. **Status:** accepted. **Follows:** ADR-029.
+**Consumes:** [jZen#83](https://github.com/jZenDev/jZen/issues/83) →
+[jZen#84](https://github.com/jZenDev/jZen/pull/84), then
+[jZen#87](https://github.com/jZenDev/jZen/issues/87) →
+[jZen#88](https://github.com/jZenDev/jZen/pull/88), then
+[jZen#89](https://github.com/jZenDev/jZen/pull/89) → jZen `8a21f83`.
+
+### Context
+
+ADR-029 recorded jZen#82 as closing jZen#80 — "one Ctrl-C ends `run:dev` at once". It did not
+hold, and took two more rounds:
+
+- **jZen#82** ran the client with stdin closed. On Flutter 3.47.1 the client still needs two
+  SIGINTs, and the backgrounded `quarkus:dev` shared the terminal's process group so the first
+  Ctrl-C killed the server directly, not `stop_all`. (jZen#82 was verified against a mock.)
+- **jZen#84** moved the rollup into `scripts/run-dev.sh` (real bash: `set -m` per-child process
+  groups, `trap INT TERM` → ordered `stop_all`). Fixed the teardown — but broke startup: under
+  `set -m` the backgrounded server subshell hit **SIGTTIN** on Quarkus dev's aesh TTY read and
+  was stopped, so `run:dev` failed every run with "server did not become healthy".
+- **jZen#88** closed the server subshell's stdin (`< /dev/null`), like the client. Server booted
+  again — but `run:dev` still could not be *stopped*: `set -m` was left on for the whole script,
+  so the `sleep` in the wait loop grabbed the controlling terminal each second and a terminal
+  Ctrl-C landed on `sleep`, not the script — `stop_all` never fired.
+- **jZen#89** switches `set -m` on only around each `&`, off again for the rest, so the poll
+  loops keep the terminal and the script's `trap` fires on the first Ctrl-C.
+
+### Decision
+
+- **`JZEN_REF` moves to `8a21f83`** (jZen#89 merge) in `ci.yml` and `audit.yml`.
+- Prudent's `run:dev` stays a one-line delegation to `zen:run:dev` — no Prudent-side code change.
+- `Taskfile.yml`'s `run:dev` comment and `summary` are corrected: the mechanism is
+  `scripts/run-dev.sh` (per-`&` process groups + a trapped INT/TERM teardown, both children
+  stdin-closed), not "stdin closed … (jZen #82)".
+
+### What this supersedes, and why
+
+- **"jZen#82 closed #80 … so one Ctrl-C ends `run:dev` at once"** (ADR-029, *Context* /
+  *Consequence*) → **corrected.** *Why:* jZen#82 was verified against a mock, not a live terminal
+  run; it fixed neither the two-SIGINT client nor, once #84 landed, the startup hang or the
+  `set -m` terminal-signal bug. jZen#84 + #88 + #89 together are the real fix.
+- **"`task run:dev` verified end to end against `b74b73a`: … one SIGINT … exited in ~1.5 s"**
+  (ADR-029, *Consequence*) → **that run did not go through a real terminal Ctrl-C**, which is the
+  path that stayed broken until `8a21f83`.
+
+### Consequence
+
+- `task run:dev` **verified end to end** against jZen `8a21f83` under a pseudo-terminal: server
+  healthy, client launched on `:8090`, then a single Ctrl-C (`0x03` to the pty) → `stop_all` ran,
+  `prudent-server stopped`, `:8085` / `:8090` free.
+- `docs/jzen/README.md` records the #83→#84→#87→#88→#89 arc as fixed and consumed.
+
+---
+
 ## ADR-029 — The whole local run stack is jZen's: `run:server` / `run:client` deleted and delegated
 
 **Date:** 2026-08-31. **Status:** accepted. **Follows:** ADR-028 (which deferred these two).
