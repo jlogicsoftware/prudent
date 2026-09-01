@@ -66,7 +66,7 @@ includes:
 #   generate:proto[:java|:dart] / generate:api[:schema|:ts] / generate:l10n   the loop's parts
 #   test:client         Every Dart/Flutter suite
 #   build:runners       Every delivery runner this host can build; skips are announced
-#   run:supabase / run:server / run:client / run:admin / run:dev   the local stack — #78/#81/#82
+#   run:supabase / run:server / run:client / run:admin / run:dev   the local stack — #78/#81/#89
 #                       folded every operator guard, the standalone-primitive wiring and the
 #                       one-Ctrl-C teardown into jZen's versions, so all five below are one-line
 #                       delegations (ADR-029).
@@ -305,8 +305,11 @@ tasks:
   #
   # #78 folded Prudent's four operator guards (platform inference, health check, CORS preflight,
   # the Supabase URL hints) into jZen's run tasks; #81 taught zen:run:server / zen:run:client to
-  # stand alone (Supabase credentials wired, the native-only auth-redirect gated); #82 made
-  # zen:run:dev exit cleanly on one Ctrl-C. So every task below is a one-line delegation, the
+  # stand alone (Supabase credentials wired, the native-only auth-redirect gated); #82's
+  # stdin-closed attempt at a one-Ctrl-C zen:run:dev did not hold, and #84 → #88 → #89 fixed it
+  # for real by moving the rollup into jZen's scripts/run-dev.sh (each `&` gets its own process
+  # group, a trapped INT/TERM teardown, both children stdin-closed). So every task below is a
+  # one-line delegation, the
   # bare name kept the way jZen's own Taskfile.yml keeps them for zen_demo (ADR-049). The
   # Prudent-specific wiring — port 8090, the client package at client/, the prudent:// scheme —
   # is passed once on the include, not re-implemented here.
@@ -316,9 +319,10 @@ tasks:
     summary: |
       Delegated to zen:run:dev (ADR-028/029). The rollup: Supabase up, its URL and anon key
       exported, the backend on :8085 with a CORS allowlist that names the web origin, /health
-      awaited, then the web client on :8090. The client runs with stdin closed so one Ctrl-C
-      shuts it down at once (jZen #82) — use `task run:client` for a hot-reload loop. Supabase is
-      left up (`supabase stop` when done).
+      awaited, then the web client on :8090. jZen's scripts/run-dev.sh runs server and client in
+      their own process groups with stdin closed and traps INT/TERM, so a single Ctrl-C tears the
+      whole stack down at once (jZen #84/#88/#89) — use `task run:client` for a hot-reload loop.
+      Supabase is left up (`supabase stop` when done).
 
       `task run:dev DEVICE=macos CLIENT_PLATFORM=macos` for a native target; the web default is
       what makes this a one-command quickstart.
