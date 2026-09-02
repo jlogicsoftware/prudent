@@ -59,7 +59,7 @@ The MVP is reached when one user can reliably:
 
 ## Roadmap
 
-The roadmap is dependency-based rather than date-based.  Each milestone must produce a usable
+The roadmap is dependency-based rather than date-based.  Each phase must produce a usable
 increment and pass the existing verification gates before the next begins.
 
 ### M0 — Make the POC trustworthy
@@ -156,7 +156,7 @@ monitoring; they are not silently bundled into local reminders.
   by default.
 - Add fixtures for malformed files, duplicate files, mixed currencies and changed Erste formats.
 
-This milestone may be specified at issue level now, but implementation cannot be considered
+This phase may be specified at issue level now, but implementation cannot be considered
 ready until the sample file resolves the actual column contract.
 
 ### M7 — MVP hardening and release
@@ -174,7 +174,12 @@ ready until the sample file resolves the actual column contract.
 
 ## Future GitHub epics
 
-When this document is approved, create one GitHub milestone per roadmap milestone and these epics:
+Track the whole POC-to-MVP scope in one GitHub milestone, **MVP v0.1**, in the existing
+organisation Project, **Prudent**.  Create each epic as an issue of type **Feature** and each
+implementable child issue as type **Task**.  Use the roadmap phase in issue titles or bodies to
+preserve delivery order without turning phases into separate milestones.
+
+Create these epics:
 
 1. **Release foundation and data safety** — M0
 2. **Transfers and ledger completeness** — M1
@@ -187,7 +192,8 @@ When this document is approved, create one GitHub milestone per roadmap mileston
 
 Issues should be created from the bullet points only after each epic has explicit acceptance
 criteria, dependencies and a small enough vertical slice.  GitHub publication is a separate,
-user-approved action.
+user-approved action.  The issue-ready breakdown is maintained in
+[`github-backlog.md`](github-backlog.md).
 
 ## Product rules agreed during discovery
 
