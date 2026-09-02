@@ -53,7 +53,9 @@ public class RecordEntity extends PanacheEntityBase {
    * refusal — the server rejects a currency the owning account does not hold — and that is a
    * weaker guarantee held by a validation rule rather than by an unsayable state.
    */
-  @Column(nullable = false, length = 3)
+  // char(3), not varchar: an ISO-4217 code is always exactly three characters, so the
+  // migration fixed the width. columnDefinition keeps Hibernate's schema validation honest.
+  @Column(nullable = false, length = 3, columnDefinition = "char(3)")
   public String currency;
 
   /**
