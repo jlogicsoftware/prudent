@@ -21,7 +21,9 @@ public class AccountBalance {
    * ISO-4217 alphabetic code, stored as {@code CHAR(3)} and always upper case — the resource
    * normalises before persisting, so "pln" and "PLN" cannot become two balances of one account.
    */
-  @Column(name = "currency", nullable = false, length = 3)
+  // char(3), not varchar: an ISO-4217 code is always exactly three characters, so the
+  // migration fixed the width. columnDefinition keeps Hibernate's schema validation honest.
+  @Column(name = "currency", nullable = false, length = 3, columnDefinition = "char(3)")
   public String currency;
 
   @Column(name = "amount_minor", nullable = false)

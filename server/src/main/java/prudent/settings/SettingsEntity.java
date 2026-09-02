@@ -51,7 +51,9 @@ public class SettingsEntity extends PanacheEntityBase {
    * {@link #DEFAULT_MAIN_CURRENCY} before it is ever written. That is what lets a {@code GET}
    * promise it never answers with an empty currency.
    */
-  @Column(name = "main_currency", nullable = false, length = 3)
+  // char(3), not varchar: an ISO-4217 code is always exactly three characters, so the
+  // migration fixed the width. columnDefinition keeps Hibernate's schema validation honest.
+  @Column(name = "main_currency", nullable = false, length = 3, columnDefinition = "char(3)")
   public String mainCurrency;
 
   /**
