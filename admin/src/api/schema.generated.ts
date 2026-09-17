@@ -1636,6 +1636,16 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
+                /** @description The record is a transfer leg; delete the transfer instead of editing it */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
             };
         };
         post?: never;
@@ -1673,6 +1683,16 @@ export interface paths {
                     content?: never;
                 };
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The record is a transfer leg; delete the transfer instead */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1784,6 +1804,130 @@ export interface paths {
         };
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a same-currency transfer between two of the caller's own accounts */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateTransferRequest"];
+                    "application/x-protobuf": components["schemas"]["CreateTransferRequest"];
+                };
+            };
+            responses: {
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Transfer"];
+                        "application/x-protobuf": components["schemas"]["Transfer"];
+                    };
+                };
+                /** @description A non-positive amount, the same account on both sides, an account that is not the caller's, a malformed date, or a currency an account does not hold */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transfers/{transferId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete both legs of a transfer atomically */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    transferId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -2059,13 +2203,21 @@ export interface components {
              * @description A CIVIL DATE, ISO-8601 YYYY-MM-DD — not an instant. A purchase happens on a calendar day; an epoch timestamp would force every reader to pick a timezone, and at a daylight-saving boundary a record would shift a day — at a month edge, into the wrong month, which is a wrong total.
              */
             date?: string;
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Absent on a transfer leg (jlogicsoftware/prudent#32), which is neither income nor expense and so has no spend category. Always present on an ordinary record.
+             */
             categoryId?: string;
             /**
              * Format: uuid
              * @description REQUIRED. A record with no account is money that left no account, and a balance computed over such records is arithmetic with a hole in it.
              */
             accountId?: string;
+            /**
+             * Format: uuid
+             * @description Present only on a transfer leg: the id shared by both records one transfer creates. Absent on an ordinary record.
+             */
+            transferId?: string;
         };
         /** @description Body for POST /api/v1/records. No id field — the server mints it. */
         CreateRecordRequest: {
@@ -2096,6 +2248,27 @@ export interface components {
         /** @description GET /api/v1/records — every record owned by the caller. UNPAGINATED IN v1, which is a decision rather than an oversight: a personal expense tracker's record list is bounded by one person's spending. When one gets long enough to need paging, the page parameters are query parameters on the GET and this message gains its page metadata — a backward-compatible addition. */
         ListRecordsResponse: {
             records?: components["schemas"]["Record"][];
+        };
+        /** @description Body for POST /api/v1/transfers. Same currency only (jlogicsoftware/prudent#32) — no FX; amountMinor is a positive magnitude, negated for the source leg and kept positive for the destination leg. */
+        CreateTransferRequest: {
+            /** @description Optional; blank is stored as "Transfer" server-side. */
+            title?: string;
+            /** Format: int64 */
+            amountMinor?: string;
+            currency?: string;
+            /** Format: date */
+            date?: string;
+            /** Format: uuid */
+            fromAccountId?: string;
+            /** Format: uuid */
+            toAccountId?: string;
+        };
+        /** @description The response to a transfer create, and what DELETE /api/v1/transfers/{id} deletes by way of id. fromRecord.amountMinor is negative (the source leg); toRecord.amountMinor is positive. Neither leg carries a categoryId. */
+        Transfer: {
+            /** Format: uuid */
+            id?: string;
+            fromRecord?: components["schemas"]["Record"];
+            toRecord?: components["schemas"]["Record"];
         };
         /** @description The authenticated user's settings. A SINGLETON: there is no id, no create, no delete and no list, and the URL carries no id because the token is the entire addressing scheme. The row is created on first login, not by a client. */
         Settings: {

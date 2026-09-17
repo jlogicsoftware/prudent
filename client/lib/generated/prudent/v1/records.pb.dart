@@ -27,6 +27,7 @@ class Record extends $pb.GeneratedMessage {
     $core.String? date,
     $core.String? categoryId,
     $core.String? accountId,
+    $core.String? transferId,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -36,6 +37,7 @@ class Record extends $pb.GeneratedMessage {
     if (date != null) result.date = date;
     if (categoryId != null) result.categoryId = categoryId;
     if (accountId != null) result.accountId = accountId;
+    if (transferId != null) result.transferId = transferId;
     return result;
   }
 
@@ -59,6 +61,7 @@ class Record extends $pb.GeneratedMessage {
     ..aOS(5, _omitFieldNames ? '' : 'date')
     ..aOS(6, _omitFieldNames ? '' : 'categoryId')
     ..aOS(7, _omitFieldNames ? '' : 'accountId')
+    ..aOS(8, _omitFieldNames ? '' : 'transferId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -154,6 +157,10 @@ class Record extends $pb.GeneratedMessage {
 
   /// The owning category, by id. The client resolves it against the category list it already
   /// holds and renders a documented fallback for an id it does not know, rather than throwing.
+  ///
+  /// OPTIONAL (M1 transfers, jlogicsoftware/prudent#32): absent on a transfer leg, which is
+  /// neither income nor expense and so has no spend category to assign. Always present on an
+  /// ordinary record — RecordResource still requires one on create/replace.
   @$pb.TagNumber(6)
   $core.String get categoryId => $_getSZ(5);
   @$pb.TagNumber(6)
@@ -173,6 +180,18 @@ class Record extends $pb.GeneratedMessage {
   $core.bool hasAccountId() => $_has(6);
   @$pb.TagNumber(7)
   void clearAccountId() => $_clearField(7);
+
+  /// Set only on a transfer leg: the id shared by both linked records, server-minted by
+  /// POST /api/v1/transfers and the handle DELETE /api/v1/transfers/{id} deletes by. Absent on an
+  /// ordinary record.
+  @$pb.TagNumber(8)
+  $core.String get transferId => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set transferId($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasTransferId() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearTransferId() => $_clearField(8);
 }
 
 /// POST /api/v1/records
@@ -467,6 +486,212 @@ class ListRecordsResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $pb.PbList<Record> get records => $_getList(0);
+}
+
+/// POST /api/v1/transfers — atomically creates two linked records moving money between two of the
+/// caller's own accounts in the SAME currency (cross-currency is a separate, later issue; no FX —
+/// see ADR-008/ADR-009). amount_minor is a positive magnitude: the server negates it for the
+/// source leg and keeps it positive for the destination leg (see Record.amount_minor, ADR-014).
+class CreateTransferRequest extends $pb.GeneratedMessage {
+  factory CreateTransferRequest({
+    $core.String? title,
+    $fixnum.Int64? amountMinor,
+    $core.String? currency,
+    $core.String? date,
+    $core.String? fromAccountId,
+    $core.String? toAccountId,
+  }) {
+    final result = create();
+    if (title != null) result.title = title;
+    if (amountMinor != null) result.amountMinor = amountMinor;
+    if (currency != null) result.currency = currency;
+    if (date != null) result.date = date;
+    if (fromAccountId != null) result.fromAccountId = fromAccountId;
+    if (toAccountId != null) result.toAccountId = toAccountId;
+    return result;
+  }
+
+  CreateTransferRequest._();
+
+  factory CreateTransferRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CreateTransferRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CreateTransferRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'title')
+    ..aInt64(2, _omitFieldNames ? '' : 'amountMinor')
+    ..aOS(3, _omitFieldNames ? '' : 'currency')
+    ..aOS(4, _omitFieldNames ? '' : 'date')
+    ..aOS(5, _omitFieldNames ? '' : 'fromAccountId')
+    ..aOS(6, _omitFieldNames ? '' : 'toAccountId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CreateTransferRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CreateTransferRequest copyWith(
+          void Function(CreateTransferRequest) updates) =>
+      super.copyWith((message) => updates(message as CreateTransferRequest))
+          as CreateTransferRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CreateTransferRequest create() => CreateTransferRequest._();
+  @$core.override
+  CreateTransferRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CreateTransferRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CreateTransferRequest>(create);
+  static CreateTransferRequest? _defaultInstance;
+
+  /// Optional; blank is stored as "Transfer" server-side. Not load-bearing the way Record.title is.
+  @$pb.TagNumber(1)
+  $core.String get title => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set title($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTitle() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTitle() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get amountMinor => $_getI64(1);
+  @$pb.TagNumber(2)
+  set amountMinor($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasAmountMinor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearAmountMinor() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get currency => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set currency($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCurrency() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCurrency() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get date => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set date($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasDate() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearDate() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get fromAccountId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set fromAccountId($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasFromAccountId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearFromAccountId() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get toAccountId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set toAccountId($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasToAccountId() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearToAccountId() => $_clearField(6);
+}
+
+/// The response to a transfer create, and what DELETE /api/v1/transfers/{id} deletes by way of
+/// `id`. from_record.amount_minor is negative (the source leg); to_record.amount_minor is
+/// positive. Neither leg carries a category_id.
+class Transfer extends $pb.GeneratedMessage {
+  factory Transfer({
+    $core.String? id,
+    Record? fromRecord,
+    Record? toRecord,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (fromRecord != null) result.fromRecord = fromRecord;
+    if (toRecord != null) result.toRecord = toRecord;
+    return result;
+  }
+
+  Transfer._();
+
+  factory Transfer.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory Transfer.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'Transfer',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOM<Record>(2, _omitFieldNames ? '' : 'fromRecord',
+        subBuilder: Record.create)
+    ..aOM<Record>(3, _omitFieldNames ? '' : 'toRecord',
+        subBuilder: Record.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Transfer clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Transfer copyWith(void Function(Transfer) updates) =>
+      super.copyWith((message) => updates(message as Transfer)) as Transfer;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static Transfer create() => Transfer._();
+  @$core.override
+  Transfer createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static Transfer getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Transfer>(create);
+  static Transfer? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  Record get fromRecord => $_getN(1);
+  @$pb.TagNumber(2)
+  set fromRecord(Record value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasFromRecord() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearFromRecord() => $_clearField(2);
+  @$pb.TagNumber(2)
+  Record ensureFromRecord() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  Record get toRecord => $_getN(2);
+  @$pb.TagNumber(3)
+  set toRecord(Record value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasToRecord() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearToRecord() => $_clearField(3);
+  @$pb.TagNumber(3)
+  Record ensureToRecord() => $_ensure(2);
 }
 
 const $core.bool _omitFieldNames =

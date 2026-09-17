@@ -69,8 +69,14 @@ public class RecordEntity extends PanacheEntityBase {
   @Column(name = "record_date", nullable = false)
   public LocalDate date;
 
-  /** The owning category, by id. Validated as the caller's own on write. */
-  @Column(name = "category_id", nullable = false)
+  /**
+   * The owning category, by id. Validated as the caller's own on write.
+   *
+   * <p>NULLABLE (M1 transfers, jlogicsoftware/prudent#32): a transfer leg has no category — it is
+   * neither income nor expense. Every ordinary record still has one; {@code RecordResource} still
+   * requires it on create/replace.
+   */
+  @Column(name = "category_id")
   public UUID categoryId;
 
   /**
@@ -79,6 +85,13 @@ public class RecordEntity extends PanacheEntityBase {
    */
   @Column(name = "account_id", nullable = false)
   public UUID accountId;
+
+  /**
+   * Set only on a transfer leg: the id shared by both records a transfer creates. Null for every
+   * ordinary record. See {@code prudent.record.TransferResource}.
+   */
+  @Column(name = "transfer_id")
+  public UUID transferId;
 
   /**
    * Every record owned by one user.
@@ -114,6 +127,14 @@ public class RecordEntity extends PanacheEntityBase {
   /** Whether any record still points at this category. Guards the category delete. */
   public static boolean existsForCategory(UUID userId, UUID categoryId) {
     return count("userId = ?1 and categoryId = ?2", userId, categoryId) > 0;
+  }
+
+  /**
+   * Both legs of one transfer, owned by {@code userId}. A real transfer always returns exactly
+   * two rows; anything else means the id is unknown or not the caller's.
+   */
+  public static List<RecordEntity> findByTransferId(UUID userId, UUID transferId) {
+    return list("userId = ?1 and transferId = ?2", userId, transferId);
   }
 
   /**
@@ -176,6 +197,11 @@ public class RecordEntity extends PanacheEntityBase {
    * {@code amountMinor < 0} filter in the one query both endpoints share is what keeps that
    * meaning from being re-decided differently at each call site.
    *
+   * <p><strong>Transfer legs are excluded here too</strong> (jlogicsoftware/prudent#32): a
+   * transfer's negative leg has {@code amountMinor < 0} exactly like an expense, but moving money
+   * between one's own accounts is not spending it, so rows with a non-null {@code transferId} are
+   * filtered out of analytics the same way income is.
+   *
    * <p>Bucketing (by category, by month, by year) happens in Java rather than in SQL: the
    * personal-finance row counts this application deals with make that cheap, and it avoids a
    * database-specific date-truncation function that would tie the query to Postgres.
@@ -186,7 +212,7 @@ public class RecordEntity extends PanacheEntityBase {
         .createQuery(
             "select r.categoryId, r.date, r.amountMinor from RecordEntity r"
                 + " where r.userId = :userId and r.currency = :currency and r.amountMinor < 0"
-                + " and r.date >= :from and r.date <= :to",
+                + " and r.transferId is null and r.date >= :from and r.date <= :to",
             Object[].class)
         .setParameter("userId", userId)
         .setParameter("currency", currency)

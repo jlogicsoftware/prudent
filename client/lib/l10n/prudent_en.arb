@@ -28,6 +28,15 @@
     "placeholders": { "error": { "type": "String" } }
   },
 
+  "transfersNewTitle": "New Transfer",
+  "transfersTitleField": "Title",
+  "transfersAmountField": "Amount",
+  "transfersFromAccount": "From account",
+  "transfersToAccount": "To account",
+  "transfersSave": "Transfer",
+  "transfersInvalidInput": "Please make sure a valid amount, date, and two different accounts were entered.",
+  "transfersNoSharedCurrency": "These accounts don't share a currency.",
+
   "categoriesTitle": "Categories",
   "categoriesEmpty": "No categories added yet.",
   "categoriesLoadError": "Could not load categories: {error}",

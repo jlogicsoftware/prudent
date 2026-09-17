@@ -485,12 +485,21 @@ components:
         categoryId:
           type: string
           format: uuid
+          description: >-
+            Absent on a transfer leg (jlogicsoftware/prudent#32), which is neither income nor
+            expense and so has no spend category. Always present on an ordinary record.
         accountId:
           type: string
           format: uuid
           description: >-
             REQUIRED. A record with no account is money that left no account, and a balance
             computed over such records is arithmetic with a hole in it.
+        transferId:
+          type: string
+          format: uuid
+          description: >-
+            Present only on a transfer leg: the id shared by both records one transfer creates.
+            Absent on an ordinary record.
     CreateRecordRequest:
       type: object
       description: Body for POST /api/v1/records. No id field — the server mints it.
@@ -551,6 +560,46 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Record'
+    CreateTransferRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/transfers. Same currency only (jlogicsoftware/prudent#32) — no FX;
+        amountMinor is a positive magnitude, negated for the source leg and kept positive for the
+        destination leg.
+      properties:
+        title:
+          type: string
+          description: Optional; blank is stored as "Transfer" server-side.
+        amountMinor:
+          type: string
+          format: int64
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        date:
+          type: string
+          format: date
+        fromAccountId:
+          type: string
+          format: uuid
+        toAccountId:
+          type: string
+          format: uuid
+    Transfer:
+      type: object
+      description: >-
+        The response to a transfer create, and what DELETE /api/v1/transfers/{id} deletes by way
+        of id. fromRecord.amountMinor is negative (the source leg); toRecord.amountMinor is
+        positive. Neither leg carries a categoryId.
+      properties:
+        id:
+          type: string
+          format: uuid
+        fromRecord:
+          $ref: '#/components/schemas/Record'
+        toRecord:
+          $ref: '#/components/schemas/Record'
 
     # -----------------------------------------------------------------------------------------
     # Settings — a singleton per user

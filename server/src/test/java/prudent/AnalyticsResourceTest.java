@@ -163,6 +163,36 @@ class AnalyticsResourceTest {
 
   @Test
   @TestSecurity(user = PrudentTest.ALICE)
+  void spendByCategory_excludesTransferLegs() throws Exception {
+    // A transfer's negative leg has amountMinor < 0 exactly like an expense, but moving money
+    // between one's own accounts is not spending it (jlogicsoftware/prudent#32).
+    UUID savingsId = PrudentTest.seedAccount(PrudentTest.ALICE, "Savings", "PLN");
+    UUID transferId = UUID.randomUUID();
+    PrudentTest.seedTransferLeg(PrudentTest.ALICE, accountId, -300_00L, "PLN", transferId);
+    PrudentTest.seedTransferLeg(PrudentTest.ALICE, savingsId, 300_00L, "PLN", transferId);
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, food, -20_00L, "PLN", LocalDate.of(2026, 8, 5));
+
+    Response response =
+        PrudentTest.request(PrudentTest.JSON)
+            .queryParam("currency", "PLN")
+            .queryParam("year", 2026)
+            .queryParam("month", 8)
+            .when()
+            .get("/api/v1/analytics/spend-by-category")
+            .andReturn();
+
+    SpendByCategoryResponse body =
+        PrudentTest.decode(PrudentTest.JSON, response, SpendByCategoryResponse.newBuilder())
+            .build();
+    assertEquals(1, body.getItemsCount(), "only the ordinary expense, not the transfer's leg");
+    assertEquals(
+        20_00L,
+        body.getItemsList().stream().mapToLong(CategorySpend::getAmountMinor).sum(),
+        "the transfer's 300 PLN leg must not be added to the expense total");
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
   void spendByCategory_missingCurrency_isRefusedRatherThanSummed() throws Exception {
     Response response =
         PrudentTest.request(PrudentTest.JSON)

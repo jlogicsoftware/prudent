@@ -193,6 +193,33 @@ public final class PrudentTest {
   }
 
   /**
+   * Persists one transfer leg directly — for tests that need a transfer's rows in place without
+   * exercising {@code TransferResource} itself (e.g. asserting a cross-user refusal, where the
+   * real create endpoint would already refuse the setup before the test's own assertion runs).
+   * Carries no category, matching what {@code TransferResource} itself writes.
+   */
+  public static UUID seedTransferLeg(
+      String userId, UUID accountId, long amountMinor, String currency, UUID transferId) {
+    UUID id = UUID.randomUUID();
+    QuarkusTransaction.requiringNew()
+        .run(
+            () -> {
+              RecordEntity entity = new RecordEntity();
+              entity.id = id;
+              entity.userId = UUID.fromString(userId);
+              entity.title = "Transfer";
+              entity.amountMinor = amountMinor;
+              entity.currency = currency;
+              entity.date = LocalDate.of(2026, 8, 17);
+              entity.accountId = accountId;
+              entity.categoryId = null;
+              entity.transferId = transferId;
+              entity.persist();
+            });
+    return id;
+  }
+
+  /**
    * A request in the named transport mode, carrying a matching CSRF double-submit pair.
    *
    * <p><strong>The CSRF pair is not test scaffolding, it is what a real client sends.</strong>

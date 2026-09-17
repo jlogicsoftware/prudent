@@ -58,11 +58,20 @@ message Record {
 
   // The owning category, by id. The client resolves it against the category list it already
   // holds and renders a documented fallback for an id it does not know, rather than throwing.
-  string category_id = 6;
+  //
+  // OPTIONAL (M1 transfers, jlogicsoftware/prudent#32): absent on a transfer leg, which is
+  // neither income nor expense and so has no spend category to assign. Always present on an
+  // ordinary record — RecordResource still requires one on create/replace.
+  optional string category_id = 6;
 
   // The owning account, by id. REQUIRED — a record with no account is money that left no
   // account, and a balance computed over such records is arithmetic with a hole in it.
   string account_id = 7;
+
+  // Set only on a transfer leg: the id shared by both linked records, server-minted by
+  // POST /api/v1/transfers and the handle DELETE /api/v1/transfers/{id} deletes by. Absent on an
+  // ordinary record.
+  optional string transfer_id = 8;
 
   // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
 }
@@ -107,4 +116,30 @@ message ListRecordsResponse {
 }
 
 // DELETE /api/v1/records/{id} carries no request body and answers 204, so it declares no
+// messages.
+
+// POST /api/v1/transfers — atomically creates two linked records moving money between two of the
+// caller's own accounts in the SAME currency (cross-currency is a separate, later issue; no FX —
+// see ADR-008/ADR-009). amount_minor is a positive magnitude: the server negates it for the
+// source leg and keeps it positive for the destination leg (see Record.amount_minor, ADR-014).
+message CreateTransferRequest {
+  // Optional; blank is stored as "Transfer" server-side. Not load-bearing the way Record.title is.
+  string title = 1;
+  int64 amount_minor = 2;
+  string currency = 3;
+  string date = 4;
+  string from_account_id = 5;
+  string to_account_id = 6;
+}
+
+// The response to a transfer create, and what DELETE /api/v1/transfers/{id} deletes by way of
+// `id`. from_record.amount_minor is negative (the source leg); to_record.amount_minor is
+// positive. Neither leg carries a category_id.
+message Transfer {
+  string id = 1;
+  Record from_record = 2;
+  Record to_record = 3;
+}
+
+// DELETE /api/v1/transfers/{id} carries no request body and answers 204, so it declares no
 // messages.

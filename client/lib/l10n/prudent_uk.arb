@@ -28,6 +28,15 @@
     "placeholders": { "error": { "type": "String" } }
   },
 
+  "transfersNewTitle": "Новий переказ",
+  "transfersTitleField": "Назва",
+  "transfersAmountField": "Сума",
+  "transfersFromAccount": "З рахунку",
+  "transfersToAccount": "На рахунок",
+  "transfersSave": "Переказати",
+  "transfersInvalidInput": "Переконайтеся, що введено суму, дату та два різні рахунки.",
+  "transfersNoSharedCurrency": "Ці рахунки не мають спільної валюти.",
+
   "categoriesTitle": "Категорії",
   "categoriesEmpty": "Категорій ще не додано.",
   "categoriesLoadError": "Не вдалося завантажити категорії: {error}",

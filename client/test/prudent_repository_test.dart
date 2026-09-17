@@ -130,6 +130,98 @@ void main() {
     });
   });
 
+  group('PrudentRepository.createTransfer', () {
+    test('posts the typed request and decodes both legs', () async {
+      String? capturedBody;
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedBody = request.body;
+          capturedUri = _uriOf(request);
+          return _jsonResponse({
+            'id': 'transfer-1',
+            'fromRecord': {
+              'id': 'leg-from',
+              'title': 'Transfer',
+              'amountMinor': '-5000',
+              'currency': 'PLN',
+              'date': '2026-08-17',
+              'accountId': 'a1',
+              'transferId': 'transfer-1',
+            },
+            'toRecord': {
+              'id': 'leg-to',
+              'title': 'Transfer',
+              'amountMinor': '5000',
+              'currency': 'PLN',
+              'date': '2026-08-17',
+              'accountId': 'a2',
+              'transferId': 'transfer-1',
+            },
+          }, status: 201);
+        }),
+      );
+
+      final result = await repository.createTransfer(
+        CreateTransferRequest(
+          currency: 'PLN',
+          date: '2026-08-17',
+          fromAccountId: 'a1',
+          toAccountId: 'a2',
+        ),
+      );
+
+      expect(capturedUri!.path, '/api/v1/transfers');
+      expect(capturedBody, contains('"fromAccountId":"a1"'));
+      final transfer = result.fold((t) => t, (e) => throw e);
+      expect(transfer.id, 'transfer-1');
+      expect(transfer.fromRecord.amountMinor.toInt(), -5000);
+      expect(transfer.toRecord.amountMinor.toInt(), 5000);
+      expect(transfer.fromRecord.hasCategoryId(), isFalse);
+    });
+
+    test('a ZenError response surfaces as ZenResult.err', () async {
+      final repository = PrudentRepository(
+        client: _clientAnswering(
+          (request) => _jsonResponse({
+            'code': 'invalid',
+            'message': 'A transfer needs two different accounts.',
+          }, status: 400),
+        ),
+      );
+
+      final result = await repository.createTransfer(
+        CreateTransferRequest(currency: 'PLN', date: '2026-08-17', fromAccountId: 'a1', toAccountId: 'a1'),
+      );
+
+      expect(result.isFailure, isTrue);
+      result.fold(
+        (t) => fail('expected a failure'),
+        (error) => expect(error.message, contains('two different accounts')),
+      );
+    });
+  });
+
+  group('PrudentRepository.deleteTransfer', () {
+    test('deletes by transfer id', () async {
+      Uri? capturedUri;
+      String? capturedMethod;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedUri = _uriOf(request);
+          capturedMethod = request.method;
+          return http.Response('', 204, headers: {'X-Zen-Transport': 'json'});
+        }),
+      );
+
+      final result = await repository.deleteTransfer('transfer-1');
+
+      expect(capturedMethod, 'DELETE');
+      expect(capturedUri!.path, '/api/v1/transfers/transfer-1');
+      expect(result.isSuccess, isTrue);
+    });
+  });
+
   group('PrudentRepository.spendByCategory', () {
     test('sends currency and year as query parameters, and decodes the response', () async {
       Uri? capturedUri;
