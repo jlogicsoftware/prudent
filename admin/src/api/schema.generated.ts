@@ -394,13 +394,6 @@ export interface paths {
                         "application/json": components["schemas"]["AdminUserList"];
                     };
                 };
-                /** @description Malformed range/sort/filter, or an unknown role in filter (ZenError) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
                 /** @description No active session */
                 401: {
                     headers: {
@@ -504,7 +497,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["AdminUser"];
                     };
                 };
-                /** @description Unknown role value or unsupported language (ZenError) */
+                /** @description Bad Request */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -832,14 +825,14 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Password changed; every other session was revoked and fresh cookies were issued for this one */
+                /** @description Password changed */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content?: never;
                 };
-                /** @description current_password missing (ordinary change) or the new password is too weak */
+                /** @description Bad Request */
                 400: {
                     headers: {
                         [name: string]: unknown;
