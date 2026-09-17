@@ -27,7 +27,7 @@ from the `../jZen` checkout rather than copied here, so they cannot drift.
 jZen rule and a Prudent rule conflict on something **Prudent** owns, Prudent's wins and the
 divergence is recorded as a Prudent ADR.
 
-## Current state: Phases 0-5 have landed; deploy has not
+## Current state: Phases 0-5 have landed; a real deploy has not (deliberately)
 
 As of 2026-08-23 the repository has a **language-neutral root over four tiers**: `client/` (the
 Flutter app), `server/` (a Quarkus backend), `admin/` (the react-admin panel),
@@ -45,9 +45,15 @@ migration and its row-level security, and the client rewired onto `ZenClient` wi
 navigation shell (`client/lib/prudent_repository.dart`). The third-party backend call the
 conversion existed to remove is gone.
 
-**Not built: a deploy path.** `verify:deploy` is written against a real environment "if one ever
-exists", and there is no `deploy` task. Treat deploying Prudent as conversion work, not as
-something to attempt.
+**Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
+exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the
+Taskfile parses with both discoverable in `task --list`, the preflight fails loudly naming every
+missing variable, and `task test:native` proves the exact artifact a deploy would ship, in Docker,
+against a throwaway Postgres. No GCP project, Cloud Run service, or persistent Supabase project has
+ever been created — that is deliberate (ADR-020), not missing. Don't describe an actual deployment
+as having happened, and never invent a committed project/region/service name: no environment fact
+is ever written into this repository (ADR-021) — the tasks themselves are real; use them rather
+than treating deployment as unstarted.
 
 **Done: the structural flattening (ADR-026).** Client code is now flat under `client/lib/` on a
 capability-folder layout (`account/ analytics/ auth/ category/ generated/ l10n/ overview/ record/`
@@ -217,9 +223,11 @@ are skills no file edit could ever have summoned.
 exact command for the user to run with the `!` prefix. Interactive authentication is never a
 retry problem.
 
-**There is no deploy path yet.** `verify:deploy` is written against a real environment "if one
-ever exists". Do not write skills, plans or docs that describe deploying Prudent as though it
-were possible today; say it is conversion work instead.
+**The deploy path exists as code but has never targeted a real environment.** `task deploy:cloudrun`
+and `task verify:deploy` (ADR-020, ADR-021, ADR-023) are proven only against local/throwaway
+checks — no GCP project, Cloud Run service or persistent Supabase project has ever been created.
+Do not write skills, plans or docs that describe an actual deployment as having happened, or that
+invent a project/region/service name; do use the tasks themselves, which are real.
 
 ### What is in `.claude/`
 
