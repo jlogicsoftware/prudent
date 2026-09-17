@@ -7,6 +7,7 @@ import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
 import '../providers.dart';
 import 'new_record.dart';
+import 'new_transfer.dart';
 import 'records_list.dart';
 
 class RecordsScreen extends ConsumerStatefulWidget {
@@ -19,30 +20,7 @@ class RecordsScreen extends ConsumerStatefulWidget {
 }
 
 class _RecordsState extends ConsumerState<RecordsScreen> {
-  void _openAddRecordOverlay() {
-    final body = NewRecord(
-      onSave:
-          ({
-            required title,
-            required amountInput,
-            required date,
-            required categoryId,
-            required accountId,
-            required currency,
-          }) => ref
-              .read(recordsProvider.notifier)
-              .addRecord(
-                CreateRecordRequest(
-                  title: title,
-                  amountMinor: parseMinorUnits(amountInput),
-                  date: date,
-                  categoryId: categoryId,
-                  accountId: accountId,
-                  currency: currency,
-                ),
-              ),
-    );
-
+  void _presentOverlay(Widget body) {
     if (zenIsDesktop) {
       showDialog(
         context: context,
@@ -61,6 +39,60 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
         constraints: const BoxConstraints.expand(),
       );
     }
+  }
+
+  void _openAddRecordOverlay() {
+    _presentOverlay(
+      NewRecord(
+        onSave:
+            ({
+              required title,
+              required amountInput,
+              required date,
+              required categoryId,
+              required accountId,
+              required currency,
+            }) => ref
+                .read(recordsProvider.notifier)
+                .addRecord(
+                  CreateRecordRequest(
+                    title: title,
+                    amountMinor: parseMinorUnits(amountInput),
+                    date: date,
+                    categoryId: categoryId,
+                    accountId: accountId,
+                    currency: currency,
+                  ),
+                ),
+      ),
+    );
+  }
+
+  void _openAddTransferOverlay() {
+    _presentOverlay(
+      NewTransfer(
+        onSave:
+            ({
+              required title,
+              required amountInput,
+              required date,
+              required fromAccountId,
+              required toAccountId,
+              required currency,
+            }) => ref
+                .read(recordsProvider.notifier)
+                .addTransfer(
+                  CreateTransferRequest(
+                    title: title,
+                    amountMinor: parseMinorUnits(amountInput),
+                    currency: currency,
+                    date: date,
+                    fromAccountId: fromAccountId,
+                    toAccountId: toAccountId,
+                  ),
+                ),
+      ),
+    );
   }
 
   /// Deletes immediately; undo re-creates via a fresh POST, which the server answers with a new
@@ -100,7 +132,14 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(t.appTitle),
-        actions: [IconButton(onPressed: _openAddRecordOverlay, icon: const Icon(Icons.add))],
+        actions: [
+          IconButton(
+            onPressed: _openAddTransferOverlay,
+            icon: const Icon(Icons.swap_horiz),
+            tooltip: t.transfersNewTitle,
+          ),
+          IconButton(onPressed: _openAddRecordOverlay, icon: const Icon(Icons.add)),
+        ],
       ),
       body: recordsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

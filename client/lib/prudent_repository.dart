@@ -20,6 +20,7 @@ class PrudentRepository {
   final ZenClient _client;
 
   static const String _recordsPath = '/api/v1/records';
+  static const String _transfersPath = '/api/v1/transfers';
   static const String _accountsPath = '/api/v1/accounts';
   static const String _categoriesPath = '/api/v1/categories';
   static const String _settingsPath = '/api/v1/settings';
@@ -39,6 +40,14 @@ class PrudentRepository {
 
   Future<ZenResult<Record>> deleteRecord(String id) =>
       _client.delete<Record>(Record.new, '$_recordsPath/$id');
+
+  // --- Transfers (same currency only, jlogicsoftware/prudent#32) ------------------------------
+
+  Future<ZenResult<Transfer>> createTransfer(CreateTransferRequest request) =>
+      _client.post<Transfer>(Transfer.new, _transfersPath, body: request);
+
+  Future<ZenResult<Transfer>> deleteTransfer(String transferId) =>
+      _client.delete<Transfer>(Transfer.new, '$_transfersPath/$transferId');
 
   // --- Accounts ---------------------------------------------------------------------------------
 

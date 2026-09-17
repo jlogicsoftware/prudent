@@ -131,4 +131,17 @@ public class AccountEntity extends PanacheEntityBase {
   public static void clearDefaultExcept(UUID userId, UUID keepId) {
     update("isDefault = false where userId = ?1 and isDefault = true and id <> ?2", userId, keepId);
   }
+
+  /**
+   * Whether this account holds {@code currency} — the refusal that replaced inheritance (ADR-008).
+   * Shared by {@code RecordResource} and {@code TransferResource} so the rule is decided once.
+   */
+  public static boolean holds(AccountEntity account, String currency) {
+    for (AccountBalance balance : account.balances) {
+      if (currency.equals(balance.currency)) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

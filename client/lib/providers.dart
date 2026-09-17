@@ -72,6 +72,29 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
       for (final r in state.value ?? const <Record>[]) if (r.id != id) r,
     ]);
   }
+
+  /// Creates a same-currency transfer (jlogicsoftware/prudent#32) and adds both legs to state.
+  ///
+  /// Also invalidates [accountsProvider]: a transfer moves two accounts' DERIVED balances
+  /// (ADR-014) without ever touching an Account row, so re-fetching accounts is the only way the
+  /// balance shown anywhere picks up the move.
+  Future<Transfer> addTransfer(CreateTransferRequest request) async {
+    final result = await _repository.createTransfer(request);
+    final transfer = result.fold((t) => t, (error) => throw error);
+    state = AsyncValue.data([...?state.value, transfer.fromRecord, transfer.toRecord]);
+    ref.invalidate(accountsProvider);
+    return transfer;
+  }
+
+  /// Deletes both legs of a transfer by their shared id.
+  Future<void> removeTransfer(String transferId) async {
+    final result = await _repository.deleteTransfer(transferId);
+    result.fold((_) => null, (error) => throw error);
+    state = AsyncValue.data([
+      for (final r in state.value ?? const <Record>[]) if (r.transferId != transferId) r,
+    ]);
+    ref.invalidate(accountsProvider);
+  }
 }
 
 final recordsProvider = AsyncNotifierProvider<RecordsNotifier, List<Record>>(RecordsNotifier.new);

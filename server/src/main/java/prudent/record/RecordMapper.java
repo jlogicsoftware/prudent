@@ -9,6 +9,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 import prudent.proto.v1.ListRecordsResponse;
 import prudent.proto.v1.Record;
+import prudent.proto.v1.Transfer;
 
 /**
  * Maps {@link RecordEntity} to its wire {@link Record} proto.
@@ -27,29 +28,44 @@ public abstract class RecordMapper {
       String currency,
       String date,
       String categoryId,
-      String accountId) {}
+      String accountId,
+      String transferId) {}
 
   @Mapping(target = "id", source = "id", qualifiedByName = "uuidToString")
   @Mapping(target = "date", source = "date", qualifiedByName = "isoDate")
   @Mapping(target = "categoryId", source = "categoryId", qualifiedByName = "uuidToString")
   @Mapping(target = "accountId", source = "accountId", qualifiedByName = "uuidToString")
+  @Mapping(target = "transferId", source = "transferId", qualifiedByName = "uuidToString")
   abstract RecordView toView(RecordEntity entity);
 
-  /** Assembles the immutable {@link Record} proto from the mapped view. */
+  /**
+   * Assembles the immutable {@link Record} proto from the mapped view.
+   *
+   * <p>{@code categoryId} and {@code transferId} are {@code optional} on the wire (M1 transfers,
+   * jlogicsoftware/prudent#32): the setter is called only when the value is present, so
+   * {@code hasCategoryId()}/{@code hasTransferId()} stay false rather than reporting an empty
+   * string as "present but blank".
+   */
   public Record toProto(RecordEntity entity) {
     if (entity == null) {
       return Record.getDefaultInstance();
     }
     RecordView view = toView(entity);
-    return Record.newBuilder()
-        .setId(view.id() != null ? view.id() : "")
-        .setTitle(view.title() != null ? view.title() : "")
-        .setAmountMinor(view.amountMinor())
-        .setCurrency(view.currency() != null ? view.currency() : "")
-        .setDate(view.date() != null ? view.date() : "")
-        .setCategoryId(view.categoryId() != null ? view.categoryId() : "")
-        .setAccountId(view.accountId() != null ? view.accountId() : "")
-        .build();
+    Record.Builder builder =
+        Record.newBuilder()
+            .setId(view.id() != null ? view.id() : "")
+            .setTitle(view.title() != null ? view.title() : "")
+            .setAmountMinor(view.amountMinor())
+            .setCurrency(view.currency() != null ? view.currency() : "")
+            .setDate(view.date() != null ? view.date() : "")
+            .setAccountId(view.accountId() != null ? view.accountId() : "");
+    if (view.categoryId() != null) {
+      builder.setCategoryId(view.categoryId());
+    }
+    if (view.transferId() != null) {
+      builder.setTransferId(view.transferId());
+    }
+    return builder.build();
   }
 
   /** The list response, in the order the entity query returned. */
@@ -59,6 +75,15 @@ public abstract class RecordMapper {
       builder.addRecords(toProto(entity));
     }
     return builder.build();
+  }
+
+  /** Assembles the {@link Transfer} proto from its two persisted legs and their shared id. */
+  public Transfer toTransferProto(UUID transferId, RecordEntity from, RecordEntity to) {
+    return Transfer.newBuilder()
+        .setId(transferId.toString())
+        .setFromRecord(toProto(from))
+        .setToRecord(toProto(to))
+        .build();
   }
 
   @Named("uuidToString")

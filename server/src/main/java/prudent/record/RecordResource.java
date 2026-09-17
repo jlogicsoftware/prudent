@@ -27,7 +27,6 @@ import prudent.Currencies;
 import prudent.CurrentUser;
 import prudent.Ids;
 import prudent.error.PrudentException;
-import prudent.account.AccountBalance;
 import prudent.account.AccountEntity;
 import prudent.category.CategoryEntity;
 import zen.core.http.ZenStatus;
@@ -113,9 +112,14 @@ public class RecordResource {
   @APIResponse(
       responseCode = ZenStatus.NOT_FOUND,
       content = @Content(schema = @Schema(ref = "ZenError")))
+  @APIResponse(
+      responseCode = ZenStatus.CONFLICT,
+      description = "The record is a transfer leg; delete the transfer instead of editing it",
+      content = @Content(schema = @Schema(ref = "ZenError")))
   public Response replace(@PathParam("id") String id, UpdateRecordRequest request) {
     UUID userId = currentUser.id();
     RecordEntity entity = require(userId, id);
+    requireNotTransferLeg(entity);
     apply(entity, userId, request.getTitle(), request.getAmountMinor(), request.getDate(),
         request.getCategoryId(), request.getAccountId(), request.getCurrency());
     return Response.ok(mapper.toProto(entity)).build();
@@ -129,12 +133,18 @@ public class RecordResource {
   @APIResponse(
       responseCode = ZenStatus.NOT_FOUND,
       content = @Content(schema = @Schema(ref = "ZenError")))
+  @APIResponse(
+      responseCode = ZenStatus.CONFLICT,
+      description = "The record is a transfer leg; delete the transfer instead",
+      content = @Content(schema = @Schema(ref = "ZenError")))
   public Response delete(@PathParam("id") String id) {
     UUID userId = currentUser.id();
+    RecordEntity entity = require(userId, id);
+    requireNotTransferLeg(entity);
     // A HARD DELETE. A soft delete would leave the row readable by Phase 4's analytics, which is
     // the problem rather than the feature: a user who deletes a mistyped 5,000 PLN entry and still
     // sees it in a total is looking at a wrong number that looks right.
-    require(userId, id).delete();
+    entity.delete();
     return Response.noContent().build();
   }
 
@@ -144,6 +154,20 @@ public class RecordResource {
       throw PrudentException.notFound("record", id);
     }
     return entity;
+  }
+
+  /**
+   * Refuses to touch a transfer leg through the single-record endpoints. A transfer's two rows
+   * are linked by {@code transferId} (jlogicsoftware/prudent#32); editing or deleting one leg
+   * here would silently break that pairing. {@code DELETE /api/v1/transfers/{id}} is the only way
+   * to remove one, and a transfer is never edited in place — delete and recreate it instead.
+   */
+  private static void requireNotTransferLeg(RecordEntity entity) {
+    if (entity.transferId != null) {
+      throw PrudentException.conflict(
+          "This record is part of a transfer and cannot be changed directly. Delete the transfer"
+              + " (DELETE /api/v1/transfers/{id}) instead.");
+    }
   }
 
   /**
@@ -200,7 +224,7 @@ public class RecordResource {
     // THE REFUSAL THAT REPLACED INHERITANCE (ADR-008). When an account held one currency a record
     // inherited it and disagreement was impossible to express; with several, only the record knows
     // which balance it moved, so the guarantee is this check instead.
-    if (!holds(account, normalized)) {
+    if (!AccountEntity.holds(account, normalized)) {
       throw PrudentException.invalid(
           "Account '" + account.name + "' does not hold " + normalized
               + ". Add the currency to the account first.");
@@ -212,15 +236,6 @@ public class RecordResource {
     entity.date = parseDate(date);
     entity.categoryId = category.id;
     entity.accountId = account.id;
-  }
-
-  private static boolean holds(AccountEntity account, String currency) {
-    for (AccountBalance balance : account.balances) {
-      if (currency.equals(balance.currency)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   /**

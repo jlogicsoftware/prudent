@@ -24,8 +24,29 @@ const Record$json = {
     {'1': 'amount_minor', '3': 3, '4': 1, '5': 3, '10': 'amountMinor'},
     {'1': 'currency', '3': 4, '4': 1, '5': 9, '10': 'currency'},
     {'1': 'date', '3': 5, '4': 1, '5': 9, '10': 'date'},
-    {'1': 'category_id', '3': 6, '4': 1, '5': 9, '10': 'categoryId'},
+    {
+      '1': 'category_id',
+      '3': 6,
+      '4': 1,
+      '5': 9,
+      '9': 0,
+      '10': 'categoryId',
+      '17': true
+    },
     {'1': 'account_id', '3': 7, '4': 1, '5': 9, '10': 'accountId'},
+    {
+      '1': 'transfer_id',
+      '3': 8,
+      '4': 1,
+      '5': 9,
+      '9': 1,
+      '10': 'transferId',
+      '17': true
+    },
+  ],
+  '8': [
+    {'1': '_category_id'},
+    {'1': '_transfer_id'},
   ],
 };
 
@@ -33,8 +54,9 @@ const Record$json = {
 final $typed_data.Uint8List recordDescriptor = $convert.base64Decode(
     'CgZSZWNvcmQSDgoCaWQYASABKAlSAmlkEhQKBXRpdGxlGAIgASgJUgV0aXRsZRIhCgxhbW91bn'
     'RfbWlub3IYAyABKANSC2Ftb3VudE1pbm9yEhoKCGN1cnJlbmN5GAQgASgJUghjdXJyZW5jeRIS'
-    'CgRkYXRlGAUgASgJUgRkYXRlEh8KC2NhdGVnb3J5X2lkGAYgASgJUgpjYXRlZ29yeUlkEh0KCm'
-    'FjY291bnRfaWQYByABKAlSCWFjY291bnRJZA==');
+    'CgRkYXRlGAUgASgJUgRkYXRlEiQKC2NhdGVnb3J5X2lkGAYgASgJSABSCmNhdGVnb3J5SWSIAQ'
+    'ESHQoKYWNjb3VudF9pZBgHIAEoCVIJYWNjb3VudElkEiQKC3RyYW5zZmVyX2lkGAggASgJSAFS'
+    'CnRyYW5zZmVySWSIAQFCDgoMX2NhdGVnb3J5X2lkQg4KDF90cmFuc2Zlcl9pZA==');
 
 @$core.Deprecated('Use createRecordRequestDescriptor instead')
 const CreateRecordRequest$json = {
@@ -95,3 +117,53 @@ const ListRecordsResponse$json = {
 final $typed_data.Uint8List listRecordsResponseDescriptor = $convert.base64Decode(
     'ChNMaXN0UmVjb3Jkc1Jlc3BvbnNlEiwKB3JlY29yZHMYASADKAsyEi5wcnVkZW50LnYxLlJlY2'
     '9yZFIHcmVjb3Jkcw==');
+
+@$core.Deprecated('Use createTransferRequestDescriptor instead')
+const CreateTransferRequest$json = {
+  '1': 'CreateTransferRequest',
+  '2': [
+    {'1': 'title', '3': 1, '4': 1, '5': 9, '10': 'title'},
+    {'1': 'amount_minor', '3': 2, '4': 1, '5': 3, '10': 'amountMinor'},
+    {'1': 'currency', '3': 3, '4': 1, '5': 9, '10': 'currency'},
+    {'1': 'date', '3': 4, '4': 1, '5': 9, '10': 'date'},
+    {'1': 'from_account_id', '3': 5, '4': 1, '5': 9, '10': 'fromAccountId'},
+    {'1': 'to_account_id', '3': 6, '4': 1, '5': 9, '10': 'toAccountId'},
+  ],
+};
+
+/// Descriptor for `CreateTransferRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List createTransferRequestDescriptor = $convert.base64Decode(
+    'ChVDcmVhdGVUcmFuc2ZlclJlcXVlc3QSFAoFdGl0bGUYASABKAlSBXRpdGxlEiEKDGFtb3VudF'
+    '9taW5vchgCIAEoA1ILYW1vdW50TWlub3ISGgoIY3VycmVuY3kYAyABKAlSCGN1cnJlbmN5EhIK'
+    'BGRhdGUYBCABKAlSBGRhdGUSJgoPZnJvbV9hY2NvdW50X2lkGAUgASgJUg1mcm9tQWNjb3VudE'
+    'lkEiIKDXRvX2FjY291bnRfaWQYBiABKAlSC3RvQWNjb3VudElk');
+
+@$core.Deprecated('Use transferDescriptor instead')
+const Transfer$json = {
+  '1': 'Transfer',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {
+      '1': 'from_record',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.prudent.v1.Record',
+      '10': 'fromRecord'
+    },
+    {
+      '1': 'to_record',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.prudent.v1.Record',
+      '10': 'toRecord'
+    },
+  ],
+};
+
+/// Descriptor for `Transfer`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List transferDescriptor = $convert.base64Decode(
+    'CghUcmFuc2ZlchIOCgJpZBgBIAEoCVICaWQSMwoLZnJvbV9yZWNvcmQYAiABKAsyEi5wcnVkZW'
+    '50LnYxLlJlY29yZFIKZnJvbVJlY29yZBIvCgl0b19yZWNvcmQYAyABKAsyEi5wcnVkZW50LnYx'
+    'LlJlY29yZFIIdG9SZWNvcmQ=');

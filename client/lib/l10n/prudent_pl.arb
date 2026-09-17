@@ -28,6 +28,15 @@
     "placeholders": { "error": { "type": "String" } }
   },
 
+  "transfersNewTitle": "Nowy przelew",
+  "transfersTitleField": "Tytuł",
+  "transfersAmountField": "Kwota",
+  "transfersFromAccount": "Z konta",
+  "transfersToAccount": "Na konto",
+  "transfersSave": "Przelej",
+  "transfersInvalidInput": "Upewnij się, że podano kwotę, datę oraz dwa różne konta.",
+  "transfersNoSharedCurrency": "Te konta nie mają wspólnej waluty.",
+
   "categoriesTitle": "Kategorie",
   "categoriesEmpty": "Nie dodano jeszcze żadnej kategorii.",
   "categoriesLoadError": "Nie udało się wczytać kategorii: {error}",

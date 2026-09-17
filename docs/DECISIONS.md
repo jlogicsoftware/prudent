@@ -13,6 +13,70 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-031 — Same-currency transfers: two linked records, no header table, and a category that can now be absent
+
+**Date:** 2026-09-17. **Status:** accepted. **Follows:** ADR-014 (derived balance), ADR-008
+(multi-currency accounts).
+
+### Decision
+
+`jlogicsoftware/prudent#32` ("Add atomic same-currency transfers") is built as:
+
+- **A `transfer_id UUID` column on `prudent_record`** (nullable, partial index on non-null), not a
+  separate `prudent_transfer` header table. The two leg rows a transfer creates — a negative-amount
+  source leg and a positive-amount destination leg, sharing one `transfer_id` — carry everything a
+  transfer needs (amount, currency, date, accounts); a header table would add a second RLS surface
+  and a second migration path for no information the two rows don't already have.
+- **`prudent_record.category_id` becomes nullable** (`Record.category_id` is now proto3
+  `optional`). A transfer leg is neither income nor expense, so it carries no category. Ordinary
+  create/replace through `RecordResource.apply` still requires one — this only makes "no category"
+  a sayable wire and database state for the one case that legitimately has it, rather than a
+  reserved sentinel value.
+- **`RecordEntity.expenseRows`** (the one query both analytics endpoints share, ADR-014) gains
+  `and r.transferId is null`. A transfer's negative leg has `amountMinor < 0` exactly like an
+  expense; this is the one place that distinction is made, matching how income exclusion already
+  works there.
+- **New `TransferResource`** at `/api/v1/transfers`: `POST` validates both accounts are the
+  caller's, distinct, and both hold the requested currency (no FX — ADR-008/ADR-009), then persists
+  both legs in one `@Transactional` method. Because balance is derived, not stored (ADR-014),
+  persisting both rows in one transaction **is** the atomic balance update — no `Account` row is
+  ever touched. `DELETE /{transferId}` removes both legs by their shared id, or 404s.
+- **`RecordResource.replace`/`delete` refuse any record with a non-null `transfer_id`** (409
+  `conflict`). Without this, one leg could be edited or deleted through the pre-existing
+  single-record endpoints, silently breaking the pairing the moment the feature shipped. `GET` is
+  unaffected — a leg still reads like any other record.
+- Cross-currency transfers (two user-entered amounts, no inferred rate) and deletion/export
+  lifecycle integration are the two sibling M1 backlog tasks this issue does not close
+  (`docs/github-backlog.md`, M1 tasks 2 and 6).
+
+### What this supersedes, and why
+
+- **CLAUDE.md's "Flyway version band"** (superseded already by ADR-002; restated here because this
+  migration is the concrete instance) → the new migration is
+  `V20260917184255__prudent_transfers.sql`, a real UTC timestamp, not a reserved number.
+- No prior ADR named transfers; this is new ground, not a reversal.
+
+### Consequence
+
+- A transfer leg is indistinguishable from an ordinary record to every endpoint except analytics
+  (which excludes it) and `RecordResource`'s write path (which refuses it) — `GET`, list, and the
+  derived-balance arithmetic (`RecordEntity.netByAccount`) treat it identically to any other row,
+  which is what "atomic balance update" reduces to under ADR-014.
+- **`%dev`/`%test` now widen `zen.ratelimit.global.burst-limit`**
+  (`server/src/main/resources/application.properties`) to 10000, mirroring jZen's own reference app
+  (`apps/zen_demo`, jZen ADR-029). This was not part of the feature's design — it surfaced because
+  the backend suite's own mutating-request volume, growing with `TransferResourceTest`, crossed the
+  framework's production global burst limit (120/minute) within a single `@QuarkusTest` run, 429-ing
+  unrelated tests (`UserScopingTest`) that happened to run in the same window. `%prod` is untouched.
+- Verified: `task generate` / `task verify:contracts` clean; `./mvnw test` green (95 tests,
+  including 15 new `TransferResourceTest` cases and the analytics-exclusion case added to
+  `AnalyticsResourceTest`); `flutter analyze` and `flutter test` clean on the client (the one
+  pre-existing, unrelated `prudent_l10n_test.dart` load failure reproduces identically on `main`),
+  including a new `Record`/`Transfer`/`CreateTransferRequest` wire round-trip case and a
+  `PrudentRepository.createTransfer`/`deleteTransfer` suite.
+
+---
+
 ## ADR-030 — `run:dev`'s one-Ctrl-C teardown: jZen #84 + #88 + #89
 
 **Date:** 2026-09-01. **Status:** accepted. **Follows:** ADR-029.

@@ -60,6 +60,84 @@ void main() {
         expect(decoded, original);
       });
 
+      test('a transfer leg carries no categoryId, and a transferId round-trips', () {
+        // jlogicsoftware/prudent#32: categoryId and transferId are proto3 `optional`, so a transfer
+        // leg can say "no category" rather than an empty string standing in for it, and a plain
+        // record can say "no transfer" the same way.
+        final leg = Record(
+          id: '6f9619ff-8b86-d011-b42d-00c04fc964ff',
+          title: 'Transfer',
+          amountMinor: Int64(-5000),
+          currency: 'PLN',
+          date: '2026-08-17',
+          accountId: '018f3a1b-2c4d-7e8f-9a0b-1c2d3e4f5a6b',
+          transferId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
+        );
+        expect(leg.hasCategoryId(), isFalse);
+
+        final decoded = roundTrip(leg, format, Record.new);
+
+        expect(decoded.hasCategoryId(), isFalse, reason: 'absence must survive the wire, not decode as ""');
+        expect(decoded.hasTransferId(), isTrue);
+        expect(decoded.transferId, leg.transferId);
+        expect(decoded, leg);
+      });
+
+      test('a Transfer survives the round trip field for field', () {
+        final original = Transfer(
+          id: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
+          fromRecord: Record(
+            id: 'from-1',
+            title: 'Transfer',
+            amountMinor: Int64(-5000),
+            currency: 'PLN',
+            date: '2026-08-17',
+            accountId: 'a1',
+            transferId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
+          ),
+          toRecord: Record(
+            id: 'to-1',
+            title: 'Transfer',
+            amountMinor: Int64(5000),
+            currency: 'PLN',
+            date: '2026-08-17',
+            accountId: 'a2',
+            transferId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
+          ),
+        );
+
+        final decoded = roundTrip(original, format, Transfer.new);
+
+        expect(decoded.id, original.id);
+        expect(decoded.fromRecord.amountMinor, Int64(-5000));
+        expect(decoded.toRecord.amountMinor, Int64(5000));
+        expect(decoded, original);
+      });
+
+      test('a CreateTransferRequest carries a positive magnitude and no id', () {
+        final decoded = roundTrip(
+          CreateTransferRequest(
+            title: 'Move to savings',
+            amountMinor: Int64(5000),
+            currency: 'PLN',
+            date: '2026-08-17',
+            fromAccountId: 'a1',
+            toAccountId: 'a2',
+          ),
+          format,
+          CreateTransferRequest.new,
+        );
+
+        expect(decoded.amountMinor, Int64(5000));
+        expect(decoded.fromAccountId, 'a1');
+        expect(decoded.toAccountId, 'a2');
+        expect(
+          CreateTransferRequest().info_.byName.keys,
+          isNot(contains('id')),
+          reason: 'the server mints both legs\' ids and the shared transfer id',
+        );
+      });
+
       test('a multi-currency Account survives the round trip field for field', () {
         final original = Account(
           id: '018f3a1b-2c4d-7e8f-9a0b-1c2d3e4f5a6b',
