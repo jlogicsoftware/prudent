@@ -18,6 +18,7 @@
   "recordsNoteField": "Note",
   "recordsExpense": "Expense",
   "recordsIncome": "Income",
+  "recordsTransfer": "Transfer",
   "recordsNoDateSelected": "No date selected",
   "recordsSaveExpense": "Save Expense",
   "recordsSaveIncome": "Save Income",
@@ -29,6 +30,21 @@
   "@recordsLoadError": {
     "placeholders": { "error": { "type": "String" } }
   },
+
+  "recordsFilterTooltip": "Filter",
+  "recordsFilterActiveTooltip": "Filter (active)",
+  "recordsFilterTitle": "Filter records",
+  "recordsFilterSearchField": "Search",
+  "recordsFilterDateFrom": "From",
+  "recordsFilterDateTo": "To",
+  "recordsFilterAnyType": "Any type",
+  "recordsFilterAnyAccount": "Any account",
+  "recordsFilterAnyCategory": "Any category",
+  "recordsFilterAmountMinField": "Min amount",
+  "recordsFilterAmountMaxField": "Max amount",
+  "recordsFilterApply": "Apply",
+  "recordsFilterClearAll": "Clear all",
+  "recordsFilterEmpty": "No records match these filters.",
 
   "transfersNewTitle": "New Transfer",
   "transfersTitleField": "Title",

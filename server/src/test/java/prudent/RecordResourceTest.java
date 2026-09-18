@@ -330,4 +330,192 @@ class RecordResourceTest {
 
     assertEquals(400, response.statusCode());
   }
+
+  // --- Filters (jlogicsoftware/prudent#52) ---------------------------------------------------
+
+  private ListRecordsResponse list(String... queryParamPairs) throws Exception {
+    var spec = PrudentTest.request(PrudentTest.JSON);
+    for (int i = 0; i < queryParamPairs.length; i += 2) {
+      spec = spec.queryParam(queryParamPairs[i], queryParamPairs[i + 1]);
+    }
+    Response response = spec.when().get("/api/v1/records").andReturn();
+    assertEquals(200, response.statusCode());
+    return PrudentTest.decode(PrudentTest.JSON, response, ListRecordsResponse.newBuilder())
+        .build();
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void noFilters_returnsTheFullUnfilteredList() throws Exception {
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -5_00L, "PLN");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, 10_00L, "PLN");
+
+    assertEquals(2, list().getRecordsCount());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void dateRange_isInclusiveOnBothEnds() throws Exception {
+    PrudentTest.seedRecord(
+        PrudentTest.ALICE, accountId, categoryId, -1_00L, "PLN", java.time.LocalDate.of(2026, 8, 1));
+    PrudentTest.seedRecord(
+        PrudentTest.ALICE, accountId, categoryId, -2_00L, "PLN", java.time.LocalDate.of(2026, 8, 15));
+    PrudentTest.seedRecord(
+        PrudentTest.ALICE, accountId, categoryId, -3_00L, "PLN", java.time.LocalDate.of(2026, 8, 31));
+
+    ListRecordsResponse inRange = list("dateFrom", "2026-08-01", "dateTo", "2026-08-15");
+    assertEquals(2, inRange.getRecordsCount());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void accountFilter_matchesOnlyThatAccount() throws Exception {
+    UUID otherAccount = PrudentTest.seedAccount(PrudentTest.ALICE, "Savings", "PLN");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -1_00L, "PLN");
+    PrudentTest.seedRecord(PrudentTest.ALICE, otherAccount, categoryId, -2_00L, "PLN");
+
+    ListRecordsResponse filtered = list("accountId", accountId.toString());
+    assertEquals(1, filtered.getRecordsCount());
+    assertEquals(accountId.toString(), filtered.getRecords(0).getAccountId());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void categoryFilter_matchesOnlyThatCategory() throws Exception {
+    UUID otherCategory = PrudentTest.seedCategory(PrudentTest.ALICE, "Transport");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -1_00L, "PLN");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, otherCategory, -2_00L, "PLN");
+
+    ListRecordsResponse filtered = list("categoryId", categoryId.toString());
+    assertEquals(1, filtered.getRecordsCount());
+    assertEquals(categoryId.toString(), filtered.getRecords(0).getCategoryId());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void typeFilter_splitsIncomeExpenseAndTransfer() throws Exception {
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -5_00L, "PLN"); // expense
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, 7_00L, "PLN"); // income
+    UUID transferId = UUID.randomUUID();
+    PrudentTest.seedTransferLeg(PrudentTest.ALICE, accountId, -3_00L, "PLN", transferId);
+
+    assertEquals(1, list("type", "expense").getRecordsCount());
+    assertEquals(1, list("type", "income").getRecordsCount());
+    assertEquals(1, list("type", "transfer").getRecordsCount());
+    assertEquals(3, list().getRecordsCount());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void amountRange_matchesTheAbsoluteAmountRegardlessOfSign() throws Exception {
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -50_00L, "PLN");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, 100_00L, "PLN");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -500_00L, "PLN");
+
+    ListRecordsResponse filtered = list("amountMin", "4000", "amountMax", "15000");
+    assertEquals(2, filtered.getRecordsCount());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void search_matchesTitlePayeeOrNote() throws Exception {
+    PrudentTest.body(PrudentTest.request(PrudentTest.JSON), PrudentTest.JSON, validCreate().setTitle("Groceries").build())
+        .when().post("/api/v1/records").andReturn();
+    PrudentTest.body(
+            PrudentTest.request(PrudentTest.JSON),
+            PrudentTest.JSON,
+            validCreate().setTitle("Coffee").setPayee("Corner Shop").build())
+        .when().post("/api/v1/records").andReturn();
+    PrudentTest.body(
+            PrudentTest.request(PrudentTest.JSON),
+            PrudentTest.JSON,
+            validCreate().setTitle("Lunch").setNote("with the corner-shop owner").build())
+        .when().post("/api/v1/records").andReturn();
+
+    assertEquals(2, list("search", "corner").getRecordsCount());
+    assertEquals(1, list("search", "Groceries").getRecordsCount());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void filtersCompose_asAnAndAcrossAllGivenCriteria() throws Exception {
+    UUID otherAccount = PrudentTest.seedAccount(PrudentTest.ALICE, "Savings", "PLN");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -5_00L, "PLN"); // matches
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, 5_00L, "PLN"); // wrong type
+    PrudentTest.seedRecord(PrudentTest.ALICE, otherAccount, categoryId, -5_00L, "PLN"); // wrong account
+
+    ListRecordsResponse filtered =
+        list("accountId", accountId.toString(), "categoryId", categoryId.toString(), "type", "expense");
+    assertEquals(1, filtered.getRecordsCount());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void clearingFilters_returnsToTheFullListWithNoDataLost() throws Exception {
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -5_00L, "PLN");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, 10_00L, "PLN");
+
+    assertEquals(1, list("type", "expense").getRecordsCount());
+    assertEquals(2, list().getRecordsCount(), "clearing the filter must restore every record");
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void aMalformedDateFilter_isRejected() throws Exception {
+    Response response =
+        PrudentTest.request(PrudentTest.JSON)
+            .queryParam("dateFrom", "not-a-date")
+            .when()
+            .get("/api/v1/records")
+            .andReturn();
+    assertEquals(400, response.statusCode());
+    assertEquals(
+        "invalid",
+        PrudentTest.decode(PrudentTest.JSON, response, ZenError.newBuilder()).build().getCode());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void aMalformedAccountIdFilter_isRejected() throws Exception {
+    Response response =
+        PrudentTest.request(PrudentTest.JSON)
+            .queryParam("accountId", "not-a-uuid")
+            .when()
+            .get("/api/v1/records")
+            .andReturn();
+    assertEquals(400, response.statusCode());
+    assertEquals(
+        "invalid",
+        PrudentTest.decode(PrudentTest.JSON, response, ZenError.newBuilder()).build().getCode());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void anInvalidTypeFilter_isRejected() throws Exception {
+    Response response =
+        PrudentTest.request(PrudentTest.JSON)
+            .queryParam("type", "bogus")
+            .when()
+            .get("/api/v1/records")
+            .andReturn();
+    assertEquals(400, response.statusCode());
+    assertEquals(
+        "invalid",
+        PrudentTest.decode(PrudentTest.JSON, response, ZenError.newBuilder()).build().getCode());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void aNegativeAmountMin_isRejected() throws Exception {
+    Response response =
+        PrudentTest.request(PrudentTest.JSON)
+            .queryParam("amountMin", -1)
+            .when()
+            .get("/api/v1/records")
+            .andReturn();
+    assertEquals(400, response.statusCode());
+    assertEquals(
+        "invalid",
+        PrudentTest.decode(PrudentTest.JSON, response, ZenError.newBuilder()).build().getCode());
+  }
 }

@@ -5,11 +5,13 @@
 // ZenResult.err carries a ZenError; a caller can never mistake it for an empty success).
 import 'dart:convert';
 
+import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
 import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/record/record_filter.dart';
 import 'package:zen_transport/zen_transport.dart';
 
 Uri _uriOf(http.Request request) => request.url;
@@ -92,6 +94,69 @@ void main() {
       // would be indistinguishable from "the user genuinely has no records".
       expect(result.isFailure, isTrue);
       expect(result.errorOrNull, isNotNull);
+    });
+
+    test('an omitted filter hits the bare path, exactly like today', () async {
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedUri = _uriOf(request);
+          return _jsonResponse({'records': []});
+        }),
+      );
+
+      await repository.listRecords();
+
+      expect(capturedUri!.path, '/api/v1/records');
+      expect(capturedUri!.query, isEmpty);
+    });
+
+    test('RecordFilter.empty hits the bare path, exactly like an omitted filter', () async {
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedUri = _uriOf(request);
+          return _jsonResponse({'records': []});
+        }),
+      );
+
+      await repository.listRecords(filter: RecordFilter.empty);
+
+      expect(capturedUri!.path, '/api/v1/records');
+      expect(capturedUri!.query, isEmpty);
+    });
+
+    test('a populated filter is sent as query parameters', () async {
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedUri = _uriOf(request);
+          return _jsonResponse({'records': []});
+        }),
+      );
+
+      await repository.listRecords(
+        filter: RecordFilter(
+          dateFrom: DateTime(2026, 8, 1),
+          dateTo: DateTime(2026, 8, 31),
+          accountId: 'a1',
+          categoryId: 'c1',
+          type: RecordFilterType.expense,
+          amountMin: Int64(500),
+          amountMax: Int64(10000),
+          search: 'coffee',
+        ),
+      );
+
+      expect(capturedUri!.path, '/api/v1/records');
+      expect(capturedUri!.queryParameters['dateFrom'], '2026-08-01');
+      expect(capturedUri!.queryParameters['dateTo'], '2026-08-31');
+      expect(capturedUri!.queryParameters['accountId'], 'a1');
+      expect(capturedUri!.queryParameters['categoryId'], 'c1');
+      expect(capturedUri!.queryParameters['type'], 'expense');
+      expect(capturedUri!.queryParameters['amountMin'], '500');
+      expect(capturedUri!.queryParameters['amountMax'], '10000');
+      expect(capturedUri!.queryParameters['search'], 'coffee');
     });
   });
 

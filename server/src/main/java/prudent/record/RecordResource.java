@@ -11,6 +11,7 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
@@ -52,13 +53,46 @@ public class RecordResource {
   @Inject RecordMapper mapper;
 
   @GET
-  @Operation(summary = "List the authenticated user's records")
+  @Operation(
+      summary = "List the authenticated user's records, optionally filtered",
+      description =
+          "Query parameters (all optional, independently composable — see records.proto):"
+              + " dateFrom/dateTo (ISO-8601 YYYY-MM-DD, inclusive), accountId/categoryId (UUID),"
+              + " type (income|expense|transfer), amountMin/amountMax (non-negative minor units,"
+              + " inclusive, matched against the absolute amount), search (case-insensitive"
+              + " substring against title/payee/note). Omitting a parameter clears that filter;"
+              + " omitting all of them returns the full unfiltered list.")
   @APIResponse(
       responseCode = ZenStatus.OK,
       content = @Content(schema = @Schema(ref = "ListRecordsResponse")))
-  public Response list() {
+  @APIResponse(
+      responseCode = ZenStatus.BAD_REQUEST,
+      description = "A malformed dateFrom/dateTo, accountId/categoryId, type, or a negative amount",
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  public Response list(
+      @QueryParam("dateFrom") String dateFromParam,
+      @QueryParam("dateTo") String dateToParam,
+      @QueryParam("accountId") String accountIdParam,
+      @QueryParam("categoryId") String categoryIdParam,
+      @QueryParam("type") String typeParam,
+      @QueryParam("amountMin") Long amountMin,
+      @QueryParam("amountMax") Long amountMax,
+      @QueryParam("search") String search) {
     UUID userId = currentUser.id();
-    return Response.ok(mapper.toListResponse(RecordEntity.listOwnedBy(userId))).build();
+    LocalDate dateFrom = parseOptionalDate(dateFromParam, "dateFrom");
+    LocalDate dateTo = parseOptionalDate(dateToParam, "dateTo");
+    UUID accountId = parseOptionalUuid(accountIdParam, "accountId");
+    UUID categoryId = parseOptionalUuid(categoryIdParam, "categoryId");
+    RecordType type = RecordType.parse(typeParam);
+    requireNonNegative(amountMin, "amountMin");
+    requireNonNegative(amountMax, "amountMax");
+
+    return Response.ok(
+            mapper.toListResponse(
+                RecordEntity.search(
+                    userId, dateFrom, dateTo, accountId, categoryId, type, amountMin, amountMax,
+                    search)))
+        .build();
   }
 
   @GET
@@ -255,6 +289,45 @@ public class RecordResource {
     }
     String trimmed = value.trim();
     return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  /**
+   * The {@code dateFrom}/{@code dateTo} filter params: {@code null} means the caller sent no
+   * filter for that end of the range, so it is returned as-is rather than rejected. A present but
+   * malformed value is still a refusal, via {@link #parseDate}.
+   */
+  private static LocalDate parseOptionalDate(String date, String paramName) {
+    if (date == null || date.isBlank()) {
+      return null;
+    }
+    try {
+      return LocalDate.parse(date);
+    } catch (DateTimeParseException malformed) {
+      throw PrudentException.invalid(
+          "'" + date + "' is not an ISO-8601 date for " + paramName + ". Expected YYYY-MM-DD.");
+    }
+  }
+
+  /**
+   * An {@code accountId}/{@code categoryId} filter param: {@code null}/blank means no filter for
+   * that criterion. A present but malformed value is a 400 — unlike a path id, this never reaches
+   * a not-found row, so there is no reason to prefer 404 the way {@link Ids#parse} does.
+   */
+  private static UUID parseOptionalUuid(String id, String paramName) {
+    if (id == null || id.isBlank()) {
+      return null;
+    }
+    try {
+      return UUID.fromString(id);
+    } catch (IllegalArgumentException notAUuid) {
+      throw PrudentException.invalid("'" + id + "' is not a valid " + paramName + ".");
+    }
+  }
+
+  private static void requireNonNegative(Long value, String paramName) {
+    if (value != null && value < 0) {
+      throw PrudentException.invalid(paramName + " must not be negative.");
+    }
   }
 
   /**

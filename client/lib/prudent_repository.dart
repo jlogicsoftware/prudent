@@ -6,6 +6,7 @@ import 'generated/prudent/v1/analytics.pb.dart';
 import 'generated/prudent/v1/categories.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
+import 'record/record_filter.dart';
 
 /// Prudent's server surface, typed over [ZenClient]. Every call returns [ZenResult] — success or
 /// a [ZenError] the caller can render — never a bare value and never a null standing in for
@@ -29,8 +30,13 @@ class PrudentRepository {
 
   // --- Records --------------------------------------------------------------------------------
 
-  Future<ZenResult<ListRecordsResponse>> listRecords() =>
-      _client.get<ListRecordsResponse>(ListRecordsResponse.new, _recordsPath);
+  /// [filter] is optional and independently composable per criterion (jlogicsoftware/prudent#52);
+  /// omitting it, or passing [RecordFilter.empty], is exactly today's unfiltered call.
+  Future<ZenResult<ListRecordsResponse>> listRecords({RecordFilter? filter}) {
+    final query = filter?.toQueryParameters() ?? const <String, String>{};
+    final path = query.isEmpty ? _recordsPath : '$_recordsPath?${_encodeQuery(query)}';
+    return _client.get<ListRecordsResponse>(ListRecordsResponse.new, path);
+  }
 
   Future<ZenResult<Record>> createRecord(CreateRecordRequest request) =>
       _client.post<Record>(Record.new, _recordsPath, body: request);
