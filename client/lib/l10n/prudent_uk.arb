@@ -30,12 +30,12 @@
 
   "transfersNewTitle": "Новий переказ",
   "transfersTitleField": "Назва",
-  "transfersAmountField": "Сума",
+  "transfersFromAmountField": "Сума списання",
+  "transfersToAmountField": "Сума зарахування",
   "transfersFromAccount": "З рахунку",
   "transfersToAccount": "На рахунок",
   "transfersSave": "Переказати",
-  "transfersInvalidInput": "Переконайтеся, що введено суму, дату та два різні рахунки.",
-  "transfersNoSharedCurrency": "Ці рахунки не мають спільної валюти.",
+  "transfersInvalidInput": "Переконайтеся, що введено обидві суми, дату та два різні рахунки.",
 
   "categoriesTitle": "Категорії",
   "categoriesEmpty": "Категорій ще не додано.",

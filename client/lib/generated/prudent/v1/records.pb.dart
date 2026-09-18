@@ -489,25 +489,32 @@ class ListRecordsResponse extends $pb.GeneratedMessage {
 }
 
 /// POST /api/v1/transfers — atomically creates two linked records moving money between two of the
-/// caller's own accounts in the SAME currency (cross-currency is a separate, later issue; no FX —
-/// see ADR-008/ADR-009). amount_minor is a positive magnitude: the server negates it for the
-/// source leg and keeps it positive for the destination leg (see Record.amount_minor, ADR-014).
+/// caller's own accounts. Both legs carry their OWN amount and currency (jlogicsoftware/prudent#50,
+/// ADR-032): a same-currency transfer is the case where they happen to agree, not a distinct mode.
+/// NO FX RATE IS EVER COMPUTED — see ADR-008/ADR-009 — the user enters both amounts explicitly and
+/// the server persists exactly what was entered. Both amounts are positive magnitudes: the server
+/// negates from_amount_minor for the source leg and keeps to_amount_minor positive for the
+/// destination leg (see Record.amount_minor, ADR-014).
 class CreateTransferRequest extends $pb.GeneratedMessage {
   factory CreateTransferRequest({
     $core.String? title,
-    $fixnum.Int64? amountMinor,
-    $core.String? currency,
+    $fixnum.Int64? fromAmountMinor,
+    $core.String? fromCurrency,
     $core.String? date,
     $core.String? fromAccountId,
     $core.String? toAccountId,
+    $fixnum.Int64? toAmountMinor,
+    $core.String? toCurrency,
   }) {
     final result = create();
     if (title != null) result.title = title;
-    if (amountMinor != null) result.amountMinor = amountMinor;
-    if (currency != null) result.currency = currency;
+    if (fromAmountMinor != null) result.fromAmountMinor = fromAmountMinor;
+    if (fromCurrency != null) result.fromCurrency = fromCurrency;
     if (date != null) result.date = date;
     if (fromAccountId != null) result.fromAccountId = fromAccountId;
     if (toAccountId != null) result.toAccountId = toAccountId;
+    if (toAmountMinor != null) result.toAmountMinor = toAmountMinor;
+    if (toCurrency != null) result.toCurrency = toCurrency;
     return result;
   }
 
@@ -525,11 +532,13 @@ class CreateTransferRequest extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'title')
-    ..aInt64(2, _omitFieldNames ? '' : 'amountMinor')
-    ..aOS(3, _omitFieldNames ? '' : 'currency')
+    ..aInt64(2, _omitFieldNames ? '' : 'fromAmountMinor')
+    ..aOS(3, _omitFieldNames ? '' : 'fromCurrency')
     ..aOS(4, _omitFieldNames ? '' : 'date')
     ..aOS(5, _omitFieldNames ? '' : 'fromAccountId')
     ..aOS(6, _omitFieldNames ? '' : 'toAccountId')
+    ..aInt64(7, _omitFieldNames ? '' : 'toAmountMinor')
+    ..aOS(8, _omitFieldNames ? '' : 'toCurrency')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -563,22 +572,22 @@ class CreateTransferRequest extends $pb.GeneratedMessage {
   void clearTitle() => $_clearField(1);
 
   @$pb.TagNumber(2)
-  $fixnum.Int64 get amountMinor => $_getI64(1);
+  $fixnum.Int64 get fromAmountMinor => $_getI64(1);
   @$pb.TagNumber(2)
-  set amountMinor($fixnum.Int64 value) => $_setInt64(1, value);
+  set fromAmountMinor($fixnum.Int64 value) => $_setInt64(1, value);
   @$pb.TagNumber(2)
-  $core.bool hasAmountMinor() => $_has(1);
+  $core.bool hasFromAmountMinor() => $_has(1);
   @$pb.TagNumber(2)
-  void clearAmountMinor() => $_clearField(2);
+  void clearFromAmountMinor() => $_clearField(2);
 
   @$pb.TagNumber(3)
-  $core.String get currency => $_getSZ(2);
+  $core.String get fromCurrency => $_getSZ(2);
   @$pb.TagNumber(3)
-  set currency($core.String value) => $_setString(2, value);
+  set fromCurrency($core.String value) => $_setString(2, value);
   @$pb.TagNumber(3)
-  $core.bool hasCurrency() => $_has(2);
+  $core.bool hasFromCurrency() => $_has(2);
   @$pb.TagNumber(3)
-  void clearCurrency() => $_clearField(3);
+  void clearFromCurrency() => $_clearField(3);
 
   @$pb.TagNumber(4)
   $core.String get date => $_getSZ(3);
@@ -606,6 +615,26 @@ class CreateTransferRequest extends $pb.GeneratedMessage {
   $core.bool hasToAccountId() => $_has(5);
   @$pb.TagNumber(6)
   void clearToAccountId() => $_clearField(6);
+
+  /// Independent of from_amount_minor/from_currency — the destination leg's own amount and
+  /// currency, exactly as the user entered them. No conversion is derived from the pair.
+  @$pb.TagNumber(7)
+  $fixnum.Int64 get toAmountMinor => $_getI64(6);
+  @$pb.TagNumber(7)
+  set toAmountMinor($fixnum.Int64 value) => $_setInt64(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasToAmountMinor() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearToAmountMinor() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.String get toCurrency => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set toCurrency($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasToCurrency() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearToCurrency() => $_clearField(8);
 }
 
 /// The response to a transfer create, and what DELETE /api/v1/transfers/{id} deletes by way of

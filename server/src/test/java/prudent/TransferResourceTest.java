@@ -43,11 +43,13 @@ class TransferResourceTest {
   private CreateTransferRequest.Builder validCreate() {
     return CreateTransferRequest.newBuilder()
         .setTitle("Move to savings")
-        .setAmountMinor(50_00L)
-        .setCurrency("PLN")
+        .setFromAmountMinor(50_00L)
+        .setFromCurrency("PLN")
         .setDate("2026-08-17")
         .setFromAccountId(walletId.toString())
-        .setToAccountId(savingsId.toString());
+        .setToAccountId(savingsId.toString())
+        .setToAmountMinor(50_00L)
+        .setToCurrency("PLN");
   }
 
   private long balanceOf(String mode, UUID accountId, String currency) throws Exception {
@@ -124,12 +126,12 @@ class TransferResourceTest {
 
   @Test
   @TestSecurity(user = PrudentTest.ALICE)
-  void create_rejectsANonPositiveAmount() throws Exception {
+  void create_rejectsANonPositiveFromAmount() throws Exception {
     Response response =
         PrudentTest.body(
                 PrudentTest.request(PrudentTest.JSON),
                 PrudentTest.JSON,
-                validCreate().setAmountMinor(0L).build())
+                validCreate().setFromAmountMinor(0L).build())
             .when()
             .post("/api/v1/transfers")
             .andReturn();
@@ -139,12 +141,12 @@ class TransferResourceTest {
 
   @Test
   @TestSecurity(user = PrudentTest.ALICE)
-  void create_rejectsANegativeAmount() throws Exception {
+  void create_rejectsANegativeFromAmount() throws Exception {
     Response response =
         PrudentTest.body(
                 PrudentTest.request(PrudentTest.JSON),
                 PrudentTest.JSON,
-                validCreate().setAmountMinor(-50_00L).build())
+                validCreate().setFromAmountMinor(-50_00L).build())
             .when()
             .post("/api/v1/transfers")
             .andReturn();
@@ -154,13 +156,64 @@ class TransferResourceTest {
 
   @Test
   @TestSecurity(user = PrudentTest.ALICE)
-  void create_rejectsACurrencyAnAccountDoesNotHold() throws Exception {
+  void create_rejectsANonPositiveToAmount() throws Exception {
+    Response response =
+        PrudentTest.body(
+                PrudentTest.request(PrudentTest.JSON),
+                PrudentTest.JSON,
+                validCreate().setToAmountMinor(0L).build())
+            .when()
+            .post("/api/v1/transfers")
+            .andReturn();
+
+    assertEquals(400, response.statusCode());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void create_rejectsANegativeToAmount() throws Exception {
+    Response response =
+        PrudentTest.body(
+                PrudentTest.request(PrudentTest.JSON),
+                PrudentTest.JSON,
+                validCreate().setToAmountMinor(-50_00L).build())
+            .when()
+            .post("/api/v1/transfers")
+            .andReturn();
+
+    assertEquals(400, response.statusCode());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void create_rejectsAFromCurrencyAnAccountDoesNotHold() throws Exception {
+    // walletId holds PLN and EUR, but not USD.
+    Response response =
+        PrudentTest.body(
+                PrudentTest.request(PrudentTest.JSON),
+                PrudentTest.JSON,
+                validCreate().setFromCurrency("USD").setToCurrency("USD").build())
+            .when()
+            .post("/api/v1/transfers")
+            .andReturn();
+
+    assertEquals(400, response.statusCode());
+    assertTrue(
+        PrudentTest.decode(PrudentTest.JSON, response, ZenError.newBuilder())
+            .build()
+            .getMessage()
+            .contains("USD"));
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void create_rejectsAToCurrencyAnAccountDoesNotHold() throws Exception {
     // savingsId only holds PLN.
     Response response =
         PrudentTest.body(
                 PrudentTest.request(PrudentTest.JSON),
                 PrudentTest.JSON,
-                validCreate().setCurrency("EUR").build())
+                validCreate().setToCurrency("EUR").build())
             .when()
             .post("/api/v1/transfers")
             .andReturn();
@@ -171,6 +224,40 @@ class TransferResourceTest {
             .build()
             .getMessage()
             .contains("EUR"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {PrudentTest.JSON, PrudentTest.PROTOBUF})
+  @TestSecurity(user = PrudentTest.ALICE)
+  void create_movesEachLegByItsOwnAmountAndCurrencyWhenTheyDiffer(String mode) throws Exception {
+    Response created =
+        PrudentTest.body(
+                PrudentTest.request(mode),
+                mode,
+                validCreate()
+                    .setFromAmountMinor(100_00L)
+                    .setFromCurrency("EUR")
+                    .setToAmountMinor(430_00L)
+                    .setToCurrency("PLN")
+                    .build())
+            .when()
+            .post("/api/v1/transfers")
+            .andReturn();
+
+    assertEquals(201, created.statusCode());
+    Transfer transfer = PrudentTest.decode(mode, created, Transfer.newBuilder()).build();
+
+    Record from = transfer.getFromRecord();
+    Record to = transfer.getToRecord();
+    // No FX is ever computed: each leg carries exactly the amount and currency it was given,
+    // with no arithmetic relationship enforced between them.
+    assertEquals(-100_00L, from.getAmountMinor());
+    assertEquals("EUR", from.getCurrency());
+    assertEquals(430_00L, to.getAmountMinor());
+    assertEquals("PLN", to.getCurrency());
+
+    assertEquals(-100_00L, balanceOf(mode, walletId, "EUR"));
+    assertEquals(430_00L, balanceOf(mode, savingsId, "PLN"));
   }
 
   @Test

@@ -30,12 +30,12 @@
 
   "transfersNewTitle": "Nowy przelew",
   "transfersTitleField": "Tytuł",
-  "transfersAmountField": "Kwota",
+  "transfersFromAmountField": "Kwota wysłana",
+  "transfersToAmountField": "Kwota otrzymana",
   "transfersFromAccount": "Z konta",
   "transfersToAccount": "Na konto",
   "transfersSave": "Przelej",
-  "transfersInvalidInput": "Upewnij się, że podano kwotę, datę oraz dwa różne konta.",
-  "transfersNoSharedCurrency": "Te konta nie mają wspólnej waluty.",
+  "transfersInvalidInput": "Upewnij się, że podano obie kwoty, datę oraz dwa różne konta.",
 
   "categoriesTitle": "Kategorie",
   "categoriesEmpty": "Nie dodano jeszcze żadnej kategorii.",

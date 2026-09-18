@@ -164,7 +164,8 @@ void main() {
 
       final result = await repository.createTransfer(
         CreateTransferRequest(
-          currency: 'PLN',
+          fromCurrency: 'PLN',
+          toCurrency: 'PLN',
           date: '2026-08-17',
           fromAccountId: 'a1',
           toAccountId: 'a2',
@@ -191,7 +192,13 @@ void main() {
       );
 
       final result = await repository.createTransfer(
-        CreateTransferRequest(currency: 'PLN', date: '2026-08-17', fromAccountId: 'a1', toAccountId: 'a1'),
+        CreateTransferRequest(
+          fromCurrency: 'PLN',
+          toCurrency: 'PLN',
+          date: '2026-08-17',
+          fromAccountId: 'a1',
+          toAccountId: 'a1',
+        ),
       );
 
       expect(result.isFailure, isTrue);

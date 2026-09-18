@@ -30,12 +30,12 @@
 
   "transfersNewTitle": "New Transfer",
   "transfersTitleField": "Title",
-  "transfersAmountField": "Amount",
+  "transfersFromAmountField": "Amount sent",
+  "transfersToAmountField": "Amount received",
   "transfersFromAccount": "From account",
   "transfersToAccount": "To account",
   "transfersSave": "Transfer",
-  "transfersInvalidInput": "Please make sure a valid amount, date, and two different accounts were entered.",
-  "transfersNoSharedCurrency": "These accounts don't share a currency.",
+  "transfersInvalidInput": "Please make sure both amounts, a date, and two different accounts were entered.",
 
   "categoriesTitle": "Categories",
   "categoriesEmpty": "No categories added yet.",

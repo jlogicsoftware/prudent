@@ -119,17 +119,24 @@ message ListRecordsResponse {
 // messages.
 
 // POST /api/v1/transfers — atomically creates two linked records moving money between two of the
-// caller's own accounts in the SAME currency (cross-currency is a separate, later issue; no FX —
-// see ADR-008/ADR-009). amount_minor is a positive magnitude: the server negates it for the
-// source leg and keeps it positive for the destination leg (see Record.amount_minor, ADR-014).
+// caller's own accounts. Both legs carry their OWN amount and currency (jlogicsoftware/prudent#50,
+// ADR-032): a same-currency transfer is the case where they happen to agree, not a distinct mode.
+// NO FX RATE IS EVER COMPUTED — see ADR-008/ADR-009 — the user enters both amounts explicitly and
+// the server persists exactly what was entered. Both amounts are positive magnitudes: the server
+// negates from_amount_minor for the source leg and keeps to_amount_minor positive for the
+// destination leg (see Record.amount_minor, ADR-014).
 message CreateTransferRequest {
   // Optional; blank is stored as "Transfer" server-side. Not load-bearing the way Record.title is.
   string title = 1;
-  int64 amount_minor = 2;
-  string currency = 3;
+  int64 from_amount_minor = 2;
+  string from_currency = 3;
   string date = 4;
   string from_account_id = 5;
   string to_account_id = 6;
+  // Independent of from_amount_minor/from_currency — the destination leg's own amount and
+  // currency, exactly as the user entered them. No conversion is derived from the pair.
+  int64 to_amount_minor = 7;
+  string to_currency = 8;
 }
 
 // The response to a transfer create, and what DELETE /api/v1/transfers/{id} deletes by way of

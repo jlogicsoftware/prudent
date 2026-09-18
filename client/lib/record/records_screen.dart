@@ -74,21 +74,25 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
         onSave:
             ({
               required title,
-              required amountInput,
+              required fromAmountInput,
+              required fromCurrency,
+              required toAmountInput,
+              required toCurrency,
               required date,
               required fromAccountId,
               required toAccountId,
-              required currency,
             }) => ref
                 .read(recordsProvider.notifier)
                 .addTransfer(
                   CreateTransferRequest(
                     title: title,
-                    amountMinor: parseMinorUnits(amountInput),
-                    currency: currency,
+                    fromAmountMinor: parseMinorUnits(fromAmountInput),
+                    fromCurrency: fromCurrency,
                     date: date,
                     fromAccountId: fromAccountId,
                     toAccountId: toAccountId,
+                    toAmountMinor: parseMinorUnits(toAmountInput),
+                    toCurrency: toCurrency,
                   ),
                 ),
       ),

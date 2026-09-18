@@ -7,18 +7,23 @@ import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
 import '../providers.dart';
 
-/// A same-currency transfer between two of the user's own accounts (jlogicsoftware/prudent#32).
-/// Cross-currency transfers (two user-entered amounts, no FX) are a separate, later issue.
+/// A transfer between two of the user's own accounts, cross-currency included
+/// (jlogicsoftware/prudent#32, jlogicsoftware/prudent#50). Each side carries its own amount and
+/// currency, entered independently — a same-currency transfer is simply the case where the user
+/// happens to enter the same currency on both sides. No exchange rate is ever computed here or on
+/// the server: what the user types for each leg is exactly what is persisted.
 class NewTransfer extends ConsumerStatefulWidget {
   const NewTransfer({super.key, required this.onSave});
 
   final void Function({
     required String title,
-    required String amountInput,
+    required String fromAmountInput,
+    required String fromCurrency,
+    required String toAmountInput,
+    required String toCurrency,
     required String date,
     required String fromAccountId,
     required String toAccountId,
-    required String currency,
   })
   onSave;
 
@@ -28,27 +33,25 @@ class NewTransfer extends ConsumerStatefulWidget {
 
 class _NewTransferState extends ConsumerState<NewTransfer> {
   final _titleController = TextEditingController();
-  final _amountController = TextEditingController();
+  final _fromAmountController = TextEditingController();
+  final _toAmountController = TextEditingController();
   DateTime? _selectedDate;
   String? _fromAccountId;
   String? _toAccountId;
-  String? _currency;
-
-  /// The currencies [from] and [to] both hold — the only currencies a same-currency transfer
-  /// between them can move. Empty when the pair shares none.
-  List<String> _sharedCurrencies(Account? from, Account? to) {
-    if (from == null || to == null) return const [];
-    final fromCurrencies = from.balances.map((b) => b.currency).toSet();
-    final toCurrencies = to.balances.map((b) => b.currency).toSet();
-    final shared = fromCurrencies.intersection(toCurrencies).toList()..sort();
-    return shared;
-  }
+  String? _fromCurrency;
+  String? _toCurrency;
 
   static Account? _findAccount(List<Account> accounts, String? id) {
     for (final account in accounts) {
       if (account.id == id) return account;
     }
     return null;
+  }
+
+  static List<String> _currenciesOf(Account? account) {
+    if (account == null) return const [];
+    final currencies = account.balances.map((b) => b.currency).toSet().toList()..sort();
+    return currencies;
   }
 
   void _presentDatePicker() async {
@@ -76,31 +79,33 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
     );
   }
 
-  void _submit(List<String> sharedCurrencies) {
+  void _submit() {
     final t = PrudentLocalizations.of(context);
-    final magnitude = parseMinorUnits(_amountController.text.trim());
-    if (magnitude == null ||
-        magnitude <= 0 ||
+    final fromMagnitude = parseMinorUnits(_fromAmountController.text.trim());
+    final toMagnitude = parseMinorUnits(_toAmountController.text.trim());
+    if (fromMagnitude == null ||
+        fromMagnitude <= 0 ||
+        toMagnitude == null ||
+        toMagnitude <= 0 ||
         _selectedDate == null ||
         _fromAccountId == null ||
         _toAccountId == null ||
-        _fromAccountId == _toAccountId) {
+        _fromAccountId == _toAccountId ||
+        _fromCurrency == null ||
+        _toCurrency == null) {
       _invalid(t.transfersInvalidInput);
       return;
     }
-    if (sharedCurrencies.isEmpty) {
-      _invalid(t.transfersNoSharedCurrency);
-      return;
-    }
-    final currency = _currency ?? sharedCurrencies.first;
 
     widget.onSave(
       title: _titleController.text.trim(),
-      amountInput: formatMinorUnits(magnitude),
+      fromAmountInput: formatMinorUnits(fromMagnitude),
+      fromCurrency: _fromCurrency!,
+      toAmountInput: formatMinorUnits(toMagnitude),
+      toCurrency: _toCurrency!,
       date: DateFormat('yyyy-MM-dd').format(_selectedDate!),
       fromAccountId: _fromAccountId!,
       toAccountId: _toAccountId!,
-      currency: currency,
     );
     Navigator.pop(context);
   }
@@ -108,7 +113,8 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
   @override
   void dispose() {
     _titleController.dispose();
-    _amountController.dispose();
+    _fromAmountController.dispose();
+    _toAmountController.dispose();
     super.dispose();
   }
 
@@ -122,9 +128,13 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
 
     final fromAccount = _findAccount(accounts, _fromAccountId);
     final toAccount = _findAccount(accounts, _toAccountId);
-    final sharedCurrencies = _sharedCurrencies(fromAccount, toAccount);
-    if (_currency == null || !sharedCurrencies.contains(_currency)) {
-      _currency = sharedCurrencies.isNotEmpty ? sharedCurrencies.first : null;
+    final fromCurrencies = _currenciesOf(fromAccount);
+    final toCurrencies = _currenciesOf(toAccount);
+    if (_fromCurrency == null || !fromCurrencies.contains(_fromCurrency)) {
+      _fromCurrency = fromCurrencies.isNotEmpty ? fromCurrencies.first : null;
+    }
+    if (_toCurrency == null || !toCurrencies.contains(_toCurrency)) {
+      _toCurrency = toCurrencies.isNotEmpty ? toCurrencies.first : null;
     }
 
     return Padding(
@@ -142,30 +152,13 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  controller: _amountController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    suffix: Text(_currency ?? ''),
-                    label: Text(t.transfersAmountField),
-                  ),
+                child: Text(
+                  _selectedDate == null
+                      ? t.recordsNoDateSelected
+                      : DateFormat.yMd(locale.toLanguageTag()).format(_selectedDate!),
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      _selectedDate == null
-                          ? t.recordsNoDateSelected
-                          : DateFormat.yMd(locale.toLanguageTag()).format(_selectedDate!),
-                    ),
-                    IconButton(onPressed: _presentDatePicker, icon: const Icon(Icons.calendar_month)),
-                  ],
-                ),
-              ),
+              IconButton(onPressed: _presentDatePicker, icon: const Icon(Icons.calendar_month)),
             ],
           ),
           const SizedBox(height: 16),
@@ -179,6 +172,30 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
               onChanged: (value) => setState(() => _fromAccountId = value),
             ),
             const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _fromAmountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(label: Text(t.transfersFromAmountField)),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                if (fromCurrencies.length > 1)
+                  DropdownButton<String>(
+                    value: _fromCurrency,
+                    items: [
+                      for (final currency in fromCurrencies)
+                        DropdownMenuItem(value: currency, child: Text(currency)),
+                    ],
+                    onChanged: (value) => setState(() => _fromCurrency = value),
+                  )
+                else
+                  Text(_fromCurrency ?? ''),
+              ],
+            ),
+            const SizedBox(height: 16),
             DropdownButton<String>(
               value: _toAccountId,
               hint: Text(t.transfersToAccount),
@@ -189,15 +206,29 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
               ],
               onChanged: (value) => setState(() => _toAccountId = value),
             ),
-          ],
-          if (sharedCurrencies.length > 1) ...[
             const SizedBox(height: 8),
-            DropdownButton<String>(
-              value: _currency,
-              items: [
-                for (final currency in sharedCurrencies) DropdownMenuItem(value: currency, child: Text(currency)),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _toAmountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(label: Text(t.transfersToAmountField)),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                if (toCurrencies.length > 1)
+                  DropdownButton<String>(
+                    value: _toCurrency,
+                    items: [
+                      for (final currency in toCurrencies)
+                        DropdownMenuItem(value: currency, child: Text(currency)),
+                    ],
+                    onChanged: (value) => setState(() => _toCurrency = value),
+                  )
+                else
+                  Text(_toCurrency ?? ''),
               ],
-              onChanged: (value) => setState(() => _currency = value),
             ),
           ],
           const SizedBox(height: 16),
@@ -205,10 +236,7 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
             children: [
               const Spacer(),
               TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
-              ElevatedButton(
-                onPressed: () => _submit(sharedCurrencies),
-                child: Text(t.transfersSave),
-              ),
+              ElevatedButton(onPressed: _submit, child: Text(t.transfersSave)),
             ],
           ),
         ],

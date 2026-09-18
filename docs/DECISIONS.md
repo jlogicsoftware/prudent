@@ -13,6 +13,74 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-032 — Cross-currency transfers: each leg carries its own amount and currency, no FX ever
+
+**Date:** 2026-09-18. **Status:** accepted. **Follows:** ADR-031 (same-currency transfers),
+ADR-014 (derived balance), ADR-008 (multi-currency accounts).
+
+### Decision
+
+`jlogicsoftware/prudent#50` ("Add explicit cross-currency transfers") generalizes
+`TransferResource` rather than adding a second, parallel cross-currency path:
+
+- **`CreateTransferRequest` gains independent `to_amount_minor`/`to_currency` fields**, alongside
+  the renamed `from_amount_minor`/`from_currency` (was `amount_minor`/`currency`). Both amounts are
+  positive magnitudes the caller enters explicitly; the server negates `from_amount_minor` for the
+  source leg and keeps `to_amount_minor` positive for the destination leg, exactly as ADR-031
+  already did for one shared amount.
+- **A same-currency transfer is not a distinct mode.** It is simply the case where
+  `from_currency == to_currency` and the caller happened to enter the same amount on both sides.
+  `TransferResource` enforces no equality between the two legs — not on currency, not on amount.
+  Requiring the amounts to match when the currencies match was considered and rejected: it would
+  be an invariant this issue's acceptance criteria never asked for, and it does nothing to prevent
+  the one thing the criteria does forbid — an inferred rate. What the rule can't do, a validation
+  branch shouldn't pretend to do.
+- **No FX rate is computed anywhere on this path.** There is no rate table, no external lookup, no
+  `amount * rate` arithmetic in `TransferResource` at all — each leg's `RecordEntity` is populated
+  directly from the matching request field. This isn't a simplification of a richer design; it is
+  the whole design. A future FX-assisted entry mode (suggesting a rate the user can override) is
+  explicitly out of scope and would be a new, separately-reviewed feature, not an extension of this
+  endpoint's validation.
+- **Both currencies are validated independently against their own account** — `from_currency`
+  against `from_account`'s held currencies, `to_currency` against `to_account`'s held currencies —
+  the same `Currencies.isValid`/`AccountEntity.holds` checks ADR-031 introduced, just run twice
+  instead of once.
+- **No schema or migration change.** `prudent_record` already stores `amount_minor` and `currency`
+  per row, not per transfer (ADR-031's two-independent-legs design, not a header table), so a
+  transfer whose two legs disagree on currency was already representable — this issue only removes
+  the validation that refused to create one.
+- **The client (`NewTransfer`) drops the "shared currency" constraint entirely.** It no longer
+  intersects the two accounts' currency sets; each account's dropdown offers that account's own
+  held currencies, and the two amount fields are entered independently. The removed
+  `transfersNoSharedCurrency` string and the `_sharedCurrencies` helper it described no longer
+  correspond to anything the UI does.
+
+### What this supersedes, and why
+
+- **"Cross-currency transfers (two user-entered amounts, no inferred rate) … are a separate,
+  later issue"** (ADR-031, "Decision") → **fulfilled, not reversed**. ADR-031's
+  two-independent-legs shape is exactly what makes this a validation change rather than a schema
+  change.
+- **`CreateTransferRequest.amount_minor`/`currency`** (ADR-031) → **renamed** to
+  `from_amount_minor`/`from_currency` rather than kept alongside the new `to_*` fields. *Why:*
+  nothing has ever targeted a real environment (CLAUDE.md, "the deploy path … has never targeted a
+  real environment"), so there is no deployed client depending on the old wire names — a rename is
+  the honest contract change, not a backward-compatibility shim for a compatibility problem that
+  doesn't exist yet.
+
+### Consequence
+
+- `TransferResource.create` reads two independent request sub-shapes instead of one shared one; the
+  two `if (fromAmount <= 0)` / `if (toAmount <= 0)` and the two currency-validation blocks are
+  intentionally parallel and not merged into a loop — the code mirrors the two independent legs it
+  produces.
+- Verified: `task generate` / `task verify:contracts` clean; `./mvnw test` green, including
+  `TransferResourceTest`'s new independent-amount and independent-currency cases; `flutter analyze`
+  and `flutter test` clean on the client, including a new cross-currency `CreateTransferRequest`
+  wire round-trip case.
+
+---
+
 ## ADR-031 — Same-currency transfers: two linked records, no header table, and a category that can now be absent
 
 **Date:** 2026-09-17. **Status:** accepted. **Follows:** ADR-014 (derived balance), ADR-008

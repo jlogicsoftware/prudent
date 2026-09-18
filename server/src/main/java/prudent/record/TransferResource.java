@@ -29,18 +29,21 @@ import prudent.proto.v1.CreateTransferRequest;
 import zen.core.http.ZenStatus;
 
 /**
- * Prudent's transfers: {@code /api/v1/transfers} — same-currency only (jlogicsoftware/prudent#32).
+ * Prudent's transfers: {@code /api/v1/transfers} (jlogicsoftware/prudent#32,
+ * jlogicsoftware/prudent#50).
  *
  * <p>A transfer is two linked {@link RecordEntity} rows sharing one {@code transferId}: a negative
- * leg on the source account and a positive leg on the destination account, both in the same
- * currency. There is no separate balance to update — an account's balance is derived from its
- * records (docs/DECISIONS.md ADR-014), so persisting both rows in one {@code @Transactional}
- * method IS the atomic balance update. Neither leg carries a category: a transfer is neither
- * income nor expense, and {@link RecordEntity#expenseRows} excludes any row with a non-null
- * {@code transferId} from analytics.
+ * leg on the source account and a positive leg on the destination account. There is no separate
+ * balance to update — an account's balance is derived from its records (docs/DECISIONS.md
+ * ADR-014), so persisting both rows in one {@code @Transactional} method IS the atomic balance
+ * update. Neither leg carries a category: a transfer is neither income nor expense, and
+ * {@link RecordEntity#expenseRows} excludes any row with a non-null {@code transferId} from
+ * analytics.
  *
- * <p>Cross-currency transfers (two user-entered amounts, no FX) are a separate, later issue —
- * this resource refuses a currency mismatch rather than inferring a rate.
+ * <p><strong>Cross-currency (ADR-032):</strong> each leg carries its own amount and currency. A
+ * same-currency transfer is simply the case where the two happen to agree — there is no separate
+ * mode, no rate lookup, and no arithmetic linking one leg's amount to the other's. The user enters
+ * both amounts explicitly; the server persists exactly what was entered.
  *
  * <p>Once created, a transfer's legs cannot be edited or deleted individually: {@code
  * RecordResource} refuses to touch a record with a non-null {@code transferId}. {@link #delete}
@@ -57,7 +60,7 @@ public class TransferResource {
 
   @POST
   @Transactional
-  @Operation(summary = "Create a same-currency transfer between two of the caller's own accounts")
+  @Operation(summary = "Create a transfer between two of the caller's own accounts")
   @RequestBody(content = @Content(schema = @Schema(ref = "CreateTransferRequest")))
   @APIResponse(
       responseCode = ZenStatus.CREATED,
@@ -65,14 +68,17 @@ public class TransferResource {
   @APIResponse(
       responseCode = ZenStatus.BAD_REQUEST,
       description =
-          "A non-positive amount, the same account on both sides, an account that is not the"
-              + " caller's, a malformed date, or a currency an account does not hold",
+          "A non-positive amount on either leg, the same account on both sides, an account that"
+              + " is not the caller's, a malformed date, or a currency an account does not hold",
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response create(CreateTransferRequest request) {
     UUID userId = currentUser.id();
 
-    if (request.getAmountMinor() <= 0) {
-      throw PrudentException.invalid("A transfer needs a positive amount.");
+    if (request.getFromAmountMinor() <= 0) {
+      throw PrudentException.invalid("A transfer needs a positive source amount.");
+    }
+    if (request.getToAmountMinor() <= 0) {
+      throw PrudentException.invalid("A transfer needs a positive destination amount.");
     }
 
     AccountEntity fromAccount =
@@ -89,18 +95,25 @@ public class TransferResource {
       throw PrudentException.invalid("A transfer needs two different accounts.");
     }
 
-    String normalized = Currencies.normalize(request.getCurrency());
-    if (!Currencies.isValid(normalized)) {
-      throw PrudentException.invalid("'" + request.getCurrency() + "' is not an ISO-4217 currency.");
-    }
-    if (!AccountEntity.holds(fromAccount, normalized)) {
+    String fromCurrency = Currencies.normalize(request.getFromCurrency());
+    if (!Currencies.isValid(fromCurrency)) {
       throw PrudentException.invalid(
-          "Account '" + fromAccount.name + "' does not hold " + normalized
+          "'" + request.getFromCurrency() + "' is not an ISO-4217 currency.");
+    }
+    if (!AccountEntity.holds(fromAccount, fromCurrency)) {
+      throw PrudentException.invalid(
+          "Account '" + fromAccount.name + "' does not hold " + fromCurrency
               + ". Add the currency to the account first.");
     }
-    if (!AccountEntity.holds(toAccount, normalized)) {
+
+    String toCurrency = Currencies.normalize(request.getToCurrency());
+    if (!Currencies.isValid(toCurrency)) {
       throw PrudentException.invalid(
-          "Account '" + toAccount.name + "' does not hold " + normalized
+          "'" + request.getToCurrency() + "' is not an ISO-4217 currency.");
+    }
+    if (!AccountEntity.holds(toAccount, toCurrency)) {
+      throw PrudentException.invalid(
+          "Account '" + toAccount.name + "' does not hold " + toCurrency
               + ". Add the currency to the account first.");
     }
 
@@ -114,8 +127,8 @@ public class TransferResource {
     from.id = UUID.randomUUID();
     from.userId = userId;
     from.title = title;
-    from.amountMinor = -request.getAmountMinor();
-    from.currency = normalized;
+    from.amountMinor = -request.getFromAmountMinor();
+    from.currency = fromCurrency;
     from.date = date;
     from.categoryId = null;
     from.accountId = fromAccount.id;
@@ -126,8 +139,8 @@ public class TransferResource {
     to.id = UUID.randomUUID();
     to.userId = userId;
     to.title = title;
-    to.amountMinor = request.getAmountMinor();
-    to.currency = normalized;
+    to.amountMinor = request.getToAmountMinor();
+    to.currency = toCurrency;
     to.date = date;
     to.categoryId = null;
     to.accountId = toAccount.id;
