@@ -219,6 +219,21 @@ are skills no file edit could ever have summoned.
 
 **Branch names are `<type>/<slug>`** — `feature/`, `fix/`, `docs/`.
 
+**Every commit and every PR in this repo is authored as `konter-dev`, never any other
+identity.** `konter-dev`'s identity is `Adam Konter <konter.dev@gmail.com>`; the repo's local git
+config is already set to it (`git config user.name`/`user.email`), so a plain `git commit` with no
+`-c user.name=…`/`-c user.email=…` override already attributes correctly — GitHub links a commit
+by **email**, so never pass an override that pairs a different name with a different account's
+address.
+
+PR authorship is a **separate** identity from the commit's: it is whichever `gh` account is
+active, not the git commit identity. Before every `gh pr create`/`gh pr edit`/`gh pr comment` in
+this repo, run `gh auth status` and, if the active account is not `konter-dev`, switch first with
+`gh auth switch --hostname github.com --user konter-dev`. After creating or editing, verify with
+`gh pr view <n> --json author -q .author.login` — do not assume the switch stuck. This check is
+mechanical and unconditional: skipping it is the exact failure mode that has already shipped a PR
+under the wrong account more than once.
+
 **When a command fails twice with the same error, escalate instead of retrying** — hand over the
 exact command for the user to run with the `!` prefix. Interactive authentication is never a
 retry problem.
