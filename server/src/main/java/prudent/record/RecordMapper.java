@@ -29,7 +29,9 @@ public abstract class RecordMapper {
       String date,
       String categoryId,
       String accountId,
-      String transferId) {}
+      String transferId,
+      String payee,
+      String note) {}
 
   @Mapping(target = "id", source = "id", qualifiedByName = "uuidToString")
   @Mapping(target = "date", source = "date", qualifiedByName = "isoDate")
@@ -64,6 +66,12 @@ public abstract class RecordMapper {
     }
     if (view.transferId() != null) {
       builder.setTransferId(view.transferId());
+    }
+    if (view.payee() != null) {
+      builder.setPayee(view.payee());
+    }
+    if (view.note() != null) {
+      builder.setNote(view.note());
     }
     return builder.build();
   }

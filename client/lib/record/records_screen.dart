@@ -27,7 +27,7 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
         builder:
             (ctx) => Dialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-              child: SizedBox(width: 400, height: 300, child: Padding(padding: const EdgeInsets.all(16), child: body)),
+              child: SizedBox(width: 400, height: 460, child: Padding(padding: const EdgeInsets.all(16), child: body)),
             ),
       );
     } else {
@@ -52,6 +52,8 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
               required categoryId,
               required accountId,
               required currency,
+              required payee,
+              required note,
             }) => ref
                 .read(recordsProvider.notifier)
                 .addRecord(
@@ -62,6 +64,8 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
                     categoryId: categoryId,
                     accountId: accountId,
                     currency: currency,
+                    payee: payee,
+                    note: note,
                   ),
                 ),
       ),
@@ -120,6 +124,8 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
                 categoryId: record.categoryId,
                 accountId: record.accountId,
                 currency: record.currency,
+                payee: record.payee,
+                note: record.note,
               ),
             );
           },

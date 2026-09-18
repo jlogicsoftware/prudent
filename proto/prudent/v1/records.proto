@@ -73,6 +73,15 @@ message Record {
   // ordinary record.
   optional string transfer_id = 8;
 
+  // Free-text counterparty — who was paid, or who paid the user (jlogicsoftware/prudent#51).
+  // OPTIONAL: a record filed before this field existed has none, and that is not a different
+  // kind of record, just one with a blank field. Distinct from category, which classifies WHAT
+  // the money was for; this says WHO was on the other side of it.
+  optional string payee = 9;
+
+  // Free-text note (jlogicsoftware/prudent#51). OPTIONAL for the same reason as payee.
+  optional string note = 10;
+
   // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
 }
 
@@ -87,6 +96,10 @@ message CreateRecordRequest {
   string account_id = 5;
   // Required, and rejected if the account named above does not hold it — see Record.currency.
   string currency = 6;
+  // See Record.payee. Optional; absent means none.
+  optional string payee = 7;
+  // See Record.note. Optional; absent means none.
+  optional string note = 8;
 }
 
 // PUT /api/v1/records/{id} — a FULL REPLACEMENT, for the presence reason set out in
@@ -101,6 +114,10 @@ message UpdateRecordRequest {
   // Moving a record between accounts and changing its currency are the same operation here, and
   // the pair is validated together: the new currency must be one the new account holds.
   string currency = 6;
+  // See Record.payee. Optional; absent on a FULL REPLACEMENT clears any existing payee.
+  optional string payee = 7;
+  // See Record.note. Optional; absent on a FULL REPLACEMENT clears any existing note.
+  optional string note = 8;
 }
 
 // GET /api/v1/records — every record owned by the authenticated user.
