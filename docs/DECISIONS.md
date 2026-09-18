@@ -13,6 +13,69 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-033 — Bump CI's jZen pin to #97: the committed admin schema had already drifted past it
+
+**Date:** 2026-09-18. **Status:** accepted. **Follows:** ADR-030 (prior `JZEN_REF` bump),
+ADR-027 (the contract loop `verify:contracts` gates).
+
+### Decision
+
+`jlogicsoftware/prudent#50`'s PR (`feature/cross-currency-transfers`) hit a `gates` job failure —
+"Contracts are OUT OF SYNC" on `admin/src/api/schema.generated.ts` — on a change that never
+touches an admin or auth file. Investigation (two identical CI reruns, then a temporary CI step
+printing the actual diff) found the drift was pre-existing and unrelated to this PR: the committed
+schema already carried `@APIResponse` description text for `AdminUserResource`/`AuthResource`
+(e.g. "Unknown role value or unsupported language (ZenError)") that only exists in jZen commit
+`7edf7b9` ("Java/Quarkus code review remediation (F1-F23)", jZen #97) — six commits **past**
+`ci.yml`/`audit.yml`'s pinned `JZEN_REF` (`8a21f83`, ADR-030's pin). Regenerating against the
+pinned SHA therefore always overwrote that text with SmallRye's generic defaults ("Bad Request"),
+and would have kept doing so on every PR, unrelated to what that PR touched.
+
+- **`JZEN_REF` in both `ci.yml` and `audit.yml` moves from `8a21f83` to `7edf7b94fd4d5c522e2
+  29d3886673d23c15693a8`** (jZen #97), confirmed pushed to `jZenDev/jZen`'s `main`. Bumped in both
+  files together, as `audit.yml`'s own comment already requires.
+- **Verified the bump actually closes the gap**, not just moves it: `admin/src/api/
+  schema.generated.ts` regenerated against jZen at `7edf7b9` (`./mvnw install -DskipTests` in a
+  freshly checked-out jZen worktree at that SHA, then `task generate`) produces **zero** diff
+  against what is already committed on this branch — confirming the committed file was generated
+  against #97 or later, not the old pin, and that #97 is the right, minimal target rather than
+  jZen's current tip.
+- **Six commits between the two pins** (`8a21f83..7edf7b9`): `#91` (stop storing 8 public config
+  values as secrets), `#92` (cleanup-policy docs fix), `#94`/`#95` (code-review prompts),
+  `#96` (code-review docs/execution plans), `#97` itself. None of the other five touch generated
+  contract surface; only `#97`'s `AdminUserResource`/`AuthResource` annotation changes are
+  contract-relevant, which is why regenerating against `#97` alone (not jZen's current tip) is
+  enough and the minimal correct target.
+- **Why this is a `JZEN_REF` bump and not a schema regeneration to match the old pin**: the
+  alternative — regenerating `schema.generated.ts` against `8a21f83` to match the *stale* pin —
+  would have shipped in this PR as a **regression**, deleting real, already-reviewed descriptive
+  text from the admin API surface to satisfy a gate that was itself out of date. Asked directly,
+  the answer was to fix the pin, not the (already-correct) generated output.
+
+### What this supersedes, and why
+
+- **ADR-030's `JZEN_REF: 8a21f83e0be6013765d03430e17132c635a90664`** → **superseded**, not
+  reversed: ADR-030's reasoning for pinning-not-floating still holds; only the pinned value moves,
+  exactly the "deliberate, reviewed step" `ci.yml`'s own header comment calls for.
+- Implicitly corrects an unrecorded fact: **the admin schema on `main` has been out of sync with
+  `ci.yml`'s stated pin since whichever earlier commit generated it against a newer jZen than
+  `8a21f83`** (before this PR, and not caught then because `git status --porcelain` only compares
+  the working tree to what's committed — it cannot tell a "correct but ahead of the stated pin"
+  regeneration from a "correct and matching the pin" one). No ADR recorded that mismatch at the
+  time; this entry is the first place it is named.
+
+### Consequence
+
+- CI's `verify:contracts` gate, run against the new pin, no longer drifts on files this PR did not
+  touch. Verified locally by full regeneration against jZen `7edf7b9` (Maven install + `task
+  generate`) producing a clean `git status` for `admin/src/api/schema.generated.ts`.
+- The five contract-irrelevant commits swept up in this bump (`#91`, `#92`, `#94`, `#95`, `#96`)
+  are accepted as part of the same deliberate step rather than cherry-picked around, matching
+  ADR-030's own precedent of bumping to the next commit that closes a real gap rather than
+  hand-picking individual commits out of jZen's history.
+
+---
+
 ## ADR-032 — Cross-currency transfers: each leg carries its own amount and currency, no FX ever
 
 **Date:** 2026-09-18. **Status:** accepted. **Follows:** ADR-031 (same-currency transfers),

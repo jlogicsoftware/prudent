@@ -44,10 +44,14 @@ env:
   # jZen pinned at a SHA — see the header comment. Bump deliberately; this is a dependency
   # version, not a detail. Confirmed pushed to jZenDev/jZen's main at the time this was written.
   # Consumes jZen #74 (contract-loop / deps rollups — ADR-027), #78 (run:* operator guards —
-  # ADR-028), #81/#82 (standalone run primitives + one-Ctrl-C run:dev — ADR-029). The tasks this
-  # workflow calls (verify:contracts, the all-tier zen:deps) do not exist before #74; the later
-  # bumps keep CI's jZen in step with the run:* tasks Prudent now delegates wholesale.
-  JZEN_REF: 8a21f83e0be6013765d03430e17132c635a90664
+  # ADR-028), #81/#82 (standalone run primitives + one-Ctrl-C run:dev — ADR-029), #97 (Java/Quarkus
+  # code-review remediation, ADR-032) — the last because the admin schema committed in this
+  # repository already carried #97's AdminUserResource/AuthResource @APIResponse descriptions, so
+  # this gate drifted against a pin that predated them (jlogicsoftware/prudent#50's PR discovered
+  # it). The tasks this workflow calls (verify:contracts, the all-tier zen:deps) do not exist
+  # before #74; the later bumps keep CI's jZen in step with the run:* tasks Prudent now delegates
+  # wholesale and with what the committed contracts actually reflect.
+  JZEN_REF: 7edf7b94fd4d5c522e229d3886673d23c15693a8
 
 jobs:
   # Contract drift, the boundary gate, the Dart/Flutter suites, and the admin typecheck. Needs the
