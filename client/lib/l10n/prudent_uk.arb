@@ -14,6 +14,8 @@
 
   "recordsTitleField": "Назва",
   "recordsAmountField": "Сума",
+  "recordsPayeeField": "Отримувач",
+  "recordsNoteField": "Нотатка",
   "recordsExpense": "Витрата",
   "recordsIncome": "Дохід",
   "recordsNoDateSelected": "Дату не вибрано",

@@ -14,6 +14,8 @@
 
   "recordsTitleField": "Tytuł",
   "recordsAmountField": "Kwota",
+  "recordsPayeeField": "Odbiorca",
+  "recordsNoteField": "Notatka",
   "recordsExpense": "Wydatek",
   "recordsIncome": "Przychód",
   "recordsNoDateSelected": "Nie wybrano daty",

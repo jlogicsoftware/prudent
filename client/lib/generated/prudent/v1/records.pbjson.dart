@@ -43,10 +43,14 @@ const Record$json = {
       '10': 'transferId',
       '17': true
     },
+    {'1': 'payee', '3': 9, '4': 1, '5': 9, '9': 2, '10': 'payee', '17': true},
+    {'1': 'note', '3': 10, '4': 1, '5': 9, '9': 3, '10': 'note', '17': true},
   ],
   '8': [
     {'1': '_category_id'},
     {'1': '_transfer_id'},
+    {'1': '_payee'},
+    {'1': '_note'},
   ],
 };
 
@@ -56,7 +60,9 @@ final $typed_data.Uint8List recordDescriptor = $convert.base64Decode(
     'RfbWlub3IYAyABKANSC2Ftb3VudE1pbm9yEhoKCGN1cnJlbmN5GAQgASgJUghjdXJyZW5jeRIS'
     'CgRkYXRlGAUgASgJUgRkYXRlEiQKC2NhdGVnb3J5X2lkGAYgASgJSABSCmNhdGVnb3J5SWSIAQ'
     'ESHQoKYWNjb3VudF9pZBgHIAEoCVIJYWNjb3VudElkEiQKC3RyYW5zZmVyX2lkGAggASgJSAFS'
-    'CnRyYW5zZmVySWSIAQFCDgoMX2NhdGVnb3J5X2lkQg4KDF90cmFuc2Zlcl9pZA==');
+    'CnRyYW5zZmVySWSIAQESGQoFcGF5ZWUYCSABKAlIAlIFcGF5ZWWIAQESFwoEbm90ZRgKIAEoCU'
+    'gDUgRub3RliAEBQg4KDF9jYXRlZ29yeV9pZEIOCgxfdHJhbnNmZXJfaWRCCAoGX3BheWVlQgcK'
+    'BV9ub3Rl');
 
 @$core.Deprecated('Use createRecordRequestDescriptor instead')
 const CreateRecordRequest$json = {
@@ -68,6 +74,12 @@ const CreateRecordRequest$json = {
     {'1': 'category_id', '3': 4, '4': 1, '5': 9, '10': 'categoryId'},
     {'1': 'account_id', '3': 5, '4': 1, '5': 9, '10': 'accountId'},
     {'1': 'currency', '3': 6, '4': 1, '5': 9, '10': 'currency'},
+    {'1': 'payee', '3': 7, '4': 1, '5': 9, '9': 0, '10': 'payee', '17': true},
+    {'1': 'note', '3': 8, '4': 1, '5': 9, '9': 1, '10': 'note', '17': true},
+  ],
+  '8': [
+    {'1': '_payee'},
+    {'1': '_note'},
   ],
 };
 
@@ -76,7 +88,8 @@ final $typed_data.Uint8List createRecordRequestDescriptor = $convert.base64Decod
     'ChNDcmVhdGVSZWNvcmRSZXF1ZXN0EhQKBXRpdGxlGAEgASgJUgV0aXRsZRIhCgxhbW91bnRfbW'
     'lub3IYAiABKANSC2Ftb3VudE1pbm9yEhIKBGRhdGUYAyABKAlSBGRhdGUSHwoLY2F0ZWdvcnlf'
     'aWQYBCABKAlSCmNhdGVnb3J5SWQSHQoKYWNjb3VudF9pZBgFIAEoCVIJYWNjb3VudElkEhoKCG'
-    'N1cnJlbmN5GAYgASgJUghjdXJyZW5jeQ==');
+    'N1cnJlbmN5GAYgASgJUghjdXJyZW5jeRIZCgVwYXllZRgHIAEoCUgAUgVwYXllZYgBARIXCgRu'
+    'b3RlGAggASgJSAFSBG5vdGWIAQFCCAoGX3BheWVlQgcKBV9ub3Rl');
 
 @$core.Deprecated('Use updateRecordRequestDescriptor instead')
 const UpdateRecordRequest$json = {
@@ -88,6 +101,12 @@ const UpdateRecordRequest$json = {
     {'1': 'category_id', '3': 4, '4': 1, '5': 9, '10': 'categoryId'},
     {'1': 'account_id', '3': 5, '4': 1, '5': 9, '10': 'accountId'},
     {'1': 'currency', '3': 6, '4': 1, '5': 9, '10': 'currency'},
+    {'1': 'payee', '3': 7, '4': 1, '5': 9, '9': 0, '10': 'payee', '17': true},
+    {'1': 'note', '3': 8, '4': 1, '5': 9, '9': 1, '10': 'note', '17': true},
+  ],
+  '8': [
+    {'1': '_payee'},
+    {'1': '_note'},
   ],
 };
 
@@ -96,7 +115,8 @@ final $typed_data.Uint8List updateRecordRequestDescriptor = $convert.base64Decod
     'ChNVcGRhdGVSZWNvcmRSZXF1ZXN0EhQKBXRpdGxlGAEgASgJUgV0aXRsZRIhCgxhbW91bnRfbW'
     'lub3IYAiABKANSC2Ftb3VudE1pbm9yEhIKBGRhdGUYAyABKAlSBGRhdGUSHwoLY2F0ZWdvcnlf'
     'aWQYBCABKAlSCmNhdGVnb3J5SWQSHQoKYWNjb3VudF9pZBgFIAEoCVIJYWNjb3VudElkEhoKCG'
-    'N1cnJlbmN5GAYgASgJUghjdXJyZW5jeQ==');
+    'N1cnJlbmN5GAYgASgJUghjdXJyZW5jeRIZCgVwYXllZRgHIAEoCUgAUgVwYXllZYgBARIXCgRu'
+    'b3RlGAggASgJSAFSBG5vdGWIAQFCCAoGX3BheWVlQgcKBV9ub3Rl');
 
 @$core.Deprecated('Use listRecordsResponseDescriptor instead')
 const ListRecordsResponse$json = {

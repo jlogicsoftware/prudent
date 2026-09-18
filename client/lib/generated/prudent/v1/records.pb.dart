@@ -28,6 +28,8 @@ class Record extends $pb.GeneratedMessage {
     $core.String? categoryId,
     $core.String? accountId,
     $core.String? transferId,
+    $core.String? payee,
+    $core.String? note,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -38,6 +40,8 @@ class Record extends $pb.GeneratedMessage {
     if (categoryId != null) result.categoryId = categoryId;
     if (accountId != null) result.accountId = accountId;
     if (transferId != null) result.transferId = transferId;
+    if (payee != null) result.payee = payee;
+    if (note != null) result.note = note;
     return result;
   }
 
@@ -62,6 +66,8 @@ class Record extends $pb.GeneratedMessage {
     ..aOS(6, _omitFieldNames ? '' : 'categoryId')
     ..aOS(7, _omitFieldNames ? '' : 'accountId')
     ..aOS(8, _omitFieldNames ? '' : 'transferId')
+    ..aOS(9, _omitFieldNames ? '' : 'payee')
+    ..aOS(10, _omitFieldNames ? '' : 'note')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -192,6 +198,29 @@ class Record extends $pb.GeneratedMessage {
   $core.bool hasTransferId() => $_has(7);
   @$pb.TagNumber(8)
   void clearTransferId() => $_clearField(8);
+
+  /// Free-text counterparty — who was paid, or who paid the user (jlogicsoftware/prudent#51).
+  /// OPTIONAL: a record filed before this field existed has none, and that is not a different
+  /// kind of record, just one with a blank field. Distinct from category, which classifies WHAT
+  /// the money was for; this says WHO was on the other side of it.
+  @$pb.TagNumber(9)
+  $core.String get payee => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set payee($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasPayee() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearPayee() => $_clearField(9);
+
+  /// Free-text note (jlogicsoftware/prudent#51). OPTIONAL for the same reason as payee.
+  @$pb.TagNumber(10)
+  $core.String get note => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set note($core.String value) => $_setString(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasNote() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearNote() => $_clearField(10);
 }
 
 /// POST /api/v1/records
@@ -203,6 +232,8 @@ class CreateRecordRequest extends $pb.GeneratedMessage {
     $core.String? categoryId,
     $core.String? accountId,
     $core.String? currency,
+    $core.String? payee,
+    $core.String? note,
   }) {
     final result = create();
     if (title != null) result.title = title;
@@ -211,6 +242,8 @@ class CreateRecordRequest extends $pb.GeneratedMessage {
     if (categoryId != null) result.categoryId = categoryId;
     if (accountId != null) result.accountId = accountId;
     if (currency != null) result.currency = currency;
+    if (payee != null) result.payee = payee;
+    if (note != null) result.note = note;
     return result;
   }
 
@@ -233,6 +266,8 @@ class CreateRecordRequest extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'categoryId')
     ..aOS(5, _omitFieldNames ? '' : 'accountId')
     ..aOS(6, _omitFieldNames ? '' : 'currency')
+    ..aOS(7, _omitFieldNames ? '' : 'payee')
+    ..aOS(8, _omitFieldNames ? '' : 'note')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -310,6 +345,26 @@ class CreateRecordRequest extends $pb.GeneratedMessage {
   $core.bool hasCurrency() => $_has(5);
   @$pb.TagNumber(6)
   void clearCurrency() => $_clearField(6);
+
+  /// See Record.payee. Optional; absent means none.
+  @$pb.TagNumber(7)
+  $core.String get payee => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set payee($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasPayee() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearPayee() => $_clearField(7);
+
+  /// See Record.note. Optional; absent means none.
+  @$pb.TagNumber(8)
+  $core.String get note => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set note($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasNote() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearNote() => $_clearField(8);
 }
 
 /// PUT /api/v1/records/{id} — a FULL REPLACEMENT, for the presence reason set out in
@@ -322,6 +377,8 @@ class UpdateRecordRequest extends $pb.GeneratedMessage {
     $core.String? categoryId,
     $core.String? accountId,
     $core.String? currency,
+    $core.String? payee,
+    $core.String? note,
   }) {
     final result = create();
     if (title != null) result.title = title;
@@ -330,6 +387,8 @@ class UpdateRecordRequest extends $pb.GeneratedMessage {
     if (categoryId != null) result.categoryId = categoryId;
     if (accountId != null) result.accountId = accountId;
     if (currency != null) result.currency = currency;
+    if (payee != null) result.payee = payee;
+    if (note != null) result.note = note;
     return result;
   }
 
@@ -352,6 +411,8 @@ class UpdateRecordRequest extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'categoryId')
     ..aOS(5, _omitFieldNames ? '' : 'accountId')
     ..aOS(6, _omitFieldNames ? '' : 'currency')
+    ..aOS(7, _omitFieldNames ? '' : 'payee')
+    ..aOS(8, _omitFieldNames ? '' : 'note')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -429,6 +490,26 @@ class UpdateRecordRequest extends $pb.GeneratedMessage {
   $core.bool hasCurrency() => $_has(5);
   @$pb.TagNumber(6)
   void clearCurrency() => $_clearField(6);
+
+  /// See Record.payee. Optional; absent on a FULL REPLACEMENT clears any existing payee.
+  @$pb.TagNumber(7)
+  $core.String get payee => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set payee($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasPayee() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearPayee() => $_clearField(7);
+
+  /// See Record.note. Optional; absent on a FULL REPLACEMENT clears any existing note.
+  @$pb.TagNumber(8)
+  $core.String get note => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set note($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasNote() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearNote() => $_clearField(8);
 }
 
 /// GET /api/v1/records — every record owned by the authenticated user.

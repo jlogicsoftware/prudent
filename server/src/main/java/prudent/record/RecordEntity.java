@@ -94,6 +94,18 @@ public class RecordEntity extends PanacheEntityBase {
   public UUID transferId;
 
   /**
+   * Free-text counterparty — who was paid, or who paid the user (jlogicsoftware/prudent#51).
+   * Nullable: a record filed before this field existed has none, and that is not a different kind
+   * of record, just one with a blank field.
+   */
+  @Column
+  public String payee;
+
+  /** Free-text note (jlogicsoftware/prudent#51). Nullable for the same reason as {@link #payee}. */
+  @Column
+  public String note;
+
+  /**
    * Every record owned by one user.
    *
    * <p>UNPAGINATED IN v1, which the contract settles rather than this class: a personal expense

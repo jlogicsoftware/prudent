@@ -60,6 +60,8 @@ class RecordsList extends ConsumerWidget {
                               required categoryId,
                               required accountId,
                               required currency,
+                              required payee,
+                              required note,
                             }) => ref
                                 .read(recordsProvider.notifier)
                                 .editRecord(
@@ -71,6 +73,8 @@ class RecordsList extends ConsumerWidget {
                                     categoryId: categoryId,
                                     accountId: accountId,
                                     currency: currency,
+                                    payee: payee,
+                                    note: note,
                                   ),
                                 ),
                       ),

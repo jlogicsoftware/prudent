@@ -42,7 +42,16 @@ class RecordItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(record.title, style: Theme.of(context).textTheme.titleLarge),
+                if (record.payee.isNotEmpty)
+                  Text(record.payee, style: Theme.of(context).textTheme.bodyMedium),
                 Text(_formattedDate(context), style: Theme.of(context).textTheme.labelSmall),
+                if (record.note.isNotEmpty)
+                  Text(
+                    record.note,
+                    style: Theme.of(context).textTheme.labelSmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
             ),
           ),

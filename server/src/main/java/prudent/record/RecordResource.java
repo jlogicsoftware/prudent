@@ -95,7 +95,8 @@ public class RecordResource {
     entity.id = UUID.randomUUID();
     entity.userId = userId;
     apply(entity, userId, request.getTitle(), request.getAmountMinor(), request.getDate(),
-        request.getCategoryId(), request.getAccountId(), request.getCurrency());
+        request.getCategoryId(), request.getAccountId(), request.getCurrency(),
+        request.getPayee(), request.getNote());
     entity.persist();
     return Response.status(Response.Status.CREATED).entity(mapper.toProto(entity)).build();
   }
@@ -121,7 +122,8 @@ public class RecordResource {
     RecordEntity entity = require(userId, id);
     requireNotTransferLeg(entity);
     apply(entity, userId, request.getTitle(), request.getAmountMinor(), request.getDate(),
-        request.getCategoryId(), request.getAccountId(), request.getCurrency());
+        request.getCategoryId(), request.getAccountId(), request.getCurrency(),
+        request.getPayee(), request.getNote());
     return Response.ok(mapper.toProto(entity)).build();
   }
 
@@ -187,7 +189,9 @@ public class RecordResource {
       String date,
       String categoryId,
       String accountId,
-      String currency) {
+      String currency,
+      String payee,
+      String note) {
 
     if (title == null || title.isBlank()) {
       throw PrudentException.invalid("A record needs a title.");
@@ -236,6 +240,21 @@ public class RecordResource {
     entity.date = parseDate(date);
     entity.categoryId = category.id;
     entity.accountId = account.id;
+    entity.payee = blankToNull(payee);
+    entity.note = blankToNull(note);
+  }
+
+  /**
+   * Both {@code payee} and {@code note} are optional wire fields; a blank value is stored as
+   * absent rather than as an empty string so the two never disagree about whether the field was
+   * filled in.
+   */
+  private static String blankToNull(String value) {
+    if (value == null) {
+      return null;
+    }
+    String trimmed = value.trim();
+    return trimmed.isEmpty() ? null : trimmed;
   }
 
   /**

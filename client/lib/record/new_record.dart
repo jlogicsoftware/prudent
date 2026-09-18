@@ -20,6 +20,8 @@ class NewRecord extends ConsumerStatefulWidget {
     required String categoryId,
     required String accountId,
     required String currency,
+    required String payee,
+    required String note,
   })
   onSave;
 
@@ -30,6 +32,8 @@ class NewRecord extends ConsumerStatefulWidget {
 class _NewRecordState extends ConsumerState<NewRecord> {
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
+  final _payeeController = TextEditingController();
+  final _noteController = TextEditingController();
   DateTime? _selectedDate;
   String? _selectedCategoryId;
   String? _selectedAccountId;
@@ -51,6 +55,8 @@ class _NewRecordState extends ConsumerState<NewRecord> {
       _selectedCategoryId = initial.categoryId;
       _selectedAccountId = initial.accountId;
       _currency = initial.currency;
+      _payeeController.text = initial.payee;
+      _noteController.text = initial.note;
     }
   }
 
@@ -102,6 +108,8 @@ class _NewRecordState extends ConsumerState<NewRecord> {
       categoryId: _selectedCategoryId!,
       accountId: _selectedAccountId!,
       currency: _currency,
+      payee: _payeeController.text.trim(),
+      note: _noteController.text.trim(),
     );
     Navigator.pop(context);
   }
@@ -110,6 +118,8 @@ class _NewRecordState extends ConsumerState<NewRecord> {
   void dispose() {
     _titleController.dispose();
     _amountController.dispose();
+    _payeeController.dispose();
+    _noteController.dispose();
     super.dispose();
   }
 
@@ -124,7 +134,8 @@ class _NewRecordState extends ConsumerState<NewRecord> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         children: [
           TextField(
             controller: _titleController,
@@ -198,6 +209,24 @@ class _NewRecordState extends ConsumerState<NewRecord> {
                     setState(() => _selectedCategoryId = value);
                   },
                 ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _payeeController,
+            maxLength: 100,
+            decoration: InputDecoration(label: Text(t.recordsPayeeField)),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _noteController,
+            maxLength: 280,
+            maxLines: 2,
+            decoration: InputDecoration(label: Text(t.recordsNoteField)),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
               const Spacer(),
               TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
               ElevatedButton(
@@ -207,6 +236,7 @@ class _NewRecordState extends ConsumerState<NewRecord> {
             ],
           ),
         ],
+        ),
       ),
     );
   }

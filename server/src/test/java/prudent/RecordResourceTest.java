@@ -64,6 +64,8 @@ class RecordResourceTest {
     assertEquals("PLN", record.getCurrency());
     assertEquals("2026-08-17", record.getDate());
     assertEquals(accountId.toString(), record.getAccountId());
+    assertFalse(record.hasPayee(), "a create request that omits payee must leave it absent");
+    assertFalse(record.hasNote(), "a create request that omits note must leave it absent");
 
     Response read =
         PrudentTest.request(mode).when().get("/api/v1/records/" + record.getId()).andReturn();
@@ -104,6 +106,51 @@ class RecordResourceTest {
             .get("/api/v1/records/" + record.getId())
             .andReturn()
             .statusCode());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {PrudentTest.JSON, PrudentTest.PROTOBUF})
+  @TestSecurity(user = PrudentTest.ALICE)
+  void payeeAndNote_areOptionalAndSurviveTheRoundTrip(String mode) throws Exception {
+    Response created =
+        PrudentTest.body(
+                PrudentTest.request(mode),
+                mode,
+                validCreate().setPayee("Corner Shop").setNote("Weekly groceries").build())
+            .when()
+            .post("/api/v1/records")
+            .andReturn();
+    assertEquals(201, created.statusCode());
+    Record record = PrudentTest.decode(mode, created, Record.newBuilder()).build();
+    assertEquals("Corner Shop", record.getPayee());
+    assertEquals("Weekly groceries", record.getNote());
+
+    Response read =
+        PrudentTest.request(mode).when().get("/api/v1/records/" + record.getId()).andReturn();
+    Record reread = PrudentTest.decode(mode, read, Record.newBuilder()).build();
+    assertEquals("Corner Shop", reread.getPayee());
+    assertEquals("Weekly groceries", reread.getNote());
+
+    // A FULL REPLACEMENT that omits both fields clears them — same rule as every other field on
+    // UpdateRecordRequest (records.proto).
+    UpdateRecordRequest clearing =
+        UpdateRecordRequest.newBuilder()
+            .setTitle(record.getTitle())
+            .setAmountMinor(record.getAmountMinor())
+            .setDate(record.getDate())
+            .setCategoryId(record.getCategoryId())
+            .setAccountId(record.getAccountId())
+            .setCurrency(record.getCurrency())
+            .build();
+    Response updated =
+        PrudentTest.body(PrudentTest.request(mode), mode, clearing)
+            .when()
+            .put("/api/v1/records/" + record.getId())
+            .andReturn();
+    assertEquals(200, updated.statusCode());
+    Record cleared = PrudentTest.decode(mode, updated, Record.newBuilder()).build();
+    assertFalse(cleared.hasPayee(), "an update that omits payee must clear it, not keep the old value");
+    assertFalse(cleared.hasNote(), "an update that omits note must clear it, not keep the old value");
   }
 
   @ParameterizedTest

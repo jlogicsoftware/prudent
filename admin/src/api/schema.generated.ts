@@ -2225,6 +2225,10 @@ export interface components {
              * @description Present only on a transfer leg: the id shared by both records one transfer creates. Absent on an ordinary record.
              */
             transferId?: string;
+            /** @description Free-text counterparty — who was paid, or who paid the user. Optional; absent on a record filed before this field existed. */
+            payee?: string;
+            /** @description Free-text note. Optional; absent on a record filed before this field existed. */
+            note?: string;
         };
         /** @description Body for POST /api/v1/records. No id field — the server mints it. */
         CreateRecordRequest: {
@@ -2238,6 +2242,10 @@ export interface components {
             /** Format: uuid */
             accountId?: string;
             currency?: string;
+            /** @description Optional; absent means none. */
+            payee?: string;
+            /** @description Optional; absent means none. */
+            note?: string;
         };
         /** @description Body for PUT /api/v1/records/{id}. A FULL REPLACEMENT. Moving a record between accounts and changing its currency are ONE operation and are validated together: the new currency must be one the NEW account holds. */
         UpdateRecordRequest: {
@@ -2251,6 +2259,10 @@ export interface components {
             /** Format: uuid */
             accountId?: string;
             currency?: string;
+            /** @description Optional; absent on a FULL REPLACEMENT clears any existing payee. */
+            payee?: string;
+            /** @description Optional; absent on a FULL REPLACEMENT clears any existing note. */
+            note?: string;
         };
         /** @description GET /api/v1/records — every record owned by the caller. UNPAGINATED IN v1, which is a decision rather than an oversight: a personal expense tracker's record list is bounded by one person's spending. When one gets long enough to need paging, the page parameters are query parameters on the GET and this message gains its page metadata — a backward-compatible addition. */
         ListRecordsResponse: {
