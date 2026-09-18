@@ -1437,10 +1437,22 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List the authenticated user's records */
+        /**
+         * List the authenticated user's records, optionally filtered
+         * @description Query parameters (all optional, independently composable — see records.proto): dateFrom/dateTo (ISO-8601 YYYY-MM-DD, inclusive), accountId/categoryId (UUID), type (income|expense|transfer), amountMin/amountMax (non-negative minor units, inclusive, matched against the absolute amount), search (case-insensitive substring against title/payee/note). Omitting a parameter clears that filter; omitting all of them returns the full unfiltered list.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    accountId?: string;
+                    amountMax?: number;
+                    amountMin?: number;
+                    categoryId?: string;
+                    dateFrom?: string;
+                    dateTo?: string;
+                    search?: string;
+                    type?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1455,6 +1467,16 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["ListRecordsResponse"];
                         "application/x-protobuf": components["schemas"]["ListRecordsResponse"];
+                    };
+                };
+                /** @description A malformed dateFrom/dateTo, accountId/categoryId, type, or a negative amount */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
                 /** @description Not Authorized */

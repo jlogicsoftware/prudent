@@ -18,6 +18,7 @@
   "recordsNoteField": "Нотатка",
   "recordsExpense": "Витрата",
   "recordsIncome": "Дохід",
+  "recordsTransfer": "Переказ",
   "recordsNoDateSelected": "Дату не вибрано",
   "recordsSaveExpense": "Зберегти витрату",
   "recordsSaveIncome": "Зберегти дохід",
@@ -29,6 +30,21 @@
   "@recordsLoadError": {
     "placeholders": { "error": { "type": "String" } }
   },
+
+  "recordsFilterTooltip": "Фільтр",
+  "recordsFilterActiveTooltip": "Фільтр (активний)",
+  "recordsFilterTitle": "Фільтр записів",
+  "recordsFilterSearchField": "Пошук",
+  "recordsFilterDateFrom": "Від",
+  "recordsFilterDateTo": "До",
+  "recordsFilterAnyType": "Будь-який тип",
+  "recordsFilterAnyAccount": "Будь-який рахунок",
+  "recordsFilterAnyCategory": "Будь-яка категорія",
+  "recordsFilterAmountMinField": "Мін. сума",
+  "recordsFilterAmountMaxField": "Макс. сума",
+  "recordsFilterApply": "Застосувати",
+  "recordsFilterClearAll": "Скинути все",
+  "recordsFilterEmpty": "Жоден запис не відповідає фільтрам.",
 
   "transfersNewTitle": "Новий переказ",
   "transfersTitleField": "Назва",

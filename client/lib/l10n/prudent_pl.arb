@@ -18,6 +18,7 @@
   "recordsNoteField": "Notatka",
   "recordsExpense": "Wydatek",
   "recordsIncome": "Przychód",
+  "recordsTransfer": "Przelew",
   "recordsNoDateSelected": "Nie wybrano daty",
   "recordsSaveExpense": "Zapisz wydatek",
   "recordsSaveIncome": "Zapisz przychód",
@@ -29,6 +30,21 @@
   "@recordsLoadError": {
     "placeholders": { "error": { "type": "String" } }
   },
+
+  "recordsFilterTooltip": "Filtr",
+  "recordsFilterActiveTooltip": "Filtr (aktywny)",
+  "recordsFilterTitle": "Filtruj wpisy",
+  "recordsFilterSearchField": "Szukaj",
+  "recordsFilterDateFrom": "Od",
+  "recordsFilterDateTo": "Do",
+  "recordsFilterAnyType": "Dowolny typ",
+  "recordsFilterAnyAccount": "Dowolny rachunek",
+  "recordsFilterAnyCategory": "Dowolna kategoria",
+  "recordsFilterAmountMinField": "Kwota min.",
+  "recordsFilterAmountMaxField": "Kwota maks.",
+  "recordsFilterApply": "Zastosuj",
+  "recordsFilterClearAll": "Wyczyść wszystko",
+  "recordsFilterEmpty": "Żaden wpis nie pasuje do filtrów.",
 
   "transfersNewTitle": "Nowy przelew",
   "transfersTitleField": "Tytuł",

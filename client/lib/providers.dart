@@ -8,6 +8,7 @@ import 'generated/prudent/v1/categories.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
 import 'prudent_repository.dart';
+import 'record/record_filter.dart';
 
 /// The server client. Overridden in [ProviderScope] with an instance sharing the session
 /// http.Client (see main.dart), so it must be provided by the app.
@@ -40,12 +41,31 @@ final localeProvider = NotifierProvider<LocaleNotifier, Locale>(LocaleNotifier.n
 // Records
 // ---------------------------------------------------------------------------------------------
 
+/// The records list's active filter (jlogicsoftware/prudent#52). A plain [Notifier] rather than a
+/// bare [StateProvider] only so [clear] reads as a named action at call sites (the records filter
+/// sheet's "Clear all").
+class RecordFilterNotifier extends Notifier<RecordFilter> {
+  @override
+  RecordFilter build() => RecordFilter.empty;
+
+  void apply(RecordFilter filter) => state = filter;
+
+  /// Resets every criterion. Re-fetching with no filter restores the full list — nothing is
+  /// mutated or deleted, so no data is lost by clearing.
+  void clear() => state = RecordFilter.empty;
+}
+
+final recordFilterProvider = NotifierProvider<RecordFilterNotifier, RecordFilter>(
+  RecordFilterNotifier.new,
+);
+
 class RecordsNotifier extends AsyncNotifier<List<Record>> {
   PrudentRepository get _repository => ref.read(prudentRepositoryProvider);
 
   @override
   Future<List<Record>> build() async {
-    final result = await _repository.listRecords();
+    final filter = ref.watch(recordFilterProvider);
+    final result = await _repository.listRecords(filter: filter);
     return result.fold((response) => response.records, (error) => throw error);
   }
 

@@ -233,6 +233,82 @@ public class RecordEntity extends PanacheEntityBase {
         .getResultList();
   }
 
+  /**
+   * Every record owned by one user that matches every given criterion — the query behind
+   * {@code GET /api/v1/records}'s filters (jlogicsoftware/prudent#52). Each parameter is
+   * independently optional; a {@code null} simply omits that clause, so calling this with every
+   * parameter {@code null} builds the exact query {@link #listOwnedBy} runs and returns the same
+   * rows in the same order.
+   *
+   * <p>{@code type} reuses {@link #expenseRows}'s own split: {@code EXPENSE} is
+   * {@code amountMinor < 0} with no {@code transferId}, {@code INCOME} is the positive
+   * counterpart, {@code TRANSFER} is any row with a {@code transferId} — so a record's type here
+   * never disagrees with what analytics already calls it.
+   *
+   * <p>{@code amountMin}/{@code amountMax} are matched against {@code abs(amountMinor)},
+   * deliberately ignoring currency (docs/DECISIONS.md) — a simpler filter than one scoped to a
+   * single currency, at the cost of comparing magnitudes across currencies that are not really
+   * comparable.
+   *
+   * <p>{@code search} is a case-insensitive substring match against {@code title}, {@code payee},
+   * or {@code note}.
+   */
+  public static List<RecordEntity> search(
+      UUID userId,
+      LocalDate dateFrom,
+      LocalDate dateTo,
+      UUID accountId,
+      UUID categoryId,
+      RecordType type,
+      Long amountMin,
+      Long amountMax,
+      String search) {
+    StringBuilder jpql = new StringBuilder("userId = :userId");
+    Map<String, Object> params = new HashMap<>();
+    params.put("userId", userId);
+
+    if (dateFrom != null) {
+      jpql.append(" and date >= :dateFrom");
+      params.put("dateFrom", dateFrom);
+    }
+    if (dateTo != null) {
+      jpql.append(" and date <= :dateTo");
+      params.put("dateTo", dateTo);
+    }
+    if (accountId != null) {
+      jpql.append(" and accountId = :accountId");
+      params.put("accountId", accountId);
+    }
+    if (categoryId != null) {
+      jpql.append(" and categoryId = :categoryId");
+      params.put("categoryId", categoryId);
+    }
+    if (type == RecordType.EXPENSE) {
+      jpql.append(" and amountMinor < 0 and transferId is null");
+    } else if (type == RecordType.INCOME) {
+      jpql.append(" and amountMinor > 0 and transferId is null");
+    } else if (type == RecordType.TRANSFER) {
+      jpql.append(" and transferId is not null");
+    }
+    if (amountMin != null) {
+      jpql.append(" and abs(amountMinor) >= :amountMin");
+      params.put("amountMin", amountMin);
+    }
+    if (amountMax != null) {
+      jpql.append(" and abs(amountMinor) <= :amountMax");
+      params.put("amountMax", amountMax);
+    }
+    if (search != null && !search.isBlank()) {
+      jpql.append(
+          " and (lower(title) like :search or lower(payee) like :search or lower(note) like"
+              + " :search)");
+      params.put("search", "%" + search.trim().toLowerCase() + "%");
+    }
+    jpql.append(" order by date desc, id");
+
+    return list(jpql.toString(), params);
+  }
+
   public static Map<UUID, Map<String, Long>> netByAccountForUser(UUID userId) {
     Map<UUID, Map<String, Long>> net = new HashMap<>();
     for (Object[] row :

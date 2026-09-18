@@ -8,6 +8,7 @@ import '../money.dart';
 import '../providers.dart';
 import 'new_record.dart';
 import 'new_transfer.dart';
+import 'records_filter_sheet.dart';
 import 'records_list.dart';
 
 class RecordsScreen extends ConsumerStatefulWidget {
@@ -70,6 +71,10 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
                 ),
       ),
     );
+  }
+
+  void _openFilterOverlay() {
+    _presentOverlay(const RecordsFilterSheet());
   }
 
   void _openAddTransferOverlay() {
@@ -137,12 +142,18 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
   @override
   Widget build(BuildContext context) {
     final recordsAsync = ref.watch(recordsProvider);
+    final filterActive = !ref.watch(recordFilterProvider).isEmpty;
     final t = PrudentLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(t.appTitle),
         actions: [
+          IconButton(
+            onPressed: _openFilterOverlay,
+            icon: Icon(filterActive ? Icons.filter_alt : Icons.filter_alt_outlined),
+            tooltip: filterActive ? t.recordsFilterActiveTooltip : t.recordsFilterTooltip,
+          ),
           IconButton(
             onPressed: _openAddTransferOverlay,
             icon: const Icon(Icons.swap_horiz),
@@ -155,6 +166,21 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text(t.recordsLoadError(error.toString()))),
         data: (records) {
+          if (records.isEmpty && filterActive) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(t.recordsFilterEmpty),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => ref.read(recordFilterProvider.notifier).clear(),
+                    child: Text(t.recordsFilterClearAll),
+                  ),
+                ],
+              ),
+            );
+          }
           if (records.isEmpty) {
             return Center(child: Text(t.recordsEmpty));
           }

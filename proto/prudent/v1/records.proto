@@ -120,7 +120,7 @@ message UpdateRecordRequest {
   optional string note = 8;
 }
 
-// GET /api/v1/records — every record owned by the authenticated user.
+// GET /api/v1/records — every record owned by the authenticated user, or a filtered subset of it.
 //
 // UNPAGINATED IN v1, and this is a decision rather than an oversight. jZen's zen.v1.PageRequest
 // exists for list endpoints that need it; a personal expense tracker's record list is bounded
@@ -128,6 +128,26 @@ message UpdateRecordRequest {
 // sends and no test exercises. When a real list gets long enough to need it, the page
 // parameters are query parameters on the GET and this message gains its page metadata — a
 // backward-compatible addition, because adding fields is what proto3 is good at.
+//
+// FILTERS (jlogicsoftware/prudent#52) are query parameters on this same GET, following the same
+// backward-compatible-addition reasoning above and the pattern analytics.proto already uses for
+// its own query params: none of them are modeled as proto fields, since they shape a read rather
+// than a payload. Every parameter is optional and independently composable with the others —
+// omitting one clears only that filter, and omitting all of them is exactly today's unfiltered
+// call.
+//   - `dateFrom`, `dateTo` — ISO-8601 YYYY-MM-DD, inclusive on both ends, matched against `date`.
+//   - `accountId`, `categoryId` — a UUID, matched against the field of the same name.
+//   - `type` — `income`, `expense`, or `transfer`. `expense` is `amount_minor < 0` with no
+//     transfer_id, `income` is `amount_minor > 0` with no transfer_id, `transfer` is any record
+//     with a transfer_id — the same expense/income split AnalyticsResource already uses, so
+//     transfer legs are never silently counted as spend here either.
+//   - `amountMin`, `amountMax` — non-negative minor units, inclusive, matched against
+//     `abs(amount_minor)`. Deliberately currency-agnostic: a mixed-currency filter is a nominal
+//     comparison across units that are not really comparable, and that tradeoff is accepted
+//     rather than scoping the filter to one currency, for a simpler filter UI.
+//   - `search` — case-insensitive substring match against `title`, `payee`, or `note`.
+// A malformed date, UUID, or `type` value is a 400 (ZenError code "invalid"), not a silently
+// ignored parameter — see docs/DECISIONS.md for the full ADR.
 message ListRecordsResponse {
   repeated Record records = 1;
 }

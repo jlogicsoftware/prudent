@@ -13,6 +13,65 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-034 — Record search and filters: server-side query params, no new proto messages
+
+**Date:** 2026-09-18. **Status:** accepted. **Follows:** the unpaginated-listing decision recorded
+under ADR-014 ("Listing is unpaginated, and that was already decided").
+
+### Decision
+
+`GET /api/v1/records` (`jlogicsoftware/prudent#52`) gains eight optional, independently composable
+query parameters, all filtered server-side in one new `RecordEntity.search(...)` query:
+
+- `dateFrom`/`dateTo` — ISO-8601, inclusive, matched against `date`.
+- `accountId`/`categoryId` — UUID, matched against the field of the same name.
+- `type` — `income`/`expense`/`transfer`. Reuses `RecordEntity.expenseRows`'s own split exactly
+  (`expense` is `amountMinor < 0` with no `transferId`; `income` is the positive counterpart;
+  `transfer` is any row with a `transferId`), so a record's type here never disagrees with what
+  `AnalyticsResource` already calls it.
+- `amountMin`/`amountMax` — non-negative minor units, matched against `abs(amountMinor)`,
+  **deliberately ignoring currency**. A record's amount and currency are independent (ADR-008);
+  scoping the filter to one currency would need a currency picker wired to the amount fields for a
+  small accuracy gain, against a personal-finance user who mostly holds one currency. The tradeoff
+  taken is a nominal comparison across units that are not really comparable, for a simpler filter
+  UI.
+- `search` — case-insensitive substring match against `title`, `payee`, or `note`.
+
+None of the eight are proto fields. Query params are a REST-layer concern in this codebase
+already — `AnalyticsResource`'s `currency`/`year`/`month`/`granularity`/`count` are plain
+`@QueryParam`s with no request message in `analytics.proto`, documented only in prose. Records
+filtering follows the same convention: `records.proto`'s `GET /api/v1/records` doc comment gained
+a prose description of the eight params; `ListRecordsResponse` is unchanged.
+
+### What this supersedes, and why
+
+- **ADR-014's framing of a future retrofit as "page parameters ... a backward-compatible
+  addition"** → **extended, not reversed.** The same reasoning ADR-014 used for pagination
+  ("query parameters on the GET ... cheap") is the reasoning this entry uses for filters: neither
+  needed the contract redesigned, both landed as additive query params on the same endpoint.
+
+### Consequence
+
+- No schema change, no Flyway migration — every filterable field (`date`, `accountId`,
+  `categoryId`, `amountMinor`, `transferId`, `title`, `payee`, `note`) already existed on
+  `RecordEntity`.
+- A malformed `dateFrom`/`dateTo`, `accountId`/`categoryId`, or `type`, or a negative
+  `amountMin`/`amountMax`, is a 400 (`ZenError` code `invalid`) — never a silently ignored
+  parameter or a 500.
+- Client-side: `RecordFilter` (`client/lib/record/record_filter.dart`) mirrors the eight params
+  1:1 and is not proto-generated, matching the server's own choice not to model them in the
+  contract. `recordFilterProvider` holds the active filter; clearing it (`RecordFilterNotifier
+  .clear()`) re-fetches the unfiltered list — nothing is mutated or deleted by filtering, so
+  clearing never loses data.
+- Verified: `RecordResourceTest` (server) covers each filter alone, filters composed together, no
+  filters (identical to the pre-#52 unfiltered list), clearing, and every malformed-input 400 —
+  full suite green. `record_filter_test.dart` and the extended `prudent_repository_test.dart`
+  (client) cover `RecordFilter`'s query-parameter mapping and `isEmpty`/equality — green.
+  `task verify:contracts` regenerated `records.pb.dart` and `admin/src/api/schema.generated.ts`
+  cleanly (doc-comment/OpenAPI-description-only diffs, no structural change) and reports no drift.
+
+---
+
 ## ADR-033 — Bump CI's jZen pin to #97: the committed admin schema had already drifted past it
 
 **Date:** 2026-09-18. **Status:** accepted. **Follows:** ADR-030 (prior `JZEN_REF` bump),
