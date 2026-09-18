@@ -1,6 +1,10 @@
 import 'package:fixnum/fixnum.dart';
-import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
+
+// NOTHING IN THIS FILE MAY IMPORT `package:flutter/*` (client/integration_test/e2e_test.dart's own
+// header comment). prudent_repository.dart, which that suite imports directly to run on the plain
+// Dart VM, imports this file — a `dart:ui`-reaching import here breaks `dart test` at compile time,
+// not just at runtime.
 
 /// The three shapes a record can be filtered to, matching `RecordType` on the server
 /// (jlogicsoftware/prudent#52). Not generated from the contract — query parameters are a
@@ -21,7 +25,6 @@ enum RecordFilterType {
 /// Immutable: the records filter sheet builds a new instance from its own local editable state
 /// and writes it to [recordFilterProvider] wholesale on "Apply", rather than patching this one
 /// field at a time.
-@immutable
 class RecordFilter {
   const RecordFilter({
     this.dateFrom,
