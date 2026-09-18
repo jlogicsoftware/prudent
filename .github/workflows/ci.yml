@@ -171,17 +171,6 @@ jobs:
         working-directory: prudent
         run: task verify:contracts
 
-      # TEMPORARY, for jlogicsoftware/prudent#50: `task generate` (called by verify:contracts
-      # above) leaves any drift sitting uncommitted in the working tree even after that task
-      # fails the job. This step never fails the job itself (`if: always()`, no `set -e`) — it
-      # exists only to print what the regenerated admin/src/api/schema.generated.ts actually
-      # differs by, since the gate itself only names the file, not the diff. Remove once the
-      # drift this PR hit is understood and fixed.
-      - name: TEMP debug — show contract drift diff
-        if: always()
-        working-directory: prudent
-        run: git diff -- admin/src/api/schema.generated.ts client/lib/generated proto || true
-
       - name: Client suites
         working-directory: prudent
         run: task zen:test:client
