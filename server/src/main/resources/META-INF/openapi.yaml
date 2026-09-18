@@ -563,17 +563,19 @@ components:
     CreateTransferRequest:
       type: object
       description: >-
-        Body for POST /api/v1/transfers. Same currency only (jlogicsoftware/prudent#32) — no FX;
-        amountMinor is a positive magnitude, negated for the source leg and kept positive for the
-        destination leg.
+        Body for POST /api/v1/transfers (jlogicsoftware/prudent#32, jlogicsoftware/prudent#50). No
+        FX is ever computed — each leg carries its own amount and currency, exactly as entered;
+        a same-currency transfer is simply the case where the two happen to agree. Both
+        *AmountMinor fields are positive magnitudes: fromAmountMinor is negated for the source leg,
+        toAmountMinor is kept positive for the destination leg.
       properties:
         title:
           type: string
           description: Optional; blank is stored as "Transfer" server-side.
-        amountMinor:
+        fromAmountMinor:
           type: string
           format: int64
-        currency:
+        fromCurrency:
           type: string
           minLength: 3
           maxLength: 3
@@ -586,6 +588,13 @@ components:
         toAccountId:
           type: string
           format: uuid
+        toAmountMinor:
+          type: string
+          format: int64
+        toCurrency:
+          type: string
+          minLength: 3
+          maxLength: 3
     Transfer:
       type: object
       description: >-

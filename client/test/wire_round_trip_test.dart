@@ -114,28 +114,56 @@ void main() {
         expect(decoded, original);
       });
 
-      test('a CreateTransferRequest carries a positive magnitude and no id', () {
+      test('a CreateTransferRequest carries a positive magnitude per leg and no id', () {
         final decoded = roundTrip(
           CreateTransferRequest(
             title: 'Move to savings',
-            amountMinor: Int64(5000),
-            currency: 'PLN',
+            fromAmountMinor: Int64(5000),
+            fromCurrency: 'PLN',
             date: '2026-08-17',
             fromAccountId: 'a1',
             toAccountId: 'a2',
+            toAmountMinor: Int64(5000),
+            toCurrency: 'PLN',
           ),
           format,
           CreateTransferRequest.new,
         );
 
-        expect(decoded.amountMinor, Int64(5000));
+        expect(decoded.fromAmountMinor, Int64(5000));
         expect(decoded.fromAccountId, 'a1');
         expect(decoded.toAccountId, 'a2');
+        expect(decoded.toAmountMinor, Int64(5000));
+        expect(decoded.toCurrency, 'PLN');
         expect(
           CreateTransferRequest().info_.byName.keys,
           isNot(contains('id')),
           reason: 'the server mints both legs\' ids and the shared transfer id',
         );
+      });
+
+      test('a CreateTransferRequest survives the round trip with two different currencies', () {
+        // jlogicsoftware/prudent#50: each leg carries its own amount and currency, and no FX rate
+        // is computed anywhere on the path — the wire carries exactly what the user entered.
+        final decoded = roundTrip(
+          CreateTransferRequest(
+            title: 'Cross-currency move',
+            fromAmountMinor: Int64(10000),
+            fromCurrency: 'EUR',
+            date: '2026-08-17',
+            fromAccountId: 'a1',
+            toAccountId: 'a2',
+            toAmountMinor: Int64(43000),
+            toCurrency: 'PLN',
+          ),
+          format,
+          CreateTransferRequest.new,
+        );
+
+        expect(decoded.fromAmountMinor, Int64(10000));
+        expect(decoded.fromCurrency, 'EUR');
+        expect(decoded.toAmountMinor, Int64(43000));
+        expect(decoded.toCurrency, 'PLN');
       });
 
       test('a multi-currency Account survives the round trip field for field', () {

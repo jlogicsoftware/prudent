@@ -394,6 +394,13 @@ export interface paths {
                         "application/json": components["schemas"]["AdminUserList"];
                     };
                 };
+                /** @description Malformed range/sort/filter, or an unknown role in filter (ZenError) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
                 /** @description No active session */
                 401: {
                     headers: {
@@ -497,7 +504,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["AdminUser"];
                     };
                 };
-                /** @description Bad Request */
+                /** @description Unknown role value or unsupported language (ZenError) */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -825,14 +832,14 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Password changed */
+                /** @description Password changed; every other session was revoked and fresh cookies were issued for this one */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content?: never;
                 };
-                /** @description Bad Request */
+                /** @description current_password missing (ordinary change) or the new password is too weak */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1818,7 +1825,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a same-currency transfer between two of the caller's own accounts */
+        /** Create a transfer between two of the caller's own accounts */
         post: {
             parameters: {
                 query?: never;
@@ -1842,7 +1849,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["Transfer"];
                     };
                 };
-                /** @description A non-positive amount, the same account on both sides, an account that is not the caller's, a malformed date, or a currency an account does not hold */
+                /** @description A non-positive amount on either leg, the same account on both sides, an account that is not the caller's, a malformed date, or a currency an account does not hold */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -2249,19 +2256,22 @@ export interface components {
         ListRecordsResponse: {
             records?: components["schemas"]["Record"][];
         };
-        /** @description Body for POST /api/v1/transfers. Same currency only (jlogicsoftware/prudent#32) — no FX; amountMinor is a positive magnitude, negated for the source leg and kept positive for the destination leg. */
+        /** @description Body for POST /api/v1/transfers (jlogicsoftware/prudent#32, jlogicsoftware/prudent#50). No FX is ever computed — each leg carries its own amount and currency, exactly as entered; a same-currency transfer is simply the case where the two happen to agree. Both *AmountMinor fields are positive magnitudes: fromAmountMinor is negated for the source leg, toAmountMinor is kept positive for the destination leg. */
         CreateTransferRequest: {
             /** @description Optional; blank is stored as "Transfer" server-side. */
             title?: string;
             /** Format: int64 */
-            amountMinor?: string;
-            currency?: string;
+            fromAmountMinor?: string;
+            fromCurrency?: string;
             /** Format: date */
             date?: string;
             /** Format: uuid */
             fromAccountId?: string;
             /** Format: uuid */
             toAccountId?: string;
+            /** Format: int64 */
+            toAmountMinor?: string;
+            toCurrency?: string;
         };
         /** @description The response to a transfer create, and what DELETE /api/v1/transfers/{id} deletes by way of id. fromRecord.amountMinor is negative (the source leg); toRecord.amountMinor is positive. Neither leg carries a categoryId. */
         Transfer: {

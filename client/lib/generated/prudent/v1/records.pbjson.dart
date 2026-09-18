@@ -123,20 +123,24 @@ const CreateTransferRequest$json = {
   '1': 'CreateTransferRequest',
   '2': [
     {'1': 'title', '3': 1, '4': 1, '5': 9, '10': 'title'},
-    {'1': 'amount_minor', '3': 2, '4': 1, '5': 3, '10': 'amountMinor'},
-    {'1': 'currency', '3': 3, '4': 1, '5': 9, '10': 'currency'},
+    {'1': 'from_amount_minor', '3': 2, '4': 1, '5': 3, '10': 'fromAmountMinor'},
+    {'1': 'from_currency', '3': 3, '4': 1, '5': 9, '10': 'fromCurrency'},
     {'1': 'date', '3': 4, '4': 1, '5': 9, '10': 'date'},
     {'1': 'from_account_id', '3': 5, '4': 1, '5': 9, '10': 'fromAccountId'},
     {'1': 'to_account_id', '3': 6, '4': 1, '5': 9, '10': 'toAccountId'},
+    {'1': 'to_amount_minor', '3': 7, '4': 1, '5': 3, '10': 'toAmountMinor'},
+    {'1': 'to_currency', '3': 8, '4': 1, '5': 9, '10': 'toCurrency'},
   ],
 };
 
 /// Descriptor for `CreateTransferRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List createTransferRequestDescriptor = $convert.base64Decode(
-    'ChVDcmVhdGVUcmFuc2ZlclJlcXVlc3QSFAoFdGl0bGUYASABKAlSBXRpdGxlEiEKDGFtb3VudF'
-    '9taW5vchgCIAEoA1ILYW1vdW50TWlub3ISGgoIY3VycmVuY3kYAyABKAlSCGN1cnJlbmN5EhIK'
-    'BGRhdGUYBCABKAlSBGRhdGUSJgoPZnJvbV9hY2NvdW50X2lkGAUgASgJUg1mcm9tQWNjb3VudE'
-    'lkEiIKDXRvX2FjY291bnRfaWQYBiABKAlSC3RvQWNjb3VudElk');
+    'ChVDcmVhdGVUcmFuc2ZlclJlcXVlc3QSFAoFdGl0bGUYASABKAlSBXRpdGxlEioKEWZyb21fYW'
+    '1vdW50X21pbm9yGAIgASgDUg9mcm9tQW1vdW50TWlub3ISIwoNZnJvbV9jdXJyZW5jeRgDIAEo'
+    'CVIMZnJvbUN1cnJlbmN5EhIKBGRhdGUYBCABKAlSBGRhdGUSJgoPZnJvbV9hY2NvdW50X2lkGA'
+    'UgASgJUg1mcm9tQWNjb3VudElkEiIKDXRvX2FjY291bnRfaWQYBiABKAlSC3RvQWNjb3VudElk'
+    'EiYKD3RvX2Ftb3VudF9taW5vchgHIAEoA1INdG9BbW91bnRNaW5vchIfCgt0b19jdXJyZW5jeR'
+    'gIIAEoCVIKdG9DdXJyZW5jeQ==');
 
 @$core.Deprecated('Use transferDescriptor instead')
 const Transfer$json = {
