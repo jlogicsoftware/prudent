@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_core/zen_core.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
+import '../generated/prudent/v1/records.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
 import '../providers.dart';
 import 'account_edit.dart';
+import 'reconcile_account.dart';
 
 class AccountList extends ConsumerWidget {
   const AccountList({super.key});
@@ -86,6 +88,64 @@ class _AccountTile extends ConsumerWidget {
     }
   }
 
+  void _openReconcile(BuildContext context, WidgetRef ref) {
+    final t = PrudentLocalizations.of(context);
+    final body = ReconcileAccount(
+      account: account,
+      onSave: ({
+        required currency,
+        required trueBalanceInput,
+        required date,
+        required note,
+      }) async {
+        try {
+          await ref
+              .read(recordsProvider.notifier)
+              .addCorrection(
+                CreateCorrectionRequest(
+                  accountId: account.id,
+                  currency: currency,
+                  balanceMinor: parseMinorUnits(trueBalanceInput)!,
+                  date: date,
+                  note: note.isEmpty ? null : note,
+                ),
+              );
+        } on ZenError catch (error) {
+          if (!context.mounted) return;
+          showDialog(
+            context: context,
+            builder:
+                (ctx) => AlertDialog(
+                  title: Text(t.correctionsTitle),
+                  content: Text(
+                    error.message.isEmpty ? t.correctionsAlreadyBalanced : error.message,
+                  ),
+                  actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t.okay))],
+                ),
+          );
+        }
+      },
+    );
+    if (zenIsDesktop) {
+      showDialog(
+        context: context,
+        builder:
+            (ctx) => Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+              child: SizedBox(width: 400, height: 460, child: body),
+            ),
+      );
+    } else {
+      showModalBottomSheet(
+        isScrollControlled: true,
+        useSafeArea: true,
+        context: context,
+        builder: (ctx) => body,
+        constraints: const BoxConstraints.expand(),
+      );
+    }
+  }
+
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
     final t = PrudentLocalizations.of(context);
     final confirmed = await showDialog<bool>(
@@ -139,9 +199,19 @@ class _AccountTile extends ConsumerWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       title: Text(account.name),
       subtitle: Text(balances.isEmpty ? t.accountsNoBalance : balances),
-      trailing: IconButton(
-        icon: const Icon(Icons.delete_outline),
-        onPressed: () => _confirmDelete(context, ref),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.balance),
+            tooltip: t.accountReconcile,
+            onPressed: () => _openReconcile(context, ref),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () => _confirmDelete(context, ref),
+          ),
+        ],
       ),
     );
   }

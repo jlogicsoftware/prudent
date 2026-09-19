@@ -30,6 +30,7 @@ class Record extends $pb.GeneratedMessage {
     $core.String? transferId,
     $core.String? payee,
     $core.String? note,
+    $core.bool? isCorrection,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -42,6 +43,7 @@ class Record extends $pb.GeneratedMessage {
     if (transferId != null) result.transferId = transferId;
     if (payee != null) result.payee = payee;
     if (note != null) result.note = note;
+    if (isCorrection != null) result.isCorrection = isCorrection;
     return result;
   }
 
@@ -68,6 +70,7 @@ class Record extends $pb.GeneratedMessage {
     ..aOS(8, _omitFieldNames ? '' : 'transferId')
     ..aOS(9, _omitFieldNames ? '' : 'payee')
     ..aOS(10, _omitFieldNames ? '' : 'note')
+    ..aOB(11, _omitFieldNames ? '' : 'isCorrection')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -221,6 +224,26 @@ class Record extends $pb.GeneratedMessage {
   $core.bool hasNote() => $_has(9);
   @$pb.TagNumber(10)
   void clearNote() => $_clearField(10);
+
+  /// Set only by POST /api/v1/corrections (M1, jlogicsoftware/prudent#53): true marks this row as
+  /// an explicit balance correction rather than an ordinary income/expense entry. A PLAIN bool, not
+  /// optional — every record has an answer, false being by far the common one, the same way
+  /// Account.is_default/is_active are plain fields. NOT set on a transfer leg (transfer_id is the
+  /// marker there); the two are mutually exclusive by construction, never both true on one row.
+  ///
+  /// Like a transfer leg, a correction carries no category_id and RecordResource refuses to
+  /// edit/delete it directly — DELETE /api/v1/corrections/{id} is the only way to remove one. This
+  /// is the "auditable correction" the acceptance criterion asks for: the delta IS the audit trail,
+  /// recorded as its own ledger row instead of silently rewriting CurrencyBalance.amount_minor or an
+  /// existing record.
+  @$pb.TagNumber(11)
+  $core.bool get isCorrection => $_getBF(10);
+  @$pb.TagNumber(11)
+  set isCorrection($core.bool value) => $_setBool(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasIsCorrection() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearIsCorrection() => $_clearField(11);
 }
 
 /// POST /api/v1/records
@@ -529,10 +552,11 @@ class UpdateRecordRequest extends $pb.GeneratedMessage {
 /// call.
 ///   - `dateFrom`, `dateTo` — ISO-8601 YYYY-MM-DD, inclusive on both ends, matched against `date`.
 ///   - `accountId`, `categoryId` — a UUID, matched against the field of the same name.
-///   - `type` — `income`, `expense`, or `transfer`. `expense` is `amount_minor < 0` with no
-///     transfer_id, `income` is `amount_minor > 0` with no transfer_id, `transfer` is any record
-///     with a transfer_id — the same expense/income split AnalyticsResource already uses, so
-///     transfer legs are never silently counted as spend here either.
+///   - `type` — `income`, `expense`, `transfer`, or `correction`. `expense` is
+///     `amount_minor < 0` with no transfer_id and is_correction false, `income` is the positive
+///     counterpart, `transfer` is any record with a transfer_id, `correction` is any record with
+///     is_correction true — the same split AnalyticsResource already uses, so a transfer leg or a
+///     balance correction is never silently counted as spend here either.
 ///   - `amountMin`, `amountMax` — non-negative minor units, inclusive, matched against
 ///     `abs(amount_minor)`. Deliberately currency-agnostic: a mixed-currency filter is a nominal
 ///     comparison across units that are not really comparable, and that tradeoff is accepted
@@ -822,6 +846,135 @@ class Transfer extends $pb.GeneratedMessage {
   void clearToRecord() => $_clearField(3);
   @$pb.TagNumber(3)
   Record ensureToRecord() => $_ensure(2);
+}
+
+/// POST /api/v1/corrections — records an explicit, auditable balance correction (M1,
+/// jlogicsoftware/prudent#53): "reconciliation records an auditable correction instead of
+/// silently rewriting opening balance or transaction history."
+///
+/// balance_minor is NOT a delta — it is the account's TRUE balance in this currency, as the caller
+/// observed it (e.g. reading a bank statement). The server computes the difference against the
+/// account's current DERIVED balance (ADR-014: opening balance plus the sum of its records) and
+/// persists exactly one Record carrying that difference as amount_minor, with is_correction set.
+/// That one row is the entire operation: nothing about the account or any other record is touched,
+/// and if the two already agree the server refuses rather than writing a zero-amount no-op record
+/// (Record.amount_minor forbids zero for the same reason ordinary records do).
+class CreateCorrectionRequest extends $pb.GeneratedMessage {
+  factory CreateCorrectionRequest({
+    $core.String? accountId,
+    $core.String? currency,
+    $fixnum.Int64? balanceMinor,
+    $core.String? date,
+    $core.String? title,
+    $core.String? note,
+  }) {
+    final result = create();
+    if (accountId != null) result.accountId = accountId;
+    if (currency != null) result.currency = currency;
+    if (balanceMinor != null) result.balanceMinor = balanceMinor;
+    if (date != null) result.date = date;
+    if (title != null) result.title = title;
+    if (note != null) result.note = note;
+    return result;
+  }
+
+  CreateCorrectionRequest._();
+
+  factory CreateCorrectionRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CreateCorrectionRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CreateCorrectionRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'currency')
+    ..aInt64(3, _omitFieldNames ? '' : 'balanceMinor')
+    ..aOS(4, _omitFieldNames ? '' : 'date')
+    ..aOS(5, _omitFieldNames ? '' : 'title')
+    ..aOS(6, _omitFieldNames ? '' : 'note')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CreateCorrectionRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CreateCorrectionRequest copyWith(
+          void Function(CreateCorrectionRequest) updates) =>
+      super.copyWith((message) => updates(message as CreateCorrectionRequest))
+          as CreateCorrectionRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CreateCorrectionRequest create() => CreateCorrectionRequest._();
+  @$core.override
+  CreateCorrectionRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CreateCorrectionRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CreateCorrectionRequest>(create);
+  static CreateCorrectionRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get currency => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set currency($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCurrency() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCurrency() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get balanceMinor => $_getI64(2);
+  @$pb.TagNumber(3)
+  set balanceMinor($fixnum.Int64 value) => $_setInt64(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasBalanceMinor() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearBalanceMinor() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get date => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set date($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasDate() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearDate() => $_clearField(4);
+
+  /// Optional; blank is stored as "Balance correction" server-side, matching
+  /// CreateTransferRequest.title.
+  @$pb.TagNumber(5)
+  $core.String get title => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set title($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasTitle() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearTitle() => $_clearField(5);
+
+  /// Optional free-text reason for the correction — WHY the balance was off. See Record.note.
+  @$pb.TagNumber(6)
+  $core.String get note => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set note($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasNote() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearNote() => $_clearField(6);
 }
 
 const $core.bool _omitFieldNames =

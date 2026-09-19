@@ -106,6 +106,15 @@ public class RecordEntity extends PanacheEntityBase {
   public String note;
 
   /**
+   * Set only by {@code prudent.record.CorrectionResource} (M1, jlogicsoftware/prudent#53): true
+   * marks this row as an explicit balance correction rather than an ordinary income/expense entry.
+   * False for every other row, including a transfer leg — the two markers are mutually exclusive
+   * by construction.
+   */
+  @Column(name = "is_correction", nullable = false)
+  public boolean isCorrection;
+
+  /**
    * Every record owned by one user.
    *
    * <p>UNPAGINATED IN v1, which the contract settles rather than this class: a personal expense
@@ -214,6 +223,11 @@ public class RecordEntity extends PanacheEntityBase {
    * between one's own accounts is not spending it, so rows with a non-null {@code transferId} are
    * filtered out of analytics the same way income is.
    *
+   * <p><strong>Balance corrections are excluded here too</strong> (M1, jlogicsoftware/prudent#53):
+   * a correction that lowers a balance has {@code amountMinor < 0} exactly like an expense, and it
+   * carries no category, exactly like a transfer leg — without this filter it would show up as
+   * spend under a null category. A reconciliation is not spending either.
+   *
    * <p>Bucketing (by category, by month, by year) happens in Java rather than in SQL: the
    * personal-finance row counts this application deals with make that cheap, and it avoids a
    * database-specific date-truncation function that would tie the query to Postgres.
@@ -224,7 +238,8 @@ public class RecordEntity extends PanacheEntityBase {
         .createQuery(
             "select r.categoryId, r.date, r.amountMinor from RecordEntity r"
                 + " where r.userId = :userId and r.currency = :currency and r.amountMinor < 0"
-                + " and r.transferId is null and r.date >= :from and r.date <= :to",
+                + " and r.transferId is null and r.isCorrection = false and r.date >= :from"
+                + " and r.date <= :to",
             Object[].class)
         .setParameter("userId", userId)
         .setParameter("currency", currency)
@@ -241,9 +256,10 @@ public class RecordEntity extends PanacheEntityBase {
    * rows in the same order.
    *
    * <p>{@code type} reuses {@link #expenseRows}'s own split: {@code EXPENSE} is
-   * {@code amountMinor < 0} with no {@code transferId}, {@code INCOME} is the positive
-   * counterpart, {@code TRANSFER} is any row with a {@code transferId} — so a record's type here
-   * never disagrees with what analytics already calls it.
+   * {@code amountMinor < 0} with no {@code transferId} and {@code isCorrection} false,
+   * {@code INCOME} is the positive counterpart, {@code TRANSFER} is any row with a
+   * {@code transferId}, {@code CORRECTION} is any row with {@code isCorrection} true — so a
+   * record's type here never disagrees with what analytics already calls it.
    *
    * <p>{@code amountMin}/{@code amountMax} are matched against {@code abs(amountMinor)},
    * deliberately ignoring currency (docs/DECISIONS.md) — a simpler filter than one scoped to a
@@ -284,11 +300,13 @@ public class RecordEntity extends PanacheEntityBase {
       params.put("categoryId", categoryId);
     }
     if (type == RecordType.EXPENSE) {
-      jpql.append(" and amountMinor < 0 and transferId is null");
+      jpql.append(" and amountMinor < 0 and transferId is null and isCorrection = false");
     } else if (type == RecordType.INCOME) {
-      jpql.append(" and amountMinor > 0 and transferId is null");
+      jpql.append(" and amountMinor > 0 and transferId is null and isCorrection = false");
     } else if (type == RecordType.TRANSFER) {
       jpql.append(" and transferId is not null");
+    } else if (type == RecordType.CORRECTION) {
+      jpql.append(" and isCorrection = true");
     }
     if (amountMin != null) {
       jpql.append(" and abs(amountMinor) >= :amountMin");

@@ -13,6 +13,58 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-035 — Balance corrections: one marked record, not a rewrite of the opening balance
+
+**Date:** 2026-09-19. **Status:** accepted. **Follows:** ADR-014 (balance is derived, not stored),
+ADR-031/ADR-032 (a transfer is two linked records, no header table).
+
+### Decision
+
+A balance correction (M1, jlogicsoftware/prudent#53 — "reconciliation records an auditable
+correction instead of silently rewriting opening balance or transaction history") is modeled as a
+single `RecordEntity` row, exactly like a transfer leg is two:
+
+- `prudent_record` gains one column, `is_correction BOOLEAN NOT NULL DEFAULT false`
+  (`V20260919070615__prudent_corrections.sql`) — no new table, because balance is derived
+  (ADR-014) and persisting the delta row *is* the correction.
+- `POST /api/v1/corrections` (`CorrectionResource`) takes the account's TRUE balance as the caller
+  observed it (e.g. from a bank statement) — never a delta — computes the difference against the
+  account's current derived balance, and refuses the call if that difference is zero (a correction
+  that changes nothing is not a correction, the same refusal `Record.amount_minor` already applies
+  to a zero-amount ordinary record). It persists exactly one `RecordEntity` carrying that
+  difference as `amount_minor`, with `is_correction = true`, no `category_id` (neither income nor
+  expense, like a transfer leg), and an optional free-text `note` for *why*.
+- `RecordResource.replace`/`delete` refuse a row with `is_correction = true` (409), the same
+  guard already in place for `transfer_id`. `DELETE /api/v1/corrections/{id}` is the only way to
+  remove one.
+- `RecordType` (the `type` query-param enum) gains `CORRECTION`; `RecordEntity.expenseRows` (the
+  query every analytics endpoint shares) excludes `is_correction = true` the same way it already
+  excludes transfer legs — without this a correction that lowers a balance would count as spend
+  under a null category.
+- The client gets a "Reconcile balance" action on each account tile (`client/lib/account/
+  reconcile_account.dart`), which asks for the true balance and calls the new endpoint —
+  `RecordsNotifier.addCorrection` invalidates `accountsProvider` the same way `addTransfer`
+  already does, since a correction moves a derived balance without touching an `Account` row.
+
+### What this supersedes, and why
+
+- Nothing is reversed. `UpdateAccountRequest.balances`'s existing full-replacement behavior (which
+  can re-base a derived balance with no record of why — accounts.proto's own comment already names
+  this) is **left as is**, deliberately out of scope here: it is account-setup/edit behavior, not
+  the reconciliation flow the issue asks for, and closing it off is a separate, back-compat-facing
+  decision this ADR does not make. The new `/api/v1/corrections` endpoint is *the* auditable
+  reconciliation path; nothing about the account-edit path changed.
+
+### Consequence
+
+- `task verify:contracts` passes with the regenerated Dart messages and admin TS schema (no other
+  drift). `task test:server` (131 tests, including the new `CorrectionResourceTest`) and
+  `task zen:test:client` (89 tests) are green; `flutter analyze` is clean on the new
+  `reconcile_account.dart` and the `account_list.dart` wiring.
+- Analytics, exports and account/category-deletion lifecycle rules for corrections beyond "exclude
+  from `expenseRows`" are **not** addressed here — that is the backlog's own next M1 task
+  ("Integrate transfers and corrections with lifecycle rules"), not this one.
+
 ## ADR-034 — Record search and filters: server-side query params, no new proto messages
 
 **Date:** 2026-09-18. **Status:** accepted. **Follows:** the unpaginated-listing decision recorded

@@ -115,6 +115,29 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
     ]);
     ref.invalidate(accountsProvider);
   }
+
+  /// Records an explicit balance correction (M1, jlogicsoftware/prudent#53) and adds it to state.
+  ///
+  /// Also invalidates [accountsProvider]: a correction moves an account's DERIVED balance
+  /// (ADR-014) without ever touching an Account row, exactly like [addTransfer].
+  Future<Record> addCorrection(CreateCorrectionRequest request) async {
+    final result = await _repository.createCorrection(request);
+    final correction = result.fold((r) => r, (error) => throw error);
+    state = AsyncValue.data([...?state.value, correction]);
+    ref.invalidate(accountsProvider);
+    return correction;
+  }
+
+  /// Deletes a balance correction by its own id — a correction is a single record, unlike a
+  /// transfer's two linked legs.
+  Future<void> removeCorrection(String id) async {
+    final result = await _repository.deleteCorrection(id);
+    result.fold((_) => null, (error) => throw error);
+    state = AsyncValue.data([
+      for (final r in state.value ?? const <Record>[]) if (r.id != id) r,
+    ]);
+    ref.invalidate(accountsProvider);
+  }
 }
 
 final recordsProvider = AsyncNotifierProvider<RecordsNotifier, List<Record>>(RecordsNotifier.new);

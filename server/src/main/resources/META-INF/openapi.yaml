@@ -508,6 +508,13 @@ components:
         note:
           type: string
           description: Free-text note. Optional; absent on a record filed before this field existed.
+        isCorrection:
+          type: boolean
+          description: >-
+            Set only by POST /api/v1/corrections (jlogicsoftware/prudent#53): true marks this row
+            as an explicit balance correction rather than an ordinary income/expense entry. A
+            correction carries no categoryId and cannot be edited/deleted via PUT/DELETE
+            /api/v1/records/{id} — DELETE /api/v1/corrections/{id} is the only way to remove one.
     CreateRecordRequest:
       type: object
       description: Body for POST /api/v1/records. No id field — the server mints it.
@@ -629,6 +636,37 @@ components:
           $ref: '#/components/schemas/Record'
         toRecord:
           $ref: '#/components/schemas/Record'
+    CreateCorrectionRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/corrections (jlogicsoftware/prudent#53) — records an explicit,
+        auditable balance correction instead of silently rewriting opening balance or transaction
+        history. balanceMinor is NOT a delta: it is the account's TRUE balance in this currency, as
+        observed (e.g. from a bank statement). The server computes the difference against the
+        account's current derived balance (ADR-014) and persists exactly one Record carrying that
+        difference, with isCorrection set. A balanceMinor that already matches the current balance
+        is refused rather than written as a zero-amount no-op record.
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        balanceMinor:
+          type: string
+          format: int64
+          description: The account's true balance in this currency, not a delta.
+        date:
+          type: string
+          format: date
+        title:
+          type: string
+          description: Optional; blank is stored as "Balance correction" server-side.
+        note:
+          type: string
+          description: Optional free-text reason for the correction.
 
     # -----------------------------------------------------------------------------------------
     # Settings — a singleton per user

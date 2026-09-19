@@ -82,6 +82,19 @@ message Record {
   // Free-text note (jlogicsoftware/prudent#51). OPTIONAL for the same reason as payee.
   optional string note = 10;
 
+  // Set only by POST /api/v1/corrections (M1, jlogicsoftware/prudent#53): true marks this row as
+  // an explicit balance correction rather than an ordinary income/expense entry. A PLAIN bool, not
+  // optional — every record has an answer, false being by far the common one, the same way
+  // Account.is_default/is_active are plain fields. NOT set on a transfer leg (transfer_id is the
+  // marker there); the two are mutually exclusive by construction, never both true on one row.
+  //
+  // Like a transfer leg, a correction carries no category_id and RecordResource refuses to
+  // edit/delete it directly — DELETE /api/v1/corrections/{id} is the only way to remove one. This
+  // is the "auditable correction" the acceptance criterion asks for: the delta IS the audit trail,
+  // recorded as its own ledger row instead of silently rewriting CurrencyBalance.amount_minor or an
+  // existing record.
+  bool is_correction = 11;
+
   // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
 }
 
@@ -137,10 +150,11 @@ message UpdateRecordRequest {
 // call.
 //   - `dateFrom`, `dateTo` — ISO-8601 YYYY-MM-DD, inclusive on both ends, matched against `date`.
 //   - `accountId`, `categoryId` — a UUID, matched against the field of the same name.
-//   - `type` — `income`, `expense`, or `transfer`. `expense` is `amount_minor < 0` with no
-//     transfer_id, `income` is `amount_minor > 0` with no transfer_id, `transfer` is any record
-//     with a transfer_id — the same expense/income split AnalyticsResource already uses, so
-//     transfer legs are never silently counted as spend here either.
+//   - `type` — `income`, `expense`, `transfer`, or `correction`. `expense` is
+//     `amount_minor < 0` with no transfer_id and is_correction false, `income` is the positive
+//     counterpart, `transfer` is any record with a transfer_id, `correction` is any record with
+//     is_correction true — the same split AnalyticsResource already uses, so a transfer leg or a
+//     balance correction is never silently counted as spend here either.
 //   - `amountMin`, `amountMax` — non-negative minor units, inclusive, matched against
 //     `abs(amount_minor)`. Deliberately currency-agnostic: a mixed-currency filter is a nominal
 //     comparison across units that are not really comparable, and that tradeoff is accepted
@@ -187,3 +201,30 @@ message Transfer {
 
 // DELETE /api/v1/transfers/{id} carries no request body and answers 204, so it declares no
 // messages.
+
+// POST /api/v1/corrections — records an explicit, auditable balance correction (M1,
+// jlogicsoftware/prudent#53): "reconciliation records an auditable correction instead of
+// silently rewriting opening balance or transaction history."
+//
+// balance_minor is NOT a delta — it is the account's TRUE balance in this currency, as the caller
+// observed it (e.g. reading a bank statement). The server computes the difference against the
+// account's current DERIVED balance (ADR-014: opening balance plus the sum of its records) and
+// persists exactly one Record carrying that difference as amount_minor, with is_correction set.
+// That one row is the entire operation: nothing about the account or any other record is touched,
+// and if the two already agree the server refuses rather than writing a zero-amount no-op record
+// (Record.amount_minor forbids zero for the same reason ordinary records do).
+message CreateCorrectionRequest {
+  string account_id = 1;
+  string currency = 2;
+  int64 balance_minor = 3;
+  string date = 4;
+  // Optional; blank is stored as "Balance correction" server-side, matching
+  // CreateTransferRequest.title.
+  optional string title = 5;
+  // Optional free-text reason for the correction — WHY the balance was off. See Record.note.
+  optional string note = 6;
+}
+
+// DELETE /api/v1/corrections/{id} carries no request body and answers 204, so it declares no
+// messages. Removes the one Record a correction created — undoing a mistaken reconciliation is
+// itself just deleting that ledger row, the same as any other record.

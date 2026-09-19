@@ -55,6 +55,19 @@
   "transfersSave": "Przelej",
   "transfersInvalidInput": "Upewnij się, że podano obie kwoty, datę oraz dwa różne konta.",
 
+  "correctionsTitle": "Uzgodnij saldo",
+  "correctionsExplanation": "Podaj rzeczywiste saldo konta, np. z wyciągu bankowego. Prudent zapisze różnicę jako jawną, możliwą do zweryfikowania korektę — nic nie zostanie zmienione w tle.",
+  "correctionsCurrencyField": "Waluta",
+  "correctionsCurrentBalance": "Bieżące saldo: {amount} {currency}",
+  "@correctionsCurrentBalance": {
+    "placeholders": { "amount": { "type": "String" }, "currency": { "type": "String" } }
+  },
+  "correctionsTrueBalanceField": "Rzeczywiste saldo",
+  "correctionsNoteField": "Notatka (opcjonalnie)",
+  "correctionsSave": "Uzgodnij",
+  "correctionsInvalidInput": "Podaj prawidłowe saldo i wybierz walutę.",
+  "correctionsAlreadyBalanced": "To konto już zgadza się z podanym saldem; nie ma czego korygować.",
+
   "categoriesTitle": "Kategorie",
   "categoriesEmpty": "Nie dodano jeszcze żadnej kategorii.",
   "categoriesLoadError": "Nie udało się wczytać kategorii: {error}",
@@ -100,6 +113,7 @@
     "placeholders": { "name": { "type": "String" } }
   },
   "accountDeleteBlockedGeneric": "Nie udało się usunąć tego rachunku.",
+  "accountReconcile": "Uzgodnij saldo",
 
   "overviewEmpty": "Brak rachunków do pokazania. Dodaj pierwszy, aby zacząć.",
   "overviewTotalsTitle": "Saldo łączne",

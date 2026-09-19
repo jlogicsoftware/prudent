@@ -1346,6 +1346,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record an explicit balance correction against one of the caller's own accounts */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateCorrectionRequest"];
+                    "application/x-protobuf": components["schemas"]["CreateCorrectionRequest"];
+                };
+            };
+            responses: {
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Record"];
+                        "application/x-protobuf": components["schemas"]["Record"];
+                    };
+                };
+                /** @description An account that is not the caller's, a malformed date, a currency the account does not hold, or a target balance that already matches the account's current balance */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/corrections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a balance correction */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -1439,7 +1563,7 @@ export interface paths {
         };
         /**
          * List the authenticated user's records, optionally filtered
-         * @description Query parameters (all optional, independently composable — see records.proto): dateFrom/dateTo (ISO-8601 YYYY-MM-DD, inclusive), accountId/categoryId (UUID), type (income|expense|transfer), amountMin/amountMax (non-negative minor units, inclusive, matched against the absolute amount), search (case-insensitive substring against title/payee/note). Omitting a parameter clears that filter; omitting all of them returns the full unfiltered list.
+         * @description Query parameters (all optional, independently composable — see records.proto): dateFrom/dateTo (ISO-8601 YYYY-MM-DD, inclusive), accountId/categoryId (UUID), type (income|expense|transfer|correction), amountMin/amountMax (non-negative minor units, inclusive, matched against the absolute amount), search (case-insensitive substring against title/payee/note). Omitting a parameter clears that filter; omitting all of them returns the full unfiltered list.
          */
         get: {
             parameters: {
@@ -1665,7 +1789,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
-                /** @description The record is a transfer leg; delete the transfer instead of editing it */
+                /** @description The record is a transfer leg or a balance correction; delete it via its own endpoint instead of editing it */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1720,7 +1844,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
-                /** @description The record is a transfer leg; delete the transfer instead */
+                /** @description The record is a transfer leg or a balance correction; delete it via its own endpoint instead */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -2251,6 +2375,8 @@ export interface components {
             payee?: string;
             /** @description Free-text note. Optional; absent on a record filed before this field existed. */
             note?: string;
+            /** @description Set only by POST /api/v1/corrections (jlogicsoftware/prudent#53): true marks this row as an explicit balance correction rather than an ordinary income/expense entry. A correction carries no categoryId and cannot be edited/deleted via PUT/DELETE /api/v1/records/{id} — DELETE /api/v1/corrections/{id} is the only way to remove one. */
+            isCorrection?: boolean;
         };
         /** @description Body for POST /api/v1/records. No id field — the server mints it. */
         CreateRecordRequest: {
@@ -2313,6 +2439,23 @@ export interface components {
             id?: string;
             fromRecord?: components["schemas"]["Record"];
             toRecord?: components["schemas"]["Record"];
+        };
+        /** @description Body for POST /api/v1/corrections (jlogicsoftware/prudent#53) — records an explicit, auditable balance correction instead of silently rewriting opening balance or transaction history. balanceMinor is NOT a delta: it is the account's TRUE balance in this currency, as observed (e.g. from a bank statement). The server computes the difference against the account's current derived balance (ADR-014) and persists exactly one Record carrying that difference, with isCorrection set. A balanceMinor that already matches the current balance is refused rather than written as a zero-amount no-op record. */
+        CreateCorrectionRequest: {
+            /** Format: uuid */
+            accountId?: string;
+            currency?: string;
+            /**
+             * Format: int64
+             * @description The account's true balance in this currency, not a delta.
+             */
+            balanceMinor?: string;
+            /** Format: date */
+            date?: string;
+            /** @description Optional; blank is stored as "Balance correction" server-side. */
+            title?: string;
+            /** @description Optional free-text reason for the correction. */
+            note?: string;
         };
         /** @description The authenticated user's settings. A SINGLETON: there is no id, no create, no delete and no list, and the URL carries no id because the token is the entire addressing scheme. The row is created on first login, not by a client. */
         Settings: {
