@@ -55,6 +55,19 @@
   "transfersSave": "Transfer",
   "transfersInvalidInput": "Please make sure both amounts, a date, and two different accounts were entered.",
 
+  "correctionsTitle": "Reconcile balance",
+  "correctionsExplanation": "Enter the account's true balance, as you observe it (e.g. on a bank statement). Prudent records the difference as an explicit, auditable correction — nothing is silently rewritten.",
+  "correctionsCurrencyField": "Currency",
+  "correctionsCurrentBalance": "Current balance: {amount} {currency}",
+  "@correctionsCurrentBalance": {
+    "placeholders": { "amount": { "type": "String" }, "currency": { "type": "String" } }
+  },
+  "correctionsTrueBalanceField": "True balance",
+  "correctionsNoteField": "Note (optional)",
+  "correctionsSave": "Reconcile",
+  "correctionsInvalidInput": "Please enter a valid balance and choose a currency.",
+  "correctionsAlreadyBalanced": "This account already matches that balance; there is nothing to correct.",
+
   "categoriesTitle": "Categories",
   "categoriesEmpty": "No categories added yet.",
   "categoriesLoadError": "Could not load categories: {error}",
@@ -100,6 +113,7 @@
     "placeholders": { "name": { "type": "String" } }
   },
   "accountDeleteBlockedGeneric": "This account could not be deleted.",
+  "accountReconcile": "Reconcile balance",
 
   "overviewEmpty": "No accounts to show. Add one to get started.",
   "overviewTotalsTitle": "Total balance",

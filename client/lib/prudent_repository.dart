@@ -22,6 +22,7 @@ class PrudentRepository {
 
   static const String _recordsPath = '/api/v1/records';
   static const String _transfersPath = '/api/v1/transfers';
+  static const String _correctionsPath = '/api/v1/corrections';
   static const String _accountsPath = '/api/v1/accounts';
   static const String _categoriesPath = '/api/v1/categories';
   static const String _settingsPath = '/api/v1/settings';
@@ -54,6 +55,14 @@ class PrudentRepository {
 
   Future<ZenResult<Transfer>> deleteTransfer(String transferId) =>
       _client.delete<Transfer>(Transfer.new, '$_transfersPath/$transferId');
+
+  // --- Balance corrections (M1, jlogicsoftware/prudent#53) -------------------------------------
+
+  Future<ZenResult<Record>> createCorrection(CreateCorrectionRequest request) =>
+      _client.post<Record>(Record.new, _correctionsPath, body: request);
+
+  Future<ZenResult<Record>> deleteCorrection(String id) =>
+      _client.delete<Record>(Record.new, '$_correctionsPath/$id');
 
   // --- Accounts ---------------------------------------------------------------------------------
 

@@ -55,6 +55,19 @@
   "transfersSave": "Переказати",
   "transfersInvalidInput": "Переконайтеся, що введено обидві суми, дату та два різні рахунки.",
 
+  "correctionsTitle": "Звірити баланс",
+  "correctionsExplanation": "Введіть фактичний баланс рахунку, наприклад, з банківської виписки. Prudent запише різницю як явне, перевірюване коригування — нічого не буде змінено непомітно.",
+  "correctionsCurrencyField": "Валюта",
+  "correctionsCurrentBalance": "Поточний баланс: {amount} {currency}",
+  "@correctionsCurrentBalance": {
+    "placeholders": { "amount": { "type": "String" }, "currency": { "type": "String" } }
+  },
+  "correctionsTrueBalanceField": "Фактичний баланс",
+  "correctionsNoteField": "Примітка (необов'язково)",
+  "correctionsSave": "Звірити",
+  "correctionsInvalidInput": "Будь ласка, введіть коректний баланс і оберіть валюту.",
+  "correctionsAlreadyBalanced": "Цей рахунок вже відповідає вказаному балансу; виправляти нічого.",
+
   "categoriesTitle": "Категорії",
   "categoriesEmpty": "Категорій ще не додано.",
   "categoriesLoadError": "Не вдалося завантажити категорії: {error}",
@@ -100,6 +113,7 @@
     "placeholders": { "name": { "type": "String" } }
   },
   "accountDeleteBlockedGeneric": "Не вдалося видалити цей рахунок.",
+  "accountReconcile": "Звірити баланс",
 
   "overviewEmpty": "Немає рахунків для показу. Додайте перший, щоб почати.",
   "overviewTotalsTitle": "Загальний баланс",

@@ -58,10 +58,10 @@ public class RecordResource {
       description =
           "Query parameters (all optional, independently composable — see records.proto):"
               + " dateFrom/dateTo (ISO-8601 YYYY-MM-DD, inclusive), accountId/categoryId (UUID),"
-              + " type (income|expense|transfer), amountMin/amountMax (non-negative minor units,"
-              + " inclusive, matched against the absolute amount), search (case-insensitive"
-              + " substring against title/payee/note). Omitting a parameter clears that filter;"
-              + " omitting all of them returns the full unfiltered list.")
+              + " type (income|expense|transfer|correction), amountMin/amountMax (non-negative"
+              + " minor units, inclusive, matched against the absolute amount), search"
+              + " (case-insensitive substring against title/payee/note). Omitting a parameter"
+              + " clears that filter; omitting all of them returns the full unfiltered list.")
   @APIResponse(
       responseCode = ZenStatus.OK,
       content = @Content(schema = @Schema(ref = "ListRecordsResponse")))
@@ -149,12 +149,15 @@ public class RecordResource {
       content = @Content(schema = @Schema(ref = "ZenError")))
   @APIResponse(
       responseCode = ZenStatus.CONFLICT,
-      description = "The record is a transfer leg; delete the transfer instead of editing it",
+      description =
+          "The record is a transfer leg or a balance correction; delete it via its own endpoint"
+              + " instead of editing it",
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response replace(@PathParam("id") String id, UpdateRecordRequest request) {
     UUID userId = currentUser.id();
     RecordEntity entity = require(userId, id);
     requireNotTransferLeg(entity);
+    requireNotCorrection(entity);
     apply(entity, userId, request.getTitle(), request.getAmountMinor(), request.getDate(),
         request.getCategoryId(), request.getAccountId(), request.getCurrency(),
         request.getPayee(), request.getNote());
@@ -171,12 +174,15 @@ public class RecordResource {
       content = @Content(schema = @Schema(ref = "ZenError")))
   @APIResponse(
       responseCode = ZenStatus.CONFLICT,
-      description = "The record is a transfer leg; delete the transfer instead",
+      description =
+          "The record is a transfer leg or a balance correction; delete it via its own endpoint"
+              + " instead",
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response delete(@PathParam("id") String id) {
     UUID userId = currentUser.id();
     RecordEntity entity = require(userId, id);
     requireNotTransferLeg(entity);
+    requireNotCorrection(entity);
     // A HARD DELETE. A soft delete would leave the row readable by Phase 4's analytics, which is
     // the problem rather than the feature: a user who deletes a mistyped 5,000 PLN entry and still
     // sees it in a total is looking at a wrong number that looks right.
@@ -203,6 +209,21 @@ public class RecordResource {
       throw PrudentException.conflict(
           "This record is part of a transfer and cannot be changed directly. Delete the transfer"
               + " (DELETE /api/v1/transfers/{id}) instead.");
+    }
+  }
+
+  /**
+   * Refuses to touch a balance correction through the single-record endpoints (M1,
+   * jlogicsoftware/prudent#53). A correction is the auditable trail the acceptance criterion asks
+   * for — editing it in place here would let it be silently turned into a different amount after
+   * the fact, exactly what a correction exists to prevent. {@code DELETE /api/v1/corrections/{id}}
+   * is the only way to remove one, and a correction is never edited — create a new one instead.
+   */
+  private static void requireNotCorrection(RecordEntity entity) {
+    if (entity.isCorrection) {
+      throw PrudentException.conflict(
+          "This record is a balance correction and cannot be changed directly. Delete it"
+              + " (DELETE /api/v1/corrections/{id}) instead.");
     }
   }
 

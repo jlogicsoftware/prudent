@@ -31,7 +31,8 @@ public abstract class RecordMapper {
       String accountId,
       String transferId,
       String payee,
-      String note) {}
+      String note,
+      boolean isCorrection) {}
 
   @Mapping(target = "id", source = "id", qualifiedByName = "uuidToString")
   @Mapping(target = "date", source = "date", qualifiedByName = "isoDate")
@@ -60,7 +61,8 @@ public abstract class RecordMapper {
             .setAmountMinor(view.amountMinor())
             .setCurrency(view.currency() != null ? view.currency() : "")
             .setDate(view.date() != null ? view.date() : "")
-            .setAccountId(view.accountId() != null ? view.accountId() : "");
+            .setAccountId(view.accountId() != null ? view.accountId() : "")
+            .setIsCorrection(view.isCorrection());
     if (view.categoryId() != null) {
       builder.setCategoryId(view.categoryId());
     }

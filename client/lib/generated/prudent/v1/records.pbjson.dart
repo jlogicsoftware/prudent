@@ -45,6 +45,7 @@ const Record$json = {
     },
     {'1': 'payee', '3': 9, '4': 1, '5': 9, '9': 2, '10': 'payee', '17': true},
     {'1': 'note', '3': 10, '4': 1, '5': 9, '9': 3, '10': 'note', '17': true},
+    {'1': 'is_correction', '3': 11, '4': 1, '5': 8, '10': 'isCorrection'},
   ],
   '8': [
     {'1': '_category_id'},
@@ -61,8 +62,8 @@ final $typed_data.Uint8List recordDescriptor = $convert.base64Decode(
     'CgRkYXRlGAUgASgJUgRkYXRlEiQKC2NhdGVnb3J5X2lkGAYgASgJSABSCmNhdGVnb3J5SWSIAQ'
     'ESHQoKYWNjb3VudF9pZBgHIAEoCVIJYWNjb3VudElkEiQKC3RyYW5zZmVyX2lkGAggASgJSAFS'
     'CnRyYW5zZmVySWSIAQESGQoFcGF5ZWUYCSABKAlIAlIFcGF5ZWWIAQESFwoEbm90ZRgKIAEoCU'
-    'gDUgRub3RliAEBQg4KDF9jYXRlZ29yeV9pZEIOCgxfdHJhbnNmZXJfaWRCCAoGX3BheWVlQgcK'
-    'BV9ub3Rl');
+    'gDUgRub3RliAEBEiMKDWlzX2NvcnJlY3Rpb24YCyABKAhSDGlzQ29ycmVjdGlvbkIOCgxfY2F0'
+    'ZWdvcnlfaWRCDgoMX3RyYW5zZmVyX2lkQggKBl9wYXllZUIHCgVfbm90ZQ==');
 
 @$core.Deprecated('Use createRecordRequestDescriptor instead')
 const CreateRecordRequest$json = {
@@ -191,3 +192,27 @@ final $typed_data.Uint8List transferDescriptor = $convert.base64Decode(
     'CghUcmFuc2ZlchIOCgJpZBgBIAEoCVICaWQSMwoLZnJvbV9yZWNvcmQYAiABKAsyEi5wcnVkZW'
     '50LnYxLlJlY29yZFIKZnJvbVJlY29yZBIvCgl0b19yZWNvcmQYAyABKAsyEi5wcnVkZW50LnYx'
     'LlJlY29yZFIIdG9SZWNvcmQ=');
+
+@$core.Deprecated('Use createCorrectionRequestDescriptor instead')
+const CreateCorrectionRequest$json = {
+  '1': 'CreateCorrectionRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'currency', '3': 2, '4': 1, '5': 9, '10': 'currency'},
+    {'1': 'balance_minor', '3': 3, '4': 1, '5': 3, '10': 'balanceMinor'},
+    {'1': 'date', '3': 4, '4': 1, '5': 9, '10': 'date'},
+    {'1': 'title', '3': 5, '4': 1, '5': 9, '9': 0, '10': 'title', '17': true},
+    {'1': 'note', '3': 6, '4': 1, '5': 9, '9': 1, '10': 'note', '17': true},
+  ],
+  '8': [
+    {'1': '_title'},
+    {'1': '_note'},
+  ],
+};
+
+/// Descriptor for `CreateCorrectionRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List createCorrectionRequestDescriptor = $convert.base64Decode(
+    'ChdDcmVhdGVDb3JyZWN0aW9uUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW50SW'
+    'QSGgoIY3VycmVuY3kYAiABKAlSCGN1cnJlbmN5EiMKDWJhbGFuY2VfbWlub3IYAyABKANSDGJh'
+    'bGFuY2VNaW5vchISCgRkYXRlGAQgASgJUgRkYXRlEhkKBXRpdGxlGAUgASgJSABSBXRpdGxliA'
+    'EBEhcKBG5vdGUYBiABKAlIAVIEbm90ZYgBAUIICgZfdGl0bGVCBwoFX25vdGU=');
