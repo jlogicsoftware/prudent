@@ -193,6 +193,35 @@ class AnalyticsResourceTest {
 
   @Test
   @TestSecurity(user = PrudentTest.ALICE)
+  void spendByCategory_excludesCorrections() throws Exception {
+    // A correction that lowers a balance has amountMinor < 0 exactly like an expense, and it
+    // carries no category exactly like a transfer leg — RecordEntity.expenseRows already filters
+    // isCorrection = false, but until now nothing exercised that filter (M1,
+    // jlogicsoftware/prudent#54: analytics is one of the lifecycle rules this issue integrates).
+    PrudentTest.seedCorrection(PrudentTest.ALICE, accountId, -500_00L, "PLN");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, food, -20_00L, "PLN", LocalDate.of(2026, 8, 5));
+
+    Response response =
+        PrudentTest.request(PrudentTest.JSON)
+            .queryParam("currency", "PLN")
+            .queryParam("year", 2026)
+            .queryParam("month", 8)
+            .when()
+            .get("/api/v1/analytics/spend-by-category")
+            .andReturn();
+
+    SpendByCategoryResponse body =
+        PrudentTest.decode(PrudentTest.JSON, response, SpendByCategoryResponse.newBuilder())
+            .build();
+    assertEquals(1, body.getItemsCount(), "only the ordinary expense, not the correction");
+    assertEquals(
+        20_00L,
+        body.getItemsList().stream().mapToLong(CategorySpend::getAmountMinor).sum(),
+        "the correction's 500 PLN must not be added to the expense total");
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
   void spendByCategory_missingCurrency_isRefusedRatherThanSummed() throws Exception {
     Response response =
         PrudentTest.request(PrudentTest.JSON)

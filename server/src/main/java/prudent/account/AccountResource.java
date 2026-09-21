@@ -157,12 +157,36 @@ public class AccountResource {
     AccountEntity entity = require(userId, id);
     // Refused rather than cascaded — see the same rule on categories, and ADR-008's reasoning about
     // money that left an account no longer admitting it exists.
-    if (RecordEntity.existsForAccount(userId, entity.id)) {
-      throw PrudentException.conflict(
-          "This account still has records. Delete or move them first.");
+    //
+    // A transfer leg or a balance correction is a RecordEntity row like any other, so it already
+    // blocks this delete — but neither can be removed through DELETE /api/v1/records/{id}
+    // (RecordResource.requireNotTransferLeg/requireNotCorrection), so pointing at that endpoint
+    // would send the caller to a refusal instead of an answer (M1, jlogicsoftware/prudent#54).
+    // Named separately so the message sends the caller to whichever endpoint actually applies.
+    boolean hasOrdinary = RecordEntity.existsOrdinaryRecordForAccount(userId, entity.id);
+    boolean hasTransfers = RecordEntity.existsTransferLegForAccount(userId, entity.id);
+    boolean hasCorrections = RecordEntity.existsCorrectionForAccount(userId, entity.id);
+    if (hasOrdinary || hasTransfers || hasCorrections) {
+      throw PrudentException.conflict(deleteConflictMessage(hasOrdinary, hasTransfers, hasCorrections));
     }
     entity.delete();
     return Response.noContent().build();
+  }
+
+  /** Names only the kinds of record actually blocking the delete, and where to remove each kind. */
+  private static String deleteConflictMessage(
+      boolean hasOrdinary, boolean hasTransfers, boolean hasCorrections) {
+    List<String> steps = new ArrayList<>();
+    if (hasOrdinary) {
+      steps.add("delete or move its ordinary records");
+    }
+    if (hasTransfers) {
+      steps.add("delete its transfers (DELETE /api/v1/transfers/{id})");
+    }
+    if (hasCorrections) {
+      steps.add("delete its balance corrections (DELETE /api/v1/corrections/{id})");
+    }
+    return "This account still has records. First " + String.join("; ", steps) + ".";
   }
 
   private AccountEntity require(UUID userId, String id) {

@@ -140,9 +140,35 @@ public class RecordEntity extends PanacheEntityBase {
     return find("id = ?1 and userId = ?2", id, userId).firstResult();
   }
 
-  /** Whether any record still points at this account. Guards the account delete. */
-  public static boolean existsForAccount(UUID userId, UUID accountId) {
-    return count("userId = ?1 and accountId = ?2", userId, accountId) > 0;
+  /**
+   * Whether a transfer leg still points at this account (M1, jlogicsoftware/prudent#54). Deleting
+   * one is {@code DELETE /api/v1/transfers/{id}}, not {@code DELETE /api/v1/records/{id}}
+   * (ADR-031) — {@link prudent.account.AccountResource#delete} uses this to name the right
+   * endpoint in its refusal instead of pointing at one that would itself be refused.
+   */
+  public static boolean existsTransferLegForAccount(UUID userId, UUID accountId) {
+    return count("userId = ?1 and accountId = ?2 and transferId is not null", userId, accountId) > 0;
+  }
+
+  /**
+   * Whether a balance correction still points at this account (M1, jlogicsoftware/prudent#54).
+   * Deleting one is {@code DELETE /api/v1/corrections/{id}}, not
+   * {@code DELETE /api/v1/records/{id}} (ADR-035) — see {@link #existsTransferLegForAccount} for
+   * why this is checked separately rather than folded into the generic message.
+   */
+  public static boolean existsCorrectionForAccount(UUID userId, UUID accountId) {
+    return count("userId = ?1 and accountId = ?2 and isCorrection = true", userId, accountId) > 0;
+  }
+
+  /**
+   * Whether an ordinary record (neither a transfer leg nor a correction) still points at this
+   * account — the only kind {@code DELETE /api/v1/records/{id}} itself can remove.
+   */
+  public static boolean existsOrdinaryRecordForAccount(UUID userId, UUID accountId) {
+    return count(
+            "userId = ?1 and accountId = ?2 and transferId is null and isCorrection = false",
+            userId, accountId)
+        > 0;
   }
 
   /** Whether any record still points at this category. Guards the category delete. */

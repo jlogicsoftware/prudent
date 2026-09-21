@@ -220,6 +220,33 @@ public final class PrudentTest {
   }
 
   /**
+   * Persists one balance correction directly — for tests that need a correction row in place
+   * without exercising {@code CorrectionResource} itself, the same way {@link #seedTransferLeg}
+   * exists for transfers. Carries no category, matching what {@code CorrectionResource} itself
+   * writes.
+   */
+  public static UUID seedCorrection(
+      String userId, UUID accountId, long amountMinor, String currency) {
+    UUID id = UUID.randomUUID();
+    QuarkusTransaction.requiringNew()
+        .run(
+            () -> {
+              RecordEntity entity = new RecordEntity();
+              entity.id = id;
+              entity.userId = UUID.fromString(userId);
+              entity.title = "Correction";
+              entity.amountMinor = amountMinor;
+              entity.currency = currency;
+              entity.date = LocalDate.of(2026, 8, 17);
+              entity.accountId = accountId;
+              entity.categoryId = null;
+              entity.isCorrection = true;
+              entity.persist();
+            });
+    return id;
+  }
+
+  /**
    * A request in the named transport mode, carrying a matching CSRF double-submit pair.
    *
    * <p><strong>The CSRF pair is not test scaffolding, it is what a real client sends.</strong>
