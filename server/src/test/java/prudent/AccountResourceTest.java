@@ -268,6 +268,56 @@ class AccountResourceTest {
 
   @Test
   @TestSecurity(user = PrudentTest.ALICE)
+  void deletingAnAccountThatHasOnlyATransferLeg_pointsAtTransferDelete() throws Exception {
+    // M1, jlogicsoftware/prudent#54: DELETE /api/v1/records/{id} refuses a transfer leg
+    // (ADR-031), so a message that told the caller to "delete the record" here would send them to
+    // an endpoint that would itself refuse. The message must name the transfer endpoint instead.
+    UUID accountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Wallet", "PLN");
+    UUID otherAccountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Savings", "PLN");
+    UUID transferId = UUID.randomUUID();
+    PrudentTest.seedTransferLeg(PrudentTest.ALICE, accountId, -50_00L, "PLN", transferId);
+    PrudentTest.seedTransferLeg(PrudentTest.ALICE, otherAccountId, 50_00L, "PLN", transferId);
+
+    Response response =
+        PrudentTest.request(PrudentTest.JSON)
+            .when()
+            .delete("/api/v1/accounts/" + accountId)
+            .andReturn();
+
+    assertEquals(409, response.statusCode());
+    ZenError error = PrudentTest.decode(PrudentTest.JSON, response, ZenError.newBuilder()).build();
+    assertEquals("conflict", error.getCode());
+    assertTrue(error.getMessage().contains("/api/v1/transfers/"));
+    assertFalse(
+        error.getMessage().contains("balance corrections"),
+        "no correction blocks this delete, so the message must not mention one");
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void deletingAnAccountThatHasOnlyACorrection_pointsAtCorrectionDelete() throws Exception {
+    // Same reasoning as the transfer-leg case above, for balance corrections (ADR-035): the
+    // message must name DELETE /api/v1/corrections/{id}, the only endpoint that can remove one.
+    UUID accountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Wallet", "PLN");
+    PrudentTest.seedCorrection(PrudentTest.ALICE, accountId, 20_00L, "PLN");
+
+    Response response =
+        PrudentTest.request(PrudentTest.JSON)
+            .when()
+            .delete("/api/v1/accounts/" + accountId)
+            .andReturn();
+
+    assertEquals(409, response.statusCode());
+    ZenError error = PrudentTest.decode(PrudentTest.JSON, response, ZenError.newBuilder()).build();
+    assertEquals("conflict", error.getCode());
+    assertTrue(error.getMessage().contains("/api/v1/corrections/"));
+    assertFalse(
+        error.getMessage().contains("transfers"),
+        "no transfer leg blocks this delete, so the message must not mention one");
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
   void balance_isDerivedFromOpeningAmountPlusRecords() throws Exception {
     // ADR-014: the balance an Account response carries is the OPENING amount plus the sum of its
     // records — never a stored figure the resource writes back after a record is created.
