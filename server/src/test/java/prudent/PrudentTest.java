@@ -20,6 +20,7 @@ import prudent.account.AccountKind;
 import prudent.category.CategoryEntity;
 import prudent.plan.Frequency;
 import prudent.plan.PlanEntity;
+import prudent.plan.PlanOccurrenceEntity;
 import prudent.plan.RecurrenceRule;
 import prudent.record.RecordEntity;
 import prudent.settings.SettingsEntity;
@@ -67,6 +68,7 @@ public final class PrudentTest {
         .run(
             () -> {
               RecordEntity.deleteAll();
+              PlanOccurrenceEntity.deleteAll();
               PlanEntity.deleteAll();
               AccountEntity.deleteAll();
               CategoryEntity.deleteAll();
@@ -249,6 +251,20 @@ public final class PrudentTest {
               entity.persist();
             });
     return id;
+  }
+
+  /** Persists one generated occurrence of a plan directly, bypassing {@code OccurrenceGenerator}. */
+  public static void seedOccurrence(String userId, UUID planId, LocalDate date) {
+    QuarkusTransaction.requiringNew()
+        .run(
+            () -> {
+              PlanOccurrenceEntity entity = new PlanOccurrenceEntity();
+              entity.id = UUID.randomUUID();
+              entity.userId = UUID.fromString(userId);
+              entity.planId = planId;
+              entity.occurrenceDate = date;
+              entity.persist();
+            });
   }
 
   /**

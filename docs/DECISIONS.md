@@ -13,6 +13,59 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-038 — Occurrences are generated into their own table, and the unique key is the idempotency
+
+**Date:** 2026-09-29. **Status:** accepted. **Follows:** ADR-037 (a recurrence is a rule computed
+from its anchor; occurrences are pure functions of it). Numbered 038 because ADR-036 is drafted in
+parallel.
+
+### Decision
+
+The second M2 task (jlogicsoftware/prudent#55 — "a bounded generation window produces the same
+unique occurrences when run repeatedly or concurrently") materialises a plan's occurrences.
+
+- **A new table, `prudent_plan_occurrence`** (`V20260929090000__prudent_plan_occurrences.sql`):
+  `id`, `user_id`, `plan_id`, `occurrence_date`. Like `prudent_plan` it is not the ledger, so no
+  balance or analytics query can read it. It holds only what identifies an occurrence; state
+  (#56) and per-occurrence overrides (#57) are later columns, not guesses made now.
+- **`UNIQUE (plan_id, occurrence_date)` is the idempotency key**, and the writer answers it with
+  `INSERT … ON CONFLICT DO NOTHING`. The alternative — read which dates exist, insert the missing
+  ones — races: two concurrent generators both see a date missing and both insert it, and the
+  second either fails or, without the constraint, duplicates. With the constraint the second
+  blocks on the first's key until it commits and then does nothing, so any number of runs over any
+  overlapping windows converge on the same set. Dates are written in ascending order so
+  overlapping runs take their locks in one order and cannot deadlock.
+- **`prudent.plan.OccurrenceGenerator.generate(plan, from, to)`** is the one writer. It is
+  `@Transactional` (REQUIRED), so a caller's failure after generating rolls the window back rather
+  than leaving half of one. It returns how many occurrences the window holds and how many this run
+  created.
+- **The window is required and bounded:** inclusive on both ends, `from <= to`, at most 3660 days
+  (`MAX_WINDOW_DAYS`). A rule with no end is therefore never asked for "all of it", and a daily
+  rule costs a few thousand rows at worst. Violations are a 400.
+- **Generation only adds.** It never deletes or rewrites, so extending a window cannot disturb
+  occurrences already generated — and once they carry state, cannot discard a confirmed one.
+- **A plan's occurrences do not outlive it:** deleting a plan (and the retention cascade) deletes
+  them first, the FK carrying no `ON DELETE CASCADE` as everywhere else in the schema. RLS is on
+  and `prudent_plan_occurrence` joins the `zen_runtime` policy list in the repeatable.
+- **Replacing a plan with a changed recurrence rule deletes its occurrences**, because generation
+  only adds and rows the old rule produced would otherwise sit beside the new ones for good. A
+  replacement that leaves the rule alone (a title, amount or note edit) keeps them.
+
+### What this supersedes, and why
+
+Nothing is reversed. There is **no HTTP surface and no client change**: the only readers and
+triggers are the lifecycle and views task (#56) and confirmation (#57), and a route that writes
+rows nothing can yet show would be a wire contract designed with no consumer. `OccurrenceGenerator`
+is the seam they call.
+
+### Consequence
+
+- **#56 must revise the rule-change deletion above.** It is only correct while no occurrence
+  carries state; once one can be completed or skipped, a rule edit has to keep those and drop only
+  the open ones that the new rule no longer produces.
+- Nothing calls the generator in production yet. Deciding when it runs (on plan save, on opening
+  the upcoming list, or on a schedule) belongs with the views that need the rows.
+
 ## ADR-037 — Plans are their own table, and a recurrence is a rule computed from its anchor
 
 **Date:** 2026-09-28. **Status:** accepted. **Follows:** ADR-014 (balance is derived from records),
@@ -87,6 +140,72 @@ fifth ad-hoc copy of those is what that ADR asks new screens not to do.
 - A plan's `occurrence_count` is counted by index from the anchor, so a skipped or edited
   occurrence (#56/#57) never shifts the ones after it — the lifecycle state will live on the
   generated occurrence, not on the rule.
+
+## ADR-036 — Interactive widgets are sourced from jZen's `zen_ui_widgets`, not maintained ad hoc in Prudent
+
+**Date:** 2026-09-19. **Status:** accepted, blocked on upstream work. **Follows:** ADR-013 ("the
+client becomes a jZen application"), ADR-026 (the flat capability layout these widgets currently
+live inside).
+
+### Decision
+
+Prudent's client currently hand-rolls every interactive widget directly against stock Material —
+buttons, text/amount fields, dropdowns, a segmented control, switch rows, date pickers, and (worst
+duplicated) the dialog-vs-bottom-sheet presentation chrome, each reimplemented per screen with no
+shared shape. Going forward, Prudent does not keep building or fixing these ad hoc: it sources
+them from jZen's `zen_ui_widgets` package (proposed in `jZenDev/jZen#106`, scope broadened in
+`jZenDev/jZen#107`), the same way navigation already comes from `zen_ui_navigation` and auth
+screens from `zen_ui_identity` (ADR-013). Concretely:
+
+- **What moves:** the adaptive dialog/bottom-sheet presentation (`client/lib/popup.dart`,
+  `account_list.dart`'s two copies, `records_screen.dart`'s), date pickers and the date-range
+  filter pair, amount/money fields and the amount-range filter pair, dropdown/selects, buttons,
+  the segmented type control, and switch rows. The concrete Prudent source files feeding each
+  target widget are inventoried in `jZenDev/jZen#107`.
+- **What does not move:** anything genuinely Prudent-specific — the minor-units parsing/formatting
+  in `client/lib/money.dart`, and any business logic currently sitting next to a widget (e.g. the
+  balance-correction validation in `reconcile_account.dart`). jZen's widgets own the field *shape*
+  (keyboard type, focus, semantics, adaptive rendering); Prudent keeps owning what the field
+  *means*.
+- **Platform rendering is jZen's decision, not Prudent's.** `zen_ui_widgets` renders Cupertino on
+  iOS and macOS and Material everywhere else (Android, Linux, Windows, web), gated by a new
+  `zen_core` constant (`zenIsApplePlatform = zenIsIOS || zenIsMacOS`) the same compile-time,
+  tree-shaken way `zenIsMobile`/`zenIsDesktop` already work — extending the `zenIsIOS`-gated
+  Cupertino branching `zen_ui_navigation`'s `navigation_mobile.dart` already does, now also to
+  macOS. Prudent does not choose or override this per screen; it inherits whatever jZen's package
+  renders, matching how Prudent has never owned a UI-toolkit choice for navigation or auth either.
+- **Accessibility is jZen's contract too.** `zen_ui_widgets` is required to meet the WCAG bar
+  `jZenDev/jZen#105` is defining (keyboard focus, semantics beyond labels, WCAG AA contrast) from
+  its first commit, per `jZenDev/jZen#107`. Prudent does not re-audit framework widgets locally;
+  it verifies its own screens are wired to them correctly.
+
+### What this supersedes, and why
+
+- **The unstated assumption in every widget added so far** (`docs/DECISIONS.md` ADR-013's "the
+  client becomes a jZen application" never named UI *widgets*, only navigation/auth/repository/
+  transport) — every form screen built since then (records, accounts, categories, transfers,
+  corrections) added its own raw Material usage rather than treating that as a gap. This ADR names
+  it explicitly: the same "consume, don't reimplement" rule ADR-013 applied to navigation and auth
+  applies to the smaller building blocks too.
+- **jlogicsoftware/prudent#93's original plan** ("implement a local `showResponsiveModal` helper
+  in the meantime, migrate later") → **reversed.** Building a local helper now and migrating later
+  means maintaining two implementations of the same fix across one release. #93 is instead
+  formally blocked (GitHub issue-dependencies, not just a text reference) on `jZenDev/jZen#106` and
+  `#107` — Prudent waits and consumes the published package once, rather than building then
+  replacing.
+
+### Consequence
+
+- Prudent's own `client/lib/popup.dart`, the duplicated dialog/bottom-sheet blocks, and the ad hoc
+  Material widgets named above are **not** deleted yet — they stay exactly as they are until
+  `zen_ui_widgets` exists and is depended on as a `path:` dependency (the same "sibling checkout by
+  path" shape every other jZen dependency already uses — `CLAUDE.md` "How Prudent depends on
+  jZen"). No new Prudent widget work should add another ad hoc copy of anything in the extraction
+  list above; new screens needing one of these widgets wait on the same blocker rather than adding
+  a fifth duplicate.
+- Tracked upstream: `jZenDev/jZen#106` (package + adaptive presentation + Cupertino/tree-shaking),
+  `jZenDev/jZen#107` (broader extraction + accessibility bar), both linked as formal blockers on
+  `jlogicsoftware/prudent#93`.
 
 ## ADR-035 — Balance corrections: one marked record, not a rewrite of the opening balance
 

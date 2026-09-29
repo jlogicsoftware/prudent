@@ -101,4 +101,55 @@ class PlanSchemaTest {
         refused.getMessage().contains(constraint),
         "expected a violation of " + constraint + ", got: " + refused.getMessage());
   }
+  @Test
+  void aPlanCannotHaveTwoOccurrencesOnOneDate() throws SQLException {
+    UUID planId = PrudentTest.seedPlan(PrudentTest.ALICE, accountId, categoryId, -100L, "PLN");
+    PrudentTest.seedOccurrence(PrudentTest.ALICE, planId, java.time.LocalDate.of(2026, 10, 1));
+
+    // The idempotency key is the constraint itself, so it is asserted against a writer that skips
+    // the generator. A different date, and the same date on a different plan, are both fine.
+    PrudentTest.seedOccurrence(PrudentTest.ALICE, planId, java.time.LocalDate.of(2026, 11, 1));
+    UUID other = PrudentTest.seedPlan(PrudentTest.ALICE, accountId, categoryId, -100L, "PLN");
+    PrudentTest.seedOccurrence(PrudentTest.ALICE, other, java.time.LocalDate.of(2026, 10, 1));
+
+    SQLException refused =
+        assertThrows(
+            SQLException.class,
+            () -> {
+              try (Connection owner = dataSource.getConnection();
+                  PreparedStatement insert =
+                      owner.prepareStatement(
+                          "INSERT INTO prudent_plan_occurrence (id, user_id, plan_id,"
+                              + " occurrence_date) VALUES (?, ?, ?, '2026-10-01'::date)")) {
+                insert.setObject(1, UUID.randomUUID());
+                insert.setObject(2, UUID.fromString(PrudentTest.ALICE));
+                insert.setObject(3, planId);
+                insert.executeUpdate();
+              }
+            });
+    assertTrue(
+        refused.getMessage().contains("prudent_plan_occurrence_unique_date"),
+        "expected the unique-date constraint, got: " + refused.getMessage());
+  }
+
+  @Test
+  void anOccurrenceCannotOutliveItsPlan() {
+    UUID planId = PrudentTest.seedPlan(PrudentTest.ALICE, accountId, categoryId, -100L, "PLN");
+    PrudentTest.seedOccurrence(PrudentTest.ALICE, planId, java.time.LocalDate.of(2026, 10, 1));
+
+    SQLException refused =
+        assertThrows(
+            SQLException.class,
+            () -> {
+              try (Connection owner = dataSource.getConnection();
+                  PreparedStatement delete =
+                      owner.prepareStatement("DELETE FROM prudent_plan WHERE id = ?")) {
+                delete.setObject(1, planId);
+                delete.executeUpdate();
+              }
+            });
+    assertTrue(
+        refused.getMessage().contains("prudent_plan_occurrence"),
+        "expected the occurrence foreign key, got: " + refused.getMessage());
+  }
 }

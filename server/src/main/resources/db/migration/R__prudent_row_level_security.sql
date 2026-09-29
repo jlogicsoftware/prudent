@@ -87,6 +87,7 @@ BEGIN
         'prudent_account_balance',
         'prudent_category',
         'prudent_plan',
+        'prudent_plan_occurrence',
         'prudent_record',
         'prudent_settings'
     ]

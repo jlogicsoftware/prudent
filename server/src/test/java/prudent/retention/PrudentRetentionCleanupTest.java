@@ -16,6 +16,7 @@ import prudent.PrudentTest;
 import prudent.account.AccountEntity;
 import prudent.category.CategoryEntity;
 import prudent.plan.PlanEntity;
+import prudent.plan.PlanOccurrenceEntity;
 import prudent.record.RecordEntity;
 import prudent.settings.SettingsEntity;
 import zen.identity.user.User;
@@ -84,6 +85,7 @@ class PrudentRetentionCleanupTest {
     UUID recordId =
         PrudentTest.seedRecord(userId.toString(), accountId, categoryId, -500L, "PLN");
     UUID planId = PrudentTest.seedPlan(userId.toString(), accountId, categoryId, -500L, "PLN");
+    PrudentTest.seedOccurrence(userId.toString(), planId, java.time.LocalDate.of(2026, 9, 1));
 
     int anonymised = QuarkusTransaction.requiringNew().call(retention::anonymiseExpiredAccounts);
 
@@ -96,6 +98,8 @@ class PrudentRetentionCleanupTest {
         .run(
             () -> {
               assertNull(RecordEntity.findById(recordId), "the record must be gone");
+              assertEquals(
+                  0, PlanOccurrenceEntity.count("planId", planId), "the occurrences must be gone");
               assertNull(PlanEntity.findById(planId), "the plan must be gone");
               assertNull(AccountEntity.findById(accountId), "the account must be gone");
               assertNull(CategoryEntity.findById(categoryId), "the category must be gone");
