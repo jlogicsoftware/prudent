@@ -13,6 +13,74 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-043 — A budget is its own table, addressed by the slot it fills
+
+**Date:** 2026-09-29. **Status:** accepted. **Follows:** ADR-037 (a plan is not a transaction — the
+same reasoning for a separate table), ADR-009 (per currency, never blended), ADR-002 (every new
+table ships RLS in the same change).
+
+### Decision
+
+The first M3 task (jlogicsoftware/prudent#36 — "store at most one amount per category, month and
+currency, with validated edits and migration coverage") stores **budgets**: the amount the user may
+spend in one category, in one calendar month, in one currency.
+
+- **A new table, `prudent_budget`** (`V20261002090000__prudent_budgets.sql`). A budget is not money
+  that moved, so it is kept where no balance, analytics total or planned cash flow can read it.
+- **The slot is the identity.** `(user_id, category_id, budget_month, currency)` carries a unique
+  constraint, `prudent_budget_unique_slot`, and the API addresses a budget by exactly that:
+  `PUT|GET|DELETE /api/v1/budgets/{categoryId}/{month}/{currency}`, plus `GET /api/v1/budgets` with
+  optional `month` (`YYYY-MM`) and `categoryId` filters. There is no id on the wire and nothing to
+  invent, so "at most one amount per slot" is a property of the address, and there is no
+  create-versus-edit choice for a client to get wrong. The row does have a UUID primary key, unused
+  by the API, so the audit trail of task 4 can name a row that survives an edit of its amount.
+- **`PUT` sets, and is race-free.** It writes with one `INSERT ... ON CONFLICT ON CONSTRAINT
+  prudent_budget_unique_slot DO UPDATE`, so two requests filling an empty slot leave one row
+  holding the later amount instead of one of them failing on the constraint (asserted by a test
+  with eight concurrent writers). It answers 201 when the slot was empty and 200 when it replaced an
+  amount. It is the only write path, which is where task 4 will record who and what changed a
+  budget.
+- **The amount is positive.** Zero and negative are refused (400). A budget is what may be spent,
+  not a signed transaction amount, and zero is what proto3 decodes an omitted field to, so
+  accepting it would let a body that forgot the amount become a real budget. "No budget" is a
+  deleted slot. The same rule is a `CHECK` in the schema.
+- **The month is `YYYY-MM`, strictly.** Stored as the first day of the month, with a `CHECK` that
+  refuses any other day, so two spellings of a month cannot be two slots. `2026-13`, `2026-1`,
+  `202610`, `2026-10-01` and a signed year are refused (400) rather than corrected: a corrected
+  month is a budget filed in a month the user did not choose.
+- **Currency is ISO-4217, normalised to upper case** (a `CHECK` holds that too, for a writer that
+  skips the resource), and a budget is never converted. It does not have to be a currency one of
+  the user's accounts holds — a budget is a limit, not a balance, and tying it to today's accounts
+  would make an account edit able to strand it.
+- **Ownership** is resolved from the token as everywhere else; another user's category is a 404,
+  the same answer as a category that does not exist.
+- **What a budget protects.** Deleting a category that still has budgets is refused (409), like
+  records and plans, and the foreign key carries no `ON DELETE CASCADE` as a backstop. The amounts
+  a user set are never deleted as a side effect. The retention cascade deletes budgets after plans
+  and before categories.
+- **Client:** `PrudentRepository` gains `listBudgets` / `setBudget` / `deleteBudget` and nothing
+  that renders them (the overview is task 6).
+
+### What this does not decide
+
+- **Category lifecycle (task 5).** Refusing the delete is the conservative choice available today,
+  when a category is either present or gone; it is not a ruling on inactive categories or on
+  history for a deleted one, and task 5 may supersede it.
+- **Audit history (task 4).** Nothing records a previous amount yet. An edit overwrites, and a
+  delete is final until that task lands.
+- **Calculation and carry-over (tasks 2 and 3).** Nothing here reads records; plan, actual and
+  remaining are computed from these rows later, never stored on them.
+
+### Consequence
+
+Verified by a schema suite (`BudgetSchemaTest`: the unique slot, each `CHECK` by constraint name, the
+foreign key), a resource suite in both transport modes (`BudgetResourceTest`: replace-not-duplicate,
+each part of the slot distinguishing one, case-insensitive currency, every refusal leaving the stored
+amount untouched, ownership, the 409 on a category delete, the race), and the existing row-level
+security and retention suites extended to the new table. The full server suite is green at 313.
+
+---
+
 ## ADR-042 — Planned cash flow is its own overview section, fed by the existing occurrence views
 
 **Date:** 2026-09-29. **Status:** accepted. **Follows:** ADR-037 (a plan is not a transaction),

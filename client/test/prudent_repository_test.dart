@@ -9,6 +9,7 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:prudent/generated/prudent/v1/budgets.pb.dart';
 import 'package:prudent/generated/prudent/v1/plans.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
 import 'package:prudent/prudent_repository.dart';
@@ -17,17 +18,19 @@ import 'package:zen_transport/zen_transport.dart';
 
 Uri _uriOf(http.Request request) => request.url;
 
-ZenClient _clientAnswering(http.Response Function(http.Request) respond) => ZenClient(
-  baseUrl: 'https://example.test',
-  format: ZenTransportFormat.json,
-  httpClient: MockClient((request) async => respond(request)),
-);
+ZenClient _clientAnswering(http.Response Function(http.Request) respond) =>
+    ZenClient(
+      baseUrl: 'https://example.test',
+      format: ZenTransportFormat.json,
+      httpClient: MockClient((request) async => respond(request)),
+    );
 
-http.Response _jsonResponse(Map<String, dynamic> body, {int status = 200}) => http.Response(
-  jsonEncode(body),
-  status,
-  headers: {'X-Zen-Transport': 'json'},
-);
+http.Response _jsonResponse(Map<String, dynamic> body, {int status = 200}) =>
+    http.Response(
+      jsonEncode(body),
+      status,
+      headers: {'X-Zen-Transport': 'json'},
+    );
 
 void main() {
   group('PrudentRepository.listRecords', () {
@@ -59,24 +62,29 @@ void main() {
       expect(records.single.amountMinor.toInt(), 450);
     });
 
-    test('a ZenError response surfaces as ZenResult.err, not an empty list', () async {
-      final repository = PrudentRepository(
-        client: _clientAnswering(
-          (request) => _jsonResponse({
-            'code': 'unauthorized',
-            'message': 'no session',
-          }, status: 401),
-        ),
-      );
+    test(
+      'a ZenError response surfaces as ZenResult.err, not an empty list',
+      () async {
+        final repository = PrudentRepository(
+          client: _clientAnswering(
+            (request) => _jsonResponse({
+              'code': 'unauthorized',
+              'message': 'no session',
+            }, status: 401),
+          ),
+        );
 
-      final result = await repository.listRecords();
+        final result = await repository.listRecords();
 
-      expect(result.isFailure, isTrue);
-      result.fold(
-        (r) => fail('expected a failure, got success with ${r.records.length} records'),
-        (error) => expect(error.message, contains('no session')),
-      );
-    });
+        expect(result.isFailure, isTrue);
+        result.fold(
+          (r) => fail(
+            'expected a failure, got success with ${r.records.length} records',
+          ),
+          (error) => expect(error.message, contains('no session')),
+        );
+      },
+    );
 
     test('a decode failure is distinguishable from an empty result', () async {
       final repository = PrudentRepository(
@@ -112,20 +120,23 @@ void main() {
       expect(capturedUri!.query, isEmpty);
     });
 
-    test('RecordFilter.empty hits the bare path, exactly like an omitted filter', () async {
-      Uri? capturedUri;
-      final repository = PrudentRepository(
-        client: _clientAnswering((request) {
-          capturedUri = _uriOf(request);
-          return _jsonResponse({'records': []});
-        }),
-      );
+    test(
+      'RecordFilter.empty hits the bare path, exactly like an omitted filter',
+      () async {
+        Uri? capturedUri;
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            capturedUri = _uriOf(request);
+            return _jsonResponse({'records': []});
+          }),
+        );
 
-      await repository.listRecords(filter: RecordFilter.empty);
+        await repository.listRecords(filter: RecordFilter.empty);
 
-      expect(capturedUri!.path, '/api/v1/records');
-      expect(capturedUri!.query, isEmpty);
-    });
+        expect(capturedUri!.path, '/api/v1/records');
+        expect(capturedUri!.query, isEmpty);
+      },
+    );
 
     test('a populated filter is sent as query parameters', () async {
       Uri? capturedUri;
@@ -296,57 +307,63 @@ void main() {
   });
 
   group('PrudentRepository plans', () {
-    test('createPlan posts the typed request and decodes the recurrence', () async {
-      String? capturedBody;
-      Uri? capturedUri;
-      final repository = PrudentRepository(
-        client: _clientAnswering((request) {
-          capturedBody = request.body;
-          capturedUri = _uriOf(request);
-          return _jsonResponse({
-            'id': 'plan-1',
-            'title': 'Rent',
-            'amountMinor': '-250000',
-            'currency': 'PLN',
-            'accountId': 'a1',
-            'categoryId': 'c1',
-            'recurrence': {
-              'frequency': 'RECURRENCE_FREQUENCY_MONTHLY',
-              'interval': 1,
-              'startDate': '2026-10-31',
-              'timeZone': 'Europe/Warsaw',
-              'occurrenceCount': 12,
-            },
-          }, status: 201);
-        }),
-      );
+    test(
+      'createPlan posts the typed request and decodes the recurrence',
+      () async {
+        String? capturedBody;
+        Uri? capturedUri;
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            capturedBody = request.body;
+            capturedUri = _uriOf(request);
+            return _jsonResponse({
+              'id': 'plan-1',
+              'title': 'Rent',
+              'amountMinor': '-250000',
+              'currency': 'PLN',
+              'accountId': 'a1',
+              'categoryId': 'c1',
+              'recurrence': {
+                'frequency': 'RECURRENCE_FREQUENCY_MONTHLY',
+                'interval': 1,
+                'startDate': '2026-10-31',
+                'timeZone': 'Europe/Warsaw',
+                'occurrenceCount': 12,
+              },
+            }, status: 201);
+          }),
+        );
 
-      final result = await repository.createPlan(
-        CreatePlanRequest(
-          title: 'Rent',
-          amountMinor: Int64(-250000),
-          currency: 'PLN',
-          accountId: 'a1',
-          categoryId: 'c1',
-          recurrence: Recurrence(
-            frequency: RecurrenceFrequency.RECURRENCE_FREQUENCY_MONTHLY,
-            interval: 1,
-            startDate: '2026-10-31',
-            timeZone: 'Europe/Warsaw',
-            occurrenceCount: 12,
+        final result = await repository.createPlan(
+          CreatePlanRequest(
+            title: 'Rent',
+            amountMinor: Int64(-250000),
+            currency: 'PLN',
+            accountId: 'a1',
+            categoryId: 'c1',
+            recurrence: Recurrence(
+              frequency: RecurrenceFrequency.RECURRENCE_FREQUENCY_MONTHLY,
+              interval: 1,
+              startDate: '2026-10-31',
+              timeZone: 'Europe/Warsaw',
+              occurrenceCount: 12,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(capturedUri!.path, '/api/v1/plans');
-      expect(capturedBody, contains('"timeZone":"Europe/Warsaw"'));
-      final plan = result.fold((p) => p, (e) => throw e);
-      expect(plan.id, 'plan-1');
-      expect(plan.amountMinor.toInt(), -250000);
-      expect(plan.recurrence.frequency, RecurrenceFrequency.RECURRENCE_FREQUENCY_MONTHLY);
-      expect(plan.recurrence.whichEnd(), Recurrence_End.occurrenceCount);
-      expect(plan.recurrence.occurrenceCount, 12);
-    });
+        expect(capturedUri!.path, '/api/v1/plans');
+        expect(capturedBody, contains('"timeZone":"Europe/Warsaw"'));
+        final plan = result.fold((p) => p, (e) => throw e);
+        expect(plan.id, 'plan-1');
+        expect(plan.amountMinor.toInt(), -250000);
+        expect(
+          plan.recurrence.frequency,
+          RecurrenceFrequency.RECURRENCE_FREQUENCY_MONTHLY,
+        );
+        expect(plan.recurrence.whichEnd(), Recurrence_End.occurrenceCount);
+        expect(plan.recurrence.occurrenceCount, 12);
+      },
+    );
 
     test('listPlans decodes the list, and deletePlan deletes by id', () async {
       final calls = <String>[];
@@ -387,6 +404,96 @@ void main() {
     });
   });
 
+  group('PrudentRepository budgets', () {
+    test(
+      'setBudget puts the amount at the slot address and decodes the budget',
+      () async {
+        String? capturedBody;
+        String? capturedMethod;
+        Uri? capturedUri;
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            capturedBody = request.body;
+            capturedMethod = request.method;
+            capturedUri = _uriOf(request);
+            return _jsonResponse({
+              'categoryId': 'c1',
+              'month': '2026-10',
+              'currency': 'PLN',
+              'amountMinor': '80000',
+            }, status: 201);
+          }),
+        );
+
+        final result = await repository.setBudget(
+          categoryId: 'c1',
+          month: '2026-10',
+          currency: 'PLN',
+          request: SetBudgetRequest(amountMinor: Int64(80000)),
+        );
+
+        expect(capturedMethod, 'PUT');
+        expect(capturedUri!.path, '/api/v1/budgets/c1/2026-10/PLN');
+        expect(capturedBody, contains('"amountMinor":"80000"'));
+        final budget = result.fold((b) => b, (e) => throw e);
+        expect(budget.categoryId, 'c1');
+        expect(budget.month, '2026-10');
+        expect(budget.currency, 'PLN');
+        expect(budget.amountMinor.toInt(), 80000);
+      },
+    );
+
+    test(
+      'listBudgets sends only the filters given, and deleteBudget deletes the slot',
+      () async {
+        final calls = <String>[];
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            calls.add('${request.method} ${_uriOf(request)}');
+            if (request.method == 'DELETE') {
+              return http.Response(
+                '',
+                204,
+                headers: {'X-Zen-Transport': 'json'},
+              );
+            }
+            return _jsonResponse({
+              'budgets': [
+                {
+                  'categoryId': 'c1',
+                  'month': '2026-10',
+                  'currency': 'PLN',
+                  'amountMinor': '80000',
+                },
+              ],
+            });
+          }),
+        );
+
+        final all = await repository.listBudgets();
+        expect(
+          all.fold((r) => r.budgets, (e) => throw e).single.amountMinor.toInt(),
+          80000,
+        );
+        await repository.listBudgets(month: '2026-10');
+        await repository.listBudgets(month: '2026-10', categoryId: 'c1');
+        final deleted = await repository.deleteBudget(
+          categoryId: 'c1',
+          month: '2026-10',
+          currency: 'PLN',
+        );
+
+        expect(deleted.isSuccess, isTrue);
+        expect(calls, [
+          'GET https://example.test/api/v1/budgets',
+          'GET https://example.test/api/v1/budgets?month=2026-10',
+          'GET https://example.test/api/v1/budgets?month=2026-10&categoryId=c1',
+          'DELETE https://example.test/api/v1/budgets/c1/2026-10/PLN',
+        ]);
+      },
+    );
+  });
+
   group('PrudentRepository occurrences', () {
     Map<String, Object?> occurrence(String status) => {
       'id': 'occ-1',
@@ -400,37 +507,40 @@ void main() {
       'categoryId': 'c1',
     };
 
-    test('listUpcomingOccurrences sends days only when given, and decodes every state', () async {
-      final uris = <Uri>[];
-      final repository = PrudentRepository(
-        client: _clientAnswering((request) {
-          uris.add(_uriOf(request));
-          return _jsonResponse({
-            'occurrences': [
-              occurrence('OCCURRENCE_STATUS_PLANNED'),
-              occurrence('OCCURRENCE_STATUS_COMPLETED'),
-              occurrence('OCCURRENCE_STATUS_SKIPPED'),
-            ],
-          });
-        }),
-      );
+    test(
+      'listUpcomingOccurrences sends days only when given, and decodes every state',
+      () async {
+        final uris = <Uri>[];
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            uris.add(_uriOf(request));
+            return _jsonResponse({
+              'occurrences': [
+                occurrence('OCCURRENCE_STATUS_PLANNED'),
+                occurrence('OCCURRENCE_STATUS_COMPLETED'),
+                occurrence('OCCURRENCE_STATUS_SKIPPED'),
+              ],
+            });
+          }),
+        );
 
-      final defaulted = await repository.listUpcomingOccurrences();
-      final bounded = await repository.listUpcomingOccurrences(days: 60);
+        final defaulted = await repository.listUpcomingOccurrences();
+        final bounded = await repository.listUpcomingOccurrences(days: 60);
 
-      expect(uris[0].path, '/api/v1/occurrences/upcoming');
-      expect(uris[0].hasQuery, isFalse);
-      expect(uris[1].queryParameters['days'], '60');
-      final decoded = defaulted.fold((r) => r.occurrences, (e) => throw e);
-      expect(decoded.map((o) => o.status), [
-        OccurrenceStatus.OCCURRENCE_STATUS_PLANNED,
-        OccurrenceStatus.OCCURRENCE_STATUS_COMPLETED,
-        OccurrenceStatus.OCCURRENCE_STATUS_SKIPPED,
-      ]);
-      expect(decoded.first.amountMinor.toInt(), -250000);
-      expect(decoded.first.occurrenceDate, '2026-10-10');
-      expect(bounded.isSuccess, isTrue);
-    });
+        expect(uris[0].path, '/api/v1/occurrences/upcoming');
+        expect(uris[0].hasQuery, isFalse);
+        expect(uris[1].queryParameters['days'], '60');
+        final decoded = defaulted.fold((r) => r.occurrences, (e) => throw e);
+        expect(decoded.map((o) => o.status), [
+          OccurrenceStatus.OCCURRENCE_STATUS_PLANNED,
+          OccurrenceStatus.OCCURRENCE_STATUS_COMPLETED,
+          OccurrenceStatus.OCCURRENCE_STATUS_SKIPPED,
+        ]);
+        expect(decoded.first.amountMinor.toInt(), -250000);
+        expect(decoded.first.occurrenceDate, '2026-10-10');
+        expect(bounded.isSuccess, isTrue);
+      },
+    );
 
     test('listOverdueOccurrences decodes the derived OVERDUE status', () async {
       Uri? uri;
@@ -452,129 +562,164 @@ void main() {
       );
     });
 
-    test('skip and restore POST to the occurrence and decode the updated state', () async {
-      final calls = <String>[];
-      final repository = PrudentRepository(
-        client: _clientAnswering((request) {
-          calls.add('${request.method} ${_uriOf(request).path}');
-          return _jsonResponse(occurrence('OCCURRENCE_STATUS_SKIPPED'));
-        }),
-      );
+    test(
+      'skip and restore POST to the occurrence and decode the updated state',
+      () async {
+        final calls = <String>[];
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            calls.add('${request.method} ${_uriOf(request).path}');
+            return _jsonResponse(occurrence('OCCURRENCE_STATUS_SKIPPED'));
+          }),
+        );
 
-      final skipped = await repository.skipOccurrence('occ-1');
-      final restored = await repository.restoreOccurrence('occ-1');
+        final skipped = await repository.skipOccurrence('occ-1');
+        final restored = await repository.restoreOccurrence('occ-1');
 
-      expect(calls, [
-        'POST /api/v1/occurrences/occ-1/skip',
-        'POST /api/v1/occurrences/occ-1/restore',
-      ]);
-      expect(
-        skipped.fold((o) => o.status, (e) => throw e),
-        OccurrenceStatus.OCCURRENCE_STATUS_SKIPPED,
-      );
-      expect(restored.isSuccess, isTrue);
-    });
+        expect(calls, [
+          'POST /api/v1/occurrences/occ-1/skip',
+          'POST /api/v1/occurrences/occ-1/restore',
+        ]);
+        expect(
+          skipped.fold((o) => o.status, (e) => throw e),
+          OccurrenceStatus.OCCURRENCE_STATUS_SKIPPED,
+        );
+        expect(restored.isSuccess, isTrue);
+      },
+    );
 
-    test('confirmOccurrence POSTs only what was overridden and decodes the record', () async {
-      final bodies = <Map<String, Object?>>[];
-      final calls = <String>[];
-      final repository = PrudentRepository(
-        client: _clientAnswering((request) {
-          calls.add('${request.method} ${_uriOf(request).path}');
-          bodies.add(jsonDecode(request.body) as Map<String, Object?>);
-          return _jsonResponse({
-            'occurrence': occurrence('OCCURRENCE_STATUS_COMPLETED'),
-            'record': {
-              'id': 'rec-1',
-              'title': 'Rent',
-              'amountMinor': '-250000',
-              'currency': 'PLN',
-              'date': '2026-10-12',
-              'accountId': 'acc-1',
-              'planId': 'plan-1',
-              'planOccurrenceId': 'occ-1',
-            },
-          }, status: 201);
-        }),
-      );
+    test(
+      'confirmOccurrence POSTs only what was overridden and decodes the record',
+      () async {
+        final bodies = <Map<String, Object?>>[];
+        final calls = <String>[];
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            calls.add('${request.method} ${_uriOf(request).path}');
+            bodies.add(jsonDecode(request.body) as Map<String, Object?>);
+            return _jsonResponse({
+              'occurrence': occurrence('OCCURRENCE_STATUS_COMPLETED'),
+              'record': {
+                'id': 'rec-1',
+                'title': 'Rent',
+                'amountMinor': '-250000',
+                'currency': 'PLN',
+                'date': '2026-10-12',
+                'accountId': 'acc-1',
+                'planId': 'plan-1',
+                'planOccurrenceId': 'occ-1',
+              },
+            }, status: 201);
+          }),
+        );
 
-      final asPlanned = await repository.confirmOccurrence('occ-1');
-      final edited = await repository.confirmOccurrence(
-        'occ-1',
-        ConfirmOccurrenceRequest(date: '2026-10-12', amountMinor: Int64(-250000)),
-      );
+        final asPlanned = await repository.confirmOccurrence('occ-1');
+        final edited = await repository.confirmOccurrence(
+          'occ-1',
+          ConfirmOccurrenceRequest(
+            date: '2026-10-12',
+            amountMinor: Int64(-250000),
+          ),
+        );
 
-      expect(calls, everyElement('POST /api/v1/occurrences/occ-1/confirm'));
-      expect(bodies[0], isEmpty, reason: 'nothing overridden, so the plan supplies everything');
-      expect(bodies[1].keys, unorderedEquals(['date', 'amountMinor']));
-      final confirmed = asPlanned.fold((r) => r, (e) => throw e);
-      expect(confirmed.occurrence.status, OccurrenceStatus.OCCURRENCE_STATUS_COMPLETED);
-      expect(confirmed.record.planId, 'plan-1');
-      expect(confirmed.record.planOccurrenceId, 'occ-1');
-      expect(edited.isSuccess, isTrue);
-    });
+        expect(calls, everyElement('POST /api/v1/occurrences/occ-1/confirm'));
+        expect(
+          bodies[0],
+          isEmpty,
+          reason: 'nothing overridden, so the plan supplies everything',
+        );
+        expect(bodies[1].keys, unorderedEquals(['date', 'amountMinor']));
+        final confirmed = asPlanned.fold((r) => r, (e) => throw e);
+        expect(
+          confirmed.occurrence.status,
+          OccurrenceStatus.OCCURRENCE_STATUS_COMPLETED,
+        );
+        expect(confirmed.record.planId, 'plan-1');
+        expect(confirmed.record.planOccurrenceId, 'occ-1');
+        expect(edited.isSuccess, isTrue);
+      },
+    );
 
-    test('a refused transition surfaces the conflict rather than a decoded occurrence', () async {
-      final repository = PrudentRepository(
-        client: _clientAnswering(
-          (request) => _jsonResponse({
-            'code': 'conflict',
-            'message': 'An occurrence that is COMPLETED cannot become SKIPPED.',
-          }, status: 409),
-        ),
-      );
+    test(
+      'a refused transition surfaces the conflict rather than a decoded occurrence',
+      () async {
+        final repository = PrudentRepository(
+          client: _clientAnswering(
+            (request) => _jsonResponse({
+              'code': 'conflict',
+              'message':
+                  'An occurrence that is COMPLETED cannot become SKIPPED.',
+            }, status: 409),
+          ),
+        );
 
-      final result = await repository.skipOccurrence('occ-1');
+        final result = await repository.skipOccurrence('occ-1');
 
-      expect(result.isFailure, isTrue);
-    });
+        expect(result.isFailure, isTrue);
+      },
+    );
   });
 
   group('PrudentRepository.spendByCategory', () {
-    test('sends currency and year as query parameters, and decodes the response', () async {
-      Uri? capturedUri;
-      final repository = PrudentRepository(
-        client: _clientAnswering((request) {
-          capturedUri = _uriOf(request);
-          return _jsonResponse({
-            'currency': 'PLN',
-            'items': [
-              {'categoryId': 'c1', 'amountMinor': '3500'},
-            ],
-          });
-        }),
-      );
+    test(
+      'sends currency and year as query parameters, and decodes the response',
+      () async {
+        Uri? capturedUri;
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            capturedUri = _uriOf(request);
+            return _jsonResponse({
+              'currency': 'PLN',
+              'items': [
+                {'categoryId': 'c1', 'amountMinor': '3500'},
+              ],
+            });
+          }),
+        );
 
-      final result = await repository.spendByCategory(currency: 'PLN', year: 2026, month: 8);
+        final result = await repository.spendByCategory(
+          currency: 'PLN',
+          year: 2026,
+          month: 8,
+        );
 
-      expect(capturedUri!.path, '/api/v1/analytics/spend-by-category');
-      expect(capturedUri!.queryParameters['currency'], 'PLN');
-      expect(capturedUri!.queryParameters['year'], '2026');
-      expect(capturedUri!.queryParameters['month'], '8');
-      final response = result.fold((r) => r, (e) => throw e);
-      expect(response.items.single.amountMinor.toInt(), 3500);
-    });
+        expect(capturedUri!.path, '/api/v1/analytics/spend-by-category');
+        expect(capturedUri!.queryParameters['currency'], 'PLN');
+        expect(capturedUri!.queryParameters['year'], '2026');
+        expect(capturedUri!.queryParameters['month'], '8');
+        final response = result.fold((r) => r, (e) => throw e);
+        expect(response.items.single.amountMinor.toInt(), 3500);
+      },
+    );
 
-    test('month is omitted from the query when null — the whole-year scope', () async {
-      Uri? capturedUri;
-      final repository = PrudentRepository(
-        client: _clientAnswering((request) {
-          capturedUri = _uriOf(request);
-          return _jsonResponse({'currency': 'PLN', 'items': []});
-        }),
-      );
+    test(
+      'month is omitted from the query when null — the whole-year scope',
+      () async {
+        Uri? capturedUri;
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            capturedUri = _uriOf(request);
+            return _jsonResponse({'currency': 'PLN', 'items': []});
+          }),
+        );
 
-      await repository.spendByCategory(currency: 'PLN', year: 2026);
+        await repository.spendByCategory(currency: 'PLN', year: 2026);
 
-      expect(capturedUri!.queryParameters.containsKey('month'), isFalse);
-    });
+        expect(capturedUri!.queryParameters.containsKey('month'), isFalse);
+      },
+    );
 
     test('the empty case decodes as an empty list, not a failure', () async {
       final repository = PrudentRepository(
-        client: _clientAnswering((request) => _jsonResponse({'currency': 'PLN', 'items': []})),
+        client: _clientAnswering(
+          (request) => _jsonResponse({'currency': 'PLN', 'items': []}),
+        ),
       );
 
-      final result = await repository.spendByCategory(currency: 'PLN', year: 2026);
+      final result = await repository.spendByCategory(
+        currency: 'PLN',
+        year: 2026,
+      );
 
       expect(result.isSuccess, isTrue);
       expect(result.fold((r) => r.items, (e) => throw e), isEmpty);
@@ -582,27 +727,34 @@ void main() {
   });
 
   group('PrudentRepository.spendByPeriod', () {
-    test('sends granularity and count as query parameters, and decodes the response', () async {
-      Uri? capturedUri;
-      final repository = PrudentRepository(
-        client: _clientAnswering((request) {
-          capturedUri = _uriOf(request);
-          return _jsonResponse({
-            'currency': 'PLN',
-            'granularity': 'GRANULARITY_MONTH',
-            'periods': [
-              {'period': '2026-08', 'amountMinor': '1000'},
-            ],
-          });
-        }),
-      );
+    test(
+      'sends granularity and count as query parameters, and decodes the response',
+      () async {
+        Uri? capturedUri;
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            capturedUri = _uriOf(request);
+            return _jsonResponse({
+              'currency': 'PLN',
+              'granularity': 'GRANULARITY_MONTH',
+              'periods': [
+                {'period': '2026-08', 'amountMinor': '1000'},
+              ],
+            });
+          }),
+        );
 
-      final result = await repository.spendByPeriod(currency: 'PLN', granularity: 'MONTH', count: 12);
+        final result = await repository.spendByPeriod(
+          currency: 'PLN',
+          granularity: 'MONTH',
+          count: 12,
+        );
 
-      expect(capturedUri!.queryParameters['granularity'], 'MONTH');
-      expect(capturedUri!.queryParameters['count'], '12');
-      final response = result.fold((r) => r, (e) => throw e);
-      expect(response.periods.single.period, '2026-08');
-    });
+        expect(capturedUri!.queryParameters['granularity'], 'MONTH');
+        expect(capturedUri!.queryParameters['count'], '12');
+        final response = result.fold((r) => r, (e) => throw e);
+        expect(response.periods.single.period, '2026-08');
+      },
+    );
   });
 }

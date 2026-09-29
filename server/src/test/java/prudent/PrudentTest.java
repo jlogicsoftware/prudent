@@ -17,6 +17,7 @@ import java.util.UUID;
 import prudent.account.AccountBalance;
 import prudent.account.AccountEntity;
 import prudent.account.AccountKind;
+import prudent.budget.BudgetEntity;
 import prudent.category.CategoryEntity;
 import prudent.plan.Frequency;
 import prudent.plan.OccurrenceState;
@@ -71,6 +72,7 @@ public final class PrudentTest {
               RecordEntity.deleteAll();
               PlanOccurrenceEntity.deleteAll();
               PlanEntity.deleteAll();
+              BudgetEntity.deleteAll();
               AccountEntity.deleteAll();
               CategoryEntity.deleteAll();
               SettingsEntity.deleteAll();
@@ -315,6 +317,19 @@ public final class PrudentTest {
               entity.persist();
             });
     return id;
+  }
+
+  /**
+   * Persists a budget directly, for suites asserting something other than {@code BudgetResource}
+   * itself — the ownership suite needs a budget belonging to a user it is not authenticated as.
+   */
+  public static void seedBudget(
+      String userId, UUID categoryId, java.time.YearMonth month, String currency, long amountMinor) {
+    QuarkusTransaction.requiringNew()
+        .run(
+            () ->
+                BudgetEntity.upsert(
+                    UUID.fromString(userId), categoryId, month, currency, amountMinor));
   }
 
   /**

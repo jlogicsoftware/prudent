@@ -64,6 +64,12 @@ kept apart from the balances and hideable with a switch — but no client screen
 or occurrences; the client otherwise has only the repository methods. That completes M2's backlog;
 a plans screen is new scope, not missing work.
 
+M3 (budgets) has begun: `BudgetResource` over `BudgetEntity` (ADR-043) stores at most one positive
+amount per category, month and currency, addressed by that slot at
+`/api/v1/budgets/{categoryId}/{month}/{currency}`. Nothing yet calculates plan, actual, remaining or
+carry-over from them, keeps an audit trail, or shows them — those are the epic's later tasks
+(jlogicsoftware/prudent#35) — and the client has only the repository methods.
+
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the
 Taskfile parses with both discoverable in `task --list`, the preflight fails loudly naming every

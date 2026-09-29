@@ -1070,6 +1070,281 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the authenticated user's budgets
+         * @description Optionally narrowed by month (YYYY-MM) and categoryId (UUID), ordered by month, then currency, then category.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    categoryId?: string;
+                    month?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListBudgetsResponse"];
+                        "application/x-protobuf": components["schemas"]["ListBudgetsResponse"];
+                    };
+                };
+                /** @description A malformed month or categoryId */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/budgets/{categoryId}/{month}/{currency}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the budget for one category, month and currency */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    categoryId: string;
+                    currency: string;
+                    month: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Budget"];
+                        "application/x-protobuf": components["schemas"]["Budget"];
+                    };
+                };
+                /** @description A malformed month or currency */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No such category, or no budget set for that month and currency */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        /**
+         * Set the budget for one category, month and currency
+         * @description Creates the budget (201) or replaces its amount (200). The slot holds at most one.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    categoryId: string;
+                    currency: string;
+                    month: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetBudgetRequest"];
+                    "application/x-protobuf": components["schemas"]["SetBudgetRequest"];
+                };
+            };
+            responses: {
+                /** @description The slot already held a budget; its amount was replaced */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Budget"];
+                        "application/x-protobuf": components["schemas"]["Budget"];
+                    };
+                };
+                /** @description The slot was empty */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Budget"];
+                        "application/x-protobuf": components["schemas"]["Budget"];
+                    };
+                };
+                /** @description A malformed month, a currency that is not ISO-4217, or an amount that is not positive */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No such category for this user */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Delete the budget for one category, month and currency */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    categoryId: string;
+                    currency: string;
+                    month: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description A malformed month or currency */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No such category, or no budget set for that month and currency */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/categories": {
         parameters: {
             query?: never;
@@ -1329,7 +1604,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
-                /** @description The category still has records or plans */
+                /** @description The category still has records, plans or budgets */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -3227,6 +3502,32 @@ export interface components {
         /** @description GET /api/v1/occurrences/upcoming and /overdue — ordered by date ascending, then id. */
         ListOccurrencesResponse: {
             occurrences?: components["schemas"]["PlanOccurrence"][];
+        };
+        /** @description The amount that may be spent in one category, in one calendar month, in one currency. Its identity is that slot — there is no id — and a slot holds at most one budget. */
+        Budget: {
+            /** Format: uuid */
+            categoryId?: string;
+            /** @description The calendar month, YYYY-MM. */
+            month?: string;
+            /** @description ISO-4217. A budget is never converted to another currency. */
+            currency?: string;
+            /**
+             * Format: int64
+             * @description Positive minor units — what may be spent, not a signed transaction amount. Zero and negative are rejected; to have no budget for a slot, delete it.
+             */
+            amountMinor?: string;
+        };
+        /** @description Body for PUT /api/v1/budgets/{categoryId}/{month}/{currency}. The slot is in the path, so the amount is all there is to set. */
+        SetBudgetRequest: {
+            /**
+             * Format: int64
+             * @description See Budget.amountMinor.
+             */
+            amountMinor?: string;
+        };
+        /** @description GET /api/v1/budgets — the caller's budgets, optionally narrowed by month and categoryId, ordered by month, then currency, then category id. */
+        ListBudgetsResponse: {
+            budgets?: components["schemas"]["Budget"][];
         };
         /** @description The authenticated user's settings. A SINGLETON: there is no id, no create, no delete and no list, and the URL carries no id because the token is the entire addressing scheme. The row is created on first login, not by a client. */
         Settings: {
