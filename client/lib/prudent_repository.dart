@@ -3,6 +3,7 @@ import 'package:zen_transport/zen_transport.dart';
 
 import 'generated/prudent/v1/accounts.pb.dart';
 import 'generated/prudent/v1/analytics.pb.dart';
+import 'generated/prudent/v1/budgets.pb.dart';
 import 'generated/prudent/v1/categories.pb.dart';
 import 'generated/prudent/v1/plans.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
@@ -27,9 +28,11 @@ class PrudentRepository {
   static const String _accountsPath = '/api/v1/accounts';
   static const String _categoriesPath = '/api/v1/categories';
   static const String _settingsPath = '/api/v1/settings';
+  static const String _budgetsPath = '/api/v1/budgets';
   static const String _plansPath = '/api/v1/plans';
   static const String _occurrencesPath = '/api/v1/occurrences';
-  static const String _spendByCategoryPath = '/api/v1/analytics/spend-by-category';
+  static const String _spendByCategoryPath =
+      '/api/v1/analytics/spend-by-category';
   static const String _spendByPeriodPath = '/api/v1/analytics/spend-by-period';
 
   // --- Records --------------------------------------------------------------------------------
@@ -38,15 +41,18 @@ class PrudentRepository {
   /// omitting it, or passing [RecordFilter.empty], is exactly today's unfiltered call.
   Future<ZenResult<ListRecordsResponse>> listRecords({RecordFilter? filter}) {
     final query = filter?.toQueryParameters() ?? const <String, String>{};
-    final path = query.isEmpty ? _recordsPath : '$_recordsPath?${_encodeQuery(query)}';
+    final path =
+        query.isEmpty ? _recordsPath : '$_recordsPath?${_encodeQuery(query)}';
     return _client.get<ListRecordsResponse>(ListRecordsResponse.new, path);
   }
 
   Future<ZenResult<Record>> createRecord(CreateRecordRequest request) =>
       _client.post<Record>(Record.new, _recordsPath, body: request);
 
-  Future<ZenResult<Record>> updateRecord(String id, UpdateRecordRequest request) =>
-      _client.put<Record>(Record.new, '$_recordsPath/$id', body: request);
+  Future<ZenResult<Record>> updateRecord(
+    String id,
+    UpdateRecordRequest request,
+  ) => _client.put<Record>(Record.new, '$_recordsPath/$id', body: request);
 
   Future<ZenResult<Record>> deleteRecord(String id) =>
       _client.delete<Record>(Record.new, '$_recordsPath/$id');
@@ -69,31 +75,83 @@ class PrudentRepository {
 
   // --- Accounts ---------------------------------------------------------------------------------
 
-  Future<ZenResult<ListAccountsResponse>> listAccounts() =>
-      _client.get<ListAccountsResponse>(ListAccountsResponse.new, _accountsPath);
+  Future<ZenResult<ListAccountsResponse>> listAccounts() => _client
+      .get<ListAccountsResponse>(ListAccountsResponse.new, _accountsPath);
 
   Future<ZenResult<Account>> createAccount(CreateAccountRequest request) =>
       _client.post<Account>(Account.new, _accountsPath, body: request);
 
-  Future<ZenResult<Account>> updateAccount(String id, UpdateAccountRequest request) =>
-      _client.put<Account>(Account.new, '$_accountsPath/$id', body: request);
+  Future<ZenResult<Account>> updateAccount(
+    String id,
+    UpdateAccountRequest request,
+  ) => _client.put<Account>(Account.new, '$_accountsPath/$id', body: request);
 
   Future<ZenResult<Account>> deleteAccount(String id) =>
       _client.delete<Account>(Account.new, '$_accountsPath/$id');
 
   // --- Categories -------------------------------------------------------------------------------
 
-  Future<ZenResult<ListCategoriesResponse>> listCategories() =>
-      _client.get<ListCategoriesResponse>(ListCategoriesResponse.new, _categoriesPath);
+  Future<ZenResult<ListCategoriesResponse>> listCategories() => _client
+      .get<ListCategoriesResponse>(ListCategoriesResponse.new, _categoriesPath);
 
   Future<ZenResult<Category>> createCategory(CreateCategoryRequest request) =>
       _client.post<Category>(Category.new, _categoriesPath, body: request);
 
-  Future<ZenResult<Category>> updateCategory(String id, UpdateCategoryRequest request) =>
-      _client.put<Category>(Category.new, '$_categoriesPath/$id', body: request);
+  Future<ZenResult<Category>> updateCategory(
+    String id,
+    UpdateCategoryRequest request,
+  ) => _client.put<Category>(
+    Category.new,
+    '$_categoriesPath/$id',
+    body: request,
+  );
 
   Future<ZenResult<Category>> deleteCategory(String id) =>
       _client.delete<Category>(Category.new, '$_categoriesPath/$id');
+
+  // --- Budgets (M3, jlogicsoftware/prudent#36) — the amount that may be spent, never a transaction
+
+  /// The user's budgets, optionally narrowed to one [month] (`YYYY-MM`) and/or one [categoryId].
+  Future<ZenResult<ListBudgetsResponse>> listBudgets({
+    String? month,
+    String? categoryId,
+  }) {
+    final query = <String, String>{
+      if (month != null) 'month': month,
+      if (categoryId != null) 'categoryId': categoryId,
+    };
+    final path =
+        query.isEmpty ? _budgetsPath : '$_budgetsPath?${_encodeQuery(query)}';
+    return _client.get<ListBudgetsResponse>(ListBudgetsResponse.new, path);
+  }
+
+  /// Sets the budget for one category, [month] (`YYYY-MM`) and [currency], creating it or replacing
+  /// its amount — a slot holds at most one. The amount must be positive; to have no budget for the
+  /// slot, [deleteBudget].
+  Future<ZenResult<Budget>> setBudget({
+    required String categoryId,
+    required String month,
+    required String currency,
+    required SetBudgetRequest request,
+  }) => _client.put<Budget>(
+    Budget.new,
+    _budgetPath(categoryId, month, currency),
+    body: request,
+  );
+
+  /// Removes the budget for one category, [month] and [currency]. Refused (404) if there is none.
+  Future<ZenResult<Budget>> deleteBudget({
+    required String categoryId,
+    required String month,
+    required String currency,
+  }) => _client.delete<Budget>(
+    Budget.new,
+    _budgetPath(categoryId, month, currency),
+  );
+
+  static String _budgetPath(String categoryId, String month, String currency) =>
+      '$_budgetsPath/${Uri.encodeComponent(categoryId)}/${Uri.encodeComponent(month)}'
+      '/${Uri.encodeComponent(currency)}';
 
   // --- Plans (M2, jlogicsoftware/prudent#34) — expected money, never a transaction ------------
 
@@ -113,11 +171,17 @@ class PrudentRepository {
 
   /// Occurrences from today (in each plan's time zone) to [days] ahead, in any state, so what was
   /// skipped or confirmed early stays visible. The server defaults to 30 and accepts 1-366.
-  Future<ZenResult<ListOccurrencesResponse>> listUpcomingOccurrences({int? days}) {
-    final path = days == null
-        ? '$_occurrencesPath/upcoming'
-        : '$_occurrencesPath/upcoming?${_encodeQuery({'days': '$days'})}';
-    return _client.get<ListOccurrencesResponse>(ListOccurrencesResponse.new, path);
+  Future<ZenResult<ListOccurrencesResponse>> listUpcomingOccurrences({
+    int? days,
+  }) {
+    final path =
+        days == null
+            ? '$_occurrencesPath/upcoming'
+            : '$_occurrencesPath/upcoming?${_encodeQuery({'days': '$days'})}';
+    return _client.get<ListOccurrencesResponse>(
+      ListOccurrencesResponse.new,
+      path,
+    );
   }
 
   /// Occurrences still planned whose date has passed in their plan's time zone.
@@ -128,12 +192,15 @@ class PrudentRepository {
       );
 
   /// The user decided this occurrence will not happen. Refused (409) unless it is planned.
-  Future<ZenResult<PlanOccurrence>> skipOccurrence(String id) =>
-      _client.post<PlanOccurrence>(PlanOccurrence.new, '$_occurrencesPath/$id/skip');
+  Future<ZenResult<PlanOccurrence>> skipOccurrence(String id) => _client
+      .post<PlanOccurrence>(PlanOccurrence.new, '$_occurrencesPath/$id/skip');
 
   /// Reopens a skipped occurrence as planned. Refused (409) unless it is skipped.
   Future<ZenResult<PlanOccurrence>> restoreOccurrence(String id) =>
-      _client.post<PlanOccurrence>(PlanOccurrence.new, '$_occurrencesPath/$id/restore');
+      _client.post<PlanOccurrence>(
+        PlanOccurrence.new,
+        '$_occurrencesPath/$id/restore',
+      );
 
   /// Says this occurrence happened, and creates the actual transaction (M2,
   /// jlogicsoftware/prudent#57). Every field of [request] is optional and an absent one takes the
@@ -183,7 +250,11 @@ class PrudentRepository {
     required String granularity,
     required int count,
   }) {
-    final query = {'currency': currency, 'granularity': granularity, 'count': '$count'};
+    final query = {
+      'currency': currency,
+      'granularity': granularity,
+      'count': '$count',
+    };
     return _client.get<SpendByPeriodResponse>(
       SpendByPeriodResponse.new,
       '$_spendByPeriodPath?${_encodeQuery(query)}',
@@ -191,6 +262,9 @@ class PrudentRepository {
   }
 
   static String _encodeQuery(Map<String, String> query) => query.entries
-      .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+      .map(
+        (e) =>
+            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}',
+      )
       .join('&');
 }

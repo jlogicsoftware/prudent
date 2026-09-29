@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 import org.jboss.logging.Logger;
 import prudent.account.AccountEntity;
+import prudent.budget.BudgetEntity;
 import prudent.category.CategoryEntity;
 import prudent.plan.PlanEntity;
 import prudent.plan.PlanOccurrenceEntity;
@@ -45,11 +46,11 @@ import zen.identity.event.UserAnonymised;
  *
  * <p><strong>Deletion order is FK-driven, not arbitrary</strong>: records first (the migration
  * carries no {@code ON DELETE CASCADE} on either the account or category reference — ADR-010 — so
- * a record row must go before the rows it points to), then plan occurrences and plans for the same reason (ADR-037, ADR-038),
- * then accounts and categories, then the singleton settings row. Accounts are deleted
- * entity-by-entity rather than by a bulk query so Hibernate cascades the {@code @ElementCollection}
- * balances ({@code prudent_account_balance}) it owns; a bulk HQL delete bypasses the persistence
- * context and would leave orphaned balance rows.
+ * a record row must go before the rows it points to), then plan occurrences and plans for the same
+ * reason (ADR-037, ADR-038), then budgets (ADR-043), then accounts and categories, then the
+ * singleton settings row. Accounts are deleted entity-by-entity rather than by a bulk query so
+ * Hibernate cascades the {@code @ElementCollection} balances ({@code prudent_account_balance}) it
+ * owns; a bulk HQL delete bypasses the persistence context and would leave orphaned balance rows.
  */
 @ApplicationScoped
 public class PrudentRetentionCleanup {
@@ -75,6 +76,8 @@ public class PrudentRetentionCleanup {
     PlanOccurrenceEntity.delete("userId", userId);
     // Before accounts and categories, like records: a plan references both, without a cascade.
     long plans = PlanEntity.delete("userId", userId);
+    // Before categories, like plans: a budget references its category without a cascade (ADR-043).
+    long budgets = BudgetEntity.delete("userId", userId);
 
     List<AccountEntity> accounts = AccountEntity.list("userId", userId);
     accounts.forEach(AccountEntity::delete);
@@ -82,11 +85,16 @@ public class PrudentRetentionCleanup {
     long categories = CategoryEntity.delete("userId", userId);
     long settings = SettingsEntity.delete("userId", userId);
 
-    if (records > 0 || plans > 0 || !accounts.isEmpty() || categories > 0 || settings > 0) {
+    if (records > 0
+        || plans > 0
+        || budgets > 0
+        || !accounts.isEmpty()
+        || categories > 0
+        || settings > 0) {
       LOG.infof(
-          "Retention cascade for %s: %d record(s), %d plan(s), %d account(s), %d category(ies),"
-              + " %d settings row(s)",
-          userId, records, plans, accounts.size(), categories, settings);
+          "Retention cascade for %s: %d record(s), %d plan(s), %d budget(s), %d account(s),"
+              + " %d category(ies), %d settings row(s)",
+          userId, records, plans, budgets, accounts.size(), categories, settings);
     }
   }
 }

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import prudent.PrudentTest;
 import prudent.account.AccountEntity;
+import prudent.budget.BudgetEntity;
 import prudent.category.CategoryEntity;
 import prudent.plan.PlanEntity;
 import prudent.plan.PlanOccurrenceEntity;
@@ -86,6 +87,8 @@ class PrudentRetentionCleanupTest {
         PrudentTest.seedRecord(userId.toString(), accountId, categoryId, -500L, "PLN");
     UUID planId = PrudentTest.seedPlan(userId.toString(), accountId, categoryId, -500L, "PLN");
     PrudentTest.seedOccurrence(userId.toString(), planId, java.time.LocalDate.of(2026, 9, 1));
+    PrudentTest.seedBudget(
+        userId.toString(), categoryId, java.time.YearMonth.of(2026, 9), "PLN", 500_00L);
 
     int anonymised = QuarkusTransaction.requiringNew().call(retention::anonymiseExpiredAccounts);
 
@@ -101,6 +104,7 @@ class PrudentRetentionCleanupTest {
               assertEquals(
                   0, PlanOccurrenceEntity.count("planId", planId), "the occurrences must be gone");
               assertNull(PlanEntity.findById(planId), "the plan must be gone");
+              assertEquals(0, BudgetEntity.count("userId", userId), "the budgets must be gone");
               assertNull(AccountEntity.findById(accountId), "the account must be gone");
               assertNull(CategoryEntity.findById(categoryId), "the category must be gone");
               assertNull(SettingsEntity.findById(userId), "the settings row must be gone");

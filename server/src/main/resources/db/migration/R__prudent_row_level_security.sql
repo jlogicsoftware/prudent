@@ -85,6 +85,7 @@ BEGIN
     FOREACH target_table IN ARRAY ARRAY[
         'prudent_account',
         'prudent_account_balance',
+        'prudent_budget',
         'prudent_category',
         'prudent_plan',
         'prudent_plan_occurrence',

@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// Prudent's monthly category budgets (M3, jlogicsoftware/prudent#36). CANONICAL SOURCE OF TRUTH for
+// the model: the Java DTOs and the Dart messages are GENERATED from this file and are never
+// hand-edited. Change this file and run `task generate`.
+//
+// A BUDGET IS THE AMOUNT THE USER MAY SPEND, and nothing more. It is not a transaction and not a
+// plan: no balance, analytics total or planned cash flow reads it. What was spent against it, what
+// remains and what carries forward are calculated from it by later M3 tasks, never stored here.
+//
+// A BUDGET HAS NO ID ON THE WIRE. Its identity is the slot it fills — category, month and
+// currency — and the API addresses it by exactly that, so "at most one amount per slot" is a
+// property of the address rather than a rule a client has to remember. The slot is also unique in
+// the database.
+//
+// Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that
+// message is not imported here (proto/README.md records why).
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+// See records.proto: named explicitly so the descriptor holder can never collide with a message.
+option java_outer_classname = "BudgetsProto";
+
+// One budget: how much may be spent in one category, in one calendar month, in one currency.
+message Budget {
+  // The category the money is budgeted for. The caller's own.
+  string category_id = 1;
+
+  // The calendar month, ISO-8601 YYYY-MM. A month rather than a date because a budget covers the
+  // whole month; there is no day to choose and none to get wrong.
+  string month = 2;
+
+  // ISO-4217. A budget is in ONE currency and is never converted (ADR-009): a category budgeted in
+  // both PLN and EUR has two budgets, each compared only with spending in its own currency.
+  string currency = 3;
+
+  // Minor units, POSITIVE: the amount that may be spent, not a signed transaction amount. Zero and
+  // negative are rejected — to have no budget for a slot, delete it. Zero is refused rather than
+  // stored because proto3 decodes an omitted field to 0, so it would make "the client forgot the
+  // amount" indistinguishable from "spend nothing".
+  int64 amount_minor = 4;
+}
+
+// PUT /api/v1/budgets/{categoryId}/{month}/{currency} — sets the budget for that slot, creating it
+// (201) or replacing its amount (200). The slot is in the path, so it cannot be edited by this
+// call: moving a budget to another month or category is deleting one slot and setting another.
+message SetBudgetRequest {
+  // See Budget.amount_minor.
+  int64 amount_minor = 1;
+}
+
+// GET /api/v1/budgets — the caller's budgets, optionally narrowed by the `month` (YYYY-MM) and
+// `categoryId` query parameters. Ordered by month, then currency, then category id, so the order
+// is total. Unpaginated in v1 for the reason records.proto gives for ListRecordsResponse.
+message ListBudgetsResponse {
+  repeated Budget budgets = 1;
+}
+
+// GET /api/v1/budgets/{categoryId}/{month}/{currency} answers a Budget, and DELETE on the same
+// path answers 204 with no body, so neither declares a message of its own.

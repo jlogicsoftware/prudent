@@ -23,6 +23,7 @@ import prudent.proto.v1.CreateCategoryRequest;
 import prudent.proto.v1.UpdateCategoryRequest;
 import prudent.CurrentUser;
 import prudent.Ids;
+import prudent.budget.BudgetEntity;
 import prudent.error.PrudentException;
 import prudent.plan.PlanEntity;
 import prudent.record.RecordEntity;
@@ -145,7 +146,7 @@ public class CategoryResource {
   @APIResponse(responseCode = ZenStatus.NO_CONTENT, description = "Deleted")
   @APIResponse(
       responseCode = ZenStatus.CONFLICT,
-      description = "The category still has records or plans",
+      description = "The category still has records, plans or budgets",
       content = @Content(schema = @Schema(ref = "ZenError")))
   @APIResponse(
       responseCode = ZenStatus.NOT_FOUND,
@@ -165,6 +166,12 @@ public class CategoryResource {
     if (PlanEntity.existsForCategory(userId, entity.id)) {
       throw PrudentException.conflict(
           "This category still has plans. Delete or re-categorise them first.");
+    }
+    // And for budgets (ADR-043): the budget names a category that would no longer exist. Refused
+    // rather than cascaded, so the amounts the user set are never deleted as a side effect.
+    if (BudgetEntity.existsForCategory(userId, entity.id)) {
+      throw PrudentException.conflict(
+          "This category still has budgets. Delete them first.");
     }
     entity.delete();
     return Response.noContent().build();
