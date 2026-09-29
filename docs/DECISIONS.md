@@ -13,6 +13,90 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-044 — A budget's actual is net spending from posted ledger records, calculated on read
+
+**Date:** 2026-09-29. **Status:** accepted. **Follows:** ADR-043 (budgets are a stored limit,
+nothing calculated), ADR-009 (per currency, never blended), ADR-014 (a record's date is a civil
+date), ADR-040 (a planned occurrence becomes a record only when confirmed).
+
+### Decision
+
+The second M3 task (jlogicsoftware/prudent#59 — "calculations use posted expenses only, handle
+refunds consistently and never mix currencies") calculates **plan, actual and remaining** for the
+categories budgeted in one month and currency.
+
+- **One read endpoint:** `GET /api/v1/budgets/summary?month=YYYY-MM&currency=XXX`. Both parameters
+  are **required** — a summary is for one month in one currency, and a missing currency is a 400,
+  never a guess or a sum over several. It answers `BudgetSummaryResponse`: one
+  `CategoryBudgetSummary` per budgeted category (ordered by category id) and the totals of the
+  listed categories. `month` uses ADR-043's strict `YYYY-MM`; the currency is normalised to upper
+  case.
+- **Calculated on every request, stored nowhere.** Plan is the ADR-043 budget row; actual is a query
+  over `prudent_record`; remaining is their difference. No column holds a result, so a result cannot
+  disagree with the rows it came from, and an edited or deleted record is reflected by the next
+  read. The arithmetic is `BudgetCalculator`, pure and unit-tested without a database.
+- **Plan** is `plan_minor`, the budget's positive amount. **Actual** is `actual_minor`, positive when
+  money was spent. **Remaining** is `plan_minor − actual_minor`: negative once overspent, and not
+  floored at zero, so the overspend is visible and the totals are exact sums. Carry-over is not
+  part of it (task 3).
+- **"Posted expenses only" means ledger records.** Actual counts only `prudent_record` rows with a
+  category in the budgeted category, in the requested currency, dated within the month, that are
+  **neither a transfer leg nor a balance correction** — the same exclusions as
+  `RecordEntity.expenseRows`, for the same reasons. A planned occurrence is not a record until it
+  is confirmed (ADR-040), so planned, skipped and overdue occurrences are never counted; the
+  record a confirmation creates is counted like any other, on the date it carries.
+- **Refunds are the positive side of the same sum.** A refund is an ordinary record with a
+  positive amount in the category it was spent in — there is no refund type and no link to the
+  original purchase, and this task does not invent one. Actual is therefore *money out minus money
+  back*, so a refund lowers actual and raises remaining, in the month **the refund is dated**, not
+  the month of the purchase it returns. The rule is one line of arithmetic (a signed `sum`) applied
+  to every record alike, which is what makes it consistent. Actual is **not floored at zero**: when
+  refunds outweigh spending in a month it is negative, so identical records always give identical
+  figures.
+- **Currencies never meet.** The budgets and the ledger are both read for the one currency asked
+  for, in the query itself rather than filtered afterwards. A category budgeted in PLN and spent in
+  EUR is not in the EUR summary and its EUR spending is not netted against its PLN plan.
+- **Month boundaries are civil dates.** A record belongs to the month its `record_date` falls in,
+  inclusive of the first and last day; there is no timezone to disagree about (ADR-014).
+- **Only budgeted categories are listed.** Spending in a category with no budget for the slot
+  appears in no item and no total. Whether and how to show it is the overview's decision (task 6).
+- **Client:** `PrudentRepository.getBudgetSummary`, and nothing that renders it.
+
+### What this deliberately differs from
+
+`GET /api/v1/analytics/spend-by-category` reports *gross* expense — it sums only negative records,
+so a refund does not reduce it (analytics.proto: "spend means expense only"). A budget's actual is
+*net*. The two answer different questions — "what did I spend" versus "how much of my limit is
+used" — and a refunded purchase should free the limit, so they are not unified here; a user who
+compares the two screens will see the refund in one and not the other. Changing analytics to be
+net is a separate decision.
+
+Categories have no income/expense kind, so an **income record filed under a budgeted category also
+lowers its actual**, exactly as a refund does; the ledger cannot tell them apart. If categories
+later gain a kind, "refund" narrows to a positive record in an expense category and this rule is
+revisited.
+
+### What this does not decide
+
+- **Carry-over (task 3).** `remaining_minor` here is the month on its own.
+- **Reset and audit history (task 4), category lifecycle (task 5).** A budgeted category cannot be
+  deleted (ADR-043), so the summary never meets a missing one.
+- **Percent, empty and overspent states (task 6).** The response carries the amounts a screen needs
+  to derive them.
+
+### Consequence
+
+Verified by `BudgetCalculatorTest` (the arithmetic: overspend, net-positive ledger, totals,
+overflow refused rather than wrapped) and `BudgetSummaryTest` (in both transports; transfers,
+corrections and planned occurrences excluded; refunds, including across a month edge and in another
+category; month first and last day; currencies never mixed; ownership; every refusal), a client
+repository test, and the regenerated Dart messages and admin schema. The full server suite is green
+at 349, the client repository tests pass, and a second `task generate` leaves every generated file
+byte-identical. (`task verify:contracts` compares against `HEAD`, so it reports the regenerated
+files only until they are committed.)
+
+---
+
 ## ADR-043 — A budget is its own table, addressed by the slot it fills
 
 **Date:** 2026-09-29. **Status:** accepted. **Follows:** ADR-037 (a plan is not a transaction — the

@@ -973,6 +973,58 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Budget'
+    CategoryBudgetSummary:
+      type: object
+      description: >-
+        One budgeted category's plan, actual and remaining amount for one month in one currency
+        (M3, jlogicsoftware/prudent#59, ADR-044). Calculated on every read, never stored.
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        planMinor:
+          type: string
+          format: int64
+          description: The budget for the slot — what may be spent. Positive minor units.
+        actualMinor:
+          type: string
+          format: int64
+          description: >-
+            Net spending from posted records dated in the month, in the summary's currency: money
+            out minus refunds. Negative when refunds outweigh spending.
+        remainingMinor:
+          type: string
+          format: int64
+          description: >-
+            planMinor minus actualMinor. Negative once the category is overspent. Carry-over from
+            earlier months is not included.
+    BudgetSummaryResponse:
+      type: object
+      description: >-
+        GET /api/v1/budgets/summary — the plan, actual and remaining amount of every category
+        budgeted for one month and currency, ordered by category id. Never summed across
+        currencies; the totals cover the listed categories only.
+      properties:
+        month:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryBudgetSummary'
+        totalPlanMinor:
+          type: string
+          format: int64
+        totalActualMinor:
+          type: string
+          format: int64
+        totalRemainingMinor:
+          type: string
+          format: int64
 
     # -----------------------------------------------------------------------------------------
     # Settings — a singleton per user

@@ -226,6 +226,228 @@ class ListBudgetsResponse extends $pb.GeneratedMessage {
   $pb.PbList<Budget> get budgets => $_getList(0);
 }
 
+/// One budgeted category's plan, actual and remaining amount for one month, in one currency (M3,
+/// jlogicsoftware/prudent#59, ADR-044). Calculated on every read from the budget and the ledger and
+/// never stored, so it cannot drift from either.
+class CategoryBudgetSummary extends $pb.GeneratedMessage {
+  factory CategoryBudgetSummary({
+    $core.String? categoryId,
+    $fixnum.Int64? planMinor,
+    $fixnum.Int64? actualMinor,
+    $fixnum.Int64? remainingMinor,
+  }) {
+    final result = create();
+    if (categoryId != null) result.categoryId = categoryId;
+    if (planMinor != null) result.planMinor = planMinor;
+    if (actualMinor != null) result.actualMinor = actualMinor;
+    if (remainingMinor != null) result.remainingMinor = remainingMinor;
+    return result;
+  }
+
+  CategoryBudgetSummary._();
+
+  factory CategoryBudgetSummary.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CategoryBudgetSummary.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CategoryBudgetSummary',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'categoryId')
+    ..aInt64(2, _omitFieldNames ? '' : 'planMinor')
+    ..aInt64(3, _omitFieldNames ? '' : 'actualMinor')
+    ..aInt64(4, _omitFieldNames ? '' : 'remainingMinor')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CategoryBudgetSummary clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CategoryBudgetSummary copyWith(
+          void Function(CategoryBudgetSummary) updates) =>
+      super.copyWith((message) => updates(message as CategoryBudgetSummary))
+          as CategoryBudgetSummary;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CategoryBudgetSummary create() => CategoryBudgetSummary._();
+  @$core.override
+  CategoryBudgetSummary createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CategoryBudgetSummary getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CategoryBudgetSummary>(create);
+  static CategoryBudgetSummary? _defaultInstance;
+
+  /// The budgeted category. The client resolves the id against the category list it already holds.
+  @$pb.TagNumber(1)
+  $core.String get categoryId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set categoryId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCategoryId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCategoryId() => $_clearField(1);
+
+  /// The budget for this category, month and currency: what may be spent. Positive minor units.
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get planMinor => $_getI64(1);
+  @$pb.TagNumber(2)
+  set planMinor($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasPlanMinor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearPlanMinor() => $_clearField(2);
+
+  /// What was spent, NET OF REFUNDS: the money that left the category's records dated in the month
+  /// and in this currency, minus the money that came back into them, from posted records only. A
+  /// positive number is net spending; it is negative when refunds outweigh spending in the month.
+  /// See ADR-044 for exactly which records count.
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get actualMinor => $_getI64(2);
+  @$pb.TagNumber(3)
+  set actualMinor($fixnum.Int64 value) => $_setInt64(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasActualMinor() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearActualMinor() => $_clearField(3);
+
+  /// plan_minor - actual_minor: what may still be spent. Negative once the category is overspent.
+  /// Carry-over from earlier months is not included; it is a later task.
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get remainingMinor => $_getI64(3);
+  @$pb.TagNumber(4)
+  set remainingMinor($fixnum.Int64 value) => $_setInt64(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasRemainingMinor() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRemainingMinor() => $_clearField(4);
+}
+
+/// GET /api/v1/budgets/summary?month=YYYY-MM&currency=XXX — the plan, actual and remaining amount of
+/// every category budgeted for that month and currency. BOTH query parameters are required: a
+/// summary is for one month in ONE currency, and the currency is never inferred or summed across
+/// (ADR-009), so there is no field two currencies could be added into. Categories without a budget
+/// in that slot are not listed. Ordered by category id, so the order is total.
+class BudgetSummaryResponse extends $pb.GeneratedMessage {
+  factory BudgetSummaryResponse({
+    $core.String? month,
+    $core.String? currency,
+    $core.Iterable<CategoryBudgetSummary>? items,
+    $fixnum.Int64? totalPlanMinor,
+    $fixnum.Int64? totalActualMinor,
+    $fixnum.Int64? totalRemainingMinor,
+  }) {
+    final result = create();
+    if (month != null) result.month = month;
+    if (currency != null) result.currency = currency;
+    if (items != null) result.items.addAll(items);
+    if (totalPlanMinor != null) result.totalPlanMinor = totalPlanMinor;
+    if (totalActualMinor != null) result.totalActualMinor = totalActualMinor;
+    if (totalRemainingMinor != null)
+      result.totalRemainingMinor = totalRemainingMinor;
+    return result;
+  }
+
+  BudgetSummaryResponse._();
+
+  factory BudgetSummaryResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BudgetSummaryResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BudgetSummaryResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'month')
+    ..aOS(2, _omitFieldNames ? '' : 'currency')
+    ..pPM<CategoryBudgetSummary>(3, _omitFieldNames ? '' : 'items',
+        subBuilder: CategoryBudgetSummary.create)
+    ..aInt64(4, _omitFieldNames ? '' : 'totalPlanMinor')
+    ..aInt64(5, _omitFieldNames ? '' : 'totalActualMinor')
+    ..aInt64(6, _omitFieldNames ? '' : 'totalRemainingMinor')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BudgetSummaryResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BudgetSummaryResponse copyWith(
+          void Function(BudgetSummaryResponse) updates) =>
+      super.copyWith((message) => updates(message as BudgetSummaryResponse))
+          as BudgetSummaryResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BudgetSummaryResponse create() => BudgetSummaryResponse._();
+  @$core.override
+  BudgetSummaryResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BudgetSummaryResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BudgetSummaryResponse>(create);
+  static BudgetSummaryResponse? _defaultInstance;
+
+  /// The requested month, YYYY-MM, echoed back.
+  @$pb.TagNumber(1)
+  $core.String get month => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set month($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasMonth() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMonth() => $_clearField(1);
+
+  /// The requested currency, normalised to upper case.
+  @$pb.TagNumber(2)
+  $core.String get currency => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set currency($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCurrency() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCurrency() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $pb.PbList<CategoryBudgetSummary> get items => $_getList(2);
+
+  /// The sums of the items' three amounts, in the response's currency. They cover the budgeted
+  /// categories only, so spending in a category with no budget is in none of them.
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get totalPlanMinor => $_getI64(3);
+  @$pb.TagNumber(4)
+  set totalPlanMinor($fixnum.Int64 value) => $_setInt64(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasTotalPlanMinor() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearTotalPlanMinor() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $fixnum.Int64 get totalActualMinor => $_getI64(4);
+  @$pb.TagNumber(5)
+  set totalActualMinor($fixnum.Int64 value) => $_setInt64(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasTotalActualMinor() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearTotalActualMinor() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $fixnum.Int64 get totalRemainingMinor => $_getI64(5);
+  @$pb.TagNumber(6)
+  set totalRemainingMinor($fixnum.Int64 value) => $_setInt64(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasTotalRemainingMinor() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearTotalRemainingMinor() => $_clearField(6);
+}
+
 const $core.bool _omitFieldNames =
     $core.bool.fromEnvironment('protobuf.omit_field_names');
 const $core.bool _omitMessageNames =

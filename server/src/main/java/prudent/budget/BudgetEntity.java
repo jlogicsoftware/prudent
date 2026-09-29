@@ -118,6 +118,18 @@ public class BudgetEntity extends PanacheEntityBase {
     return list(query.toString(), params.toArray());
   }
 
+  /**
+   * The caller's budgets for one month in one currency, ordered by category id — the rows a budget
+   * summary is calculated from. The currency is part of the query, not a filter applied after it,
+   * so no other currency's budget is ever read into a calculation.
+   */
+  public static List<BudgetEntity> listForMonthAndCurrency(
+      UUID userId, YearMonth month, String currency) {
+    return list(
+        "userId = ?1 and monthStart = ?2 and currency = ?3 order by categoryId",
+        userId, month.atDay(1), currency);
+  }
+
   /** Whether any of the caller's budgets is still set for this category. */
   public static boolean existsForCategory(UUID userId, UUID categoryId) {
     return count("userId = ?1 and categoryId = ?2", userId, categoryId) > 0;

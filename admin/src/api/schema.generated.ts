@@ -1137,6 +1137,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/budgets/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Plan, actual and remaining amount per budgeted category, for one month
+         * @description Query parameters: month (required, YYYY-MM) and currency (required, ISO-4217). Actual is net spending from posted records in that currency, refunds included; a planned occurrence is not counted until it is confirmed. Never summed across currencies.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    currency?: string;
+                    month?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BudgetSummaryResponse"];
+                        "application/x-protobuf": components["schemas"]["BudgetSummaryResponse"];
+                    };
+                };
+                /** @description A missing or malformed month, or a missing or non-ISO-4217 currency */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/budgets/{categoryId}/{month}/{currency}": {
         parameters: {
             query?: never;
@@ -3528,6 +3595,38 @@ export interface components {
         /** @description GET /api/v1/budgets — the caller's budgets, optionally narrowed by month and categoryId, ordered by month, then currency, then category id. */
         ListBudgetsResponse: {
             budgets?: components["schemas"]["Budget"][];
+        };
+        /** @description One budgeted category's plan, actual and remaining amount for one month in one currency (M3, jlogicsoftware/prudent#59, ADR-044). Calculated on every read, never stored. */
+        CategoryBudgetSummary: {
+            /** Format: uuid */
+            categoryId?: string;
+            /**
+             * Format: int64
+             * @description The budget for the slot — what may be spent. Positive minor units.
+             */
+            planMinor?: string;
+            /**
+             * Format: int64
+             * @description Net spending from posted records dated in the month, in the summary's currency: money out minus refunds. Negative when refunds outweigh spending.
+             */
+            actualMinor?: string;
+            /**
+             * Format: int64
+             * @description planMinor minus actualMinor. Negative once the category is overspent. Carry-over from earlier months is not included.
+             */
+            remainingMinor?: string;
+        };
+        /** @description GET /api/v1/budgets/summary — the plan, actual and remaining amount of every category budgeted for one month and currency, ordered by category id. Never summed across currencies; the totals cover the listed categories only. */
+        BudgetSummaryResponse: {
+            month?: string;
+            currency?: string;
+            items?: components["schemas"]["CategoryBudgetSummary"][];
+            /** Format: int64 */
+            totalPlanMinor?: string;
+            /** Format: int64 */
+            totalActualMinor?: string;
+            /** Format: int64 */
+            totalRemainingMinor?: string;
         };
         /** @description The authenticated user's settings. A SINGLETON: there is no id, no create, no delete and no list, and the URL carries no id because the token is the entire addressing scheme. The row is created on first login, not by a client. */
         Settings: {
