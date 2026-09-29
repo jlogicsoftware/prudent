@@ -13,6 +13,48 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-042 — Planned cash flow is its own overview section, fed by the existing occurrence views
+
+**Date:** 2026-09-29. **Status:** accepted. **Follows:** ADR-037 (a plan is not a transaction),
+ADR-039 (the `upcoming` and `overdue` views), ADR-040 (confirming an occurrence writes the record),
+ADR-009 (per currency, never blended).
+
+### Decision
+
+The fifth M2 task (jlogicsoftware/prudent#58 — "future income and spending are clearly separated
+from actual balances and can be included or hidden by the user") is a **client-only change**: no
+proto, endpoint or migration moves, because the two views ADR-039 built already return everything
+an overview needs.
+
+- **A separate section, never a sum.** The overview draws "Planned cash flow" beneath the balances
+  and the account list. No figure above it changes when it is shown or hidden — an occurrence is
+  not money that moved, so adding it to a balance would make the balance a forecast.
+- **What counts.** `plannedCashFlowByCurrency` sums occurrences that are `PLANNED` or `OVERDUE`,
+  fetched as the overdue view plus the next 30 days of the upcoming view (`plannedCashFlowDays`,
+  the server's own default window). `COMPLETED` is excluded because it is already a record and
+  therefore already in the balance — counting it would count it twice; `SKIPPED` will not happen.
+- **Income and spending stay apart.** Per currency: expected income (positive), expected spending
+  (negative), and their net. The wire's sign convention (ADR-014) makes the net a plain sum.
+- **Same account rule as the totals.** Only occurrences on an account that is active and
+  `includeInTotal` count, so hiding an account from the total hides its planned money too. An
+  occurrence on an account no longer in the list is dropped, not guessed at.
+- **Include or hide is a view choice, on by default.** A switch on the overview
+  (`plannedCashFlowVisibleProvider`, `ZenSwitchRow` per ADR-041). It is per-session client state,
+  not a `settings.proto` field: it changes what one screen draws, not what any figure means, and a
+  persisted preference is a later, separate decision if users ask for one. While hidden the
+  provider is not watched, so nothing is fetched.
+- **A failed load is local.** The section reports its own error; the balances stay readable.
+
+### Consequence
+
+Verified by unit tests of the calculation (states, sign split, currencies, account flags) and a
+widget test that shows the section, hides it with the switch, and asserts the balance text is
+identical either way. **Not built:** a per-occurrence list on the overview, and confirming or
+skipping from it — the overview shows totals, and the actions remain repository methods until a
+plans screen exists.
+
+---
+
 ## ADR-041 — `zen_ui_widgets` is consumed: overlays now, the rule for everything after
 
 **Date:** 2026-09-29. **Status:** accepted. **Follows:** ADR-036 (interactive widgets are sourced

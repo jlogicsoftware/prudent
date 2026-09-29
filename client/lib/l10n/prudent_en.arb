@@ -118,6 +118,23 @@
   "overviewEmpty": "No accounts to show. Add one to get started.",
   "overviewTotalsTitle": "Total balance",
   "overviewAccountsTitle": "Accounts",
+  "plannedCashFlowToggle": "Include planned cash flow",
+  "plannedCashFlowToggleHint": "Still expected: overdue and the next {days} days. Not part of your balances.",
+  "@plannedCashFlowToggleHint": {
+    "placeholders": { "days": { "type": "int" } }
+  },
+  "plannedCashFlowTitle": "Planned cash flow",
+  "plannedCashFlowIncome": "Expected income",
+  "plannedCashFlowSpending": "Expected spending",
+  "plannedCashFlowNet": "Net planned",
+  "plannedCashFlowEmpty": "Nothing planned in the next {days} days.",
+  "@plannedCashFlowEmpty": {
+    "placeholders": { "days": { "type": "int" } }
+  },
+  "plannedCashFlowLoadError": "Could not load planned cash flow: {error}",
+  "@plannedCashFlowLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
 
   "analyticsTitle": "Analytics",
   "analyticsSpendByMonth": "Spend by month",
