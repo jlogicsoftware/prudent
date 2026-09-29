@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/categories.pb.dart';
 import '../generated/prudent/v1/records.pb.dart';
@@ -45,12 +46,10 @@ class RecordsList extends ConsumerWidget {
             ),
             confirmDismiss: (direction) async {
               if (direction == DismissDirection.startToEnd) {
-                await showModalBottomSheet(
-                  isScrollControlled: true,
-                  useSafeArea: true,
-                  context: context,
+                await showAdaptivePresentation<void>(
+                  context,
                   builder:
-                      (ctx) => NewRecord(
+                      (_) => NewRecord(
                         initialRecord: records[index],
                         onSave:
                             ({

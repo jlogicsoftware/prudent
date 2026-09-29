@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:zen_core/zen_core.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/records.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
@@ -22,24 +22,7 @@ class RecordsScreen extends ConsumerStatefulWidget {
 
 class _RecordsState extends ConsumerState<RecordsScreen> {
   void _presentOverlay(Widget body) {
-    if (zenIsDesktop) {
-      showDialog(
-        context: context,
-        builder:
-            (ctx) => Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-              child: SizedBox(width: 400, height: 460, child: Padding(padding: const EdgeInsets.all(16), child: body)),
-            ),
-      );
-    } else {
-      showModalBottomSheet(
-        isScrollControlled: true,
-        useSafeArea: true,
-        context: context,
-        builder: (ctx) => body,
-        constraints: const BoxConstraints.expand(),
-      );
-    }
+    showAdaptivePresentation<void>(context, builder: (_) => body);
   }
 
   void _openAddRecordOverlay() {

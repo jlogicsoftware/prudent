@@ -61,6 +61,8 @@ dependencies:
     path: ../../jZen/client/zen_ui_identity
   zen_ui_navigation:
     path: ../../jZen/client/zen_ui_navigation
+  zen_ui_widgets:
+    path: ../../jZen/client/zen_ui_widgets
 
   # http is used ONLY to type the shared session client createSessionClient() returns (the
   # composition root, main.dart) — not to make requests. Every actual call goes through
