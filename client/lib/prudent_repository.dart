@@ -28,6 +28,7 @@ class PrudentRepository {
   static const String _categoriesPath = '/api/v1/categories';
   static const String _settingsPath = '/api/v1/settings';
   static const String _plansPath = '/api/v1/plans';
+  static const String _occurrencesPath = '/api/v1/occurrences';
   static const String _spendByCategoryPath = '/api/v1/analytics/spend-by-category';
   static const String _spendByPeriodPath = '/api/v1/analytics/spend-by-period';
 
@@ -107,6 +108,32 @@ class PrudentRepository {
 
   Future<ZenResult<Plan>> deletePlan(String id) =>
       _client.delete<Plan>(Plan.new, '$_plansPath/$id');
+
+  // --- Planned occurrences (M2, jlogicsoftware/prudent#56) — expected, not yet a transaction ---
+
+  /// Occurrences from today (in each plan's time zone) to [days] ahead, in any state, so what was
+  /// skipped or confirmed early stays visible. The server defaults to 30 and accepts 1-366.
+  Future<ZenResult<ListOccurrencesResponse>> listUpcomingOccurrences({int? days}) {
+    final path = days == null
+        ? '$_occurrencesPath/upcoming'
+        : '$_occurrencesPath/upcoming?${_encodeQuery({'days': '$days'})}';
+    return _client.get<ListOccurrencesResponse>(ListOccurrencesResponse.new, path);
+  }
+
+  /// Occurrences still planned whose date has passed in their plan's time zone.
+  Future<ZenResult<ListOccurrencesResponse>> listOverdueOccurrences() =>
+      _client.get<ListOccurrencesResponse>(
+        ListOccurrencesResponse.new,
+        '$_occurrencesPath/overdue',
+      );
+
+  /// The user decided this occurrence will not happen. Refused (409) unless it is planned.
+  Future<ZenResult<PlanOccurrence>> skipOccurrence(String id) =>
+      _client.post<PlanOccurrence>(PlanOccurrence.new, '$_occurrencesPath/$id/skip');
+
+  /// Reopens a skipped occurrence as planned. Refused (409) unless it is skipped.
+  Future<ZenResult<PlanOccurrence>> restoreOccurrence(String id) =>
+      _client.post<PlanOccurrence>(PlanOccurrence.new, '$_occurrencesPath/$id/restore');
 
   // --- Settings -----------------------------------------------------------------------------------
 

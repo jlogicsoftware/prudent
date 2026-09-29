@@ -387,6 +387,110 @@ void main() {
     });
   });
 
+  group('PrudentRepository occurrences', () {
+    Map<String, Object?> occurrence(String status) => {
+      'id': 'occ-1',
+      'planId': 'plan-1',
+      'occurrenceDate': '2026-10-10',
+      'status': status,
+      'title': 'Rent',
+      'amountMinor': '-250000',
+      'currency': 'PLN',
+      'accountId': 'a1',
+      'categoryId': 'c1',
+    };
+
+    test('listUpcomingOccurrences sends days only when given, and decodes every state', () async {
+      final uris = <Uri>[];
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          uris.add(_uriOf(request));
+          return _jsonResponse({
+            'occurrences': [
+              occurrence('OCCURRENCE_STATUS_PLANNED'),
+              occurrence('OCCURRENCE_STATUS_COMPLETED'),
+              occurrence('OCCURRENCE_STATUS_SKIPPED'),
+            ],
+          });
+        }),
+      );
+
+      final defaulted = await repository.listUpcomingOccurrences();
+      final bounded = await repository.listUpcomingOccurrences(days: 60);
+
+      expect(uris[0].path, '/api/v1/occurrences/upcoming');
+      expect(uris[0].hasQuery, isFalse);
+      expect(uris[1].queryParameters['days'], '60');
+      final decoded = defaulted.fold((r) => r.occurrences, (e) => throw e);
+      expect(decoded.map((o) => o.status), [
+        OccurrenceStatus.OCCURRENCE_STATUS_PLANNED,
+        OccurrenceStatus.OCCURRENCE_STATUS_COMPLETED,
+        OccurrenceStatus.OCCURRENCE_STATUS_SKIPPED,
+      ]);
+      expect(decoded.first.amountMinor.toInt(), -250000);
+      expect(decoded.first.occurrenceDate, '2026-10-10');
+      expect(bounded.isSuccess, isTrue);
+    });
+
+    test('listOverdueOccurrences decodes the derived OVERDUE status', () async {
+      Uri? uri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          uri = _uriOf(request);
+          return _jsonResponse({
+            'occurrences': [occurrence('OCCURRENCE_STATUS_OVERDUE')],
+          });
+        }),
+      );
+
+      final result = await repository.listOverdueOccurrences();
+
+      expect(uri!.path, '/api/v1/occurrences/overdue');
+      expect(
+        result.fold((r) => r.occurrences.single.status, (e) => throw e),
+        OccurrenceStatus.OCCURRENCE_STATUS_OVERDUE,
+      );
+    });
+
+    test('skip and restore POST to the occurrence and decode the updated state', () async {
+      final calls = <String>[];
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          calls.add('${request.method} ${_uriOf(request).path}');
+          return _jsonResponse(occurrence('OCCURRENCE_STATUS_SKIPPED'));
+        }),
+      );
+
+      final skipped = await repository.skipOccurrence('occ-1');
+      final restored = await repository.restoreOccurrence('occ-1');
+
+      expect(calls, [
+        'POST /api/v1/occurrences/occ-1/skip',
+        'POST /api/v1/occurrences/occ-1/restore',
+      ]);
+      expect(
+        skipped.fold((o) => o.status, (e) => throw e),
+        OccurrenceStatus.OCCURRENCE_STATUS_SKIPPED,
+      );
+      expect(restored.isSuccess, isTrue);
+    });
+
+    test('a refused transition surfaces the conflict rather than a decoded occurrence', () async {
+      final repository = PrudentRepository(
+        client: _clientAnswering(
+          (request) => _jsonResponse({
+            'code': 'conflict',
+            'message': 'An occurrence that is COMPLETED cannot become SKIPPED.',
+          }, status: 409),
+        ),
+      );
+
+      final result = await repository.skipOccurrence('occ-1');
+
+      expect(result.isFailure, isTrue);
+    });
+  });
+
   group('PrudentRepository.spendByCategory', () {
     test('sends currency and year as query parameters, and decodes the response', () async {
       Uri? capturedUri;

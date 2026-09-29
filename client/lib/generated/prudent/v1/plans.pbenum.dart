@@ -64,5 +64,49 @@ class RecurrenceFrequency extends $pb.ProtobufEnum {
   const RecurrenceFrequency._(super.value, super.name);
 }
 
+/// Where one planned occurrence stands (M2, jlogicsoftware/prudent#56). PLANNED, COMPLETED and
+/// SKIPPED are what the server STORES; OVERDUE is never stored — it is a PLANNED occurrence whose
+/// date is before today in its plan's time zone, worked out at read time. Storing it would need a
+/// job to flip it at midnight in every user's zone, and a missed run would leave a stale row; a
+/// derived value cannot be stale. The zero value is UNSPECIFIED, for the reason AccountType gives.
+class OccurrenceStatus extends $pb.ProtobufEnum {
+  static const OccurrenceStatus OCCURRENCE_STATUS_UNSPECIFIED =
+      OccurrenceStatus._(
+          0, _omitEnumNames ? '' : 'OCCURRENCE_STATUS_UNSPECIFIED');
+
+  /// Expected, not yet resolved, and not yet past its date.
+  static const OccurrenceStatus OCCURRENCE_STATUS_PLANNED =
+      OccurrenceStatus._(1, _omitEnumNames ? '' : 'OCCURRENCE_STATUS_PLANNED');
+
+  /// Confirmed into an actual Record (M2, jlogicsoftware/prudent#57). No route sets this yet.
+  static const OccurrenceStatus OCCURRENCE_STATUS_COMPLETED =
+      OccurrenceStatus._(
+          2, _omitEnumNames ? '' : 'OCCURRENCE_STATUS_COMPLETED');
+
+  /// The user decided it will not happen. It can be restored to PLANNED.
+  static const OccurrenceStatus OCCURRENCE_STATUS_SKIPPED =
+      OccurrenceStatus._(3, _omitEnumNames ? '' : 'OCCURRENCE_STATUS_SKIPPED');
+
+  /// PLANNED, and its date has passed in the plan's time zone. Still open: it can be skipped, and
+  /// (once #57 lands) confirmed.
+  static const OccurrenceStatus OCCURRENCE_STATUS_OVERDUE =
+      OccurrenceStatus._(4, _omitEnumNames ? '' : 'OCCURRENCE_STATUS_OVERDUE');
+
+  static const $core.List<OccurrenceStatus> values = <OccurrenceStatus>[
+    OCCURRENCE_STATUS_UNSPECIFIED,
+    OCCURRENCE_STATUS_PLANNED,
+    OCCURRENCE_STATUS_COMPLETED,
+    OCCURRENCE_STATUS_SKIPPED,
+    OCCURRENCE_STATUS_OVERDUE,
+  ];
+
+  static final $core.List<OccurrenceStatus?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 4);
+  static OccurrenceStatus? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const OccurrenceStatus._(super.value, super.name);
+}
+
 const $core.bool _omitEnumNames =
     $core.bool.fromEnvironment('protobuf.omit_enum_names');

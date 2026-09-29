@@ -670,6 +670,218 @@ class ListPlansResponse extends $pb.GeneratedMessage {
   $pb.PbList<Plan> get plans => $_getList(0);
 }
 
+/// One dated occurrence of a plan, with the plan's own fields alongside so a list can be drawn
+/// without a second call per row. Like the plan it is NEVER a transaction: nothing here is read by
+/// a balance or by analytics until it is confirmed into a Record.
+class PlanOccurrence extends $pb.GeneratedMessage {
+  factory PlanOccurrence({
+    $core.String? id,
+    $core.String? planId,
+    $core.String? occurrenceDate,
+    OccurrenceStatus? status,
+    $core.String? title,
+    $fixnum.Int64? amountMinor,
+    $core.String? currency,
+    $core.String? accountId,
+    $core.String? categoryId,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (planId != null) result.planId = planId;
+    if (occurrenceDate != null) result.occurrenceDate = occurrenceDate;
+    if (status != null) result.status = status;
+    if (title != null) result.title = title;
+    if (amountMinor != null) result.amountMinor = amountMinor;
+    if (currency != null) result.currency = currency;
+    if (accountId != null) result.accountId = accountId;
+    if (categoryId != null) result.categoryId = categoryId;
+    return result;
+  }
+
+  PlanOccurrence._();
+
+  factory PlanOccurrence.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PlanOccurrence.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PlanOccurrence',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'planId')
+    ..aOS(3, _omitFieldNames ? '' : 'occurrenceDate')
+    ..aE<OccurrenceStatus>(4, _omitFieldNames ? '' : 'status',
+        enumValues: OccurrenceStatus.values)
+    ..aOS(5, _omitFieldNames ? '' : 'title')
+    ..aInt64(6, _omitFieldNames ? '' : 'amountMinor')
+    ..aOS(7, _omitFieldNames ? '' : 'currency')
+    ..aOS(8, _omitFieldNames ? '' : 'accountId')
+    ..aOS(9, _omitFieldNames ? '' : 'categoryId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PlanOccurrence clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PlanOccurrence copyWith(void Function(PlanOccurrence) updates) =>
+      super.copyWith((message) => updates(message as PlanOccurrence))
+          as PlanOccurrence;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PlanOccurrence create() => PlanOccurrence._();
+  @$core.override
+  PlanOccurrence createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PlanOccurrence getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PlanOccurrence>(create);
+  static PlanOccurrence? _defaultInstance;
+
+  /// Server-minted UUID.
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get planId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set planId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasPlanId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearPlanId() => $_clearField(2);
+
+  /// The civil date this occurrence falls on, ISO-8601 YYYY-MM-DD.
+  @$pb.TagNumber(3)
+  $core.String get occurrenceDate => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set occurrenceDate($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasOccurrenceDate() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearOccurrenceDate() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  OccurrenceStatus get status => $_getN(3);
+  @$pb.TagNumber(4)
+  set status(OccurrenceStatus value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasStatus() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearStatus() => $_clearField(4);
+
+  /// The plan's fields as they are now. Per-occurrence edits (M2, jlogicsoftware/prudent#57) will
+  /// override these on the occurrence itself; until then an occurrence is exactly its plan.
+  @$pb.TagNumber(5)
+  $core.String get title => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set title($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasTitle() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearTitle() => $_clearField(5);
+
+  /// Signed, as Plan.amount_minor.
+  @$pb.TagNumber(6)
+  $fixnum.Int64 get amountMinor => $_getI64(5);
+  @$pb.TagNumber(6)
+  set amountMinor($fixnum.Int64 value) => $_setInt64(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasAmountMinor() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearAmountMinor() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get currency => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set currency($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasCurrency() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearCurrency() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.String get accountId => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set accountId($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasAccountId() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearAccountId() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.String get categoryId => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set categoryId($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasCategoryId() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearCategoryId() => $_clearField(9);
+}
+
+/// GET /api/v1/occurrences/upcoming and GET /api/v1/occurrences/overdue. Both are ordered by date
+/// ascending, then id, so the order is total. Unpaginated in v1 for the reason records.proto gives
+/// for ListRecordsResponse — both are bounded by their windows.
+class ListOccurrencesResponse extends $pb.GeneratedMessage {
+  factory ListOccurrencesResponse({
+    $core.Iterable<PlanOccurrence>? occurrences,
+  }) {
+    final result = create();
+    if (occurrences != null) result.occurrences.addAll(occurrences);
+    return result;
+  }
+
+  ListOccurrencesResponse._();
+
+  factory ListOccurrencesResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListOccurrencesResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListOccurrencesResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..pPM<PlanOccurrence>(1, _omitFieldNames ? '' : 'occurrences',
+        subBuilder: PlanOccurrence.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListOccurrencesResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListOccurrencesResponse copyWith(
+          void Function(ListOccurrencesResponse) updates) =>
+      super.copyWith((message) => updates(message as ListOccurrencesResponse))
+          as ListOccurrencesResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListOccurrencesResponse create() => ListOccurrencesResponse._();
+  @$core.override
+  ListOccurrencesResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListOccurrencesResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListOccurrencesResponse>(create);
+  static ListOccurrencesResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<PlanOccurrence> get occurrences => $_getList(0);
+}
+
 const $core.bool _omitFieldNames =
     $core.bool.fromEnvironment('protobuf.omit_field_names');
 const $core.bool _omitMessageNames =

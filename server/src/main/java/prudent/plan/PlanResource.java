@@ -48,6 +48,7 @@ public class PlanResource {
 
   @Inject CurrentUser currentUser;
   @Inject PlanMapper mapper;
+  @Inject OccurrenceGenerator occurrenceGenerator;
 
   @GET
   @Operation(summary = "List the authenticated user's plans")
@@ -119,11 +120,10 @@ public class PlanResource {
         request.hasNote() ? request.getNote() : null,
         request.getRecurrence(), request.hasRecurrence());
     if (!before.equals(entity.rule())) {
-      // Occurrences generated from the old rule are dates the new one may not produce, and
-      // generation only ever adds (ADR-038), so they would sit beside the new ones for good. No
-      // occurrence carries state yet, so dropping them loses nothing; the lifecycle work
-      // (jlogicsoftware/prudent#56) must replace this with something that keeps a completed one.
-      PlanOccurrenceEntity.deleteForPlan(entity.id);
+      // Generation only ever adds (ADR-038), so still-planned occurrences the new rule no longer
+      // produces would sit beside its own for good. Completed and skipped ones are the user's
+      // decisions and stay (ADR-039); the views regenerate whatever the new rule adds.
+      occurrenceGenerator.dropStale(entity);
     }
     return Response.ok(mapper.toProto(entity)).build();
   }

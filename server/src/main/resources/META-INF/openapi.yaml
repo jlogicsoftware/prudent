@@ -817,6 +817,61 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Plan'
+    OccurrenceStatus:
+      type: string
+      description: >-
+        Where a planned occurrence stands. PLANNED, COMPLETED and SKIPPED are stored. OVERDUE is
+        never stored: it is a PLANNED occurrence dated before today in its plan's time zone, worked
+        out when it is read. OCCURRENCE_STATUS_UNSPECIFIED is what proto3 decodes an omitted field
+        to and is never returned.
+      enum:
+        - OCCURRENCE_STATUS_UNSPECIFIED
+        - OCCURRENCE_STATUS_PLANNED
+        - OCCURRENCE_STATUS_COMPLETED
+        - OCCURRENCE_STATUS_SKIPPED
+        - OCCURRENCE_STATUS_OVERDUE
+    PlanOccurrence:
+      type: object
+      description: >-
+        One dated occurrence of a plan, with the plan's fields alongside. Never a transaction:
+        nothing here moves a balance or an analytics total.
+      properties:
+        id:
+          type: string
+          format: uuid
+        planId:
+          type: string
+          format: uuid
+        occurrenceDate:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/OccurrenceStatus'
+        title:
+          type: string
+        amountMinor:
+          type: string
+          format: int64
+          description: Signed minor units, as Plan.amountMinor.
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        accountId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+    ListOccurrencesResponse:
+      type: object
+      description: >-
+        GET /api/v1/occurrences/upcoming and /overdue — ordered by date ascending, then id.
+      properties:
+        occurrences:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanOccurrence'
 
     # -----------------------------------------------------------------------------------------
     # Settings — a singleton per user

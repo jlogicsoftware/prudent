@@ -142,3 +142,52 @@ message ListPlansResponse {
 }
 
 // DELETE /api/v1/plans/{id} carries no request body and answers 204, so it declares no messages.
+
+// Where one planned occurrence stands (M2, jlogicsoftware/prudent#56). PLANNED, COMPLETED and
+// SKIPPED are what the server STORES; OVERDUE is never stored — it is a PLANNED occurrence whose
+// date is before today in its plan's time zone, worked out at read time. Storing it would need a
+// job to flip it at midnight in every user's zone, and a missed run would leave a stale row; a
+// derived value cannot be stale. The zero value is UNSPECIFIED, for the reason AccountType gives.
+enum OccurrenceStatus {
+  OCCURRENCE_STATUS_UNSPECIFIED = 0;
+  // Expected, not yet resolved, and not yet past its date.
+  OCCURRENCE_STATUS_PLANNED = 1;
+  // Confirmed into an actual Record (M2, jlogicsoftware/prudent#57). No route sets this yet.
+  OCCURRENCE_STATUS_COMPLETED = 2;
+  // The user decided it will not happen. It can be restored to PLANNED.
+  OCCURRENCE_STATUS_SKIPPED = 3;
+  // PLANNED, and its date has passed in the plan's time zone. Still open: it can be skipped, and
+  // (once #57 lands) confirmed.
+  OCCURRENCE_STATUS_OVERDUE = 4;
+}
+
+// One dated occurrence of a plan, with the plan's own fields alongside so a list can be drawn
+// without a second call per row. Like the plan it is NEVER a transaction: nothing here is read by
+// a balance or by analytics until it is confirmed into a Record.
+message PlanOccurrence {
+  // Server-minted UUID.
+  string id = 1;
+  string plan_id = 2;
+  // The civil date this occurrence falls on, ISO-8601 YYYY-MM-DD.
+  string occurrence_date = 3;
+  OccurrenceStatus status = 4;
+
+  // The plan's fields as they are now. Per-occurrence edits (M2, jlogicsoftware/prudent#57) will
+  // override these on the occurrence itself; until then an occurrence is exactly its plan.
+  string title = 5;
+  // Signed, as Plan.amount_minor.
+  int64 amount_minor = 6;
+  string currency = 7;
+  string account_id = 8;
+  string category_id = 9;
+}
+
+// GET /api/v1/occurrences/upcoming and GET /api/v1/occurrences/overdue. Both are ordered by date
+// ascending, then id, so the order is total. Unpaginated in v1 for the reason records.proto gives
+// for ListRecordsResponse — both are bounded by their windows.
+message ListOccurrencesResponse {
+  repeated PlanOccurrence occurrences = 1;
+}
+
+// POST /api/v1/occurrences/{id}/skip and POST /api/v1/occurrences/{id}/restore carry no request
+// body and answer with the updated PlanOccurrence.

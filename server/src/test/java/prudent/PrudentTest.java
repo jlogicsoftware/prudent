@@ -19,6 +19,7 @@ import prudent.account.AccountEntity;
 import prudent.account.AccountKind;
 import prudent.category.CategoryEntity;
 import prudent.plan.Frequency;
+import prudent.plan.OccurrenceState;
 import prudent.plan.PlanEntity;
 import prudent.plan.PlanOccurrenceEntity;
 import prudent.plan.RecurrenceRule;
@@ -254,17 +255,26 @@ public final class PrudentTest {
   }
 
   /** Persists one generated occurrence of a plan directly, bypassing {@code OccurrenceGenerator}. */
-  public static void seedOccurrence(String userId, UUID planId, LocalDate date) {
+  public static UUID seedOccurrence(String userId, UUID planId, LocalDate date) {
+    return seedOccurrence(userId, planId, date, OccurrenceState.PLANNED);
+  }
+
+  /** As above, in a chosen lifecycle state — how a test reaches COMPLETED before #57 exists. */
+  public static UUID seedOccurrence(
+      String userId, UUID planId, LocalDate date, OccurrenceState state) {
+    UUID id = UUID.randomUUID();
     QuarkusTransaction.requiringNew()
         .run(
             () -> {
               PlanOccurrenceEntity entity = new PlanOccurrenceEntity();
-              entity.id = UUID.randomUUID();
+              entity.id = id;
               entity.userId = UUID.fromString(userId);
               entity.planId = planId;
               entity.occurrenceDate = date;
+              entity.state = state;
               entity.persist();
             });
+    return id;
   }
 
   /**
@@ -274,6 +284,21 @@ public final class PrudentTest {
    */
   public static UUID seedPlan(
       String userId, UUID accountId, UUID categoryId, long amountMinor, String currency) {
+    return seedPlan(
+        userId, accountId, categoryId, amountMinor, currency,
+        new RecurrenceRule(
+            Frequency.MONTHLY, 1, LocalDate.of(2026, 9, 1), ZoneId.of("Europe/Warsaw"), null,
+            null));
+  }
+
+  /** As above, on a chosen recurrence rule. */
+  public static UUID seedPlan(
+      String userId,
+      UUID accountId,
+      UUID categoryId,
+      long amountMinor,
+      String currency,
+      RecurrenceRule rule) {
     UUID id = UUID.randomUUID();
     QuarkusTransaction.requiringNew()
         .run(
@@ -286,10 +311,7 @@ public final class PrudentTest {
               entity.currency = currency;
               entity.accountId = accountId;
               entity.categoryId = categoryId;
-              entity.setRule(
-                  new RecurrenceRule(
-                      Frequency.MONTHLY, 1, LocalDate.of(2026, 9, 1), ZoneId.of("Europe/Warsaw"),
-                      null, null));
+              entity.setRule(rule);
               entity.persist();
             });
     return id;
