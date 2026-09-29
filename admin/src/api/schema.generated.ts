@@ -1554,6 +1554,270 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/occurrences/overdue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Planned occurrences whose date has passed
+         * @description Every occurrence still planned whose date is before today in its plan's time zone. Skipped and completed ones are resolved and are not listed.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListOccurrencesResponse"];
+                        "application/x-protobuf": components["schemas"]["ListOccurrencesResponse"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/occurrences/upcoming": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Occurrences from today onward, in any state
+         * @description Every occurrence dated from today (in its plan's time zone) to `days` ahead, whether planned, completed or skipped, so what was resolved early stays visible. Overdue ones are on /overdue.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    days?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListOccurrencesResponse"];
+                        "application/x-protobuf": components["schemas"]["ListOccurrencesResponse"];
+                    };
+                };
+                /** @description `days` is not between 1 and 366 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/occurrences/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a skipped occurrence to planned */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlanOccurrence"];
+                        "application/x-protobuf": components["schemas"]["PlanOccurrence"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The occurrence is not skipped, so there is nothing to restore */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/occurrences/{id}/skip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Skip an occurrence: the user decided it will not happen */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlanOccurrence"];
+                        "application/x-protobuf": components["schemas"]["PlanOccurrence"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The occurrence is not planned or overdue, so it cannot be skipped */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/plans": {
         parameters: {
             query?: never;
@@ -2806,6 +3070,36 @@ export interface components {
         /** @description GET /api/v1/plans — every plan owned by the caller, earliest start first. */
         ListPlansResponse: {
             plans?: components["schemas"]["Plan"][];
+        };
+        /**
+         * @description Where a planned occurrence stands. PLANNED, COMPLETED and SKIPPED are stored. OVERDUE is never stored: it is a PLANNED occurrence dated before today in its plan's time zone, worked out when it is read. OCCURRENCE_STATUS_UNSPECIFIED is what proto3 decodes an omitted field to and is never returned.
+         * @enum {string}
+         */
+        OccurrenceStatus: "OCCURRENCE_STATUS_UNSPECIFIED" | "OCCURRENCE_STATUS_PLANNED" | "OCCURRENCE_STATUS_COMPLETED" | "OCCURRENCE_STATUS_SKIPPED" | "OCCURRENCE_STATUS_OVERDUE";
+        /** @description One dated occurrence of a plan, with the plan's fields alongside. Never a transaction: nothing here moves a balance or an analytics total. */
+        PlanOccurrence: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            planId?: string;
+            /** Format: date */
+            occurrenceDate?: string;
+            status?: components["schemas"]["OccurrenceStatus"];
+            title?: string;
+            /**
+             * Format: int64
+             * @description Signed minor units, as Plan.amountMinor.
+             */
+            amountMinor?: string;
+            currency?: string;
+            /** Format: uuid */
+            accountId?: string;
+            /** Format: uuid */
+            categoryId?: string;
+        };
+        /** @description GET /api/v1/occurrences/upcoming and /overdue — ordered by date ascending, then id. */
+        ListOccurrencesResponse: {
+            occurrences?: components["schemas"]["PlanOccurrence"][];
         };
         /** @description The authenticated user's settings. A SINGLETON: there is no id, no create, no delete and no list, and the URL carries no id because the token is the entire addressing scheme. The row is created on first login, not by a client. */
         Settings: {

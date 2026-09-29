@@ -45,12 +45,16 @@ migration and its row-level security, and the client rewired onto `ZenClient` wi
 navigation shell (`client/lib/prudent_repository.dart`). The third-party backend call the
 conversion existed to remove is gone.
 
-M2 (planned and recurring transactions) has begun: `PlanResource` over `PlanEntity` and
-`RecurrenceRule` (ADR-037) model plans and their recurrence, separately from records, and
-`OccurrenceGenerator` (ADR-038) materialises a bounded window of a plan's occurrences idempotently.
-Nothing calls the generator yet, there is no occurrence endpoint, and no client screen renders
-plans — the client has only the repository methods. Lifecycle, confirmation and the overview are
-the backlog's next M2 tasks, not missing work.
+M2 (planned and recurring transactions) is under way: `PlanResource` over `PlanEntity` and
+`RecurrenceRule` (ADR-037) model plans and their recurrence, separately from records;
+`OccurrenceGenerator` (ADR-038) materialises a bounded window of a plan's occurrences
+idempotently; and `OccurrenceResource` (ADR-039) gives each occurrence a lifecycle
+(planned/completed/skipped, with overdue derived) and the `upcoming` / `overdue` views, which
+generate what they read. Skip and restore are the only state changes there is a route for — there
+is no route that completes an occurrence, because completing one is confirmation (the next M2
+task), which creates the actual transaction. No client screen renders plans or occurrences — the
+client has only the repository methods. Confirmation, per-occurrence edits and the overview's
+planned cash flow are the backlog's next M2 tasks, not missing work.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the

@@ -361,6 +361,45 @@ class PlanResourceTest {
     assertEquals(1, occurrenceCount(plan.getId()), "a title edit does not move any date");
   }
 
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void replace_changingTheRuleKeepsWhatTheUserResolvedAndWhatTheNewRuleStillProduces()
+      throws Exception {
+    Plan plan = created(PrudentTest.JSON, validCreate().build());
+    UUID id = UUID.fromString(plan.getId());
+    // Monthly on the 31st: 10/31 planned, 11/30 skipped, 12/31 completed, 1/31 and 3/31 planned.
+    PrudentTest.seedOccurrence(PrudentTest.ALICE, id, java.time.LocalDate.of(2026, 10, 31));
+    PrudentTest.seedOccurrence(
+        PrudentTest.ALICE, id, java.time.LocalDate.of(2026, 11, 30),
+        prudent.plan.OccurrenceState.SKIPPED);
+    PrudentTest.seedOccurrence(
+        PrudentTest.ALICE, id, java.time.LocalDate.of(2026, 12, 31),
+        prudent.plan.OccurrenceState.COMPLETED);
+    PrudentTest.seedOccurrence(PrudentTest.ALICE, id, java.time.LocalDate.of(2027, 1, 31));
+    PrudentTest.seedOccurrence(PrudentTest.ALICE, id, java.time.LocalDate.of(2027, 3, 31));
+
+    // Every second month from the same anchor: 10/31, 12/31, 2/28 ...
+    Response response = replaceWith(plan, monthly().setInterval(2), "Rent");
+
+    assertEquals(200, response.statusCode(), response.asString());
+    List<java.time.LocalDate> kept =
+        io.quarkus.narayana.jta.QuarkusTransaction.requiringNew()
+            .call(
+                () ->
+                    prudent.plan.PlanOccurrenceEntity.listForPlan(
+                            UUID.fromString(PrudentTest.ALICE), id)
+                        .stream()
+                        .map(o -> o.occurrenceDate)
+                        .toList());
+    assertEquals(
+        List.of(
+            java.time.LocalDate.of(2026, 10, 31), // planned, and the new rule still lands here
+            java.time.LocalDate.of(2026, 11, 30), // skipped: the user's decision survives
+            java.time.LocalDate.of(2026, 12, 31)), // completed: an actual transaction survives
+        kept,
+        "only the planned dates the new rule no longer produces (1/31, 3/31) are dropped");
+  }
+
   // --- Ownership -----------------------------------------------------------------------------
 
   @Test

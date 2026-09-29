@@ -35,6 +35,25 @@ final $typed_data.Uint8List recurrenceFrequencyDescriptor = $convert.base64Decod
     'TkNZX0RBSUxZEAISHwobUkVDVVJSRU5DRV9GUkVRVUVOQ1lfV0VFS0xZEAMSIAocUkVDVVJSRU'
     '5DRV9GUkVRVUVOQ1lfTU9OVEhMWRAEEh8KG1JFQ1VSUkVOQ0VfRlJFUVVFTkNZX1lFQVJMWRAF');
 
+@$core.Deprecated('Use occurrenceStatusDescriptor instead')
+const OccurrenceStatus$json = {
+  '1': 'OccurrenceStatus',
+  '2': [
+    {'1': 'OCCURRENCE_STATUS_UNSPECIFIED', '2': 0},
+    {'1': 'OCCURRENCE_STATUS_PLANNED', '2': 1},
+    {'1': 'OCCURRENCE_STATUS_COMPLETED', '2': 2},
+    {'1': 'OCCURRENCE_STATUS_SKIPPED', '2': 3},
+    {'1': 'OCCURRENCE_STATUS_OVERDUE', '2': 4},
+  ],
+};
+
+/// Descriptor for `OccurrenceStatus`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List occurrenceStatusDescriptor = $convert.base64Decode(
+    'ChBPY2N1cnJlbmNlU3RhdHVzEiEKHU9DQ1VSUkVOQ0VfU1RBVFVTX1VOU1BFQ0lGSUVEEAASHQ'
+    'oZT0NDVVJSRU5DRV9TVEFUVVNfUExBTk5FRBABEh8KG09DQ1VSUkVOQ0VfU1RBVFVTX0NPTVBM'
+    'RVRFRBACEh0KGU9DQ1VSUkVOQ0VfU1RBVFVTX1NLSVBQRUQQAxIdChlPQ0NVUlJFTkNFX1NUQV'
+    'RVU19PVkVSRFVFEAQ=');
+
 @$core.Deprecated('Use recurrenceDescriptor instead')
 const Recurrence$json = {
   '1': 'Recurrence',
@@ -198,3 +217,56 @@ const ListPlansResponse$json = {
 final $typed_data.Uint8List listPlansResponseDescriptor = $convert.base64Decode(
     'ChFMaXN0UGxhbnNSZXNwb25zZRImCgVwbGFucxgBIAMoCzIQLnBydWRlbnQudjEuUGxhblIFcG'
     'xhbnM=');
+
+@$core.Deprecated('Use planOccurrenceDescriptor instead')
+const PlanOccurrence$json = {
+  '1': 'PlanOccurrence',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'plan_id', '3': 2, '4': 1, '5': 9, '10': 'planId'},
+    {'1': 'occurrence_date', '3': 3, '4': 1, '5': 9, '10': 'occurrenceDate'},
+    {
+      '1': 'status',
+      '3': 4,
+      '4': 1,
+      '5': 14,
+      '6': '.prudent.v1.OccurrenceStatus',
+      '10': 'status'
+    },
+    {'1': 'title', '3': 5, '4': 1, '5': 9, '10': 'title'},
+    {'1': 'amount_minor', '3': 6, '4': 1, '5': 3, '10': 'amountMinor'},
+    {'1': 'currency', '3': 7, '4': 1, '5': 9, '10': 'currency'},
+    {'1': 'account_id', '3': 8, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'category_id', '3': 9, '4': 1, '5': 9, '10': 'categoryId'},
+  ],
+};
+
+/// Descriptor for `PlanOccurrence`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List planOccurrenceDescriptor = $convert.base64Decode(
+    'Cg5QbGFuT2NjdXJyZW5jZRIOCgJpZBgBIAEoCVICaWQSFwoHcGxhbl9pZBgCIAEoCVIGcGxhbk'
+    'lkEicKD29jY3VycmVuY2VfZGF0ZRgDIAEoCVIOb2NjdXJyZW5jZURhdGUSNAoGc3RhdHVzGAQg'
+    'ASgOMhwucHJ1ZGVudC52MS5PY2N1cnJlbmNlU3RhdHVzUgZzdGF0dXMSFAoFdGl0bGUYBSABKA'
+    'lSBXRpdGxlEiEKDGFtb3VudF9taW5vchgGIAEoA1ILYW1vdW50TWlub3ISGgoIY3VycmVuY3kY'
+    'ByABKAlSCGN1cnJlbmN5Eh0KCmFjY291bnRfaWQYCCABKAlSCWFjY291bnRJZBIfCgtjYXRlZ2'
+    '9yeV9pZBgJIAEoCVIKY2F0ZWdvcnlJZA==');
+
+@$core.Deprecated('Use listOccurrencesResponseDescriptor instead')
+const ListOccurrencesResponse$json = {
+  '1': 'ListOccurrencesResponse',
+  '2': [
+    {
+      '1': 'occurrences',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.prudent.v1.PlanOccurrence',
+      '10': 'occurrences'
+    },
+  ],
+};
+
+/// Descriptor for `ListOccurrencesResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listOccurrencesResponseDescriptor =
+    $convert.base64Decode(
+        'ChdMaXN0T2NjdXJyZW5jZXNSZXNwb25zZRI8CgtvY2N1cnJlbmNlcxgBIAMoCzIaLnBydWRlbn'
+        'QudjEuUGxhbk9jY3VycmVuY2VSC29jY3VycmVuY2Vz');

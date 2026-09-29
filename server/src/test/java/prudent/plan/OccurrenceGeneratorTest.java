@@ -267,4 +267,75 @@ class OccurrenceGeneratorTest {
 
     assertEquals(List.of(), stored(planId), "generation joins the caller's transaction");
   }
+
+  // --- Reconciling after a rule change (jlogicsoftware/prudent#56, ADR-039) --------------------
+
+  private void setState(UUID planId, LocalDate date, OccurrenceState state) {
+    QuarkusTransaction.requiringNew()
+        .run(
+            () ->
+                PlanOccurrenceEntity.<PlanOccurrenceEntity>find(
+                        "planId = ?1 and occurrenceDate = ?2", planId, date)
+                    .firstResult()
+                    .state = state);
+  }
+
+  @Test
+  void dropStaleRemovesOnlyPlannedOccurrencesTheCurrentRuleNoLongerProduces() {
+    UUID planId = plan(rule(Frequency.DAILY, 1, d("2026-10-01"), null, null));
+    generate(planId, d("2026-10-01"), d("2026-10-06"));
+    setState(planId, d("2026-10-02"), OccurrenceState.SKIPPED);
+    setState(planId, d("2026-10-04"), OccurrenceState.COMPLETED);
+
+    // Every other day from the same anchor: 1, 3, 5. So 2, 4 and 6 are no longer produced.
+    long dropped =
+        QuarkusTransaction.requiringNew()
+            .call(
+                () -> {
+                  PlanEntity plan = PlanEntity.findById(planId);
+                  plan.setRule(rule(Frequency.DAILY, 2, d("2026-10-01"), null, null));
+                  return generator.dropStale(plan);
+                });
+
+    assertEquals(1, dropped, "only 6 is planned and stale; 2 was skipped and 4 completed");
+    assertEquals(
+        List.of(d("2026-10-01"), d("2026-10-02"), d("2026-10-03"), d("2026-10-04"), d("2026-10-05")),
+        stored(planId));
+  }
+
+  @Test
+  void dropStaleIsANoOpWhenNothingIsStaleAndWhenNothingIsGenerated() {
+    UUID planId = plan(rule(Frequency.DAILY, 1, d("2026-10-01"), null, null));
+    assertEquals(0, dropStale(planId), "no occurrences at all");
+
+    generate(planId, d("2026-10-01"), d("2026-10-05"));
+
+    assertEquals(0, dropStale(planId), "the rule is unchanged");
+    assertEquals(5, stored(planId).size());
+  }
+
+  private long dropStale(UUID planId) {
+    return QuarkusTransaction.requiringNew()
+        .call(() -> generator.dropStale(PlanEntity.<PlanEntity>findById(planId)));
+  }
+
+  @Test
+  void generationNeverTouchesTheStateOfWhatAlreadyExists() {
+    UUID planId = plan(rule(Frequency.DAILY, 1, d("2026-10-01"), null, null));
+    generate(planId, d("2026-10-01"), d("2026-10-03"));
+    setState(planId, d("2026-10-02"), OccurrenceState.SKIPPED);
+
+    OccurrenceGenerator.Result again = generate(planId, d("2026-10-01"), d("2026-10-05"));
+
+    assertEquals(2, again.created(), "only 4 and 5 are new");
+    OccurrenceState state =
+        QuarkusTransaction.requiringNew()
+            .call(
+                () ->
+                    PlanOccurrenceEntity.<PlanOccurrenceEntity>find(
+                            "planId = ?1 and occurrenceDate = ?2", planId, d("2026-10-02"))
+                        .firstResult()
+                        .state);
+    assertEquals(OccurrenceState.SKIPPED, state, "regenerating a window does not reopen a skip");
+  }
 }

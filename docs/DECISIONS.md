@@ -13,6 +13,77 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-039 — An occurrence stores planned/completed/skipped; overdue is derived, and the views generate
+
+**Date:** 2026-09-30. **Status:** accepted. **Follows:** ADR-038 (occurrences are generated
+idempotently; its Consequence names this task), ADR-037 (a plan's time zone decides what "today"
+is, so when an occurrence is overdue).
+
+### Decision
+
+The third M2 task (jlogicsoftware/prudent#56 — "planned, completed, skipped and overdue states
+appear in upcoming and overdue lists with valid state transitions only") gives an occurrence a
+lifecycle and two views.
+
+- **A `state` column** (`V20260930090000__prudent_plan_occurrence_state.sql`): `PLANNED` (the
+  default, so every earlier row and the generator's state-less insert are planned), `COMPLETED`,
+  `SKIPPED`. `TEXT NOT NULL`, no Postgres enum and no `CHECK`, for the reason the init migration
+  gives for `prudent_account.kind`. The vocabulary is `prudent.plan.OccurrenceState`.
+- **Overdue is not stored.** It is a `PLANNED` occurrence dated before *today in its plan's time
+  zone*, computed when read (`OccurrenceMapper.status`). Storing it would need a job that flips
+  rows at midnight in every user's zone; a missed run leaves a wrong row, and a derived value
+  cannot be wrong. On the wire `OccurrenceStatus` has `OVERDUE`; the stored enum does not.
+- **The transitions are exactly:** `PLANNED → SKIPPED`, `SKIPPED → PLANNED`, `PLANNED →
+  COMPLETED`. `COMPLETED` is terminal — it will be an actual transaction (#57), and reopening it
+  would have to undo that, which is confirmation's decision and not a state flip's. A repeat (skip
+  a skipped occurrence) is **not** a transition and is refused, so a client that believes it is
+  skipping something open learns it is not. A refused move is a **409** `conflict`; the table lives
+  in `OccurrenceState.successors()` and nowhere else, and a test asserts it whole.
+- **Concurrent changes are serialised** by locking the row for the transaction
+  (`findOwnedForUpdate`, `PESSIMISTIC_WRITE`): a skip racing a restore — and later a confirmation
+  racing either — sees the other's result instead of acting on a state it has already left.
+- **`/api/v1/occurrences`:** `GET /upcoming?days=` (default 30, 1..366), `GET /overdue`,
+  `POST /{id}/skip`, `POST /{id}/restore`. There is **no route that marks an occurrence completed**:
+  that is confirmation (#57), which must create the transaction in the same act. `PLANNED →
+  COMPLETED` is in the table so #57 uses it rather than inventing a second path.
+- **Upcoming** is every occurrence from today (per plan) to `days` ahead **in any state**, so what
+  was skipped, or confirmed early, stays visible where the user is looking. **Overdue** is the
+  planned ones whose date has passed. Resolved past occurrences are in neither list: they are
+  history, not something to act on, and a history view is not part of this task. "Today" is
+  reckoned per plan, so a plan in Kiritimati and one in Pago Pago can disagree about the same
+  civil date — a test pins that.
+- **The views generate what they read.** ADR-038 left the trigger to the views. No scheduled job
+  exists, so each view first ensures every plan has occurrences from `LOOKBACK_DAYS` (366) before
+  today to the view's horizon, through `OccurrenceGenerator`. That makes a `GET` that writes, but
+  an idempotent one: the second call finds everything present. The generator now reads the dates
+  already present in the window first and inserts only the missing ones — an optimisation, since
+  `ON CONFLICT DO NOTHING` is still what makes a race safe. Plans opened after a long absence
+  therefore show at most a year of never-generated history as overdue; occurrences generated
+  earlier stay overdue for as long as they are unresolved, whatever their age.
+- **Replacing a plan's rule** now drops only the **still-planned** occurrences the new rule no
+  longer produces (`OccurrenceGenerator.dropStale`), as ADR-038 required. Completed and skipped
+  ones are kept — a completed one is a transaction and a skipped one is the user's decision —
+  and dates the new rule still produces are kept. This replaces ADR-038's delete-everything on a
+  rule change. Deleting a plan still deletes all its occurrences; that must be revisited when #57
+  links an occurrence to a record.
+- **Time is behind `PlanClock`**, a bean tests replace, so a test can say which day it is. Nothing
+  else reads the clock through it.
+
+### What this supersedes, and why
+
+Only the rule-change clause of ADR-038 (above). The client gains repository methods
+(`listUpcomingOccurrences`, `listOverdueOccurrences`, `skipOccurrence`, `restoreOccurrence`) and
+no screen, for the reason ADR-037 gives: the plan and occurrence screens need the widgets ADR-036
+routes through `zen_ui_widgets`. Per-occurrence edits, confirmation and the overview's planned cash
+flow are #57 and #58.
+
+### Consequence
+
+- #57 completes an occurrence with `transitionTo(COMPLETED)` inside the transaction that creates
+  its record, under `findOwnedForUpdate`, so two confirmations cannot both post.
+- A bulk "skip everything overdue" and a history view are not built; a daily plan neglected for a
+  year lists a year of overdue rows, each to be skipped or confirmed individually.
+
 ## ADR-038 — Occurrences are generated into their own table, and the unique key is the idempotency
 
 **Date:** 2026-09-29. **Status:** accepted. **Follows:** ADR-037 (a recurrence is a rule computed

@@ -5,7 +5,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import prudent.error.PrudentException;
 
@@ -24,8 +26,8 @@ import prudent.error.PrudentException;
  * deadlock.
  *
  * <p>Generation only ever adds. It never removes or rewrites an occurrence, so extending a window
- * later cannot disturb the ones already generated — and, once occurrences carry state (#56), cannot
- * discard a confirmed one.
+ * later cannot disturb the ones already generated — and cannot discard a completed or skipped one.
+ * (The one deletion that belongs beside it, {@link #dropStale}, is a separate, explicit call.)
  *
  * <p>Nothing here moves money: an occurrence is a row in its own table, not a record.
  */
@@ -74,11 +76,40 @@ public class OccurrenceGenerator {
     }
 
     List<LocalDate> dates = plan.rule().occurrencesBetween(from, to);
+    // An optimisation and nothing more: one read spares an insert per date already there, which is
+    // nearly all of them when the views call this on every open. It is NOT what makes the run
+    // safe — a date another generator writes after this read is still answered by ON CONFLICT.
+    Set<LocalDate> present =
+        new HashSet<>(PlanOccurrenceEntity.datesForPlanBetween(plan.id, from, to));
     int created = 0;
     for (LocalDate date : dates) {
-      created += insertIfAbsent(plan, date);
+      if (!present.contains(date)) {
+        created += insertIfAbsent(plan, date);
+      }
     }
     return new Result(dates.size(), created);
+  }
+
+  /**
+   * Removes the plan's still-planned occurrences that its <em>current</em> rule no longer
+   * produces, and returns how many went (M2, jlogicsoftware/prudent#56, ADR-039).
+   *
+   * <p>Called when a plan's rule is replaced. Generation only adds, so dates the old rule produced
+   * would otherwise stay beside the new rule's for good. Only <em>planned</em> ones are dropped:
+   * a completed occurrence is an actual transaction and a skipped one is a decision, and neither
+   * is the rule's to take back. Dates the new rule still produces are kept, planned or not.
+   */
+  @Transactional
+  public long dropStale(PlanEntity plan) {
+    List<LocalDate> planned = PlanOccurrenceEntity.plannedDatesForPlan(plan.id);
+    if (planned.isEmpty()) {
+      return 0;
+    }
+    Set<LocalDate> produced =
+        Set.copyOf(
+            plan.rule().occurrencesBetween(planned.get(0), planned.get(planned.size() - 1)));
+    List<LocalDate> stale = planned.stream().filter(date -> !produced.contains(date)).toList();
+    return PlanOccurrenceEntity.deletePlannedOn(plan.id, stale);
   }
 
   /** 1 if this call inserted the occurrence, 0 if it was already there. */
