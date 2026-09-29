@@ -59,9 +59,10 @@ generate what they read. Skip, restore and confirm are the only state changes th
 Confirmation (`POST /api/v1/occurrences/{id}/confirm`, ADR-040) is the only thing that completes
 an occurrence, and it does so by creating exactly one actual record that carries `plan_id` and
 `plan_occurrence_id`; deleting that record reopens the occurrence, deleting the plan detaches its
-records. No client screen renders plans or occurrences — the client has only the repository
-methods. Per-occurrence edits and the overview's planned cash flow are the backlog's next M2 tasks,
-not missing work.
+records. The overview shows planned cash flow (ADR-042) — expected income and spending per currency,
+kept apart from the balances and hideable with a switch — but no client screen lists or edits plans
+or occurrences; the client otherwise has only the repository methods. That completes M2's backlog;
+a plans screen is new scope, not missing work.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the

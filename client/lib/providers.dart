@@ -5,8 +5,10 @@ import 'package:zen_core/zen_core.dart';
 import 'generated/prudent/v1/accounts.pb.dart';
 import 'generated/prudent/v1/analytics.pb.dart';
 import 'generated/prudent/v1/categories.pb.dart';
+import 'generated/prudent/v1/plans.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
+import 'overview/planned_cash_flow.dart';
 import 'prudent_repository.dart';
 import 'record/record_filter.dart';
 
@@ -330,3 +332,36 @@ final spendByPeriodProvider =
       );
       return result.fold((response) => response, (error) => throw error);
     });
+
+// ---------------------------------------------------------------------------------------------
+// Planned cash flow — expected money, never part of an actual balance (M2, plans.proto)
+// ---------------------------------------------------------------------------------------------
+
+/// Whether the overview includes planned cash flow (jlogicsoftware/prudent#58). A per-session view
+/// choice rather than a server setting: it changes what one screen draws, not what any figure
+/// means, so nothing about it belongs in `settings.proto`. On by default, because the section is
+/// separate from the balances and hiding it is one tap.
+class PlannedCashFlowVisibleNotifier extends Notifier<bool> {
+  @override
+  bool build() => true;
+
+  void set(bool visible) => state = visible;
+}
+
+final plannedCashFlowVisibleProvider = NotifierProvider<PlannedCashFlowVisibleNotifier, bool>(
+  PlannedCashFlowVisibleNotifier.new,
+);
+
+/// Every occurrence the user still has to resolve: the overdue ones, then those due within
+/// [plannedCashFlowDays]. Both views generate what they read (ADR-039), so this is the only fetch
+/// the overview needs. Auto-disposed so hiding the section stops watching it, and a return to the
+/// overview reads fresh data — a confirmation elsewhere changes what is still expected.
+final plannedOccurrencesProvider = FutureProvider.autoDispose<List<PlanOccurrence>>((ref) async {
+  final repository = ref.watch(prudentRepositoryProvider);
+  final overdue = await repository.listOverdueOccurrences();
+  final upcoming = await repository.listUpcomingOccurrences(days: plannedCashFlowDays);
+  return [
+    ...overdue.fold((response) => response.occurrences, (error) => throw error),
+    ...upcoming.fold((response) => response.occurrences, (error) => throw error),
+  ];
+});
