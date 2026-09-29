@@ -1,15 +1,14 @@
-import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../account/account_screen.dart';
-import '../generated/prudent/v1/accounts.pb.dart';
 import '../analytics/chart_screen.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
 import 'overview_totals.dart';
 import 'planned_cash_flow.dart';
+import 'planned_cash_flow_section.dart';
 import '../providers.dart';
 
 /// Real totals, replacing the two placeholder `Text` widgets this screen shipped with
@@ -109,88 +108,6 @@ class OverviewScreen extends ConsumerWidget {
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-/// The planned section: per currency, expected income and spending kept apart, then their net.
-/// A failed load is reported inside the section — the balances above it are unaffected and stay
-/// readable.
-class PlannedCashFlowSection extends ConsumerWidget {
-  const PlannedCashFlowSection({super.key, required this.accounts, required this.mainCurrency});
-
-  final List<Account> accounts;
-  final String? mainCurrency;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = PrudentLocalizations.of(context);
-    final theme = Theme.of(context);
-    final planned = ref.watch(plannedOccurrencesProvider);
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(t.plannedCashFlowTitle, style: theme.textTheme.headlineSmall),
-          const SizedBox(height: 8),
-          planned.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Text(t.plannedCashFlowLoadError(error.toString())),
-            data: (occurrences) {
-              final flows = plannedCashFlowByCurrency(occurrences, accounts, mainCurrency);
-              if (flows.isEmpty) return Text(t.plannedCashFlowEmpty(plannedCashFlowDays));
-              return Column(
-                children: [
-                  for (final entry in flows.entries)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(entry.key, style: theme.textTheme.titleMedium),
-                            const SizedBox(height: 8),
-                            _FlowRow(t.plannedCashFlowIncome, entry.value.income, entry.key),
-                            _FlowRow(t.plannedCashFlowSpending, entry.value.spending, entry.key),
-                            const Divider(),
-                            _FlowRow(t.plannedCashFlowNet, entry.value.net, entry.key, emphasis: true),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FlowRow extends StatelessWidget {
-  const _FlowRow(this.label, this.amount, this.currency, {this.emphasis = false});
-
-  final String label;
-  final Int64 amount;
-  final String currency;
-  final bool emphasis;
-
-  @override
-  Widget build(BuildContext context) {
-    final style =
-        emphasis ? Theme.of(context).textTheme.titleMedium : Theme.of(context).textTheme.bodyLarge;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(child: Text(label, style: style)),
-          Text('${formatMinorUnits(amount)} $currency', style: style),
-        ],
       ),
     );
   }
