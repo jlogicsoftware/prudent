@@ -17,6 +17,8 @@ package prudent.v1;
 // Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that
 // message is not imported here (proto/README.md records why).
 
+import "prudent/v1/records.proto";
+
 option java_package = "prudent.proto.v1";
 option java_multiple_files = true;
 // See records.proto: named explicitly so the descriptor holder can never collide with a message.
@@ -152,12 +154,14 @@ enum OccurrenceStatus {
   OCCURRENCE_STATUS_UNSPECIFIED = 0;
   // Expected, not yet resolved, and not yet past its date.
   OCCURRENCE_STATUS_PLANNED = 1;
-  // Confirmed into an actual Record (M2, jlogicsoftware/prudent#57). No route sets this yet.
+  // Confirmed into an actual Record (M2, jlogicsoftware/prudent#57) by
+  // POST /api/v1/occurrences/{id}/confirm, which is the only thing that sets it. Final: a
+  // completed occurrence cannot be skipped, restored or confirmed again.
   OCCURRENCE_STATUS_COMPLETED = 2;
   // The user decided it will not happen. It can be restored to PLANNED.
   OCCURRENCE_STATUS_SKIPPED = 3;
-  // PLANNED, and its date has passed in the plan's time zone. Still open: it can be skipped, and
-  // (once #57 lands) confirmed.
+  // PLANNED, and its date has passed in the plan's time zone. Still open: it can be skipped, or
+  // confirmed.
   OCCURRENCE_STATUS_OVERDUE = 4;
 }
 
@@ -191,3 +195,36 @@ message ListOccurrencesResponse {
 
 // POST /api/v1/occurrences/{id}/skip and POST /api/v1/occurrences/{id}/restore carry no request
 // body and answer with the updated PlanOccurrence.
+
+// POST /api/v1/occurrences/{id}/confirm (M2, jlogicsoftware/prudent#57) — the user says this
+// occurrence happened, and the server writes the actual transaction. Every field is OPTIONAL and an
+// absent one takes the occurrence's own value (its date, and its plan's amount, account and
+// category), so "yes, exactly as planned" is the empty message `{}` — the request must still carry
+// a body, as on every POST that declares one.
+// What is sent replaces that value for THIS transaction only; the plan and its other occurrences
+// are unchanged.
+//
+// Presence is explicit (`optional`) rather than zero-means-absent, for the reason categories.proto
+// gives: an amount of 0 is a mistake to be REFUSED, not a request for the default.
+//
+// Deliberately not editable here: the currency (it is the plan's, and the account must hold it),
+// and the title, payee and note (copied from the plan; edit the record afterwards).
+message ConfirmOccurrenceRequest {
+  // The civil date the money actually moved, ISO-8601 YYYY-MM-DD. Defaults to the occurrence date.
+  // Any date is accepted, not only ones near the occurrence: a bill paid a week late, or a month
+  // early, is confirmed on the day it was paid.
+  optional string date = 1;
+  // Signed minor units, as Record.amount_minor. Defaults to the plan's amount. Nonzero.
+  optional int64 amount_minor = 2;
+  // Defaults to the plan's account. Must be the caller's and must hold the plan's currency.
+  optional string account_id = 3;
+  // Defaults to the plan's category. Must be the caller's.
+  optional string category_id = 4;
+}
+
+// The result of a confirmation: the occurrence, now COMPLETED, and the ONE Record it became. The
+// record carries plan_id and plan_occurrence_id, which is the plan link.
+message ConfirmOccurrenceResponse {
+  PlanOccurrence occurrence = 1;
+  Record record = 2;
+}

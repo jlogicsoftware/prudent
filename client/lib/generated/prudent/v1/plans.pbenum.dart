@@ -78,7 +78,9 @@ class OccurrenceStatus extends $pb.ProtobufEnum {
   static const OccurrenceStatus OCCURRENCE_STATUS_PLANNED =
       OccurrenceStatus._(1, _omitEnumNames ? '' : 'OCCURRENCE_STATUS_PLANNED');
 
-  /// Confirmed into an actual Record (M2, jlogicsoftware/prudent#57). No route sets this yet.
+  /// Confirmed into an actual Record (M2, jlogicsoftware/prudent#57) by
+  /// POST /api/v1/occurrences/{id}/confirm, which is the only thing that sets it. Final: a
+  /// completed occurrence cannot be skipped, restored or confirmed again.
   static const OccurrenceStatus OCCURRENCE_STATUS_COMPLETED =
       OccurrenceStatus._(
           2, _omitEnumNames ? '' : 'OCCURRENCE_STATUS_COMPLETED');
@@ -87,8 +89,8 @@ class OccurrenceStatus extends $pb.ProtobufEnum {
   static const OccurrenceStatus OCCURRENCE_STATUS_SKIPPED =
       OccurrenceStatus._(3, _omitEnumNames ? '' : 'OCCURRENCE_STATUS_SKIPPED');
 
-  /// PLANNED, and its date has passed in the plan's time zone. Still open: it can be skipped, and
-  /// (once #57 lands) confirmed.
+  /// PLANNED, and its date has passed in the plan's time zone. Still open: it can be skipped, or
+  /// confirmed.
   static const OccurrenceStatus OCCURRENCE_STATUS_OVERDUE =
       OccurrenceStatus._(4, _omitEnumNames ? '' : 'OCCURRENCE_STATUS_OVERDUE');
 

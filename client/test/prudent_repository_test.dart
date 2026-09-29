@@ -475,6 +475,45 @@ void main() {
       expect(restored.isSuccess, isTrue);
     });
 
+    test('confirmOccurrence POSTs only what was overridden and decodes the record', () async {
+      final bodies = <Map<String, Object?>>[];
+      final calls = <String>[];
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          calls.add('${request.method} ${_uriOf(request).path}');
+          bodies.add(jsonDecode(request.body) as Map<String, Object?>);
+          return _jsonResponse({
+            'occurrence': occurrence('OCCURRENCE_STATUS_COMPLETED'),
+            'record': {
+              'id': 'rec-1',
+              'title': 'Rent',
+              'amountMinor': '-250000',
+              'currency': 'PLN',
+              'date': '2026-10-12',
+              'accountId': 'acc-1',
+              'planId': 'plan-1',
+              'planOccurrenceId': 'occ-1',
+            },
+          }, status: 201);
+        }),
+      );
+
+      final asPlanned = await repository.confirmOccurrence('occ-1');
+      final edited = await repository.confirmOccurrence(
+        'occ-1',
+        ConfirmOccurrenceRequest(date: '2026-10-12', amountMinor: Int64(-250000)),
+      );
+
+      expect(calls, everyElement('POST /api/v1/occurrences/occ-1/confirm'));
+      expect(bodies[0], isEmpty, reason: 'nothing overridden, so the plan supplies everything');
+      expect(bodies[1].keys, unorderedEquals(['date', 'amountMinor']));
+      final confirmed = asPlanned.fold((r) => r, (e) => throw e);
+      expect(confirmed.occurrence.status, OccurrenceStatus.OCCURRENCE_STATUS_COMPLETED);
+      expect(confirmed.record.planId, 'plan-1');
+      expect(confirmed.record.planOccurrenceId, 'occ-1');
+      expect(edited.isSuccess, isTrue);
+    });
+
     test('a refused transition surfaces the conflict rather than a decoded occurrence', () async {
       final repository = PrudentRepository(
         client: _clientAnswering(

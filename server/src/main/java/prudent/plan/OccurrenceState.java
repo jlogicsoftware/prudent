@@ -17,12 +17,16 @@ import java.util.Set;
  *
  * <pre>
  *   PLANNED ──► SKIPPED ──► PLANNED        (skip, and restore)
- *   PLANNED ──► COMPLETED                  (confirmation, #57; terminal)
+ *   PLANNED ──► COMPLETED                  (confirmation, #57, ADR-040; terminal)
  * </pre>
  *
  * A completed occurrence has become an actual transaction, so it is final: reopening it would have
- * to undo that transaction, which is confirmation's decision to make and not a state flip's.
- * Staying in the same state is not a transition either — a second skip is refused rather than
+ * to undo that transaction, which is not a state flip's decision to make. The one way out is that
+ * the transaction itself is deleted ({@link PlanOccurrenceEntity#reopen}, called by the record
+ * delete and by nothing else); it is deliberately not in this table, so no route can reopen a
+ * completed occurrence while its transaction still stands.
+ *
+ * <p>Staying in the same state is not a transition either — a second skip is refused rather than
  * quietly accepted, so a client that thinks it is skipping something open finds out that it is not.
  */
 public enum OccurrenceState {

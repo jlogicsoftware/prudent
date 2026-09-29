@@ -95,6 +95,15 @@ message Record {
   // existing record.
   bool is_correction = 11;
 
+  // Set only on a record made by confirming a planned occurrence (M2, jlogicsoftware/prudent#57):
+  // the plan it came from, and the one occurrence of that plan it confirmed. Both are present or
+  // both are absent. They are the PLAN LINK the confirmation retains, and they are read-only —
+  // set by POST /api/v1/occurrences/{id}/confirm and by nothing else, so PUT /api/v1/records/{id}
+  // neither sets, clears nor changes them: editing a confirmed transaction does not make it a
+  // different one. Deleting the plan clears them; deleting the record reopens the occurrence.
+  optional string plan_id = 12;
+  optional string plan_occurrence_id = 13;
+
   // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
 }
 

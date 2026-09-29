@@ -1674,6 +1674,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/occurrences/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm an occurrence: it happened, so record the actual transaction
+         * @description Completes the occurrence and creates exactly one record from it, dated, amounted, filed and posted as the plan says unless the body overrides date, amountMinor, accountId or categoryId for this transaction alone. Send `{}` to confirm exactly as planned. The record keeps planId and planOccurrenceId. Works on a planned occurrence whether its date is past, today or ahead; a skipped one must be restored first.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmOccurrenceRequest"];
+                    "application/x-protobuf": components["schemas"]["ConfirmOccurrenceRequest"];
+                };
+            };
+            responses: {
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConfirmOccurrenceResponse"];
+                        "application/x-protobuf": components["schemas"]["ConfirmOccurrenceResponse"];
+                    };
+                };
+                /** @description A malformed date, a zero amount, or an account or category that is not the caller's, or an account that does not hold the plan's currency */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The occurrence is skipped or already completed, so it cannot be confirmed */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/occurrences/{id}/restore": {
         parameters: {
             query?: never;
@@ -2906,6 +2995,16 @@ export interface components {
             note?: string;
             /** @description Set only by POST /api/v1/corrections (jlogicsoftware/prudent#53): true marks this row as an explicit balance correction rather than an ordinary income/expense entry. A correction carries no categoryId and cannot be edited/deleted via PUT/DELETE /api/v1/records/{id} — DELETE /api/v1/corrections/{id} is the only way to remove one. */
             isCorrection?: boolean;
+            /**
+             * Format: uuid
+             * @description Present only on a record made by confirming a planned occurrence (M2, jlogicsoftware/prudent#57): the plan it came from. Set together with planOccurrenceId, by POST /api/v1/occurrences/{id}/confirm and by nothing else — PUT /api/v1/records/{id} never sets, clears or changes it. Deleting the plan clears it.
+             */
+            planId?: string;
+            /**
+             * Format: uuid
+             * @description Present only alongside planId: the one occurrence this record confirmed. No two records share one. Deleting this record reopens that occurrence.
+             */
+            planOccurrenceId?: string;
         };
         /** @description Body for POST /api/v1/records. No id field — the server mints it. */
         CreateRecordRequest: {
@@ -3096,6 +3195,34 @@ export interface components {
             accountId?: string;
             /** Format: uuid */
             categoryId?: string;
+        };
+        /** @description Body for POST /api/v1/occurrences/{id}/confirm (M2, jlogicsoftware/prudent#57). Send {} to confirm as planned: every field is optional and an absent one takes the occurrence's own value — its date, and its plan's amount, account and category. What is sent replaces that value for this transaction only; the plan is unchanged. The currency, title, payee and note are the plan's and are not editable here. */
+        ConfirmOccurrenceRequest: {
+            /**
+             * Format: date
+             * @description The civil date the money actually moved. Defaults to the occurrence date; any date is accepted, so a bill paid late or early is confirmed on the day it was paid.
+             */
+            date?: string;
+            /**
+             * Format: int64
+             * @description Signed minor units, as Record.amountMinor. Defaults to the plan's. Nonzero.
+             */
+            amountMinor?: string;
+            /**
+             * Format: uuid
+             * @description Defaults to the plan's account. Must be the caller's and must hold the plan's currency.
+             */
+            accountId?: string;
+            /**
+             * Format: uuid
+             * @description Defaults to the plan's category. Must be the caller's.
+             */
+            categoryId?: string;
+        };
+        /** @description The occurrence, now COMPLETED, and the one Record it became. The record carries planId and planOccurrenceId, which is the plan link. */
+        ConfirmOccurrenceResponse: {
+            occurrence?: components["schemas"]["PlanOccurrence"];
+            record?: components["schemas"]["Record"];
         };
         /** @description GET /api/v1/occurrences/upcoming and /overdue — ordered by date ascending, then id. */
         ListOccurrencesResponse: {

@@ -62,6 +62,26 @@ public class PlanOccurrenceEntity extends PanacheEntityBase {
     state = target;
   }
 
+  /**
+   * Returns a completed occurrence to {@link OccurrenceState#PLANNED} because the transaction that
+   * completed it has been deleted.
+   *
+   * <p>This is <em>not</em> a {@link #transitionTo} and is not in {@link
+   * OccurrenceState#successors()}, on purpose: no route may reopen a completed occurrence on the
+   * user's say-so, because that would leave the transaction and the promise of it both standing.
+   * The only legitimate cause is the transaction itself going away, and the only caller is the
+   * record delete that removes it.
+   *
+   * @throws prudent.error.PrudentException 409 if the occurrence is not completed
+   */
+  public void reopen() {
+    if (state != OccurrenceState.COMPLETED) {
+      throw PrudentException.conflict(
+          "An occurrence that is " + state + " has no transaction to reopen from.");
+    }
+    state = OccurrenceState.PLANNED;
+  }
+
   /** A plan's occurrences in date order, for the caller who owns it. */
   public static List<PlanOccurrenceEntity> listForPlan(UUID userId, UUID planId) {
     return list("userId = ?1 and planId = ?2 order by occurrenceDate", userId, planId);

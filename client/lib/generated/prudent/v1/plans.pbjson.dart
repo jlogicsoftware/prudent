@@ -270,3 +270,80 @@ final $typed_data.Uint8List listOccurrencesResponseDescriptor =
     $convert.base64Decode(
         'ChdMaXN0T2NjdXJyZW5jZXNSZXNwb25zZRI8CgtvY2N1cnJlbmNlcxgBIAMoCzIaLnBydWRlbn'
         'QudjEuUGxhbk9jY3VycmVuY2VSC29jY3VycmVuY2Vz');
+
+@$core.Deprecated('Use confirmOccurrenceRequestDescriptor instead')
+const ConfirmOccurrenceRequest$json = {
+  '1': 'ConfirmOccurrenceRequest',
+  '2': [
+    {'1': 'date', '3': 1, '4': 1, '5': 9, '9': 0, '10': 'date', '17': true},
+    {
+      '1': 'amount_minor',
+      '3': 2,
+      '4': 1,
+      '5': 3,
+      '9': 1,
+      '10': 'amountMinor',
+      '17': true
+    },
+    {
+      '1': 'account_id',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '9': 2,
+      '10': 'accountId',
+      '17': true
+    },
+    {
+      '1': 'category_id',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '9': 3,
+      '10': 'categoryId',
+      '17': true
+    },
+  ],
+  '8': [
+    {'1': '_date'},
+    {'1': '_amount_minor'},
+    {'1': '_account_id'},
+    {'1': '_category_id'},
+  ],
+};
+
+/// Descriptor for `ConfirmOccurrenceRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List confirmOccurrenceRequestDescriptor = $convert.base64Decode(
+    'ChhDb25maXJtT2NjdXJyZW5jZVJlcXVlc3QSFwoEZGF0ZRgBIAEoCUgAUgRkYXRliAEBEiYKDG'
+    'Ftb3VudF9taW5vchgCIAEoA0gBUgthbW91bnRNaW5vcogBARIiCgphY2NvdW50X2lkGAMgASgJ'
+    'SAJSCWFjY291bnRJZIgBARIkCgtjYXRlZ29yeV9pZBgEIAEoCUgDUgpjYXRlZ29yeUlkiAEBQg'
+    'cKBV9kYXRlQg8KDV9hbW91bnRfbWlub3JCDQoLX2FjY291bnRfaWRCDgoMX2NhdGVnb3J5X2lk');
+
+@$core.Deprecated('Use confirmOccurrenceResponseDescriptor instead')
+const ConfirmOccurrenceResponse$json = {
+  '1': 'ConfirmOccurrenceResponse',
+  '2': [
+    {
+      '1': 'occurrence',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.prudent.v1.PlanOccurrence',
+      '10': 'occurrence'
+    },
+    {
+      '1': 'record',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.prudent.v1.Record',
+      '10': 'record'
+    },
+  ],
+};
+
+/// Descriptor for `ConfirmOccurrenceResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List confirmOccurrenceResponseDescriptor = $convert.base64Decode(
+    'ChlDb25maXJtT2NjdXJyZW5jZVJlc3BvbnNlEjoKCm9jY3VycmVuY2UYASABKAsyGi5wcnVkZW'
+    '50LnYxLlBsYW5PY2N1cnJlbmNlUgpvY2N1cnJlbmNlEioKBnJlY29yZBgCIAEoCzISLnBydWRl'
+    'bnQudjEuUmVjb3JkUgZyZWNvcmQ=');

@@ -32,13 +32,20 @@ public abstract class RecordMapper {
       String transferId,
       String payee,
       String note,
-      boolean isCorrection) {}
+      boolean isCorrection,
+      String planId,
+      String planOccurrenceId) {}
 
   @Mapping(target = "id", source = "id", qualifiedByName = "uuidToString")
   @Mapping(target = "date", source = "date", qualifiedByName = "isoDate")
   @Mapping(target = "categoryId", source = "categoryId", qualifiedByName = "uuidToString")
   @Mapping(target = "accountId", source = "accountId", qualifiedByName = "uuidToString")
   @Mapping(target = "transferId", source = "transferId", qualifiedByName = "uuidToString")
+  @Mapping(target = "planId", source = "planId", qualifiedByName = "uuidToString")
+  @Mapping(
+      target = "planOccurrenceId",
+      source = "planOccurrenceId",
+      qualifiedByName = "uuidToString")
   abstract RecordView toView(RecordEntity entity);
 
   /**
@@ -68,6 +75,12 @@ public abstract class RecordMapper {
     }
     if (view.transferId() != null) {
       builder.setTransferId(view.transferId());
+    }
+    if (view.planId() != null) {
+      builder.setPlanId(view.planId());
+    }
+    if (view.planOccurrenceId() != null) {
+      builder.setPlanOccurrenceId(view.planOccurrenceId());
     }
     if (view.payee() != null) {
       builder.setPayee(view.payee());

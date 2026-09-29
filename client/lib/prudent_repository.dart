@@ -135,6 +135,20 @@ class PrudentRepository {
   Future<ZenResult<PlanOccurrence>> restoreOccurrence(String id) =>
       _client.post<PlanOccurrence>(PlanOccurrence.new, '$_occurrencesPath/$id/restore');
 
+  /// Says this occurrence happened, and creates the actual transaction (M2,
+  /// jlogicsoftware/prudent#57). Every field of [request] is optional and an absent one takes the
+  /// plan's own value, so the default request confirms it exactly as planned; what is set replaces
+  /// it for this transaction only. Refused (409) unless the occurrence is planned or overdue, so a
+  /// double tap cannot post twice. The result carries the completed occurrence and the record.
+  Future<ZenResult<ConfirmOccurrenceResponse>> confirmOccurrence(
+    String id, [
+    ConfirmOccurrenceRequest? request,
+  ]) => _client.post<ConfirmOccurrenceResponse>(
+    ConfirmOccurrenceResponse.new,
+    '$_occurrencesPath/$id/confirm',
+    body: request ?? ConfirmOccurrenceRequest(),
+  );
+
   // --- Settings -----------------------------------------------------------------------------------
 
   Future<ZenResult<Settings>> getSettings() =>

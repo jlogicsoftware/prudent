@@ -50,11 +50,13 @@ M2 (planned and recurring transactions) is under way: `PlanResource` over `PlanE
 `OccurrenceGenerator` (ADR-038) materialises a bounded window of a plan's occurrences
 idempotently; and `OccurrenceResource` (ADR-039) gives each occurrence a lifecycle
 (planned/completed/skipped, with overdue derived) and the `upcoming` / `overdue` views, which
-generate what they read. Skip and restore are the only state changes there is a route for — there
-is no route that completes an occurrence, because completing one is confirmation (the next M2
-task), which creates the actual transaction. No client screen renders plans or occurrences — the
-client has only the repository methods. Confirmation, per-occurrence edits and the overview's
-planned cash flow are the backlog's next M2 tasks, not missing work.
+generate what they read. Skip, restore and confirm are the only state changes there is a route for.
+Confirmation (`POST /api/v1/occurrences/{id}/confirm`, ADR-040) is the only thing that completes
+an occurrence, and it does so by creating exactly one actual record that carries `plan_id` and
+`plan_occurrence_id`; deleting that record reopens the occurrence, deleting the plan detaches its
+records. No client screen renders plans or occurrences — the client has only the repository
+methods. Per-occurrence edits and the overview's planned cash flow are the backlog's next M2 tasks,
+not missing work.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the
