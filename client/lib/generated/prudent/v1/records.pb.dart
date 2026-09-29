@@ -31,6 +31,8 @@ class Record extends $pb.GeneratedMessage {
     $core.String? payee,
     $core.String? note,
     $core.bool? isCorrection,
+    $core.String? planId,
+    $core.String? planOccurrenceId,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -44,6 +46,8 @@ class Record extends $pb.GeneratedMessage {
     if (payee != null) result.payee = payee;
     if (note != null) result.note = note;
     if (isCorrection != null) result.isCorrection = isCorrection;
+    if (planId != null) result.planId = planId;
+    if (planOccurrenceId != null) result.planOccurrenceId = planOccurrenceId;
     return result;
   }
 
@@ -71,6 +75,8 @@ class Record extends $pb.GeneratedMessage {
     ..aOS(9, _omitFieldNames ? '' : 'payee')
     ..aOS(10, _omitFieldNames ? '' : 'note')
     ..aOB(11, _omitFieldNames ? '' : 'isCorrection')
+    ..aOS(12, _omitFieldNames ? '' : 'planId')
+    ..aOS(13, _omitFieldNames ? '' : 'planOccurrenceId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -244,6 +250,30 @@ class Record extends $pb.GeneratedMessage {
   $core.bool hasIsCorrection() => $_has(10);
   @$pb.TagNumber(11)
   void clearIsCorrection() => $_clearField(11);
+
+  /// Set only on a record made by confirming a planned occurrence (M2, jlogicsoftware/prudent#57):
+  /// the plan it came from, and the one occurrence of that plan it confirmed. Both are present or
+  /// both are absent. They are the PLAN LINK the confirmation retains, and they are read-only —
+  /// set by POST /api/v1/occurrences/{id}/confirm and by nothing else, so PUT /api/v1/records/{id}
+  /// neither sets, clears nor changes them: editing a confirmed transaction does not make it a
+  /// different one. Deleting the plan clears them; deleting the record reopens the occurrence.
+  @$pb.TagNumber(12)
+  $core.String get planId => $_getSZ(11);
+  @$pb.TagNumber(12)
+  set planId($core.String value) => $_setString(11, value);
+  @$pb.TagNumber(12)
+  $core.bool hasPlanId() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearPlanId() => $_clearField(12);
+
+  @$pb.TagNumber(13)
+  $core.String get planOccurrenceId => $_getSZ(12);
+  @$pb.TagNumber(13)
+  set planOccurrenceId($core.String value) => $_setString(12, value);
+  @$pb.TagNumber(13)
+  $core.bool hasPlanOccurrenceId() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearPlanOccurrenceId() => $_clearField(13);
 }
 
 /// POST /api/v1/records

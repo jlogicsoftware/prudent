@@ -115,6 +115,19 @@ public class RecordEntity extends PanacheEntityBase {
   public boolean isCorrection;
 
   /**
+   * Set only by {@code prudent.plan.OccurrenceResource#confirm} (M2, jlogicsoftware/prudent#57):
+   * the plan this record was confirmed from. Null for every other record. Always set together with
+   * {@link #planOccurrenceId} (the migration's CHECK holds them to it), and never written by the
+   * record endpoints, so editing a confirmed record keeps its origin.
+   */
+  @Column(name = "plan_id")
+  public UUID planId;
+
+  /** The one occurrence this record confirmed; unique across the table. See {@link #planId}. */
+  @Column(name = "plan_occurrence_id")
+  public UUID planOccurrenceId;
+
+  /**
    * Every record owned by one user.
    *
    * <p>UNPAGINATED IN v1, which the contract settles rather than this class: a personal expense
@@ -169,6 +182,16 @@ public class RecordEntity extends PanacheEntityBase {
             "userId = ?1 and accountId = ?2 and transferId is null and isCorrection = false",
             userId, accountId)
         > 0;
+  }
+
+  /**
+   * Cuts every record confirmed from {@code planId} loose from it, returning how many there were.
+   * A plan can be deleted; the transactions it produced cannot vanish with it, so they stay in the
+   * ledger as ordinary records that simply no longer say where they came from.
+   */
+  public static long detachFromPlan(UUID userId, UUID planId) {
+    return update(
+        "planId = null, planOccurrenceId = null where userId = ?1 and planId = ?2", userId, planId);
   }
 
   /** Whether any record still points at this category. Guards the category delete. */

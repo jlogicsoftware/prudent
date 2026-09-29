@@ -13,6 +13,90 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-040 — Confirming an occurrence writes one record, and the record carries the plan link
+
+**Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-039 (`PLANNED → COMPLETED` was put in
+the transition table for this task to use; its Consequence names this task and the plan-delete
+clause "must be revisited when #57 links an occurrence to a record"), ADR-014 (a balance is the sum
+of records), ADR-037 (a plan is not a transaction).
+
+### Decision
+
+The fourth M2 task (jlogicsoftware/prudent#57 — "confirmation may edit date, amount, account and
+category, creates exactly one actual transaction and retains the plan link") turns an occurrence
+into a record.
+
+- **`POST /api/v1/occurrences/{id}/confirm`** with an optional `ConfirmOccurrenceRequest`
+  (`date`, `amountMinor`, `accountId`, `categoryId`, each `optional`) answers **201** with a
+  `ConfirmOccurrenceResponse` — the occurrence, now `COMPLETED`, and the one `Record` it became. An
+  absent field takes the occurrence's date or the plan's amount, account and category, so "as
+  planned" is the empty message `{}`. (A request with no body at all is refused 400 `invalid_body`
+  by the transport, as on every other POST that declares one.) Presence is
+  explicit for the reason `categories.proto` gives: a `0` amount is a mistake to refuse, not a
+  request for the default. The currency, title, payee and note are the plan's and are not editable
+  in the request — the record can be edited afterwards like any other.
+- **Allowed states.** Any `PLANNED` occurrence: overdue, due today, or ahead (paid in advance). A
+  `SKIPPED` one is refused 409 and must be restored first; a `COMPLETED` one is refused 409. The
+  state check runs before the body is validated, so an unconfirmable occurrence is a 409 whatever
+  the body says.
+- **Exactly one record, three ways.** (1) The occurrence row is locked for the transaction
+  (`findOwnedForUpdate`, ADR-039), so racing confirmations serialise: the loser waits, sees
+  `COMPLETED`, and is refused. (2) The state change and the record are one transaction, and every
+  rule the record endpoints enforce runs inside it — a rejected edit rolls the transition back, so
+  an occurrence is never `COMPLETED` without its record. (3) A **partial unique index** on
+  `prudent_record.plan_occurrence_id` is the backstop for any writer that bypasses the resource.
+- **The link is on the record**, not the occurrence
+  (`V20261001090000__prudent_record_plan_link.sql`): `plan_id` and `plan_occurrence_id` on
+  `prudent_record`, nullable, paired by a CHECK, foreign-keyed **without cascade**. `plan_id` is
+  derivable from the occurrence and is stored anyway so a record list can say where each record came
+  from without a join per row; the CHECK is what keeps the copy from being half-written. Both are
+  on the wire as `Record.plan_id` / `Record.plan_occurrence_id` (`optional`, read-only). `PUT
+  /api/v1/records/{id}` never touches them, so editing a confirmed transaction keeps its origin.
+- **One implementation of the record rules.** `RecordResource`'s private `apply` moved unchanged
+  into `RecordWriter`, a bean both it and confirmation call, so a rule cannot hold for a typed-in
+  record and lapse for a confirmed one (title, nonzero amount, the caller's own account and
+  category, an account that holds the currency).
+- **Records are the ledger, so the plan is the thing that gives way.** Deleting a plan used to
+  delete its occurrences outright; it now first **detaches** the records it produced
+  (`plan_id`/`plan_occurrence_id` set to `NULL`) and then deletes the occurrences and the plan. The
+  transactions, and therefore every balance and total, are untouched — only where they say they
+  came from is lost. This resolves the clause ADR-039 left open.
+- **Deleting a confirmed record reopens its occurrence.** The occurrence would otherwise claim a
+  transaction that no longer exists and, `COMPLETED` being final, could never be confirmed again.
+  `PlanOccurrenceEntity.reopen()` does it, called by the record delete and by nothing else. It is
+  deliberately **not** in `OccurrenceState.successors()`: the table still says no route can move an
+  occurrence out of `COMPLETED`, and `restore` on a completed one is still a 409 — the only way out
+  is the transaction itself going away. The reopen takes the same row lock, so it cannot interleave
+  with a confirmation.
+
+### What was considered and not done
+
+- **A link column on the occurrence instead.** Rejected: the record is what a client lists and
+  edits, and it would need a join to say it was planned; and the uniqueness that matters —
+  one transaction per occurrence — is naturally an index on the record side.
+- **Refusing to delete a plan that has confirmed records.** Rejected: it would make a plan
+  undeletable forever after its first confirmation, for the sake of a back-reference.
+- **Refusing to delete a confirmed record.** Rejected: the user's remedy for a mistaken
+  confirmation is to delete the transaction, and a permanently `COMPLETED` occurrence with nothing
+  behind it is worse than a reopened one.
+- **Editing the currency, title, payee or note at confirmation.** Not asked for by the acceptance
+  criterion; each is one `PUT /api/v1/records/{id}` away.
+- **Per-occurrence edits before confirmation** and the overview's planned cash flow are the
+  backlog's next M2 tasks (#58 and after), not this one.
+
+### Consequence
+
+- A `COMPLETED` occurrence still lists the **plan's current** fields (`PlanOccurrence.title`,
+  `amount_minor`, …), not what was posted; what was posted is the record, reachable through the
+  `ConfirmOccurrenceResponse` and `Record.plan_occurrence_id`. A view that must show a completed
+  row's actual amount reads the record. `PlanOccurrence` does not carry the record id.
+- Nothing about the client changed but its repository (`confirmOccurrence`); there is still no
+  plan or occurrence screen, for the reason ADR-037 and ADR-039 give.
+- Retention (`PrudentRetentionCleanup`) needs no change: it already deletes records before
+  occurrences and plans.
+
+---
+
 ## ADR-039 — An occurrence stores planned/completed/skipped; overdue is derived, and the views generate
 
 **Date:** 2026-09-30. **Status:** accepted. **Follows:** ADR-038 (occurrences are generated

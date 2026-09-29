@@ -102,6 +102,37 @@ void main() {
         expect(decoded, original);
       });
 
+      test('a confirmation keeps its plan link, and an unset override stays unset', () {
+        final response = ConfirmOccurrenceResponse(
+          occurrence: PlanOccurrence(
+            id: 'occ-1',
+            planId: 'plan-1',
+            status: OccurrenceStatus.OCCURRENCE_STATUS_COMPLETED,
+          ),
+          record: Record(
+            id: 'rec-1',
+            title: 'Rent',
+            amountMinor: Int64(-250000),
+            planId: 'plan-1',
+            planOccurrenceId: 'occ-1',
+          ),
+        );
+        // Presence is the point: 0 is a refused amount, not "use the plan's", so an unset field
+        // must come back unset rather than as a zero.
+        final request = ConfirmOccurrenceRequest(date: '2026-10-12');
+
+        final decodedResponse = roundTrip(response, format, ConfirmOccurrenceResponse.new);
+        final decodedRequest = roundTrip(request, format, ConfirmOccurrenceRequest.new);
+
+        expect(decodedResponse.record.planId, 'plan-1');
+        expect(decodedResponse.record.planOccurrenceId, 'occ-1');
+        expect(decodedResponse, response);
+        expect(decodedRequest.hasDate(), isTrue);
+        expect(decodedRequest.hasAmountMinor(), isFalse);
+        expect(decodedRequest.hasAccountId(), isFalse);
+        expect(decodedRequest.hasCategoryId(), isFalse);
+      });
+
       test('a transfer leg carries no categoryId, and a transferId round-trips', () {
         // jlogicsoftware/prudent#32: categoryId and transferId are proto3 `optional`, so a transfer
         // leg can say "no category" rather than an empty string standing in for it, and a plain

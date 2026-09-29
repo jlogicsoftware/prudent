@@ -28,6 +28,7 @@ import prudent.error.PrudentException;
 import prudent.proto.v1.CreatePlanRequest;
 import prudent.proto.v1.Recurrence;
 import prudent.proto.v1.UpdatePlanRequest;
+import prudent.record.RecordEntity;
 import zen.core.http.ZenStatus;
 
 /**
@@ -140,6 +141,11 @@ public class PlanResource {
     // A hard delete, and a harmless one: a plan is not money that moved, so removing it changes no
     // balance and no total.
     PlanEntity entity = require(currentUser.id(), id);
+    // The transactions this plan produced are the ledger and stay in it. They are cut loose first,
+    // because both the occurrences and the plan they name are about to go and neither reference
+    // carries an ON DELETE CASCADE. No balance or total moves: only where a record says it came
+    // from.
+    RecordEntity.detachFromPlan(entity.userId, entity.id);
     // Before the plan: the occurrence reference carries no ON DELETE CASCADE.
     PlanOccurrenceEntity.deleteForPlan(entity.id);
     entity.delete();

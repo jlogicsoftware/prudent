@@ -46,12 +46,32 @@ const Record$json = {
     {'1': 'payee', '3': 9, '4': 1, '5': 9, '9': 2, '10': 'payee', '17': true},
     {'1': 'note', '3': 10, '4': 1, '5': 9, '9': 3, '10': 'note', '17': true},
     {'1': 'is_correction', '3': 11, '4': 1, '5': 8, '10': 'isCorrection'},
+    {
+      '1': 'plan_id',
+      '3': 12,
+      '4': 1,
+      '5': 9,
+      '9': 4,
+      '10': 'planId',
+      '17': true
+    },
+    {
+      '1': 'plan_occurrence_id',
+      '3': 13,
+      '4': 1,
+      '5': 9,
+      '9': 5,
+      '10': 'planOccurrenceId',
+      '17': true
+    },
   ],
   '8': [
     {'1': '_category_id'},
     {'1': '_transfer_id'},
     {'1': '_payee'},
     {'1': '_note'},
+    {'1': '_plan_id'},
+    {'1': '_plan_occurrence_id'},
   ],
 };
 
@@ -62,8 +82,10 @@ final $typed_data.Uint8List recordDescriptor = $convert.base64Decode(
     'CgRkYXRlGAUgASgJUgRkYXRlEiQKC2NhdGVnb3J5X2lkGAYgASgJSABSCmNhdGVnb3J5SWSIAQ'
     'ESHQoKYWNjb3VudF9pZBgHIAEoCVIJYWNjb3VudElkEiQKC3RyYW5zZmVyX2lkGAggASgJSAFS'
     'CnRyYW5zZmVySWSIAQESGQoFcGF5ZWUYCSABKAlIAlIFcGF5ZWWIAQESFwoEbm90ZRgKIAEoCU'
-    'gDUgRub3RliAEBEiMKDWlzX2NvcnJlY3Rpb24YCyABKAhSDGlzQ29ycmVjdGlvbkIOCgxfY2F0'
-    'ZWdvcnlfaWRCDgoMX3RyYW5zZmVyX2lkQggKBl9wYXllZUIHCgVfbm90ZQ==');
+    'gDUgRub3RliAEBEiMKDWlzX2NvcnJlY3Rpb24YCyABKAhSDGlzQ29ycmVjdGlvbhIcCgdwbGFu'
+    'X2lkGAwgASgJSARSBnBsYW5JZIgBARIxChJwbGFuX29jY3VycmVuY2VfaWQYDSABKAlIBVIQcG'
+    'xhbk9jY3VycmVuY2VJZIgBAUIOCgxfY2F0ZWdvcnlfaWRCDgoMX3RyYW5zZmVyX2lkQggKBl9w'
+    'YXllZUIHCgVfbm90ZUIKCghfcGxhbl9pZEIVChNfcGxhbl9vY2N1cnJlbmNlX2lk');
 
 @$core.Deprecated('Use createRecordRequestDescriptor instead')
 const CreateRecordRequest$json = {

@@ -24,12 +24,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import prudent.proto.v1.CreateRecordRequest;
 import prudent.proto.v1.UpdateRecordRequest;
-import prudent.Currencies;
 import prudent.CurrentUser;
 import prudent.Ids;
 import prudent.error.PrudentException;
-import prudent.account.AccountEntity;
-import prudent.category.CategoryEntity;
+import prudent.plan.PlanOccurrenceEntity;
 import zen.core.http.ZenStatus;
 
 /**
@@ -51,6 +49,7 @@ public class RecordResource {
 
   @Inject CurrentUser currentUser;
   @Inject RecordMapper mapper;
+  @Inject RecordWriter writer;
 
   @GET
   @Operation(
@@ -128,7 +127,7 @@ public class RecordResource {
     // Server-minted; the request message has no id field.
     entity.id = UUID.randomUUID();
     entity.userId = userId;
-    apply(entity, userId, request.getTitle(), request.getAmountMinor(), request.getDate(),
+    writer.apply(entity, userId, request.getTitle(), request.getAmountMinor(), request.getDate(),
         request.getCategoryId(), request.getAccountId(), request.getCurrency(),
         request.getPayee(), request.getNote());
     entity.persist();
@@ -158,7 +157,7 @@ public class RecordResource {
     RecordEntity entity = require(userId, id);
     requireNotTransferLeg(entity);
     requireNotCorrection(entity);
-    apply(entity, userId, request.getTitle(), request.getAmountMinor(), request.getDate(),
+    writer.apply(entity, userId, request.getTitle(), request.getAmountMinor(), request.getDate(),
         request.getCategoryId(), request.getAccountId(), request.getCurrency(),
         request.getPayee(), request.getNote());
     return Response.ok(mapper.toProto(entity)).build();
@@ -183,6 +182,17 @@ public class RecordResource {
     RecordEntity entity = require(userId, id);
     requireNotTransferLeg(entity);
     requireNotCorrection(entity);
+    if (entity.planOccurrenceId != null) {
+      // A confirmed occurrence is COMPLETED because this record exists. Without it the occurrence
+      // would claim a transaction that is gone -- and, being final, could never be confirmed
+      // again -- so it goes back to being open. Locked like every other transition, so this cannot
+      // interleave with a confirmation of the same occurrence.
+      PlanOccurrenceEntity occurrence =
+          PlanOccurrenceEntity.findOwnedForUpdate(userId, entity.planOccurrenceId);
+      if (occurrence != null) {
+        occurrence.reopen();
+      }
+    }
     // A HARD DELETE. A soft delete would leave the row readable by Phase 4's analytics, which is
     // the problem rather than the feature: a user who deletes a mistyped 5,000 PLN entry and still
     // sees it in a total is looking at a wrong number that looks right.
@@ -228,94 +238,9 @@ public class RecordResource {
   }
 
   /**
-   * Validates and writes every mutable field. Shared by create and replace, so a rule cannot hold
-   * on create and lapse on edit.
-   *
-   * <p><strong>The account and the currency are validated together</strong>, because moving a
-   * record between accounts and changing its currency are one operation: checking the currency
-   * against the <em>old</em> account would let a client move a PLN record into a EUR-only account
-   * by sending both changes at once.
-   */
-  private void apply(
-      RecordEntity entity,
-      UUID userId,
-      String title,
-      long amountMinor,
-      String date,
-      String categoryId,
-      String accountId,
-      String currency,
-      String payee,
-      String note) {
-
-    if (title == null || title.isBlank()) {
-      throw PrudentException.invalid("A record needs a title.");
-    }
-
-    // SIGNED (records.proto, ADR-014): negative is an expense, positive is income. Zero moves
-    // nothing and is refused rather than stored as a no-op transaction — a balance summed over a
-    // zero-amount row would be correct by accident, and a client that sent zero by mistake would
-    // get no signal that anything was wrong.
-    if (amountMinor == 0) {
-      throw PrudentException.invalid(
-          "A record needs a nonzero amount. Negative is an expense, positive is income.");
-    }
-
-    // The owning account, looked up AS THE CALLER'S. An account id that is not theirs is refused
-    // here rather than stored — a client that can name someone else's account can move money into
-    // it.
-    AccountEntity account =
-        AccountEntity.findOwned(userId, Ids.parseInBody("account", accountId));
-    if (account == null) {
-      throw PrudentException.invalid("No such account for this user: " + accountId);
-    }
-
-    CategoryEntity category =
-        CategoryEntity.findOwned(userId, Ids.parseInBody("category", categoryId));
-    if (category == null) {
-      throw PrudentException.invalid("No such category for this user: " + categoryId);
-    }
-
-    String normalized = Currencies.normalize(currency);
-    if (!Currencies.isValid(normalized)) {
-      throw PrudentException.invalid("'" + currency + "' is not an ISO-4217 currency.");
-    }
-    // THE REFUSAL THAT REPLACED INHERITANCE (ADR-008). When an account held one currency a record
-    // inherited it and disagreement was impossible to express; with several, only the record knows
-    // which balance it moved, so the guarantee is this check instead.
-    if (!AccountEntity.holds(account, normalized)) {
-      throw PrudentException.invalid(
-          "Account '" + account.name + "' does not hold " + normalized
-              + ". Add the currency to the account first.");
-    }
-
-    entity.title = title.trim();
-    entity.amountMinor = amountMinor;
-    entity.currency = normalized;
-    entity.date = parseDate(date);
-    entity.categoryId = category.id;
-    entity.accountId = account.id;
-    entity.payee = blankToNull(payee);
-    entity.note = blankToNull(note);
-  }
-
-  /**
-   * Both {@code payee} and {@code note} are optional wire fields; a blank value is stored as
-   * absent rather than as an empty string so the two never disagree about whether the field was
-   * filled in.
-   */
-  private static String blankToNull(String value) {
-    if (value == null) {
-      return null;
-    }
-    String trimmed = value.trim();
-    return trimmed.isEmpty() ? null : trimmed;
-  }
-
-  /**
    * The {@code dateFrom}/{@code dateTo} filter params: {@code null} means the caller sent no
    * filter for that end of the range, so it is returned as-is rather than rejected. A present but
-   * malformed value is still a refusal, via {@link #parseDate}.
+   * malformed value is still a refusal, via {@link RecordWriter#parseDate}.
    */
   private static LocalDate parseOptionalDate(String date, String paramName) {
     if (date == null || date.isBlank()) {
@@ -348,27 +273,6 @@ public class RecordResource {
   private static void requireNonNegative(Long value, String paramName) {
     if (value != null && value < 0) {
       throw PrudentException.invalid(paramName + " must not be negative.");
-    }
-  }
-
-  /**
-   * Parses the ISO-8601 civil date the contract carries.
-   *
-   * <p>{@link LocalDate#parse} is strict about {@code YYYY-MM-DD} and rejects an impossible date
-   * such as {@code 2026-02-30} rather than rolling it forward — which is the behaviour wanted here,
-   * because a rolled date is a record filed in a month the user did not choose.
-   */
-  private static LocalDate parseDate(String date) {
-    if (date == null || date.isBlank()) {
-      throw PrudentException.invalid("A record needs a date, as ISO-8601 YYYY-MM-DD.");
-    }
-    try {
-      return LocalDate.parse(date);
-    } catch (DateTimeParseException malformed) {
-      // Converted to a refusal the caller can read, never defaulted to today: a record silently
-      // filed on the wrong day is a wrong total in whatever month it lands in.
-      throw PrudentException.invalid(
-          "'" + date + "' is not an ISO-8601 date. Expected YYYY-MM-DD.");
     }
   }
 }

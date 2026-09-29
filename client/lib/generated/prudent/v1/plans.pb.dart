@@ -16,6 +16,7 @@ import 'package:fixnum/fixnum.dart' as $fixnum;
 import 'package:protobuf/protobuf.dart' as $pb;
 
 import 'plans.pbenum.dart';
+import 'records.pb.dart' as $0;
 
 export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
@@ -880,6 +881,191 @@ class ListOccurrencesResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $pb.PbList<PlanOccurrence> get occurrences => $_getList(0);
+}
+
+/// POST /api/v1/occurrences/{id}/confirm (M2, jlogicsoftware/prudent#57) — the user says this
+/// occurrence happened, and the server writes the actual transaction. Every field is OPTIONAL and an
+/// absent one takes the occurrence's own value (its date, and its plan's amount, account and
+/// category), so "yes, exactly as planned" is the empty message `{}` — the request must still carry
+/// a body, as on every POST that declares one.
+/// What is sent replaces that value for THIS transaction only; the plan and its other occurrences
+/// are unchanged.
+///
+/// Presence is explicit (`optional`) rather than zero-means-absent, for the reason categories.proto
+/// gives: an amount of 0 is a mistake to be REFUSED, not a request for the default.
+///
+/// Deliberately not editable here: the currency (it is the plan's, and the account must hold it),
+/// and the title, payee and note (copied from the plan; edit the record afterwards).
+class ConfirmOccurrenceRequest extends $pb.GeneratedMessage {
+  factory ConfirmOccurrenceRequest({
+    $core.String? date,
+    $fixnum.Int64? amountMinor,
+    $core.String? accountId,
+    $core.String? categoryId,
+  }) {
+    final result = create();
+    if (date != null) result.date = date;
+    if (amountMinor != null) result.amountMinor = amountMinor;
+    if (accountId != null) result.accountId = accountId;
+    if (categoryId != null) result.categoryId = categoryId;
+    return result;
+  }
+
+  ConfirmOccurrenceRequest._();
+
+  factory ConfirmOccurrenceRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ConfirmOccurrenceRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ConfirmOccurrenceRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'date')
+    ..aInt64(2, _omitFieldNames ? '' : 'amountMinor')
+    ..aOS(3, _omitFieldNames ? '' : 'accountId')
+    ..aOS(4, _omitFieldNames ? '' : 'categoryId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ConfirmOccurrenceRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ConfirmOccurrenceRequest copyWith(
+          void Function(ConfirmOccurrenceRequest) updates) =>
+      super.copyWith((message) => updates(message as ConfirmOccurrenceRequest))
+          as ConfirmOccurrenceRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ConfirmOccurrenceRequest create() => ConfirmOccurrenceRequest._();
+  @$core.override
+  ConfirmOccurrenceRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ConfirmOccurrenceRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ConfirmOccurrenceRequest>(create);
+  static ConfirmOccurrenceRequest? _defaultInstance;
+
+  /// The civil date the money actually moved, ISO-8601 YYYY-MM-DD. Defaults to the occurrence date.
+  /// Any date is accepted, not only ones near the occurrence: a bill paid a week late, or a month
+  /// early, is confirmed on the day it was paid.
+  @$pb.TagNumber(1)
+  $core.String get date => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set date($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasDate() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearDate() => $_clearField(1);
+
+  /// Signed minor units, as Record.amount_minor. Defaults to the plan's amount. Nonzero.
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get amountMinor => $_getI64(1);
+  @$pb.TagNumber(2)
+  set amountMinor($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasAmountMinor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearAmountMinor() => $_clearField(2);
+
+  /// Defaults to the plan's account. Must be the caller's and must hold the plan's currency.
+  @$pb.TagNumber(3)
+  $core.String get accountId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set accountId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAccountId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAccountId() => $_clearField(3);
+
+  /// Defaults to the plan's category. Must be the caller's.
+  @$pb.TagNumber(4)
+  $core.String get categoryId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set categoryId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasCategoryId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCategoryId() => $_clearField(4);
+}
+
+/// The result of a confirmation: the occurrence, now COMPLETED, and the ONE Record it became. The
+/// record carries plan_id and plan_occurrence_id, which is the plan link.
+class ConfirmOccurrenceResponse extends $pb.GeneratedMessage {
+  factory ConfirmOccurrenceResponse({
+    PlanOccurrence? occurrence,
+    $0.Record? record,
+  }) {
+    final result = create();
+    if (occurrence != null) result.occurrence = occurrence;
+    if (record != null) result.record = record;
+    return result;
+  }
+
+  ConfirmOccurrenceResponse._();
+
+  factory ConfirmOccurrenceResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ConfirmOccurrenceResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ConfirmOccurrenceResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOM<PlanOccurrence>(1, _omitFieldNames ? '' : 'occurrence',
+        subBuilder: PlanOccurrence.create)
+    ..aOM<$0.Record>(2, _omitFieldNames ? '' : 'record',
+        subBuilder: $0.Record.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ConfirmOccurrenceResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ConfirmOccurrenceResponse copyWith(
+          void Function(ConfirmOccurrenceResponse) updates) =>
+      super.copyWith((message) => updates(message as ConfirmOccurrenceResponse))
+          as ConfirmOccurrenceResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ConfirmOccurrenceResponse create() => ConfirmOccurrenceResponse._();
+  @$core.override
+  ConfirmOccurrenceResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ConfirmOccurrenceResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ConfirmOccurrenceResponse>(create);
+  static ConfirmOccurrenceResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  PlanOccurrence get occurrence => $_getN(0);
+  @$pb.TagNumber(1)
+  set occurrence(PlanOccurrence value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasOccurrence() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearOccurrence() => $_clearField(1);
+  @$pb.TagNumber(1)
+  PlanOccurrence ensureOccurrence() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $0.Record get record => $_getN(1);
+  @$pb.TagNumber(2)
+  set record($0.Record value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasRecord() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearRecord() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $0.Record ensureRecord() => $_ensure(1);
 }
 
 const $core.bool _omitFieldNames =
