@@ -298,6 +298,69 @@ class PlanResourceTest {
     assertEquals("not_found", refused(read, 404).getCode());
   }
 
+  // --- Occurrences follow the plan (jlogicsoftware/prudent#55, ADR-038) ------------------------
+
+  private static long occurrenceCount(String planId) {
+    return io.quarkus.narayana.jta.QuarkusTransaction.requiringNew()
+        .call(() -> prudent.plan.PlanOccurrenceEntity.count("planId", UUID.fromString(planId)));
+  }
+
+  private Response replaceWith(Plan plan, Recurrence.Builder recurrence, String title) throws Exception {
+    UpdatePlanRequest update =
+        UpdatePlanRequest.newBuilder()
+            .setTitle(title)
+            .setAmountMinor(plan.getAmountMinor())
+            .setCurrency("PLN")
+            .setAccountId(walletId.toString())
+            .setCategoryId(rentId.toString())
+            .setRecurrence(recurrence)
+            .build();
+    return PrudentTest.body(PrudentTest.request(PrudentTest.JSON), PrudentTest.JSON, update)
+        .when()
+        .put("/api/v1/plans/" + plan.getId())
+        .andReturn();
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void delete_removesTheGeneratedOccurrencesToo() throws Exception {
+    Plan plan = created(PrudentTest.JSON, validCreate().build());
+    PrudentTest.seedOccurrence(
+        PrudentTest.ALICE, UUID.fromString(plan.getId()), java.time.LocalDate.of(2026, 10, 31));
+
+    Response deleted =
+        PrudentTest.request(PrudentTest.JSON).when().delete("/api/v1/plans/" + plan.getId()).andReturn();
+
+    assertEquals(204, deleted.statusCode(), deleted.asString());
+    assertEquals(0, occurrenceCount(plan.getId()));
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void replace_changingTheRuleDropsOccurrencesTheOldRuleGenerated() throws Exception {
+    Plan plan = created(PrudentTest.JSON, validCreate().build());
+    PrudentTest.seedOccurrence(
+        PrudentTest.ALICE, UUID.fromString(plan.getId()), java.time.LocalDate.of(2026, 10, 31));
+
+    Response response = replaceWith(plan, monthly().setStartDate("2026-11-15"), "Rent");
+
+    assertEquals(200, response.statusCode(), response.asString());
+    assertEquals(0, occurrenceCount(plan.getId()));
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void replace_leavingTheRuleAloneKeepsItsOccurrences() throws Exception {
+    Plan plan = created(PrudentTest.JSON, validCreate().build());
+    PrudentTest.seedOccurrence(
+        PrudentTest.ALICE, UUID.fromString(plan.getId()), java.time.LocalDate.of(2026, 10, 31));
+
+    Response response = replaceWith(plan, monthly(), "Rent, renamed");
+
+    assertEquals(200, response.statusCode(), response.asString());
+    assertEquals(1, occurrenceCount(plan.getId()), "a title edit does not move any date");
+  }
+
   // --- Ownership -----------------------------------------------------------------------------
 
   @Test

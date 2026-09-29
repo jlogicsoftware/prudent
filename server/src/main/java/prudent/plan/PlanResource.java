@@ -112,11 +112,19 @@ public class PlanResource {
   public Response replace(@PathParam("id") String id, UpdatePlanRequest request) {
     UUID userId = currentUser.id();
     PlanEntity entity = require(userId, id);
+    RecurrenceRule before = entity.rule();
     apply(entity, userId, request.getTitle(), request.getAmountMinor(), request.getCurrency(),
         request.getAccountId(), request.getCategoryId(),
         request.hasPayee() ? request.getPayee() : null,
         request.hasNote() ? request.getNote() : null,
         request.getRecurrence(), request.hasRecurrence());
+    if (!before.equals(entity.rule())) {
+      // Occurrences generated from the old rule are dates the new one may not produce, and
+      // generation only ever adds (ADR-038), so they would sit beside the new ones for good. No
+      // occurrence carries state yet, so dropping them loses nothing; the lifecycle work
+      // (jlogicsoftware/prudent#56) must replace this with something that keeps a completed one.
+      PlanOccurrenceEntity.deleteForPlan(entity.id);
+    }
     return Response.ok(mapper.toProto(entity)).build();
   }
 
@@ -131,7 +139,10 @@ public class PlanResource {
   public Response delete(@PathParam("id") String id) {
     // A hard delete, and a harmless one: a plan is not money that moved, so removing it changes no
     // balance and no total.
-    require(currentUser.id(), id).delete();
+    PlanEntity entity = require(currentUser.id(), id);
+    // Before the plan: the occurrence reference carries no ON DELETE CASCADE.
+    PlanOccurrenceEntity.deleteForPlan(entity.id);
+    entity.delete();
     return Response.noContent().build();
   }
 

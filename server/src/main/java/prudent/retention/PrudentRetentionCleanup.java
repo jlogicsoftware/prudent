@@ -9,6 +9,7 @@ import org.jboss.logging.Logger;
 import prudent.account.AccountEntity;
 import prudent.category.CategoryEntity;
 import prudent.plan.PlanEntity;
+import prudent.plan.PlanOccurrenceEntity;
 import prudent.record.RecordEntity;
 import prudent.settings.SettingsEntity;
 import zen.identity.event.UserAnonymised;
@@ -44,7 +45,7 @@ import zen.identity.event.UserAnonymised;
  *
  * <p><strong>Deletion order is FK-driven, not arbitrary</strong>: records first (the migration
  * carries no {@code ON DELETE CASCADE} on either the account or category reference — ADR-010 — so
- * a record row must go before the rows it points to), then plans for the same reason (ADR-037),
+ * a record row must go before the rows it points to), then plan occurrences and plans for the same reason (ADR-037, ADR-038),
  * then accounts and categories, then the singleton settings row. Accounts are deleted
  * entity-by-entity rather than by a bulk query so Hibernate cascades the {@code @ElementCollection}
  * balances ({@code prudent_account_balance}) it owns; a bulk HQL delete bypasses the persistence
@@ -69,6 +70,9 @@ public class PrudentRetentionCleanup {
     UUID userId = event.userId();
 
     long records = RecordEntity.delete("userId", userId);
+    // Occurrences before their plans, and both before accounts and categories, like records: none
+    // of those references carries a cascade.
+    PlanOccurrenceEntity.delete("userId", userId);
     // Before accounts and categories, like records: a plan references both, without a cascade.
     long plans = PlanEntity.delete("userId", userId);
 
