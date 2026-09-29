@@ -16,6 +16,7 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent/generated/prudent/v1/plans.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
 import 'package:prudent/generated/prudent/v1/settings.pb.dart';
 import 'package:protobuf/protobuf.dart';
@@ -57,6 +58,47 @@ void main() {
         expect(decoded.date, original.date);
         expect(decoded.categoryId, original.categoryId);
         expect(decoded.accountId, original.accountId);
+        expect(decoded, original);
+      });
+
+      test('a recurring Plan survives the round trip, end condition included', () {
+        final original = Plan(
+          id: '6f9619ff-8b86-d011-b42d-00c04fc964ff',
+          title: 'Rent',
+          amountMinor: Int64(-250000),
+          currency: 'PLN',
+          accountId: '018f3a1b-2c4d-7e8f-9a0b-1c2d3e4f5a6b',
+          categoryId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
+          recurrence: Recurrence(
+            frequency: RecurrenceFrequency.RECURRENCE_FREQUENCY_WEEKLY,
+            interval: 2,
+            startDate: '2026-10-02',
+            timeZone: 'Europe/Warsaw',
+            untilDate: '2027-06-30',
+          ),
+        );
+
+        final decoded = roundTrip(original, format, Plan.new);
+
+        expect(decoded.recurrence.whichEnd(), Recurrence_End.untilDate);
+        expect(decoded.recurrence.hasOccurrenceCount(), isFalse);
+        expect(decoded, original);
+      });
+
+      test('a Plan with no end condition round-trips as having none', () {
+        final original = Plan(
+          id: 'p1',
+          recurrence: Recurrence(
+            frequency: RecurrenceFrequency.RECURRENCE_FREQUENCY_MONTHLY,
+            interval: 1,
+            startDate: '2026-01-31',
+            timeZone: 'Europe/Warsaw',
+          ),
+        );
+
+        final decoded = roundTrip(original, format, Plan.new);
+
+        expect(decoded.recurrence.whichEnd(), Recurrence_End.notSet);
         expect(decoded, original);
       });
 

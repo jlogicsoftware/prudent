@@ -14,6 +14,11 @@ The directory mirrors the proto package the way `../jZen/proto/zen/v1/` mirrors 
 | `prudent/v1/accounts.proto` | `prudent.v1` | `prudent.proto.v1` |
 | `prudent/v1/categories.proto` | `prudent.v1` | `prudent.proto.v1` |
 | `prudent/v1/settings.proto` | `prudent.v1` | `prudent.proto.v1` |
+| `prudent/v1/plans.proto` | `prudent.v1` | `prudent.proto.v1` |
+
+`plans.proto` holds **expected** money — one-off and recurring plans (M2) — and is deliberately a
+separate model from `records.proto`: a record moves a balance (ADR-014), a plan never does.
+ADR-037 records the shape of the recurrence rule.
 
 `settings.proto` is the odd one: a **singleton**, one row per user, with no id and no list message
 because the JWT is the entire addressing scheme. It carries `main_currency`, which is a **label and

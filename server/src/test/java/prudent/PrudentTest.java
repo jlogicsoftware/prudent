@@ -12,11 +12,15 @@ import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 import prudent.account.AccountBalance;
 import prudent.account.AccountEntity;
 import prudent.account.AccountKind;
 import prudent.category.CategoryEntity;
+import prudent.plan.Frequency;
+import prudent.plan.PlanEntity;
+import prudent.plan.RecurrenceRule;
 import prudent.record.RecordEntity;
 import prudent.settings.SettingsEntity;
 import zen.identity.auth.SessionService;
@@ -63,6 +67,7 @@ public final class PrudentTest {
         .run(
             () -> {
               RecordEntity.deleteAll();
+              PlanEntity.deleteAll();
               AccountEntity.deleteAll();
               CategoryEntity.deleteAll();
               SettingsEntity.deleteAll();
@@ -241,6 +246,34 @@ public final class PrudentTest {
               entity.accountId = accountId;
               entity.categoryId = null;
               entity.isCorrection = true;
+              entity.persist();
+            });
+    return id;
+  }
+
+  /**
+   * Persists a monthly plan owned by {@code userId} directly, for suites asserting something other
+   * than {@code PlanResource} itself — the ownership suite needs a plan belonging to a user it is
+   * not authenticated as, which the API cannot produce.
+   */
+  public static UUID seedPlan(
+      String userId, UUID accountId, UUID categoryId, long amountMinor, String currency) {
+    UUID id = UUID.randomUUID();
+    QuarkusTransaction.requiringNew()
+        .run(
+            () -> {
+              PlanEntity entity = new PlanEntity();
+              entity.id = id;
+              entity.userId = UUID.fromString(userId);
+              entity.title = "Seeded plan";
+              entity.amountMinor = amountMinor;
+              entity.currency = currency;
+              entity.accountId = accountId;
+              entity.categoryId = categoryId;
+              entity.setRule(
+                  new RecurrenceRule(
+                      Frequency.MONTHLY, 1, LocalDate.of(2026, 9, 1), ZoneId.of("Europe/Warsaw"),
+                      null, null));
               entity.persist();
             });
     return id;

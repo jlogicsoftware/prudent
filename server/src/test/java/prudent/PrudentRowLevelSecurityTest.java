@@ -43,8 +43,8 @@ import org.junit.jupiter.api.Test;
 class PrudentRowLevelSecurityTest {
 
   private static final String[] PRUDENT_TABLES = {
-    "prudent_account", "prudent_account_balance", "prudent_category", "prudent_record",
-    "prudent_settings"
+    "prudent_account", "prudent_account_balance", "prudent_category", "prudent_plan",
+    "prudent_record", "prudent_settings"
   };
 
   private static final String RUNTIME_PASSWORD = "test-only-throwaway";
@@ -59,6 +59,7 @@ class PrudentRowLevelSecurityTest {
     UUID accountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Wallet", "PLN");
     UUID categoryId = PrudentTest.seedCategory(PrudentTest.ALICE, "Food");
     PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, 12_34L, "PLN");
+    PrudentTest.seedPlan(PrudentTest.ALICE, accountId, categoryId, -99_00L, "PLN");
     PrudentTest.seedSettings(PrudentTest.ALICE, "PLN");
 
     try (Connection owner = dataSource.getConnection();
@@ -112,6 +113,7 @@ class PrudentRowLevelSecurityTest {
       assertRowCount(runtime, "prudent_account", 1);
       assertRowCount(runtime, "prudent_account_balance", 1);
       assertRowCount(runtime, "prudent_category", 1);
+      assertRowCount(runtime, "prudent_plan", 1);
       assertRowCount(runtime, "prudent_record", 1);
       assertRowCount(runtime, "prudent_settings", 1);
     }
