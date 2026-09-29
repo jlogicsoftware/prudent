@@ -298,6 +298,42 @@ public class RecordEntity extends PanacheEntityBase {
   }
 
   /**
+   * The signed net of one user's ordinary records per category, in one currency, within a civil
+   * date range inclusive on both ends — the ledger side of a budget's "actual" (M3,
+   * jlogicsoftware/prudent#59, ADR-044). Negative is net spending.
+   *
+   * <p><strong>Unlike {@link #expenseRows}, positive rows are kept.</strong> A refund is an
+   * ordinary record with a positive amount in the category it was spent in, and dropping the
+   * positive side would make a returned purchase count as spending forever. Everything else
+   * {@code expenseRows} excludes stays excluded, for the same reasons: transfer legs and balance
+   * corrections are not spending, and every row here is a posted ledger record — a planned
+   * occurrence is not a record until it is confirmed (ADR-040), so it is never counted.
+   *
+   * <p>A category with no matching record is absent from the map, not present as zero.
+   */
+  public static Map<UUID, Long> netByCategory(
+      UUID userId, String currency, LocalDate from, LocalDate to) {
+    Map<UUID, Long> net = new HashMap<>();
+    for (Object[] row :
+        getEntityManager()
+            .createQuery(
+                "select r.categoryId, sum(r.amountMinor) from RecordEntity r"
+                    + " where r.userId = :userId and r.currency = :currency"
+                    + " and r.categoryId is not null and r.transferId is null"
+                    + " and r.isCorrection = false and r.date >= :from and r.date <= :to"
+                    + " group by r.categoryId",
+                Object[].class)
+            .setParameter("userId", userId)
+            .setParameter("currency", currency)
+            .setParameter("from", from)
+            .setParameter("to", to)
+            .getResultList()) {
+      net.put((UUID) row[0], (Long) row[1]);
+    }
+    return net;
+  }
+
+  /**
    * Every record owned by one user that matches every given criterion — the query behind
    * {@code GET /api/v1/records}'s filters (jlogicsoftware/prudent#52). Each parameter is
    * independently optional; a {@code null} simply omits that clause, so calling this with every

@@ -22,7 +22,8 @@ separate model from `records.proto`: a record moves a balance (ADR-014), a plan 
 ADR-037 records the shape of the recurrence rule.
 
 `budgets.proto` holds the amount the user **may spend** per category, month and currency (M3). It has
-no id: a budget is addressed by the slot it fills, and the slot is unique (ADR-043).
+no id: a budget is addressed by the slot it fills, and the slot is unique (ADR-043). It also holds the
+calculated plan/actual/remaining summary of a month, which is never stored (ADR-044).
 
 `settings.proto` is the odd one: a **singleton**, one row per user, with no id and no list message
 because the JWT is the entire addressing scheme. It carries `main_currency`, which is a **label and

@@ -494,6 +494,55 @@ void main() {
     );
   });
 
+  group('PrudentRepository budget summary', () {
+    test(
+      'getBudgetSummary asks for one month in one currency and decodes every amount',
+      () async {
+        Uri? capturedUri;
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            capturedUri = _uriOf(request);
+            return _jsonResponse({
+              'month': '2026-10',
+              'currency': 'PLN',
+              'items': [
+                {
+                  'categoryId': 'c1',
+                  'planMinor': '80000',
+                  'actualMinor': '95000',
+                  'remainingMinor': '-15000',
+                },
+              ],
+              'totalPlanMinor': '80000',
+              'totalActualMinor': '95000',
+              'totalRemainingMinor': '-15000',
+            });
+          }),
+        );
+
+        final result = await repository.getBudgetSummary(
+          month: '2026-10',
+          currency: 'PLN',
+        );
+
+        expect(capturedUri!.path, '/api/v1/budgets/summary');
+        expect(capturedUri!.queryParameters, {
+          'month': '2026-10',
+          'currency': 'PLN',
+        });
+        final summary = result.fold((r) => r, (e) => throw e);
+        expect(summary.month, '2026-10');
+        expect(summary.currency, 'PLN');
+        final item = summary.items.single;
+        expect(item.categoryId, 'c1');
+        expect(item.planMinor.toInt(), 80000);
+        expect(item.actualMinor.toInt(), 95000);
+        expect(item.remainingMinor.toInt(), -15000);
+        expect(summary.totalRemainingMinor.toInt(), -15000);
+      },
+    );
+  });
+
   group('PrudentRepository occurrences', () {
     Map<String, Object?> occurrence(String status) => {
       'id': 'occ-1',

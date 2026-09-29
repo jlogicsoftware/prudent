@@ -125,6 +125,18 @@ class PrudentRepository {
     return _client.get<ListBudgetsResponse>(ListBudgetsResponse.new, path);
   }
 
+  /// Plan, actual and remaining amount of every category budgeted for [month] (`YYYY-MM`) in
+  /// [currency] (M3, jlogicsoftware/prudent#59). Both are required and the currency is never
+  /// inferred: a summary is for one month in one currency and is never summed across currencies.
+  /// Actual is net spending from posted records, refunds included.
+  Future<ZenResult<BudgetSummaryResponse>> getBudgetSummary({
+    required String month,
+    required String currency,
+  }) => _client.get<BudgetSummaryResponse>(
+    BudgetSummaryResponse.new,
+    '$_budgetsPath/summary?${_encodeQuery({'month': month, 'currency': currency})}',
+  );
+
   /// Sets the budget for one category, [month] (`YYYY-MM`) and [currency], creating it or replacing
   /// its amount — a slot holds at most one. The amount must be positive; to have no budget for the
   /// slot, [deleteBudget].

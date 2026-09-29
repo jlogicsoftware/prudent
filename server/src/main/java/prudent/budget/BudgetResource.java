@@ -27,6 +27,7 @@ import prudent.CurrentUser;
 import prudent.Ids;
 import prudent.category.CategoryEntity;
 import prudent.error.PrudentException;
+import prudent.record.RecordEntity;
 import prudent.proto.v1.Budget;
 import prudent.proto.v1.SetBudgetRequest;
 import zen.core.http.ZenStatus;
@@ -40,6 +41,10 @@ import zen.core.http.ZenStatus;
  * is no create/replace distinction for a client to get wrong and no id to invent: {@code PUT} fills
  * the slot, and the slot holds at most one amount. Saving, editing or deleting a budget touches
  * only {@code prudent_budget}; no balance, record or analytics total moves.
+ *
+ * <p>{@code GET /summary} is the read side (jlogicsoftware/prudent#59, ADR-044): plan, actual and
+ * remaining amount per budgeted category for one month in one currency, calculated on each request
+ * from the budgets and the ledger and stored nowhere.
  *
  * <p>The resource shape is set out on {@link prudent.category.CategoryResource}.
  */
@@ -79,6 +84,44 @@ public class BudgetResource {
     return Response.ok(
             mapper.toListResponse(
                 BudgetEntity.listOwnedBy(currentUser.id(), parsedMonth, parsedCategory)))
+        .build();
+  }
+
+  @GET
+  @Path("/summary")
+  @Operation(
+      summary = "Plan, actual and remaining amount per budgeted category, for one month",
+      description =
+          "Query parameters: month (required, YYYY-MM) and currency (required, ISO-4217). Actual"
+              + " is net spending from posted records in that currency, refunds included; a"
+              + " planned occurrence is not counted until it is confirmed. Never summed across"
+              + " currencies.")
+  @APIResponse(
+      responseCode = ZenStatus.OK,
+      content = @Content(schema = @Schema(ref = "BudgetSummaryResponse")))
+  @APIResponse(
+      responseCode = ZenStatus.BAD_REQUEST,
+      description = "A missing or malformed month, or a missing or non-ISO-4217 currency",
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  public Response summary(
+      @QueryParam("month") String month, @QueryParam("currency") String currency) {
+    UUID userId = currentUser.id();
+    YearMonth parsedMonth = parseMonth(month);
+    if (currency == null || currency.isBlank()) {
+      // Required, never inferred: a summary that guessed the currency would be a total the user
+      // did not ask for.
+      throw PrudentException.invalid(
+          "A currency is required; Prudent never sums a budget across currencies.");
+    }
+    String normalized = parseCurrency(currency);
+
+    return Response.ok(
+            BudgetCalculator.summarize(
+                parsedMonth,
+                normalized,
+                BudgetEntity.listForMonthAndCurrency(userId, parsedMonth, normalized),
+                RecordEntity.netByCategory(
+                    userId, normalized, parsedMonth.atDay(1), parsedMonth.atEndOfMonth())))
         .build();
   }
 

@@ -66,9 +66,11 @@ a plans screen is new scope, not missing work.
 
 M3 (budgets) has begun: `BudgetResource` over `BudgetEntity` (ADR-043) stores at most one positive
 amount per category, month and currency, addressed by that slot at
-`/api/v1/budgets/{categoryId}/{month}/{currency}`. Nothing yet calculates plan, actual, remaining or
-carry-over from them, keeps an audit trail, or shows them — those are the epic's later tasks
-(jlogicsoftware/prudent#35) — and the client has only the repository methods.
+`/api/v1/budgets/{categoryId}/{month}/{currency}`, and `GET /api/v1/budgets/summary` (ADR-044,
+jlogicsoftware/prudent#59) calculates plan, actual and remaining per budgeted category for one month
+and currency on each request — actual is net spending from posted ledger records, refunds included.
+Nothing yet carries amounts between months, keeps an audit trail, or shows them — those are the
+epic's later tasks (jlogicsoftware/prudent#35) — and the client has only the repository methods.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the
