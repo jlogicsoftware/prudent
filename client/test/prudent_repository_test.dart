@@ -9,6 +9,7 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:prudent/generated/prudent/v1/plans.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
 import 'package:prudent/prudent_repository.dart';
 import 'package:prudent/record/record_filter.dart';
@@ -291,6 +292,98 @@ void main() {
       expect(capturedMethod, 'DELETE');
       expect(capturedUri!.path, '/api/v1/transfers/transfer-1');
       expect(result.isSuccess, isTrue);
+    });
+  });
+
+  group('PrudentRepository plans', () {
+    test('createPlan posts the typed request and decodes the recurrence', () async {
+      String? capturedBody;
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedBody = request.body;
+          capturedUri = _uriOf(request);
+          return _jsonResponse({
+            'id': 'plan-1',
+            'title': 'Rent',
+            'amountMinor': '-250000',
+            'currency': 'PLN',
+            'accountId': 'a1',
+            'categoryId': 'c1',
+            'recurrence': {
+              'frequency': 'RECURRENCE_FREQUENCY_MONTHLY',
+              'interval': 1,
+              'startDate': '2026-10-31',
+              'timeZone': 'Europe/Warsaw',
+              'occurrenceCount': 12,
+            },
+          }, status: 201);
+        }),
+      );
+
+      final result = await repository.createPlan(
+        CreatePlanRequest(
+          title: 'Rent',
+          amountMinor: Int64(-250000),
+          currency: 'PLN',
+          accountId: 'a1',
+          categoryId: 'c1',
+          recurrence: Recurrence(
+            frequency: RecurrenceFrequency.RECURRENCE_FREQUENCY_MONTHLY,
+            interval: 1,
+            startDate: '2026-10-31',
+            timeZone: 'Europe/Warsaw',
+            occurrenceCount: 12,
+          ),
+        ),
+      );
+
+      expect(capturedUri!.path, '/api/v1/plans');
+      expect(capturedBody, contains('"timeZone":"Europe/Warsaw"'));
+      final plan = result.fold((p) => p, (e) => throw e);
+      expect(plan.id, 'plan-1');
+      expect(plan.amountMinor.toInt(), -250000);
+      expect(plan.recurrence.frequency, RecurrenceFrequency.RECURRENCE_FREQUENCY_MONTHLY);
+      expect(plan.recurrence.whichEnd(), Recurrence_End.occurrenceCount);
+      expect(plan.recurrence.occurrenceCount, 12);
+    });
+
+    test('listPlans decodes the list, and deletePlan deletes by id', () async {
+      final calls = <String>[];
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          calls.add('${request.method} ${_uriOf(request).path}');
+          if (request.method == 'DELETE') {
+            return http.Response('', 204, headers: {'X-Zen-Transport': 'json'});
+          }
+          return _jsonResponse({
+            'plans': [
+              {
+                'id': 'plan-1',
+                'title': 'Salary',
+                'amountMinor': '800000',
+                'currency': 'PLN',
+                'accountId': 'a1',
+                'categoryId': 'c1',
+                'recurrence': {
+                  'frequency': 'RECURRENCE_FREQUENCY_ONCE',
+                  'interval': 1,
+                  'startDate': '2026-10-10',
+                  'timeZone': 'Europe/Warsaw',
+                },
+              },
+            ],
+          });
+        }),
+      );
+
+      final listed = await repository.listPlans();
+      final plans = listed.fold((r) => r.plans, (e) => throw e);
+      expect(plans.single.recurrence.whichEnd(), Recurrence_End.notSet);
+
+      final deleted = await repository.deletePlan('plan-1');
+      expect(deleted.isSuccess, isTrue);
+      expect(calls, ['GET /api/v1/plans', 'DELETE /api/v1/plans/plan-1']);
     });
   });
 

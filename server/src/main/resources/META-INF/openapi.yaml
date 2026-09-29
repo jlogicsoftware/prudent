@@ -669,6 +669,156 @@ components:
           description: Optional free-text reason for the correction.
 
     # -----------------------------------------------------------------------------------------
+    # Plans — expected money, one-off or recurring (M2, jlogicsoftware/prudent#34, ADR-037).
+    # NEVER a transaction: nothing here moves a balance or an analytics total.
+    # -----------------------------------------------------------------------------------------
+    RecurrenceFrequency:
+      type: string
+      description: >-
+        How often a plan repeats. RECURRENCE_FREQUENCY_UNSPECIFIED is what proto3 decodes an
+        omitted field to and is REJECTED server-side. MONTHLY keeps start_date's day of the month,
+        clamped to the last day of a shorter month; YEARLY keeps its month and day, 29 February
+        falling on 28 February in a common year.
+      enum:
+        - RECURRENCE_FREQUENCY_UNSPECIFIED
+        - RECURRENCE_FREQUENCY_ONCE
+        - RECURRENCE_FREQUENCY_DAILY
+        - RECURRENCE_FREQUENCY_WEEKLY
+        - RECURRENCE_FREQUENCY_MONTHLY
+        - RECURRENCE_FREQUENCY_YEARLY
+    Recurrence:
+      type: object
+      description: >-
+        When a plan's occurrences fall. Every occurrence is a CIVIL DATE computed from startDate
+        (never stepped from the previous one). At most one of untilDate and occurrenceCount may be
+        set; neither means the plan never ends. A ONCE plan takes no interval and no end.
+      properties:
+        frequency:
+          $ref: '#/components/schemas/RecurrenceFrequency'
+        interval:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 1000
+          description: >-
+            Every N units of frequency — the custom interval (2 with WEEKLY is fortnightly).
+            Required and 1..1000 for a repeating frequency; 0 is refused there, not read as 1.
+            Omit it (or send 1) for ONCE.
+        startDate:
+          type: string
+          format: date
+          description: The first occurrence, and the anchor every later one is computed from.
+        timeZone:
+          type: string
+          description: >-
+            An IANA time-zone id such as Europe/Warsaw. REQUIRED: it decides which calendar day is
+            "today" for the plan, and so when an occurrence is due or overdue. Fixed offsets such
+            as +02:00 are refused because they do not follow daylight saving.
+        untilDate:
+          type: string
+          format: date
+          description: The last date an occurrence may fall on, inclusive. Not before startDate.
+        occurrenceCount:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 10000
+          description: The total number of occurrences, counting the one on startDate.
+    Plan:
+      type: object
+      description: A plan, as the server holds it.
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        amountMinor:
+          type: string
+          format: int64
+          description: >-
+            Signed minor units, exactly as Record.amountMinor — negative is planned spending,
+            positive planned income. Zero is rejected.
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: One of the account's currencies; the server refuses any other.
+        accountId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        payee:
+          type: string
+          description: Optional.
+        note:
+          type: string
+          description: Optional.
+        recurrence:
+          $ref: '#/components/schemas/Recurrence'
+    CreatePlanRequest:
+      type: object
+      description: Body for POST /api/v1/plans. No id field — the server mints it.
+      properties:
+        title:
+          type: string
+        amountMinor:
+          type: string
+          format: int64
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        accountId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        payee:
+          type: string
+        note:
+          type: string
+        recurrence:
+          $ref: '#/components/schemas/Recurrence'
+    UpdatePlanRequest:
+      type: object
+      description: >-
+        Body for PUT /api/v1/plans/{id}. A FULL REPLACEMENT: an absent payee or note clears it.
+      properties:
+        title:
+          type: string
+        amountMinor:
+          type: string
+          format: int64
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        accountId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        payee:
+          type: string
+        note:
+          type: string
+        recurrence:
+          $ref: '#/components/schemas/Recurrence'
+    ListPlansResponse:
+      type: object
+      description: GET /api/v1/plans — every plan owned by the caller, earliest start first.
+      properties:
+        plans:
+          type: array
+          items:
+            $ref: '#/components/schemas/Plan'
+
+    # -----------------------------------------------------------------------------------------
     # Settings — a singleton per user
     # -----------------------------------------------------------------------------------------
     Settings:

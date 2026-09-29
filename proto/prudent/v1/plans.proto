@@ -1,0 +1,144 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// Prudent's plans — money the user EXPECTS to move, one-off or on a schedule (M2,
+// jlogicsoftware/prudent#34). CANONICAL SOURCE OF TRUTH for the model: the Java DTOs and the Dart
+// messages are GENERATED from this file and are never hand-edited. Change this file and run
+// `task generate`.
+//
+// A PLAN IS NOT A TRANSACTION, and it is modelled in its own table rather than as a flagged
+// Record for exactly that reason: an account's balance is the sum of its records (ADR-014), so a
+// plan stored as a record would move the balance before anything happened. Nothing on this page
+// is ever read by the balance formula or by analytics. Turning a planned occurrence into an actual
+// Record is an explicit confirmation step (M2, jlogicsoftware/prudent#57), never a side effect of
+// saving a plan.
+//
+// Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that
+// message is not imported here (proto/README.md records why).
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+// See records.proto: named explicitly so the descriptor holder can never collide with a message.
+option java_outer_classname = "PlansProto";
+
+// How often a plan repeats. The zero value is UNSPECIFIED and is REJECTED server-side, for the
+// reason accounts.proto gives for AccountType: proto3 decodes an omitted field to 0, and whichever
+// constant sits there would make "the client forgot" indistinguishable from a real answer. ONCE
+// is a real answer — a one-off plan — so it cannot be the zero value.
+enum RecurrenceFrequency {
+  RECURRENCE_FREQUENCY_UNSPECIFIED = 0;
+  // Exactly one occurrence, on start_date. Takes no interval and no end condition.
+  RECURRENCE_FREQUENCY_ONCE = 1;
+  RECURRENCE_FREQUENCY_DAILY = 2;
+  // On start_date's weekday.
+  RECURRENCE_FREQUENCY_WEEKLY = 3;
+  // On start_date's day of the month, CLAMPED to the last day of a shorter month and restored
+  // afterwards: a plan anchored on 31 January falls on 28/29 February and then on 31 March again.
+  RECURRENCE_FREQUENCY_MONTHLY = 4;
+  // On start_date's month and day; a 29 February anchor falls on 28 February in a common year.
+  RECURRENCE_FREQUENCY_YEARLY = 5;
+}
+
+// When and how often a plan's occurrences fall.
+//
+// EVERY OCCURRENCE IS A CIVIL DATE (YYYY-MM-DD), for the reason records.proto gives for
+// Record.date: a bill is due on a calendar day, and an instant would shift a day at a DST
+// boundary. The n-th occurrence is always computed FROM start_date, never from the previous
+// occurrence — stepping month by month would let a February clamp drag every later date to the
+// 28th.
+message Recurrence {
+  RecurrenceFrequency frequency = 1;
+
+  // CUSTOM INTERVALS: every `interval` units of `frequency` — 2 with WEEKLY is fortnightly, 3 with
+  // MONTHLY is quarterly. Required and 1..1000 for a repeating frequency; 0 (omitted) is REJECTED
+  // there rather than defaulted to 1, for the zero-value reason above. For ONCE it does not apply:
+  // omit it or send 1.
+  uint32 interval = 2;
+
+  // The first occurrence, and the anchor every later one is computed from. ISO-8601 YYYY-MM-DD.
+  string start_date = 3;
+
+  // An IANA time-zone id, e.g. "Europe/Warsaw". REQUIRED and EXPLICIT, never inferred from the
+  // server: it decides which calendar day is TODAY for this plan, and therefore when an occurrence
+  // becomes due and when it becomes overdue (jlogicsoftware/prudent#56). The server runs in UTC; a
+  // Warsaw user's plan due on the 1st must not turn overdue at 01:00 local time because the
+  // server's day ended. Fixed offsets such as "+02:00" are refused — they do not follow daylight
+  // saving, so they are wrong for half of every year in most of the places they would be used.
+  string time_zone = 4;
+
+  // THE END CONDITION. Absent means the plan repeats with no end. At most one of the two can be
+  // set, which the oneof makes unsayable rather than merely invalid. ONCE takes neither.
+  oneof end {
+    // The last date an occurrence may fall on, INCLUSIVE. Not before start_date.
+    string until_date = 5;
+    // How many occurrences there are in total, counting the one on start_date. 1..10000.
+    uint32 occurrence_count = 6;
+  }
+}
+
+// A plan, as the server holds it.
+message Plan {
+  // Server-minted UUID. A create request carries no id.
+  string id = 1;
+
+  string title = 2;
+
+  // Minor units, SIGNED exactly as Record.amount_minor is (ADR-014): negative is planned spending,
+  // positive is planned income, zero is rejected. The same sign convention means confirming an
+  // occurrence copies the amount rather than translating it.
+  int64 amount_minor = 3;
+
+  // ISO-4217, and one the account below holds — the same refusal records.proto describes.
+  string currency = 4;
+
+  // The account the money is expected to move in. Required, and the caller's own.
+  string account_id = 5;
+
+  // The spend/income category. Required, as it is on an ordinary record: a plan is expected
+  // income or spending, and a planned transfer is not part of this model.
+  string category_id = 6;
+
+  // See Record.payee / Record.note. Optional.
+  optional string payee = 7;
+  optional string note = 8;
+
+  Recurrence recurrence = 9;
+
+  // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
+}
+
+// POST /api/v1/plans
+message CreatePlanRequest {
+  string title = 1;
+  // See Plan.amount_minor: negative is spending, positive is income, zero is rejected.
+  int64 amount_minor = 2;
+  string currency = 3;
+  string account_id = 4;
+  string category_id = 5;
+  optional string payee = 6;
+  optional string note = 7;
+  // Required.
+  Recurrence recurrence = 8;
+}
+
+// PUT /api/v1/plans/{id} — a FULL REPLACEMENT, for the presence reason set out in
+// categories.proto. An absent payee or note clears it.
+message UpdatePlanRequest {
+  string title = 1;
+  int64 amount_minor = 2;
+  string currency = 3;
+  string account_id = 4;
+  string category_id = 5;
+  optional string payee = 6;
+  optional string note = 7;
+  Recurrence recurrence = 8;
+}
+
+// GET /api/v1/plans — every plan owned by the authenticated user. Unpaginated in v1 for the reason
+// records.proto gives for ListRecordsResponse.
+message ListPlansResponse {
+  repeated Plan plans = 1;
+}
+
+// DELETE /api/v1/plans/{id} carries no request body and answers 204, so it declares no messages.

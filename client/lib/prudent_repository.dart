@@ -4,6 +4,7 @@ import 'package:zen_transport/zen_transport.dart';
 import 'generated/prudent/v1/accounts.pb.dart';
 import 'generated/prudent/v1/analytics.pb.dart';
 import 'generated/prudent/v1/categories.pb.dart';
+import 'generated/prudent/v1/plans.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
 import 'record/record_filter.dart';
@@ -26,6 +27,7 @@ class PrudentRepository {
   static const String _accountsPath = '/api/v1/accounts';
   static const String _categoriesPath = '/api/v1/categories';
   static const String _settingsPath = '/api/v1/settings';
+  static const String _plansPath = '/api/v1/plans';
   static const String _spendByCategoryPath = '/api/v1/analytics/spend-by-category';
   static const String _spendByPeriodPath = '/api/v1/analytics/spend-by-period';
 
@@ -91,6 +93,20 @@ class PrudentRepository {
 
   Future<ZenResult<Category>> deleteCategory(String id) =>
       _client.delete<Category>(Category.new, '$_categoriesPath/$id');
+
+  // --- Plans (M2, jlogicsoftware/prudent#34) — expected money, never a transaction ------------
+
+  Future<ZenResult<ListPlansResponse>> listPlans() =>
+      _client.get<ListPlansResponse>(ListPlansResponse.new, _plansPath);
+
+  Future<ZenResult<Plan>> createPlan(CreatePlanRequest request) =>
+      _client.post<Plan>(Plan.new, _plansPath, body: request);
+
+  Future<ZenResult<Plan>> updatePlan(String id, UpdatePlanRequest request) =>
+      _client.put<Plan>(Plan.new, '$_plansPath/$id', body: request);
+
+  Future<ZenResult<Plan>> deletePlan(String id) =>
+      _client.delete<Plan>(Plan.new, '$_plansPath/$id');
 
   // --- Settings -----------------------------------------------------------------------------------
 

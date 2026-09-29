@@ -13,6 +13,81 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-037 — Plans are their own table, and a recurrence is a rule computed from its anchor
+
+**Date:** 2026-09-28. **Status:** accepted. **Follows:** ADR-014 (balance is derived from records),
+ADR-002 (timestamp migration versions; every new table ships RLS in the same change), ADR-008 (a
+record's currency must be one its account holds). **Numbered 037** because ADR-036 is taken by the
+`zen_ui_widgets` decision drafted in parallel.
+
+### Decision
+
+The first M2 task (jlogicsoftware/prudent#34 — "support one-off, daily, weekly, monthly, yearly and
+custom intervals with explicit timezone and end conditions") models a **plan**: money the user
+expects to move, once or on a schedule.
+
+- **A new table, `prudent_plan`** (`V20260928090000__prudent_plans.sql`), not a flag on
+  `prudent_record`. Balance is the sum of records (ADR-014) and analytics reads the same rows, so a
+  planned row stored there would move the balance and the totals before anything happened, and
+  every existing query would need an exclusion — the one that forgot being silently wrong. That is
+  the opposite of ADR-031/ADR-035, where a transfer leg and a correction *are* money that moved and
+  so belong in the ledger.
+- **The recurrence is flat columns on the plan** — `frequency`, `recurrence_interval`,
+  `start_date`, `time_zone`, `until_date`, `occurrence_count` — because a plan has exactly one rule.
+  On the wire it is a nested `Recurrence` message (`proto/prudent/v1/plans.proto`).
+- **Frequencies:** `ONCE`, `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY`. **Custom intervals** are
+  `interval` units of the frequency (2 × weekly is fortnightly, 3 × monthly is quarterly), 1..1000.
+  Weekly repeats on the start date's weekday; multiple weekdays per week are not modelled — adding
+  them later is a backward-compatible proto field.
+- **End conditions** are a proto `oneof`: an inclusive `until_date`, an `occurrence_count`
+  (1..10000, counting the first occurrence), or neither (never ends). `ONCE` takes neither and no
+  interval.
+- **Every occurrence is a civil date computed from the anchor**, never stepped from the previous
+  one: occurrence *n* is `start_date + n × interval` units. Monthly on the 31st therefore gives 31
+  Jan, 28 Feb, 31 Mar — a month-end that recovers after a short month instead of drifting to the
+  28th — and a 29 February yearly anchor falls on 28 February in common years. Because each date
+  is a pure function of the rule and its index, occurrence generation (jlogicsoftware/prudent#55)
+  can be repeated and agree with itself. `prudent.plan.RecurrenceRule` is the one place this
+  arithmetic lives, with `occurrencesBetween(from, to)` as its bounded read.
+- **The time zone is an explicit IANA id, required, and it moves no date.** It decides which
+  calendar day is *today* for the plan — so when an occurrence is due or overdue (#56) — because
+  the server runs in UTC and a Warsaw user's plan due on the 1st must not turn overdue at 01:00
+  local time. Fixed offsets (`+02:00`, `Z`, `GMT+2`) are refused: they do not follow daylight
+  saving. Validation is against the tz database's own id list, not whatever `ZoneId.of` parses.
+- **A plan carries what a record needs:** a signed nonzero `amount_minor` (same sign convention as
+  `Record`, so confirmation copies rather than translates), a currency its account holds, the
+  caller's own account and category. It is refused at save time for anything a record would
+  refuse, while the user can still fix it — not later, at confirmation (#57).
+- **`/api/v1/plans`** — list, get, create, full-replacement update, hard delete — in the shape
+  every other resource uses. Saving a plan writes no record and moves no balance; a test asserts
+  exactly that.
+- **What a plan protects:** deleting an account or category a plan references is refused (409)
+  and the message names `/api/v1/plans`; dropping a currency a plan is denominated in is refused
+  the way dropping one with records is. The FKs carry no `ON DELETE CASCADE`, as on
+  `prudent_record`. The retention cascade deletes plans after records and before accounts.
+- **The schema holds the rule's structural invariants as named `CHECK`s** — interval range, count
+  range, at most one end, until not before start, `ONCE` has neither — because each names a row
+  the arithmetic cannot give one answer for. `frequency` itself is **not** `CHECK`ed, for the
+  reason the init migration gives for `prudent_account.kind`. RLS is enabled in the versioned
+  migration and `prudent_plan` joins the `zen_runtime` policy list in the repeatable.
+
+### What this supersedes, and why
+
+Nothing is reversed. The backlog's M2 tasks 2-5 (#55 generation, #56 lifecycle and views, #57
+confirmation, #58 overview cash flow) are deliberately **not** in this change: no occurrence is
+materialised or stored yet, and there is no client screen. The client gains repository methods
+(`listPlans`/`createPlan`/`updatePlan`/`deletePlan`) and nothing that renders them — a plan editor
+needs the date, amount and select fields ADR-036 routes through `zen_ui_widgets`, and building a
+fifth ad-hoc copy of those is what that ADR asks new screens not to do.
+
+### Consequence
+
+- The occurrence generator (#55) consumes `RecurrenceRule.occurrencesBetween`, and the lifecycle
+  (#56) consumes `RecurrenceRule.today`; neither re-derives dates.
+- A plan's `occurrence_count` is counted by index from the anchor, so a skipped or edited
+  occurrence (#56/#57) never shifts the ones after it — the lifecycle state will live on the
+  generated occurrence, not on the rule.
+
 ## ADR-035 — Balance corrections: one marked record, not a rewrite of the opening balance
 
 **Date:** 2026-09-19. **Status:** accepted. **Follows:** ADR-014 (balance is derived, not stored),

@@ -45,6 +45,11 @@ migration and its row-level security, and the client rewired onto `ZenClient` wi
 navigation shell (`client/lib/prudent_repository.dart`). The third-party backend call the
 conversion existed to remove is gone.
 
+M2 (planned and recurring transactions) has begun: `PlanResource` over `PlanEntity` and
+`RecurrenceRule` (ADR-037) model plans and their recurrence, separately from records. No
+occurrence is generated or stored yet, and no client screen renders plans — the client has only
+the repository methods. Those are the backlog's next M2 tasks, not missing work.
+
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the
 Taskfile parses with both discoverable in `task --list`, the preflight fails loudly naming every

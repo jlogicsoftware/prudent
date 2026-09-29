@@ -24,6 +24,7 @@ import prudent.proto.v1.UpdateCategoryRequest;
 import prudent.CurrentUser;
 import prudent.Ids;
 import prudent.error.PrudentException;
+import prudent.plan.PlanEntity;
 import prudent.record.RecordEntity;
 import zen.core.http.ZenStatus;
 
@@ -144,7 +145,7 @@ public class CategoryResource {
   @APIResponse(responseCode = ZenStatus.NO_CONTENT, description = "Deleted")
   @APIResponse(
       responseCode = ZenStatus.CONFLICT,
-      description = "The category still has records",
+      description = "The category still has records or plans",
       content = @Content(schema = @Schema(ref = "ZenError")))
   @APIResponse(
       responseCode = ZenStatus.NOT_FOUND,
@@ -158,6 +159,12 @@ public class CategoryResource {
     if (RecordEntity.existsForCategory(userId, entity.id)) {
       throw PrudentException.conflict(
           "This category still has records. Delete or re-categorise them first.");
+    }
+    // The same refusal for plans (ADR-037): a plan filed under a deleted category would confirm
+    // into a record with no category to file it under.
+    if (PlanEntity.existsForCategory(userId, entity.id)) {
+      throw PrudentException.conflict(
+          "This category still has plans. Delete or re-categorise them first.");
     }
     entity.delete();
     return Response.noContent().build();

@@ -289,7 +289,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
-                /** @description The update drops a currency that still has records */
+                /** @description The update drops a currency that still has records or plans */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -344,7 +344,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
-                /** @description The account still has records */
+                /** @description The account still has records or plans */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1329,7 +1329,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
-                /** @description The category still has records */
+                /** @description The category still has records or plans */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1549,6 +1549,271 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the authenticated user's plans */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListPlansResponse"];
+                        "application/x-protobuf": components["schemas"]["ListPlansResponse"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Create a one-off or recurring plan */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreatePlanRequest"];
+                    "application/x-protobuf": components["schemas"]["CreatePlanRequest"];
+                };
+            };
+            responses: {
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Plan"];
+                        "application/x-protobuf": components["schemas"]["Plan"];
+                    };
+                };
+                /** @description A blank title, a zero amount, an account or category that is not the caller's, a currency the account does not hold, or an invalid recurrence */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one plan */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Plan"];
+                        "application/x-protobuf": components["schemas"]["Plan"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        /** Replace a plan */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdatePlanRequest"];
+                    "application/x-protobuf": components["schemas"]["UpdatePlanRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Plan"];
+                        "application/x-protobuf": components["schemas"]["Plan"];
+                    };
+                };
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Delete a plan */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -2456,6 +2721,91 @@ export interface components {
             title?: string;
             /** @description Optional free-text reason for the correction. */
             note?: string;
+        };
+        /**
+         * @description How often a plan repeats. RECURRENCE_FREQUENCY_UNSPECIFIED is what proto3 decodes an omitted field to and is REJECTED server-side. MONTHLY keeps start_date's day of the month, clamped to the last day of a shorter month; YEARLY keeps its month and day, 29 February falling on 28 February in a common year.
+         * @enum {string}
+         */
+        RecurrenceFrequency: "RECURRENCE_FREQUENCY_UNSPECIFIED" | "RECURRENCE_FREQUENCY_ONCE" | "RECURRENCE_FREQUENCY_DAILY" | "RECURRENCE_FREQUENCY_WEEKLY" | "RECURRENCE_FREQUENCY_MONTHLY" | "RECURRENCE_FREQUENCY_YEARLY";
+        /** @description When a plan's occurrences fall. Every occurrence is a CIVIL DATE computed from startDate (never stepped from the previous one). At most one of untilDate and occurrenceCount may be set; neither means the plan never ends. A ONCE plan takes no interval and no end. */
+        Recurrence: {
+            frequency?: components["schemas"]["RecurrenceFrequency"];
+            /**
+             * Format: int32
+             * @description Every N units of frequency — the custom interval (2 with WEEKLY is fortnightly). Required and 1..1000 for a repeating frequency; 0 is refused there, not read as 1. Omit it (or send 1) for ONCE.
+             */
+            interval?: number;
+            /**
+             * Format: date
+             * @description The first occurrence, and the anchor every later one is computed from.
+             */
+            startDate?: string;
+            /** @description An IANA time-zone id such as Europe/Warsaw. REQUIRED: it decides which calendar day is "today" for the plan, and so when an occurrence is due or overdue. Fixed offsets such as +02:00 are refused because they do not follow daylight saving. */
+            timeZone?: string;
+            /**
+             * Format: date
+             * @description The last date an occurrence may fall on, inclusive. Not before startDate.
+             */
+            untilDate?: string;
+            /**
+             * Format: int32
+             * @description The total number of occurrences, counting the one on startDate.
+             */
+            occurrenceCount?: number;
+        };
+        /** @description A plan, as the server holds it. */
+        Plan: {
+            /** Format: uuid */
+            id?: string;
+            title?: string;
+            /**
+             * Format: int64
+             * @description Signed minor units, exactly as Record.amountMinor — negative is planned spending, positive planned income. Zero is rejected.
+             */
+            amountMinor?: string;
+            /** @description One of the account's currencies; the server refuses any other. */
+            currency?: string;
+            /** Format: uuid */
+            accountId?: string;
+            /** Format: uuid */
+            categoryId?: string;
+            /** @description Optional. */
+            payee?: string;
+            /** @description Optional. */
+            note?: string;
+            recurrence?: components["schemas"]["Recurrence"];
+        };
+        /** @description Body for POST /api/v1/plans. No id field — the server mints it. */
+        CreatePlanRequest: {
+            title?: string;
+            /** Format: int64 */
+            amountMinor?: string;
+            currency?: string;
+            /** Format: uuid */
+            accountId?: string;
+            /** Format: uuid */
+            categoryId?: string;
+            payee?: string;
+            note?: string;
+            recurrence?: components["schemas"]["Recurrence"];
+        };
+        /** @description Body for PUT /api/v1/plans/{id}. A FULL REPLACEMENT: an absent payee or note clears it. */
+        UpdatePlanRequest: {
+            title?: string;
+            /** Format: int64 */
+            amountMinor?: string;
+            currency?: string;
+            /** Format: uuid */
+            accountId?: string;
+            /** Format: uuid */
+            categoryId?: string;
+            payee?: string;
+            note?: string;
+            recurrence?: components["schemas"]["Recurrence"];
+        };
+        /** @description GET /api/v1/plans — every plan owned by the caller, earliest start first. */
+        ListPlansResponse: {
+            plans?: components["schemas"]["Plan"][];
         };
         /** @description The authenticated user's settings. A SINGLETON: there is no id, no create, no delete and no list, and the URL carries no id because the token is the entire addressing scheme. The row is created on first login, not by a client. */
         Settings: {

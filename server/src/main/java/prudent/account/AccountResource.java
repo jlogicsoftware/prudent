@@ -32,6 +32,7 @@ import prudent.Currencies;
 import prudent.CurrentUser;
 import prudent.Ids;
 import prudent.error.PrudentException;
+import prudent.plan.PlanEntity;
 import prudent.record.RecordEntity;
 import zen.core.http.ZenStatus;
 
@@ -103,7 +104,7 @@ public class AccountResource {
     entity.userId = userId;
     applyScalars(entity, request.getName(), request.getType(), request.getIsDefault(),
         request.getIsActive(), request.getIncludeInTotal(), request.getIncludeInOverview());
-    applyBalances(entity, request.getBalancesList(), Set.of());
+    applyBalances(entity, request.getBalancesList(), Set.of(), Set.of());
     entity.persist();
     enforceSingleDefault(userId, entity);
     // No record can reference an id that did not exist until this line, so the derived balance
@@ -124,7 +125,7 @@ public class AccountResource {
       content = @Content(schema = @Schema(ref = "ZenError")))
   @APIResponse(
       responseCode = ZenStatus.CONFLICT,
-      description = "The update drops a currency that still has records",
+      description = "The update drops a currency that still has records or plans",
       content = @Content(schema = @Schema(ref = "ZenError")))
   @APIResponse(
       responseCode = ZenStatus.NOT_FOUND,
@@ -134,8 +135,13 @@ public class AccountResource {
     AccountEntity entity = require(userId, id);
     applyScalars(entity, request.getName(), request.getType(), request.getIsDefault(),
         request.getIsActive(), request.getIncludeInTotal(), request.getIncludeInOverview());
-    // The currencies that must survive this update, because records are denominated in them.
-    applyBalances(entity, request.getBalancesList(), RecordEntity.currenciesInUse(userId, entity.id));
+    // The currencies that must survive this update, because records or plans are denominated in
+    // them.
+    applyBalances(
+        entity,
+        request.getBalancesList(),
+        RecordEntity.currenciesInUse(userId, entity.id),
+        PlanEntity.currenciesInUse(userId, entity.id));
     enforceSingleDefault(userId, entity);
     return Response.ok(mapper.toProto(entity, RecordEntity.netByAccount(userId, entity.id))).build();
   }
@@ -147,7 +153,7 @@ public class AccountResource {
   @APIResponse(responseCode = ZenStatus.NO_CONTENT, description = "Deleted")
   @APIResponse(
       responseCode = ZenStatus.CONFLICT,
-      description = "The account still has records",
+      description = "The account still has records or plans",
       content = @Content(schema = @Schema(ref = "ZenError")))
   @APIResponse(
       responseCode = ZenStatus.NOT_FOUND,
@@ -168,6 +174,14 @@ public class AccountResource {
     boolean hasCorrections = RecordEntity.existsCorrectionForAccount(userId, entity.id);
     if (hasOrdinary || hasTransfers || hasCorrections) {
       throw PrudentException.conflict(deleteConflictMessage(hasOrdinary, hasTransfers, hasCorrections));
+    }
+    // A plan (ADR-037) is not money that moved, but it still names this account as where money
+    // will move; deleting the account would leave it pointing nowhere. Checked after records so a
+    // caller with both is sent to the records first — they are the part with a balance behind it.
+    if (PlanEntity.existsForAccount(userId, entity.id)) {
+      throw PrudentException.conflict(
+          "This account still has plans. Delete them (DELETE /api/v1/plans/{id}) or move them to"
+              + " another account first.");
     }
     entity.delete();
     return Response.noContent().build();
@@ -233,9 +247,13 @@ public class AccountResource {
    * empty on create (nothing can have records yet), and the set actually in use on update.
    *
    * @param protectedCurrencies currencies that must appear in the new set because records use them
+   * @param plannedCurrencies currencies that must appear in the new set because plans use them
    */
   private void applyBalances(
-      AccountEntity entity, List<CurrencyBalance> requested, Set<String> protectedCurrencies) {
+      AccountEntity entity,
+      List<CurrencyBalance> requested,
+      Set<String> protectedCurrencies,
+      Set<String> plannedCurrencies) {
     if (requested.isEmpty()) {
       throw PrudentException.invalid(
           "An account must hold at least one currency; one holding none can receive no records.");
@@ -265,6 +283,14 @@ public class AccountResource {
       if (!seen.contains(inUse)) {
         throw PrudentException.conflict(
             "Cannot drop " + inUse + ": this account still has records denominated in it.");
+      }
+    }
+    // The same rule for plans (ADR-037): a plan in a currency the account no longer holds could
+    // never be confirmed into a record, because RecordResource would refuse that currency.
+    for (String planned : plannedCurrencies) {
+      if (!seen.contains(planned)) {
+        throw PrudentException.conflict(
+            "Cannot drop " + planned + ": this account still has plans denominated in it.");
       }
     }
 
