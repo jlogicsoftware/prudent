@@ -45,6 +45,11 @@ migration and its row-level security, and the client rewired onto `ZenClient` wi
 navigation shell (`client/lib/prudent_repository.dart`). The third-party backend call the
 conversion existed to remove is gone.
 
+The client's overlays (add/edit account, correction, record, category, filter) all open through jZen's
+`zen_ui_widgets` `showAdaptivePresentation` (ADR-041) — a sheet on native mobile, a dialog on desktop
+and web — so no screen carries its own `showDialog`/`showModalBottomSheet` block. The rest of
+`zen_ui_widgets`' controls are **not yet adopted** (see "Client UI" below).
+
 M2 (planned and recurring transactions) is under way: `PlanResource` over `PlanEntity` and
 `RecurrenceRule` (ADR-037) model plans and their recurrence, separately from records;
 `OccurrenceGenerator` (ADR-038) materialises a bounded window of a plan's occurrences
@@ -94,7 +99,7 @@ registry entry). Until they are published, Prudent consumes them from a **siblin
 `../jZen`**:
 
 - **Dart/Flutter** — `path:` dependencies (`../../jZen/client/zen_core`, `zen_transport`,
-  `zen_identity`, `zen_secure_store`, `zen_ui_identity`, `zen_ui_navigation`).
+  `zen_identity`, `zen_secure_store`, `zen_ui_identity`, `zen_ui_navigation`, `zen_ui_widgets`).
 - **Java** — Prudent's server module declares `zen-parent` as its parent with an **empty
   `<relativePath/>`**, resolving it and the framework libs (`zen-core`, `zen-proto`,
   `zen-transport`, `zen-identity`, `zen-email`, `zen-jobs`, `zen-ratelimit`) from the **local
@@ -180,6 +185,19 @@ consumer that bends them stops being a consumer:
   Runtime config on the client is **forbidden** — it is what lets the toolchain tree-shake the
   native-only Protobuf path out of the web bundle. The server is the deliberate opposite: runtime
   MicroProfile config.
+- **Client UI: the framework's controls first.** Screens are built from `zen_ui_widgets`
+  (`package:zen_ui_widgets/zen_ui_widgets.dart`), not stock Material: `showAdaptivePresentation`
+  (never `showDialog` / `showModalBottomSheet` for a form or detail), `ZenButton`, `ZenSelect`,
+  `ZenSegmentedControl`, `ZenSwitchRow`, `ZenDateField` / `ZenDateRangeField`, `ZenAmountField` /
+  `ZenAmountRangeField` (+ `normalizeAmount`), and `FocusRing` for a bespoke control's focus. Never
+  branch on the platform to pick Cupertino or Material — the package does it at compile time, on
+  `zenIsApplePlatform` / `zenIsMobile`. A control the package lacks is a framework gap: report it and
+  consume it (ADR-036, ADR-041), don't hand-roll it. What an amount *means* (minor units, currency,
+  `client/lib/money.dart`) stays Prudent's; `AlertDialog`, `PopupMenuButton`, `ListTile`, `Card` and
+  layout have no counterpart and are used directly. **Status:** overlays are migrated (ADR-041); the
+  buttons, dropdowns, segmented control, switch rows and date/amount fields are still stock Material
+  in older screens, so the rule binds new and touched screens — don't describe the rest as done.
+  `docs/jzen/README.md` has the state of the upstream issues.
 - **Typed, generated i18n.** No hardcoded user-facing strings. Each package owns `lib/l10n/*.arb`
   + `l10n.yaml` and generates accessors with `flutter gen-l10n`; the generated output is built, not
   committed. **Prudent supports `{en, uk, pl}`** — its own decision, not the framework's (jZen

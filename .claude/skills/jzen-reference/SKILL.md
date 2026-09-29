@@ -27,6 +27,7 @@ working, check whether jZen moved.
 | Client repository + providers over `ZenClient` | `../jZen/apps/zen_demo/zen_demo_client/lib/src/{demo_repository,providers}.dart` |
 | Client transport, session, secure storage | `../jZen/client/{zen_core,zen_transport,zen_identity,zen_secure_store}/` |
 | Login/auth UI, navigation shell | `../jZen/client/{zen_ui_identity,zen_ui_navigation}/` |
+| Buttons, selects, date/amount fields, dialog/sheet presentation | `../jZen/client/zen_ui_widgets/` (README has the control table; the rule is `../jZen/docs/architecture/STANDARDS.md` "Client UI: the framework's controls first") |
 | Typed i18n wiring (ARB + `l10n.yaml` + gen-l10n) | any `../jZen/client/zen_ui_*/lib/src/l10n/` and its `l10n.yaml` |
 | The proto contract | `../jZen/proto/zen/v1/*.proto` |
 | Orchestration Prudent **includes** | `../jZen/Taskfile.app.yml` — app-agnostic tasks, consumed via `includes:` (jZen ADR-046) |

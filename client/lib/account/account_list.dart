@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_core/zen_core.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../generated/prudent/v1/records.pb.dart';
@@ -68,24 +69,7 @@ class _AccountTile extends ConsumerWidget {
       account: account,
       onSave: (request) => ref.read(accountsProvider.notifier).editAccount(account.id, request),
     );
-    if (zenIsDesktop) {
-      showDialog(
-        context: context,
-        builder:
-            (ctx) => Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-              child: SizedBox(width: 400, height: 460, child: body),
-            ),
-      );
-    } else {
-      showModalBottomSheet(
-        isScrollControlled: true,
-        useSafeArea: true,
-        context: context,
-        builder: (ctx) => body,
-        constraints: const BoxConstraints.expand(),
-      );
-    }
+    showAdaptivePresentation<void>(context, builder: (_) => body);
   }
 
   void _openReconcile(BuildContext context, WidgetRef ref) {
@@ -126,24 +110,7 @@ class _AccountTile extends ConsumerWidget {
         }
       },
     );
-    if (zenIsDesktop) {
-      showDialog(
-        context: context,
-        builder:
-            (ctx) => Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-              child: SizedBox(width: 400, height: 460, child: body),
-            ),
-      );
-    } else {
-      showModalBottomSheet(
-        isScrollControlled: true,
-        useSafeArea: true,
-        context: context,
-        builder: (ctx) => body,
-        constraints: const BoxConstraints.expand(),
-      );
-    }
+    showAdaptivePresentation<void>(context, builder: (_) => body);
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {

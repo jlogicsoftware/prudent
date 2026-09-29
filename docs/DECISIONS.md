@@ -13,6 +13,80 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-041 — `zen_ui_widgets` is consumed: overlays now, the rule for everything after
+
+**Date:** 2026-09-29. **Status:** accepted. **Follows:** ADR-036 (interactive widgets are sourced
+from jZen's `zen_ui_widgets`; "accepted, blocked on upstream work"). ADR-036 is not edited — this
+entry records what happened to its blocker and which part of it is now done.
+
+### Decision
+
+The blocker is gone. `jZenDev/jZen#106` (the package and `showAdaptivePresentation`) landed as jZen
+#110 and `#107` (buttons, selects, segmented control, switch row, date and amount fields, range
+pairs, `FocusRing`, all built to WCAG 2.2 AA) as #111. Prudent depends on the package by path like
+every other jZen package, `JZEN_REF` moves to `6b017bb` in both workflows (ADR-018; the earlier pin
+predates the package, so CI would not have found it), and **jlogicsoftware/prudent#93 is done**:
+
+- **Every dialog-versus-sheet block is `showAdaptivePresentation`.** `Popup`
+  (`client/lib/popup.dart`), `_openEdit` and `_openReconcile` in `account/account_list.dart`,
+  `_presentOverlay` in `record/records_screen.dart` — and a **fifth** copy the ticket did not list,
+  the edit-record swipe in `record/records_list.dart`, which had no desktop branch at all and always
+  opened a sheet. The `if (zenIsDesktop) … else …` blocks are deleted, not wrapped. `Popup` stays as
+  Prudent's icon-button-that-opens-something; only how it presents is the framework's.
+- **The bug this fixes.** All copies gated on `zenIsDesktop`, which is `false` on every web build,
+  so a wide browser window got the phone-sized bottom sheet. The framework's signal is `zenIsMobile`
+  and `zenIsApplePlatform`: web and desktop native get a dialog at every window size, Android gets a
+  Material sheet, iOS a Cupertino sheet, macOS a Cupertino dialog. It is a compile-time constant, so
+  each build keeps one branch; there is no `MediaQuery` listener.
+- **The four drifted sizes are gone with the blocks.** `Popup` was 400×300 and the rest 400×460, each
+  with a fixed height. The framework's dialog is content-height with a 560 maximum width, and
+  nothing here restores a fixed size. That exposed two bodies that had only ever been laid out in a
+  fixed box: `NewCategory` and `NewTransfer` were a bare `Column`, which takes all the height it is
+  offered, so `NewCategory` measured 952px tall in a 1000px window. Both now scroll like the other
+  form bodies (`SingleChildScrollView`), and the same measure gives 684px.
+- **The Prudent-side test is wiring only** (`client/test/popup_test.dart`): a `Popup` shows its
+  body and the body's own `Navigator.pop` closes it. Which chrome each platform gets is
+  `zen_ui_widgets`' suite; a compile-time constant means a Prudent suite only ever sees the host's
+  branch, so asserting it here would be the re-test of framework behaviour ADR-036 rules out.
+
+### The rule from here on
+
+jZen's `STANDARDS.md` ("Client UI: the framework's controls first", jZen ADR-055) now says the same
+thing ADR-036 said ahead of time, and Prudent adopts it as its own rule for client code: **use the
+framework control when one exists** — `showAdaptivePresentation` (not `showDialog` /
+`showModalBottomSheet` for a form or detail), `ZenButton`, `ZenSelect`, `ZenSegmentedControl`,
+`ZenSwitchRow`, `ZenDateField` / `ZenDateRangeField`, `ZenAmountField` / `ZenAmountRangeField` with
+`normalizeAmount`, `FocusRing` for a bespoke control's focus. Never branch on the platform to pick
+Cupertino or Material. A control that is missing is a framework gap, reported in jZen and consumed —
+not hand-rolled here. What stays Prudent's: what an amount *means* (minor units, currency, rounding,
+`client/lib/money.dart`), `AlertDialog` for a plain acknowledgement, `PopupMenuButton`, `ListTile`,
+`Card` and layout, which have no framework counterpart. The rule is in `CLAUDE.md` so a session
+reads it before writing a screen.
+
+### What this does not do
+
+- **The other controls are not migrated by this change.** Buttons, the nine dropdowns, the segmented
+  type control, switch rows and the date and amount fields and their range pairs are still stock
+  Material in Prudent. ADR-036 lists them and the framework now has each, so they are backlog work
+  in their own right — one PR per capability folder is the natural cut — not folded into an overlay
+  fix. Until they move, the rule above binds **new and touched** screens and does not pretend the
+  existing ones already comply.
+- **`categories_screen.dart`'s `zenIsDesktop` grid density stays.** It chooses columns and row height
+  from available space, not a presentation — a `MediaQuery`/`zenNarrowWidth` decision, a separate
+  follow-up (it has the same wrong-on-web defect as the modals did).
+- **`ZenWidgetsLocalizations` is not registered yet.** An app using only `showAdaptivePresentation`
+  needs no delegate; the first control that speaks (a validation error, "Select a date") adds
+  `zenWidgetsLocaleDelegate` beside the other packages' delegates, and `pl` follows the ADR-044
+  pattern the identity and navigation delegates already use.
+
+### Consequence
+
+- `zen_ui_widgets` ships an untracked, generated `l10n/`, so a fresh clone needs
+  `task zen:generate:l10n` (or `zen:framework:prepare:l10n` in CI) before it compiles, as for the
+  other localized framework packages.
+- Any new overlay-shaped screen (the plan and occurrence editors ADR-037 and ADR-040 left without a
+  client) starts from `showAdaptivePresentation` and the controls, not from a fifth copy of a block.
+
 ## ADR-040 — Confirming an occurrence writes one record, and the record carries the plan link
 
 **Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-039 (`PLANNED → COMPLETED` was put in

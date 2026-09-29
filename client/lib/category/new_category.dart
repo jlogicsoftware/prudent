@@ -81,54 +81,24 @@ class _NewCategoryState extends State<NewCategory> {
     final selectedColor = Color(_selectedColorArgb);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-      child: Column(
-        children: [
-          TextField(
-            controller: _titleController,
-            maxLength: 50,
-            decoration: InputDecoration(label: Text(t.categoryTitleField)),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _descriptionController,
-            maxLength: 500,
-            decoration: InputDecoration(label: Text(t.categoryDescriptionField)),
-            minLines: 3,
-            maxLines: 5,
-          ),
-          const SizedBox(height: 16),
-          GridView(
-            shrinkWrap: true,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 5,
-              mainAxisExtent: 50,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            TextField(
+              controller: _titleController,
+              maxLength: 50,
+              decoration: InputDecoration(label: Text(t.categoryTitleField)),
             ),
-            children:
-                prudentCategoryColors
-                    .map(
-                      (c) => InkWell(
-                        onTap: () => setState(() => _selectedColorArgb = c.toARGB32()),
-                        child: Container(
-                          margin: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: c,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: c.toARGB32() == _selectedColorArgb ? Colors.black : Colors.transparent,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-          ),
-          Container(
-            height: 200,
-            margin: const EdgeInsets.only(top: 16, bottom: 16),
-            child: GridView(
+            const SizedBox(height: 16),
+            TextField(
+              controller: _descriptionController,
+              maxLength: 500,
+              decoration: InputDecoration(label: Text(t.categoryDescriptionField)),
+              minLines: 3,
+              maxLines: 5,
+            ),
+            const SizedBox(height: 16),
+            GridView(
               shrinkWrap: true,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 5,
@@ -137,41 +107,73 @@ class _NewCategoryState extends State<NewCategory> {
                 mainAxisSpacing: 8,
               ),
               children:
-                  prudentCategoryIcons.entries
+                  prudentCategoryColors
                       .map(
-                        (entry) => InkWell(
-                          onTap: () => setState(() => _selectedIconKey = entry.key),
+                        (c) => InkWell(
+                          onTap: () => setState(() => _selectedColorArgb = c.toARGB32()),
                           child: Container(
+                            margin: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: selectedColor,
+                              color: c,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color:
-                                    _selectedIconKey == entry.key
-                                        ? Theme.of(context).colorScheme.primary
-                                        : Colors.transparent,
+                                color: c.toARGB32() == _selectedColorArgb ? Colors.black : Colors.transparent,
                                 width: 2,
                               ),
-                            ),
-                            child: Icon(
-                              entry.value,
-                              size: 30,
-                              color: selectedColor.computeLuminance() > 0.5 ? Colors.black : Colors.white,
                             ),
                           ),
                         ),
                       )
                       .toList(),
             ),
-          ),
-          Row(
-            children: [
-              TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
-              const Spacer(),
-              ElevatedButton(onPressed: _submit, child: Text(t.categorySave)),
-            ],
-          ),
-        ],
+            Container(
+              height: 200,
+              margin: const EdgeInsets.only(top: 16, bottom: 16),
+              child: GridView(
+                shrinkWrap: true,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 5,
+                  mainAxisExtent: 50,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                children:
+                    prudentCategoryIcons.entries
+                        .map(
+                          (entry) => InkWell(
+                            onTap: () => setState(() => _selectedIconKey = entry.key),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: selectedColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color:
+                                      _selectedIconKey == entry.key
+                                          ? Theme.of(context).colorScheme.primary
+                                          : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(
+                                entry.value,
+                                size: 30,
+                                color: selectedColor.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+              ),
+            ),
+            Row(
+              children: [
+                TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
+                const Spacer(),
+                ElevatedButton(onPressed: _submit, child: Text(t.categorySave)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

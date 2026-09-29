@@ -139,107 +139,109 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-      child: Column(
-        children: [
-          Text(t.transfersNewTitle, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _titleController,
-            maxLength: 50,
-            decoration: InputDecoration(label: Text(t.transfersTitleField)),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _selectedDate == null
-                      ? t.recordsNoDateSelected
-                      : DateFormat.yMd(locale.toLanguageTag()).format(_selectedDate!),
-                ),
-              ),
-              IconButton(onPressed: _presentDatePicker, icon: const Icon(Icons.calendar_month)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (accounts.isNotEmpty) ...[
-            DropdownButton<String>(
-              value: _fromAccountId,
-              hint: Text(t.transfersFromAccount),
-              items: [
-                for (final account in accounts) DropdownMenuItem(value: account.id, child: Text(account.name)),
-              ],
-              onChanged: (value) => setState(() => _fromAccountId = value),
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            Text(t.transfersNewTitle, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _titleController,
+              maxLength: 50,
+              decoration: InputDecoration(label: Text(t.transfersTitleField)),
             ),
             const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _fromAmountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(label: Text(t.transfersFromAmountField)),
+                  child: Text(
+                    _selectedDate == null
+                        ? t.recordsNoDateSelected
+                        : DateFormat.yMd(locale.toLanguageTag()).format(_selectedDate!),
                   ),
                 ),
-                const SizedBox(width: 16),
-                if (fromCurrencies.length > 1)
-                  DropdownButton<String>(
-                    value: _fromCurrency,
-                    items: [
-                      for (final currency in fromCurrencies)
-                        DropdownMenuItem(value: currency, child: Text(currency)),
-                    ],
-                    onChanged: (value) => setState(() => _fromCurrency = value),
-                  )
-                else
-                  Text(_fromCurrency ?? ''),
+                IconButton(onPressed: _presentDatePicker, icon: const Icon(Icons.calendar_month)),
               ],
             ),
             const SizedBox(height: 16),
-            DropdownButton<String>(
-              value: _toAccountId,
-              hint: Text(t.transfersToAccount),
-              items: [
-                for (final account in accounts)
-                  if (account.id != _fromAccountId)
-                    DropdownMenuItem(value: account.id, child: Text(account.name)),
-              ],
-              onChanged: (value) => setState(() => _toAccountId = value),
-            ),
-            const SizedBox(height: 8),
+            if (accounts.isNotEmpty) ...[
+              DropdownButton<String>(
+                value: _fromAccountId,
+                hint: Text(t.transfersFromAccount),
+                items: [
+                  for (final account in accounts) DropdownMenuItem(value: account.id, child: Text(account.name)),
+                ],
+                onChanged: (value) => setState(() => _fromAccountId = value),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _fromAmountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(label: Text(t.transfersFromAmountField)),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  if (fromCurrencies.length > 1)
+                    DropdownButton<String>(
+                      value: _fromCurrency,
+                      items: [
+                        for (final currency in fromCurrencies)
+                          DropdownMenuItem(value: currency, child: Text(currency)),
+                      ],
+                      onChanged: (value) => setState(() => _fromCurrency = value),
+                    )
+                  else
+                    Text(_fromCurrency ?? ''),
+                ],
+              ),
+              const SizedBox(height: 16),
+              DropdownButton<String>(
+                value: _toAccountId,
+                hint: Text(t.transfersToAccount),
+                items: [
+                  for (final account in accounts)
+                    if (account.id != _fromAccountId)
+                      DropdownMenuItem(value: account.id, child: Text(account.name)),
+                ],
+                onChanged: (value) => setState(() => _toAccountId = value),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _toAmountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(label: Text(t.transfersToAmountField)),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  if (toCurrencies.length > 1)
+                    DropdownButton<String>(
+                      value: _toCurrency,
+                      items: [
+                        for (final currency in toCurrencies)
+                          DropdownMenuItem(value: currency, child: Text(currency)),
+                      ],
+                      onChanged: (value) => setState(() => _toCurrency = value),
+                    )
+                  else
+                    Text(_toCurrency ?? ''),
+                ],
+              ),
+            ],
+            const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _toAmountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(label: Text(t.transfersToAmountField)),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                if (toCurrencies.length > 1)
-                  DropdownButton<String>(
-                    value: _toCurrency,
-                    items: [
-                      for (final currency in toCurrencies)
-                        DropdownMenuItem(value: currency, child: Text(currency)),
-                    ],
-                    onChanged: (value) => setState(() => _toCurrency = value),
-                  )
-                else
-                  Text(_toCurrency ?? ''),
+                const Spacer(),
+                TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
+                ElevatedButton(onPressed: _submit, child: Text(t.transfersSave)),
               ],
             ),
           ],
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const Spacer(),
-              TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
-              ElevatedButton(onPressed: _submit, child: Text(t.transfersSave)),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
