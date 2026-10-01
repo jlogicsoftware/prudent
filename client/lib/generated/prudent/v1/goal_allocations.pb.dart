@@ -191,7 +191,9 @@ class GoalAllocation extends $pb.GeneratedMessage {
 /// Refused (404) for a goal that is not the caller's, (409) when an entry would take an envelope
 /// below zero or touch a goal whose state does not allow it: ALLOCATE and the target of a MOVE need
 /// an ACTIVE goal; WITHDRAW and the source of a MOVE need an ACTIVE or COMPLETED one; an ARCHIVED
-/// goal is read-only.
+/// goal is read-only. An ALLOCATE is also refused (409) when it is more than the currency's free
+/// money (CurrencyFreeMoney); a WITHDRAW or a MOVE never changes the total allocated in a currency,
+/// so neither is limited by it.
 class CreateGoalAllocationRequest extends $pb.GeneratedMessage {
   factory CreateGoalAllocationRequest({
     GoalAllocationKind? kind,
@@ -489,6 +491,176 @@ class ListGoalEnvelopesResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $pb.PbList<GoalEnvelope> get envelopes => $_getList(0);
+}
+
+/// One currency's money for goals, CALCULATED on every read and never stored (M4,
+/// jlogicsoftware/prudent#65, docs/DECISIONS.md ADR-051). Per currency, never blended: there is no
+/// FX, so a position in one currency says nothing about another (ADR-009).
+///
+///   eligible  the current balances, in this currency, of the accounts that are active and marked
+///             eligible_for_goals (accounts.proto) — the same derived balance an Account carries.
+///   allocated what the goals' envelopes hold in this currency, whatever the goals' states: money
+///             in a completed goal is still set aside until it is withdrawn.
+///   free      eligible less allocated: what a new ALLOCATE may draw on.
+///
+/// FREE MAY BE NEGATIVE. Spending a record, or taking an account out of the eligible set, lowers
+/// eligible money after an allocation was made, and the allocation is history that is not
+/// rewritten. A negative free says the envelopes hold more than the eligible accounts do; it
+/// refuses every further ALLOCATE until the user withdraws or the balances recover.
+class CurrencyFreeMoney extends $pb.GeneratedMessage {
+  factory CurrencyFreeMoney({
+    $core.String? currency,
+    $fixnum.Int64? eligibleMinor,
+    $fixnum.Int64? allocatedMinor,
+    $fixnum.Int64? freeMinor,
+    $core.Iterable<$core.String>? eligibleAccountIds,
+  }) {
+    final result = create();
+    if (currency != null) result.currency = currency;
+    if (eligibleMinor != null) result.eligibleMinor = eligibleMinor;
+    if (allocatedMinor != null) result.allocatedMinor = allocatedMinor;
+    if (freeMinor != null) result.freeMinor = freeMinor;
+    if (eligibleAccountIds != null)
+      result.eligibleAccountIds.addAll(eligibleAccountIds);
+    return result;
+  }
+
+  CurrencyFreeMoney._();
+
+  factory CurrencyFreeMoney.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CurrencyFreeMoney.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CurrencyFreeMoney',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'currency')
+    ..aInt64(2, _omitFieldNames ? '' : 'eligibleMinor')
+    ..aInt64(3, _omitFieldNames ? '' : 'allocatedMinor')
+    ..aInt64(4, _omitFieldNames ? '' : 'freeMinor')
+    ..pPS(5, _omitFieldNames ? '' : 'eligibleAccountIds')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CurrencyFreeMoney clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CurrencyFreeMoney copyWith(void Function(CurrencyFreeMoney) updates) =>
+      super.copyWith((message) => updates(message as CurrencyFreeMoney))
+          as CurrencyFreeMoney;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CurrencyFreeMoney create() => CurrencyFreeMoney._();
+  @$core.override
+  CurrencyFreeMoney createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CurrencyFreeMoney getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CurrencyFreeMoney>(create);
+  static CurrencyFreeMoney? _defaultInstance;
+
+  /// ISO-4217.
+  @$pb.TagNumber(1)
+  $core.String get currency => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set currency($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCurrency() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCurrency() => $_clearField(1);
+
+  /// Minor units; negative when eligible accounts are overdrawn.
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get eligibleMinor => $_getI64(1);
+  @$pb.TagNumber(2)
+  set eligibleMinor($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasEligibleMinor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearEligibleMinor() => $_clearField(2);
+
+  /// Minor units, never negative.
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get allocatedMinor => $_getI64(2);
+  @$pb.TagNumber(3)
+  set allocatedMinor($fixnum.Int64 value) => $_setInt64(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAllocatedMinor() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAllocatedMinor() => $_clearField(3);
+
+  /// eligible_minor less allocated_minor, in minor units; negative when over-allocated.
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get freeMinor => $_getI64(3);
+  @$pb.TagNumber(4)
+  set freeMinor($fixnum.Int64 value) => $_setInt64(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasFreeMinor() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearFreeMinor() => $_clearField(4);
+
+  /// The accounts that make up eligible_minor: active, eligible_for_goals and holding this
+  /// currency, in the accounts' name order. Empty when only goals name the currency.
+  @$pb.TagNumber(5)
+  $pb.PbList<$core.String> get eligibleAccountIds => $_getList(4);
+}
+
+/// GET /api/v1/goal-allocations/free-money — one entry per currency that an eligible account holds
+/// or a goal is set in, in currency-code order. A currency nothing names is absent: a client never
+/// has to guess what absence means, because with no eligible account and no goal there is nothing
+/// to report.
+class GetFreeMoneyResponse extends $pb.GeneratedMessage {
+  factory GetFreeMoneyResponse({
+    $core.Iterable<CurrencyFreeMoney>? currencies,
+  }) {
+    final result = create();
+    if (currencies != null) result.currencies.addAll(currencies);
+    return result;
+  }
+
+  GetFreeMoneyResponse._();
+
+  factory GetFreeMoneyResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GetFreeMoneyResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetFreeMoneyResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..pPM<CurrencyFreeMoney>(1, _omitFieldNames ? '' : 'currencies',
+        subBuilder: CurrencyFreeMoney.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetFreeMoneyResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetFreeMoneyResponse copyWith(void Function(GetFreeMoneyResponse) updates) =>
+      super.copyWith((message) => updates(message as GetFreeMoneyResponse))
+          as GetFreeMoneyResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GetFreeMoneyResponse create() => GetFreeMoneyResponse._();
+  @$core.override
+  GetFreeMoneyResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static GetFreeMoneyResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetFreeMoneyResponse>(create);
+  static GetFreeMoneyResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<CurrencyFreeMoney> get currencies => $_getList(0);
 }
 
 const $core.bool _omitFieldNames =

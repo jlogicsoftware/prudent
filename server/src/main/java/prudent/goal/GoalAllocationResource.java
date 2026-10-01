@@ -93,6 +93,22 @@ public class GoalAllocationResource {
   }
 
   @GET
+  @Path("/free-money")
+  @Operation(
+      summary = "What the user may still set aside for goals, per currency",
+      description =
+          "Per currency: the eligible money (the current balances of the active accounts marked"
+              + " eligibleForGoals), what the envelopes already hold, and the difference, which is"
+              + " negative when the envelopes hold more than the eligible accounts do. Calculated"
+              + " on every call and never blended across currencies.")
+  @APIResponse(
+      responseCode = ZenStatus.OK,
+      content = @Content(schema = @Schema(ref = "GetFreeMoneyResponse")))
+  public Response freeMoney() {
+    return Response.ok(mapper.toFreeMoneyResponse(FreeMoney.forUser(currentUser.id()))).build();
+  }
+
+  @GET
   @Path("/{id}")
   @Operation(summary = "Read one history entry")
   @APIResponse(
@@ -118,7 +134,8 @@ public class GoalAllocationResource {
       description =
           "ALLOCATE needs targetGoalId, WITHDRAW needs sourceGoalId and MOVE needs both, in the"
               + " same currency. The entry is added to an append-only history; nothing already"
-              + " written is changed. No account balance moves.")
+              + " written is changed. No account balance moves. An ALLOCATE may not be more than"
+              + " the currency's free money (GET /free-money).")
   @RequestBody(content = @Content(schema = @Schema(ref = "CreateGoalAllocationRequest")))
   @APIResponse(
       responseCode = ZenStatus.CREATED,
@@ -138,8 +155,9 @@ public class GoalAllocationResource {
   @APIResponse(
       responseCode = ZenStatus.CONFLICT,
       description =
-          "The envelope does not hold the amount, or a goal's state does not allow the entry"
-              + " (money goes into an active goal, comes out of an active or completed one)",
+          "The envelope does not hold the amount, an allocation is more than the currency's free"
+              + " money, or a goal's state does not allow the entry (money goes into an active"
+              + " goal, comes out of an active or completed one)",
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response create(CreateGoalAllocationRequest request) {
     UUID userId = currentUser.id();
@@ -165,6 +183,17 @@ public class GoalAllocationResource {
       throw PrudentException.invalid("Money cannot be moved to the goal it already is in.");
     }
 
+    if (kind == AllocationKind.ALLOCATE) {
+      // The cap reads every envelope in the currency, so this entry waits for any other allocation
+      // in it. The goal is read first only to learn the currency; the lock below is what protects
+      // the figures, and a goal that is not the caller's is refused here exactly as it would be
+      // by lockGoals.
+      String currency = GoalEntity.currencyOfOwned(userId, targetId);
+      if (currency == null) {
+        throw PrudentException.notFound("goal", targetId);
+      }
+      GoalEntity.lockOwnedIn(userId, currency);
+    }
     Map<UUID, GoalEntity> goals = lockGoals(userId, sourceId, targetId);
     GoalEntity source = sourceId == null ? null : goals.get(sourceId);
     GoalEntity target = targetId == null ? null : goals.get(targetId);
@@ -194,6 +223,23 @@ public class GoalAllocationResource {
         Math.addExact(GoalAllocationEntity.balance(userId, target.id), amount);
       } catch (ArithmeticException tooLarge) {
         throw PrudentException.invalid("That amount would be more than an envelope can hold.");
+      }
+    }
+    // After the overflow check, so an amount no envelope could hold is a 400 however much money is
+    // free, as it was before there was a cap.
+    if (kind == AllocationKind.ALLOCATE) {
+      FreeMoney.Position position = FreeMoney.positionIn(userId, target.currency);
+      if (amount > position.freeMinor()) {
+        // Minor units, because the server does not format money: the client owns that (money.dart).
+        throw PrudentException.conflict(
+            "That is more than the free money in "
+                + target.currency
+                + " (free: "
+                + position.freeMinor()
+                + ", requested: "
+                + amount
+                + ", in minor units). Money is free when it is in an active account marked"
+                + " eligible for goals and not already set aside.");
       }
     }
 

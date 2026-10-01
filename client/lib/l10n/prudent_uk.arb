@@ -106,6 +106,8 @@
   "accountIsActive": "Активний",
   "accountIncludeInTotal": "Враховувати в загальному балансі",
   "accountIncludeInOverview": "Показувати в огляді",
+  "accountEligibleForGoals": "Доступний для цілей",
+  "accountEligibleForGoalsHint": "Гроші на цьому рахунку можна відкладати на цілі. Враховуються лише активні рахунки.",
   "accountSave": "Зберегти рахунок",
   "accountDelete": "Видалити",
   "accountDeleteTitle": "Видалити рахунок",

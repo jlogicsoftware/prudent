@@ -385,6 +385,12 @@ components:
           description: >-
             Two flags rather than one: a savings account a user wants visible but excluded from
             spendable funds needs them to differ.
+        eligibleForGoals:
+          type: boolean
+          description: >-
+            Whether money in this account may be set aside for goals (ADR-051). Counts only while
+            the account is also active; the sum of those accounts' balances in a currency is that
+            currency's eligible money (GET /api/v1/goal-allocations/free-money). False by default.
         balances:
           type: array
           minItems: 1
@@ -411,6 +417,11 @@ components:
           type: boolean
         includeInOverview:
           type: boolean
+        eligibleForGoals:
+          type: boolean
+          description: >-
+            See Account.eligibleForGoals. Omitting it is the same as false; on a PUT, which is a
+            full replacement, an account that was eligible stops being so.
         balances:
           type: array
           minItems: 1
@@ -441,6 +452,11 @@ components:
           type: boolean
         includeInOverview:
           type: boolean
+        eligibleForGoals:
+          type: boolean
+          description: >-
+            See Account.eligibleForGoals. Omitting it is the same as false; on a PUT, which is a
+            full replacement, an account that was eligible stops being so.
         balances:
           type: array
           minItems: 1
@@ -1335,6 +1351,52 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GoalEnvelope'
+    CurrencyFreeMoney:
+      type: object
+      description: >-
+        One currency's money for goals, calculated on every read and never stored, and never blended
+        with another currency. free = eligible - allocated, and it MAY BE NEGATIVE: a later spend, or
+        an account leaving the eligible set, can leave the envelopes holding more than the eligible
+        accounts do, which refuses every further ALLOCATE until the user withdraws.
+      properties:
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        eligibleMinor:
+          type: string
+          format: int64
+          description: >-
+            The current balances, in this currency, of the active accounts marked eligibleForGoals.
+            Negative when those accounts are overdrawn.
+        allocatedMinor:
+          type: string
+          format: int64
+          description: >-
+            What the goals' envelopes hold in this currency, whatever the goals' states. Never
+            negative.
+        freeMinor:
+          type: string
+          format: int64
+          description: eligibleMinor less allocatedMinor; what a new ALLOCATE may draw on.
+        eligibleAccountIds:
+          type: array
+          description: >-
+            The accounts that make up eligibleMinor, in name order. Empty when only goals name the
+            currency.
+          items:
+            type: string
+            format: uuid
+    GetFreeMoneyResponse:
+      type: object
+      description: >-
+        GET /api/v1/goal-allocations/free-money — one entry per currency that an eligible account
+        holds or a goal is set in, in currency-code order.
+      properties:
+        currencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurrencyFreeMoney'
 
     # -----------------------------------------------------------------------------------------
     # Settings — a singleton per user

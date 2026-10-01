@@ -106,6 +106,8 @@
   "accountIsActive": "Aktywny",
   "accountIncludeInTotal": "Uwzględnij w saldzie łącznym",
   "accountIncludeInOverview": "Pokaż w przeglądzie",
+  "accountEligibleForGoals": "Dostępne dla celów",
+  "accountEligibleForGoalsHint": "Pieniądze z tego konta można odkładać na cele. Liczą się tylko aktywne konta.",
   "accountSave": "Zapisz rachunek",
   "accountDelete": "Usuń",
   "accountDeleteTitle": "Usuń rachunek",

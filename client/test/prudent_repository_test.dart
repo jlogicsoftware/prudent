@@ -813,6 +813,36 @@ void main() {
       expect(envelopes.map((e) => e.currency), ['PLN', 'EUR']);
       expect(envelopes.map((e) => e.amountMinor.toInt()), [25000, 0]);
     });
+
+    test('getFreeMoney decodes one position per currency, a negative free figure included', () async {
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedUri = _uriOf(request);
+          return _jsonResponse({
+            'currencies': [
+              {
+                'currency': 'PLN',
+                'eligibleMinor': '10000',
+                'allocatedMinor': '30000',
+                'freeMinor': '-20000',
+                'eligibleAccountIds': ['a1'],
+              },
+              {'currency': 'EUR'},
+            ],
+          });
+        }),
+      );
+
+      final result = await repository.getFreeMoney();
+
+      expect(capturedUri!.path, '/api/v1/goal-allocations/free-money');
+      final currencies = result.fold((r) => r.currencies, (e) => throw e);
+      expect(currencies.map((c) => c.currency), ['PLN', 'EUR']);
+      expect(currencies[0].freeMinor.toInt(), -20000);
+      expect(currencies[0].eligibleAccountIds, ['a1']);
+      expect(currencies[1].freeMinor.toInt(), 0);
+    });
   });
 
   group('PrudentRepository budget carry-over resets', () {

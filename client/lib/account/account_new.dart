@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
@@ -26,6 +27,7 @@ class _AccountNewState extends State<AccountNew> {
   var _isActive = true;
   var _includeInTotal = true;
   var _includeInOverview = true;
+  var _eligibleForGoals = false;
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
@@ -42,6 +44,7 @@ class _AccountNewState extends State<AccountNew> {
         isActive: _isActive,
         includeInTotal: _includeInTotal,
         includeInOverview: _includeInOverview,
+        eligibleForGoals: _eligibleForGoals,
         balances: [CurrencyBalance(currency: _currency, amountMinor: minor)],
       ),
     );
@@ -106,25 +109,31 @@ class _AccountNewState extends State<AccountNew> {
               decoration: InputDecoration(labelText: t.accountTypeField),
               validator: (value) => value == null ? t.accountTypeRequired : null,
             ),
-            SwitchListTile(
-              title: Text(t.accountIsDefault),
+            ZenSwitchRow(
+              label: t.accountIsDefault,
               value: _isDefault,
               onChanged: (value) => setState(() => _isDefault = value),
             ),
-            SwitchListTile(
-              title: Text(t.accountIsActive),
+            ZenSwitchRow(
+              label: t.accountIsActive,
               value: _isActive,
               onChanged: (value) => setState(() => _isActive = value),
             ),
-            SwitchListTile(
-              title: Text(t.accountIncludeInTotal),
+            ZenSwitchRow(
+              label: t.accountIncludeInTotal,
               value: _includeInTotal,
               onChanged: (value) => setState(() => _includeInTotal = value),
             ),
-            SwitchListTile(
-              title: Text(t.accountIncludeInOverview),
+            ZenSwitchRow(
+              label: t.accountIncludeInOverview,
               value: _includeInOverview,
               onChanged: (value) => setState(() => _includeInOverview = value),
+            ),
+            ZenSwitchRow(
+              label: t.accountEligibleForGoals,
+              subtitle: t.accountEligibleForGoalsHint,
+              value: _eligibleForGoals,
+              onChanged: (value) => setState(() => _eligibleForGoals = value),
             ),
             const SizedBox(height: 32.0),
             Row(

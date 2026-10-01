@@ -118,6 +118,23 @@ public final class PrudentTest {
    * @return the new account's id
    */
   public static UUID seedAccount(String userId, String name, String... currencies) {
+    return seedAccount(userId, name, false, 0L, currencies);
+  }
+
+  /**
+   * Persists an active account that funds goals (M4, ADR-051), holding {@code openingMinor} of each
+   * currency — what an allocation test needs behind it, since an allocation is refused beyond the
+   * free money.
+   *
+   * @return the new account's id
+   */
+  public static UUID seedEligibleAccount(
+      String userId, String name, long openingMinor, String... currencies) {
+    return seedAccount(userId, name, true, openingMinor, currencies);
+  }
+
+  private static UUID seedAccount(
+      String userId, String name, boolean eligibleForGoals, long openingMinor, String... currencies) {
     UUID id = UUID.randomUUID();
     QuarkusTransaction.requiringNew()
         .run(
@@ -130,8 +147,9 @@ public final class PrudentTest {
               account.isActive = true;
               account.includeInTotal = true;
               account.includeInOverview = true;
+              account.eligibleForGoals = eligibleForGoals;
               for (String currency : currencies) {
-                account.balances.add(new AccountBalance(currency, 0L));
+                account.balances.add(new AccountBalance(currency, openingMinor));
               }
               account.persist();
             });

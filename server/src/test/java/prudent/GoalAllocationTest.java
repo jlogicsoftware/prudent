@@ -38,6 +38,10 @@ class GoalAllocationTest {
   @BeforeEach
   void seed() {
     PrudentTest.reset();
+    // Every test but the ones about the cap itself starts with more free money than it can use, so
+    // the rules under test are the only thing standing between an entry and the history.
+    PrudentTest.seedEligibleAccount(
+        PrudentTest.ALICE, "Savings", Long.MAX_VALUE, "PLN", "EUR");
   }
 
   // --- Helpers ----------------------------------------------------------------------------------

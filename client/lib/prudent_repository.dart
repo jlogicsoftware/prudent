@@ -222,6 +222,16 @@ class PrudentRepository {
         '$_goalAllocationsPath/envelopes',
       );
 
+  /// What may still be set aside for goals, per currency (ADR-051): the eligible money (active
+  /// accounts marked `eligibleForGoals`), what the envelopes already hold, and the difference.
+  /// `freeMinor` is negative when the envelopes hold more than the eligible accounts do. Calculated
+  /// by the server on every call; an `ALLOCATE` above it is refused with a 409.
+  Future<ZenResult<GetFreeMoneyResponse>> getFreeMoney() =>
+      _client.get<GetFreeMoneyResponse>(
+        GetFreeMoneyResponse.new,
+        '$_goalAllocationsPath/free-money',
+      );
+
   // --- Budgets (M3, jlogicsoftware/prudent#36) — the amount that may be spent, never a transaction
 
   /// The user's budgets, optionally narrowed to one [month] (`YYYY-MM`) and/or one [categoryId].

@@ -115,6 +115,7 @@ class Account extends $pb.GeneratedMessage {
     $core.bool? includeInTotal,
     $core.bool? includeInOverview,
     $core.Iterable<CurrencyBalance>? balances,
+    $core.bool? eligibleForGoals,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -125,6 +126,7 @@ class Account extends $pb.GeneratedMessage {
     if (includeInTotal != null) result.includeInTotal = includeInTotal;
     if (includeInOverview != null) result.includeInOverview = includeInOverview;
     if (balances != null) result.balances.addAll(balances);
+    if (eligibleForGoals != null) result.eligibleForGoals = eligibleForGoals;
     return result;
   }
 
@@ -151,6 +153,7 @@ class Account extends $pb.GeneratedMessage {
     ..aOB(9, _omitFieldNames ? '' : 'includeInOverview')
     ..pPM<CurrencyBalance>(10, _omitFieldNames ? '' : 'balances',
         subBuilder: CurrencyBalance.create)
+    ..aOB(11, _omitFieldNames ? '' : 'eligibleForGoals')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -260,6 +263,23 @@ class Account extends $pb.GeneratedMessage {
   /// to grow fields (an as-of date, a hidden flag) that a bare int64 has nowhere to put.
   @$pb.TagNumber(10)
   $pb.PbList<CurrencyBalance> get balances => $_getList(7);
+
+  /// Whether money in this account may be set aside for goals (M4, docs/DECISIONS.md ADR-051). An
+  /// account counts toward the money a goal can draw on only when this is true AND the account is
+  /// active; the sum of those accounts' balances in one currency is that currency's ELIGIBLE money
+  /// (goal_allocations.proto, GetFreeMoneyResponse). It is a separate flag from include_in_total
+  /// because the two answer different questions — what counts as "my money" and what may be
+  /// earmarked — and false is the default, so no account is drawn on until the user says so.
+  ///
+  /// Only the user's choice: nothing derives it from the account's type or from the other flags.
+  @$pb.TagNumber(11)
+  $core.bool get eligibleForGoals => $_getBF(8);
+  @$pb.TagNumber(11)
+  set eligibleForGoals($core.bool value) => $_setBool(8, value);
+  @$pb.TagNumber(11)
+  $core.bool hasEligibleForGoals() => $_has(8);
+  @$pb.TagNumber(11)
+  void clearEligibleForGoals() => $_clearField(11);
 }
 
 /// POST /api/v1/accounts
@@ -272,6 +292,7 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
     $core.bool? includeInTotal,
     $core.bool? includeInOverview,
     $core.Iterable<CurrencyBalance>? balances,
+    $core.bool? eligibleForGoals,
   }) {
     final result = create();
     if (name != null) result.name = name;
@@ -281,6 +302,7 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
     if (includeInTotal != null) result.includeInTotal = includeInTotal;
     if (includeInOverview != null) result.includeInOverview = includeInOverview;
     if (balances != null) result.balances.addAll(balances);
+    if (eligibleForGoals != null) result.eligibleForGoals = eligibleForGoals;
     return result;
   }
 
@@ -306,6 +328,7 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
     ..aOB(8, _omitFieldNames ? '' : 'includeInOverview')
     ..pPM<CurrencyBalance>(9, _omitFieldNames ? '' : 'balances',
         subBuilder: CurrencyBalance.create)
+    ..aOB(10, _omitFieldNames ? '' : 'eligibleForGoals')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -386,6 +409,16 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
   /// records, not of this field — see Account.balances.
   @$pb.TagNumber(9)
   $pb.PbList<CurrencyBalance> get balances => $_getList(6);
+
+  /// See Account.eligible_for_goals. Omitting it is the same as false.
+  @$pb.TagNumber(10)
+  $core.bool get eligibleForGoals => $_getBF(7);
+  @$pb.TagNumber(10)
+  set eligibleForGoals($core.bool value) => $_setBool(7, value);
+  @$pb.TagNumber(10)
+  $core.bool hasEligibleForGoals() => $_has(7);
+  @$pb.TagNumber(10)
+  void clearEligibleForGoals() => $_clearField(10);
 }
 
 /// PUT /api/v1/accounts/{id} — a FULL REPLACEMENT, for the presence reason set out in
@@ -404,6 +437,7 @@ class UpdateAccountRequest extends $pb.GeneratedMessage {
     $core.bool? includeInTotal,
     $core.bool? includeInOverview,
     $core.Iterable<CurrencyBalance>? balances,
+    $core.bool? eligibleForGoals,
   }) {
     final result = create();
     if (name != null) result.name = name;
@@ -413,6 +447,7 @@ class UpdateAccountRequest extends $pb.GeneratedMessage {
     if (includeInTotal != null) result.includeInTotal = includeInTotal;
     if (includeInOverview != null) result.includeInOverview = includeInOverview;
     if (balances != null) result.balances.addAll(balances);
+    if (eligibleForGoals != null) result.eligibleForGoals = eligibleForGoals;
     return result;
   }
 
@@ -438,6 +473,7 @@ class UpdateAccountRequest extends $pb.GeneratedMessage {
     ..aOB(7, _omitFieldNames ? '' : 'includeInOverview')
     ..pPM<CurrencyBalance>(8, _omitFieldNames ? '' : 'balances',
         subBuilder: CurrencyBalance.create)
+    ..aOB(9, _omitFieldNames ? '' : 'eligibleForGoals')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -530,6 +566,17 @@ class UpdateAccountRequest extends $pb.GeneratedMessage {
   ///      allowed — that is the ordinary way an account becomes multi-currency after the fact.
   @$pb.TagNumber(8)
   $pb.PbList<CurrencyBalance> get balances => $_getList(6);
+
+  /// See Account.eligible_for_goals. A full replacement like every other field: a client that does
+  /// not send it is asking for false, and an account that was eligible stops being so.
+  @$pb.TagNumber(9)
+  $core.bool get eligibleForGoals => $_getBF(7);
+  @$pb.TagNumber(9)
+  set eligibleForGoals($core.bool value) => $_setBool(7, value);
+  @$pb.TagNumber(9)
+  $core.bool hasEligibleForGoals() => $_has(7);
+  @$pb.TagNumber(9)
+  void clearEligibleForGoals() => $_clearField(9);
 }
 
 /// GET /api/v1/accounts — every account owned by the authenticated user.

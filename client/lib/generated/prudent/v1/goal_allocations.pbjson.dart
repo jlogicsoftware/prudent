@@ -188,3 +188,48 @@ final $typed_data.Uint8List listGoalEnvelopesResponseDescriptor =
     $convert.base64Decode(
         'ChlMaXN0R29hbEVudmVsb3Blc1Jlc3BvbnNlEjYKCWVudmVsb3BlcxgBIAMoCzIYLnBydWRlbn'
         'QudjEuR29hbEVudmVsb3BlUgllbnZlbG9wZXM=');
+
+@$core.Deprecated('Use currencyFreeMoneyDescriptor instead')
+const CurrencyFreeMoney$json = {
+  '1': 'CurrencyFreeMoney',
+  '2': [
+    {'1': 'currency', '3': 1, '4': 1, '5': 9, '10': 'currency'},
+    {'1': 'eligible_minor', '3': 2, '4': 1, '5': 3, '10': 'eligibleMinor'},
+    {'1': 'allocated_minor', '3': 3, '4': 1, '5': 3, '10': 'allocatedMinor'},
+    {'1': 'free_minor', '3': 4, '4': 1, '5': 3, '10': 'freeMinor'},
+    {
+      '1': 'eligible_account_ids',
+      '3': 5,
+      '4': 3,
+      '5': 9,
+      '10': 'eligibleAccountIds'
+    },
+  ],
+};
+
+/// Descriptor for `CurrencyFreeMoney`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List currencyFreeMoneyDescriptor = $convert.base64Decode(
+    'ChFDdXJyZW5jeUZyZWVNb25leRIaCghjdXJyZW5jeRgBIAEoCVIIY3VycmVuY3kSJQoOZWxpZ2'
+    'libGVfbWlub3IYAiABKANSDWVsaWdpYmxlTWlub3ISJwoPYWxsb2NhdGVkX21pbm9yGAMgASgD'
+    'Ug5hbGxvY2F0ZWRNaW5vchIdCgpmcmVlX21pbm9yGAQgASgDUglmcmVlTWlub3ISMAoUZWxpZ2'
+    'libGVfYWNjb3VudF9pZHMYBSADKAlSEmVsaWdpYmxlQWNjb3VudElkcw==');
+
+@$core.Deprecated('Use getFreeMoneyResponseDescriptor instead')
+const GetFreeMoneyResponse$json = {
+  '1': 'GetFreeMoneyResponse',
+  '2': [
+    {
+      '1': 'currencies',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.prudent.v1.CurrencyFreeMoney',
+      '10': 'currencies'
+    },
+  ],
+};
+
+/// Descriptor for `GetFreeMoneyResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getFreeMoneyResponseDescriptor = $convert.base64Decode(
+    'ChRHZXRGcmVlTW9uZXlSZXNwb25zZRI9CgpjdXJyZW5jaWVzGAEgAygLMh0ucHJ1ZGVudC52MS'
+    '5DdXJyZW5jeUZyZWVNb25leVIKY3VycmVuY2llcw==');

@@ -16,6 +16,7 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent/generated/prudent/v1/goal_allocations.pb.dart';
 import 'package:prudent/generated/prudent/v1/plans.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
 import 'package:prudent/generated/prudent/v1/settings.pb.dart';
@@ -285,6 +286,45 @@ void main() {
         expect(decoded.balances.length, 3);
 
         expect(decoded, original);
+      });
+
+      test('the goal-eligibility flag survives the round trip in both states', () {
+        // False is the proto3 default and absent from both encodings, so the unset case is the one
+        // that proves an account nobody marked comes back unmarked; true is the one that proves the
+        // field number is carried at all.
+        expect(roundTrip(Account(name: 'Plain'), format, Account.new).eligibleForGoals, isFalse);
+        final marked = roundTrip(Account(name: 'Savings', eligibleForGoals: true), format, Account.new);
+        expect(marked.eligibleForGoals, isTrue);
+        expect(
+          roundTrip(CreateAccountRequest(eligibleForGoals: true), format, CreateAccountRequest.new).eligibleForGoals,
+          isTrue,
+        );
+        expect(
+          roundTrip(UpdateAccountRequest(eligibleForGoals: true), format, UpdateAccountRequest.new).eligibleForGoals,
+          isTrue,
+        );
+      });
+
+      test('free money survives the round trip, including a negative figure', () {
+        final original = GetFreeMoneyResponse(
+          currencies: [
+            CurrencyFreeMoney(
+              currency: 'PLN',
+              eligibleMinor: Int64(10000),
+              allocatedMinor: Int64(30000),
+              freeMinor: Int64(-20000),
+              eligibleAccountIds: ['a1', 'a2'],
+            ),
+            CurrencyFreeMoney(currency: 'EUR'),
+          ],
+        );
+
+        final decoded = roundTrip(original, format, GetFreeMoneyResponse.new);
+
+        expect(decoded, original);
+        expect(decoded.currencies[0].freeMinor, Int64(-20000));
+        expect(decoded.currencies[0].eligibleAccountIds, ['a1', 'a2']);
+        expect(decoded.currencies[1].freeMinor, Int64.ZERO);
       });
 
       test('an empty balance list round-trips as empty, not as absent', () {

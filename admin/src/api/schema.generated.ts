@@ -2245,7 +2245,7 @@ export interface paths {
         put?: never;
         /**
          * Allocate, withdraw or move money between goal envelopes
-         * @description ALLOCATE needs targetGoalId, WITHDRAW needs sourceGoalId and MOVE needs both, in the same currency. The entry is added to an append-only history; nothing already written is changed. No account balance moves.
+         * @description ALLOCATE needs targetGoalId, WITHDRAW needs sourceGoalId and MOVE needs both, in the same currency. The entry is added to an append-only history; nothing already written is changed. No account balance moves. An ALLOCATE may not be more than the currency's free money (GET /free-money).
          */
         post: {
             parameters: {
@@ -2304,7 +2304,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
-                /** @description The envelope does not hold the amount, or a goal's state does not allow the entry (money goes into an active goal, comes out of an active or completed one) */
+                /** @description The envelope does not hold the amount, an allocation is more than the currency's free money, or a goal's state does not allow the entry (money goes into an active goal, comes out of an active or completed one) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -2350,6 +2350,60 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["ListGoalEnvelopesResponse"];
                         "application/x-protobuf": components["schemas"]["ListGoalEnvelopesResponse"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/goal-allocations/free-money": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the user may still set aside for goals, per currency
+         * @description Per currency: the eligible money (the current balances of the active accounts marked eligibleForGoals), what the envelopes already hold, and the difference, which is negative when the envelopes hold more than the eligible accounts do. Calculated on every call and never blended across currencies.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GetFreeMoneyResponse"];
+                        "application/x-protobuf": components["schemas"]["GetFreeMoneyResponse"];
                     };
                 };
                 /** @description Not Authorized */
@@ -4371,6 +4425,8 @@ export interface components {
             includeInTotal?: boolean;
             /** @description Two flags rather than one: a savings account a user wants visible but excluded from spendable funds needs them to differ. */
             includeInOverview?: boolean;
+            /** @description Whether money in this account may be set aside for goals (ADR-051). Counts only while the account is also active; the sum of those accounts' balances in a currency is that currency's eligible money (GET /api/v1/goal-allocations/free-money). False by default. */
+            eligibleForGoals?: boolean;
             /** @description The currencies this account holds, one entry each, in the order the server stores them. NEVER EMPTY and at most one entry per currency — both rejected server-side. The set is DECLARED rather than inferred, which is what lets the server reject a record in a currency the account does not hold instead of silently opening a new balance. */
             balances?: components["schemas"]["CurrencyBalance"][];
         };
@@ -4382,6 +4438,8 @@ export interface components {
             isActive?: boolean;
             includeInTotal?: boolean;
             includeInOverview?: boolean;
+            /** @description See Account.eligibleForGoals. Omitting it is the same as false; on a PUT, which is a full replacement, an account that was eligible stops being so. */
+            eligibleForGoals?: boolean;
             balances?: components["schemas"]["CurrencyBalance"][];
         };
         /**
@@ -4395,6 +4453,8 @@ export interface components {
             isActive?: boolean;
             includeInTotal?: boolean;
             includeInOverview?: boolean;
+            /** @description See Account.eligibleForGoals. Omitting it is the same as false; on a PUT, which is a full replacement, an account that was eligible stops being so. */
+            eligibleForGoals?: boolean;
             balances?: components["schemas"]["CurrencyBalance"][];
         };
         /** @description GET /api/v1/accounts — every account owned by the caller. */
@@ -4923,6 +4983,31 @@ export interface components {
         /** @description GET /api/v1/goal-allocations/envelopes — one envelope per goal, in the goals' creation order, a goal with no entries included at zero. */
         ListGoalEnvelopesResponse: {
             envelopes?: components["schemas"]["GoalEnvelope"][];
+        };
+        /** @description One currency's money for goals, calculated on every read and never stored, and never blended with another currency. free = eligible - allocated, and it MAY BE NEGATIVE: a later spend, or an account leaving the eligible set, can leave the envelopes holding more than the eligible accounts do, which refuses every further ALLOCATE until the user withdraws. */
+        CurrencyFreeMoney: {
+            currency?: string;
+            /**
+             * Format: int64
+             * @description The current balances, in this currency, of the active accounts marked eligibleForGoals. Negative when those accounts are overdrawn.
+             */
+            eligibleMinor?: string;
+            /**
+             * Format: int64
+             * @description What the goals' envelopes hold in this currency, whatever the goals' states. Never negative.
+             */
+            allocatedMinor?: string;
+            /**
+             * Format: int64
+             * @description eligibleMinor less allocatedMinor; what a new ALLOCATE may draw on.
+             */
+            freeMinor?: string;
+            /** @description The accounts that make up eligibleMinor, in name order. Empty when only goals name the currency. */
+            eligibleAccountIds?: string[];
+        };
+        /** @description GET /api/v1/goal-allocations/free-money — one entry per currency that an eligible account holds or a goal is set in, in currency-code order. */
+        GetFreeMoneyResponse: {
+            currencies?: components["schemas"]["CurrencyFreeMoney"][];
         };
         /** @description The authenticated user's settings. A SINGLETON: there is no id, no create, no delete and no list, and the URL carries no id because the token is the entire addressing scheme. The row is created on first login, not by a client. */
         Settings: {
