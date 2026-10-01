@@ -34,6 +34,21 @@ final class BudgetCalculator {
       List<BudgetEntity> budgets,
       Map<UUID, Long> netByCategory,
       Map<UUID, Long> carryOverByCategory) {
+    return summarize(month, currency, budgets, netByCategory, carryOverByCategory, Map.of());
+  }
+
+  /**
+   * @param resetMonthByCategory the month of the live reset that bounds each category's carry-over,
+   *     from {@link #resetMonths}; a category with none is absent. Reported on its item so a
+   *     carry-over that a reset cut short is visibly so.
+   */
+  static BudgetSummaryResponse summarize(
+      YearMonth month,
+      String currency,
+      List<BudgetEntity> budgets,
+      Map<UUID, Long> netByCategory,
+      Map<UUID, Long> carryOverByCategory,
+      Map<UUID, YearMonth> resetMonthByCategory) {
     BudgetSummaryResponse.Builder response =
         BudgetSummaryResponse.newBuilder().setMonth(month.toString()).setCurrency(currency);
     long totalPlan = 0;
@@ -46,13 +61,18 @@ final class BudgetCalculator {
       // the other side of the same sum and reduces the spending it refunds.
       long actual = Math.negateExact(netByCategory.getOrDefault(budget.categoryId, 0L));
       long carryOver = carryOverByCategory.getOrDefault(budget.categoryId, 0L);
-      response.addItems(
+      CategoryBudgetSummary.Builder item =
           CategoryBudgetSummary.newBuilder()
               .setCategoryId(budget.categoryId.toString())
               .setPlanMinor(plan)
               .setActualMinor(actual)
               .setCarryOverMinor(carryOver)
-              .setRemainingMinor(Math.addExact(carryOver, Math.subtractExact(plan, actual))));
+              .setRemainingMinor(Math.addExact(carryOver, Math.subtractExact(plan, actual)));
+      YearMonth resetMonth = resetMonthByCategory.get(budget.categoryId);
+      if (resetMonth != null) {
+        item.setCarryOverResetMonth(resetMonth.toString());
+      }
+      response.addItems(item);
       totalPlan = Math.addExact(totalPlan, plan);
       totalActual = Math.addExact(totalActual, actual);
       totalCarryOver = Math.addExact(totalCarryOver, carryOver);
@@ -82,8 +102,28 @@ final class BudgetCalculator {
    */
   static Map<UUID, Long> carryOver(
       List<BudgetEntity> earlierBudgets, Map<UUID, Map<YearMonth, Long>> netByCategoryAndMonth) {
+    return carryOver(earlierBudgets, netByCategoryAndMonth, Map.of());
+  }
+
+  /**
+   * As {@link #carryOver(List, Map)}, counting a category only from its reset month on (M3,
+   * jlogicsoftware/prudent#61, ADR-046): a budgeted month before the category's reset contributes
+   * nothing, as if the figure had started again there. The budgets themselves are untouched; they
+   * are simply not summed. A category with no reset is counted from its first budget, as before.
+   *
+   * @param resetMonthByCategory from {@link #resetMonths}, already limited to resets at or before
+   *     the month being summarized
+   */
+  static Map<UUID, Long> carryOver(
+      List<BudgetEntity> earlierBudgets,
+      Map<UUID, Map<YearMonth, Long>> netByCategoryAndMonth,
+      Map<UUID, YearMonth> resetMonthByCategory) {
     Map<UUID, Long> carry = new HashMap<>();
     for (BudgetEntity budget : earlierBudgets) {
+      YearMonth resetMonth = resetMonthByCategory.get(budget.categoryId);
+      if (resetMonth != null && budget.month().isBefore(resetMonth)) {
+        continue;
+      }
       long net =
           netByCategoryAndMonth
               .getOrDefault(budget.categoryId, Map.of())
@@ -91,5 +131,18 @@ final class BudgetCalculator {
       carry.merge(budget.categoryId, Math.addExact(budget.amountMinor, net), Math::addExact);
     }
     return carry;
+  }
+
+  /**
+   * The effective reset month per category: the latest of its live resets. Two live resets in one
+   * category (different months) are both boundaries, and the later one is the one the figure
+   * restarts from, because everything it excludes the earlier one excludes too.
+   */
+  static Map<UUID, YearMonth> resetMonths(List<BudgetCarryResetEntity> liveResets) {
+    Map<UUID, YearMonth> latest = new HashMap<>();
+    for (BudgetCarryResetEntity reset : liveResets) {
+      latest.merge(reset.categoryId, reset.month(), (a, b) -> a.isAfter(b) ? a : b);
+    }
+    return latest;
   }
 }

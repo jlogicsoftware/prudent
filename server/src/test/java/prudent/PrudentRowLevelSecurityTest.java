@@ -43,8 +43,8 @@ import org.junit.jupiter.api.Test;
 class PrudentRowLevelSecurityTest {
 
   private static final String[] PRUDENT_TABLES = {
-    "prudent_account", "prudent_account_balance", "prudent_budget", "prudent_category",
-    "prudent_plan", "prudent_plan_occurrence", "prudent_record", "prudent_settings"
+    "prudent_account", "prudent_account_balance", "prudent_budget", "prudent_budget_carry_reset",
+    "prudent_category", "prudent_plan", "prudent_plan_occurrence", "prudent_record", "prudent_settings"
   };
 
   private static final String RUNTIME_PASSWORD = "test-only-throwaway";
@@ -63,6 +63,8 @@ class PrudentRowLevelSecurityTest {
     PrudentTest.seedOccurrence(PrudentTest.ALICE, planId, java.time.LocalDate.of(2026, 9, 1));
     PrudentTest.seedBudget(
         PrudentTest.ALICE, categoryId, java.time.YearMonth.of(2026, 9), "PLN", 500_00L);
+    PrudentTest.seedCarryReset(
+        PrudentTest.ALICE, categoryId, java.time.YearMonth.of(2026, 9), "PLN", 100_00L);
     PrudentTest.seedSettings(PrudentTest.ALICE, "PLN");
 
     try (Connection owner = dataSource.getConnection();
@@ -116,6 +118,7 @@ class PrudentRowLevelSecurityTest {
       assertRowCount(runtime, "prudent_account", 1);
       assertRowCount(runtime, "prudent_account_balance", 1);
       assertRowCount(runtime, "prudent_budget", 1);
+      assertRowCount(runtime, "prudent_budget_carry_reset", 1);
       assertRowCount(runtime, "prudent_category", 1);
       assertRowCount(runtime, "prudent_plan", 1);
       assertRowCount(runtime, "prudent_plan_occurrence", 1);

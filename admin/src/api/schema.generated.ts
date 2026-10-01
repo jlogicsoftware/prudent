@@ -1070,6 +1070,221 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/budget-carry-over-resets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The authenticated user's carry-over reset history
+         * @description Every reset, revoked ones included, newest first. Optionally narrowed by categoryId (UUID) and currency (ISO-4217).
+         */
+        get: {
+            parameters: {
+                query?: {
+                    categoryId?: string;
+                    currency?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListBudgetCarryOverResetsResponse"];
+                        "application/x-protobuf": components["schemas"]["ListBudgetCarryOverResetsResponse"];
+                    };
+                };
+                /** @description A malformed categoryId or currency */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Reset one category's carry-over from a month onward
+         * @description Carry-over into the month becomes zero and only budgeted months from it on count toward later months, in that currency. Earlier budgets are kept and earlier months' own figures do not change. The entry records the carry-over it discarded.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResetBudgetCarryOverRequest"];
+                    "application/x-protobuf": components["schemas"]["ResetBudgetCarryOverRequest"];
+                };
+            };
+            responses: {
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BudgetCarryOverReset"];
+                        "application/x-protobuf": components["schemas"]["BudgetCarryOverReset"];
+                    };
+                };
+                /** @description A malformed category id, month or currency, or a note longer than 500 characters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No such category for this user */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description That category, month and currency already has a reset in effect */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/budget-carry-over-resets/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take a carry-over reset back
+         * @description Marks the entry revoked with who and when, and it stops bounding the carry-over. The entry stays in the history; nothing is deleted.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BudgetCarryOverReset"];
+                        "application/x-protobuf": components["schemas"]["BudgetCarryOverReset"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No such reset for this user */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The reset was already revoked */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/budgets": {
         parameters: {
             query?: never;
@@ -1146,7 +1361,7 @@ export interface paths {
         };
         /**
          * Plan, actual and remaining amount per budgeted category, for one month
-         * @description Query parameters: month (required, YYYY-MM) and currency (required, ISO-4217). Actual is net spending from posted records in that currency, refunds included; a planned occurrence is not counted until it is confirmed. Each item also carries the underspend or overspend of the category's earlier budgeted months, which is included in remaining. Never summed across currencies.
+         * @description Query parameters: month (required, YYYY-MM) and currency (required, ISO-4217). Actual is net spending from posted records in that currency, refunds included; a planned occurrence is not counted until it is confirmed. Each item also carries the underspend or overspend of the category's earlier budgeted months, counted from its latest carry-over reset if it has one, which is included in remaining. Never summed across currencies.
          */
         get: {
             parameters: {
@@ -3612,7 +3827,14 @@ export interface components {
             actualMinor?: string;
             /**
              * Format: int64
-             * @description planMinor minus actualMinor. Negative once the category is overspent. Carry-over from earlier months is not included.
+             * @description What the category's earlier budgeted months left over (positive) or overspent (negative), carried into this month (ADR-045). Counted from the category's latest carry-over reset when it has one (ADR-046). Zero for a first budgeted month.
+             */
+            carryOverMinor?: string;
+            /** @description YYYY-MM of the live carry-over reset that bounds carryOverMinor, or empty when there is none. Names the reset behind a carry-over that is smaller than the history alone would give; the entry is in GET /api/v1/budget-carry-over-resets. */
+            carryOverResetMonth?: string;
+            /**
+             * Format: int64
+             * @description carryOverMinor plus planMinor minus actualMinor — what may still be spent this month. Negative once the category is overspent.
              */
             remainingMinor?: string;
         };
@@ -3626,7 +3848,60 @@ export interface components {
             /** Format: int64 */
             totalActualMinor?: string;
             /** Format: int64 */
+            totalCarryOverMinor?: string;
+            /**
+             * Format: int64
+             * @description Includes the carry-over, like each item's remainingMinor.
+             */
             totalRemainingMinor?: string;
+        };
+        /** @description One carry-over reset (M3, jlogicsoftware/prudent#61, ADR-046): the audit entry and, while it is not revoked, the boundary the carry-over is counted from. A boundary and nothing else — no budget is deleted and no earlier month's own figures change. Entries are never deleted. */
+        BudgetCarryOverReset: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            categoryId?: string;
+            /** @description The first month carry-over is counted from, YYYY-MM: carry-over into it is zero. */
+            month?: string;
+            /** @description ISO-4217. The reset applies to this currency only. */
+            currency?: string;
+            /**
+             * Format: int64
+             * @description The carry-over into the month just before the reset — what was discarded. Signed minor units, a snapshot that is not recalculated when earlier data changes.
+             */
+            discardedMinor?: string;
+            /** @description The user's own words for why; empty when none was given. */
+            note?: string;
+            /**
+             * Format: uuid
+             * @description Who made the reset — the authenticated user.
+             */
+            createdBy?: string;
+            /**
+             * Format: int64
+             * @description Epoch milliseconds.
+             */
+            createdAtMs?: string;
+            /** @description Who took the reset back; empty while it is in effect. */
+            revokedBy?: string;
+            /**
+             * Format: int64
+             * @description Epoch milliseconds the reset was taken back; 0 while it is in effect.
+             */
+            revokedAtMs?: string;
+        };
+        /** @description Body for POST /api/v1/budget-carry-over-resets. The month need not have a budget. */
+        ResetBudgetCarryOverRequest: {
+            /** Format: uuid */
+            categoryId?: string;
+            month?: string;
+            currency?: string;
+            /** @description Optional. */
+            note?: string;
+        };
+        /** @description GET /api/v1/budget-carry-over-resets — the whole history, revoked entries included, newest first. */
+        ListBudgetCarryOverResetsResponse: {
+            resets?: components["schemas"]["BudgetCarryOverReset"][];
         };
         /** @description The authenticated user's settings. A SINGLETON: there is no id, no create, no delete and no list, and the URL carries no id because the token is the entire addressing scheme. The row is created on first login, not by a client. */
         Settings: {

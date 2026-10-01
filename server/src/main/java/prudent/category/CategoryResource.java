@@ -23,6 +23,7 @@ import prudent.proto.v1.CreateCategoryRequest;
 import prudent.proto.v1.UpdateCategoryRequest;
 import prudent.CurrentUser;
 import prudent.Ids;
+import prudent.budget.BudgetCarryResetEntity;
 import prudent.budget.BudgetEntity;
 import prudent.error.PrudentException;
 import prudent.plan.PlanEntity;
@@ -172,6 +173,14 @@ public class CategoryResource {
     if (BudgetEntity.existsForCategory(userId, entity.id)) {
       throw PrudentException.conflict(
           "This category still has budgets. Delete them first.");
+    }
+    // And for carry-over resets (ADR-046). Unlike a budget there is nothing to delete first: the
+    // reset history is an audit trail and is never erased, so a category that has one stays. What
+    // a deleted category should leave readable is the category lifecycle task's to decide
+    // (jlogicsoftware/prudent#62); until then the history wins over the delete.
+    if (BudgetCarryResetEntity.existsForCategory(userId, entity.id)) {
+      throw PrudentException.conflict(
+          "This category has carry-over reset history, which is kept, so it cannot be deleted.");
     }
     entity.delete();
     return Response.noContent().build();

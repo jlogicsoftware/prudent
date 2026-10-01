@@ -29,6 +29,7 @@ class PrudentRepository {
   static const String _categoriesPath = '/api/v1/categories';
   static const String _settingsPath = '/api/v1/settings';
   static const String _budgetsPath = '/api/v1/budgets';
+  static const String _carryOverResetsPath = '/api/v1/budget-carry-over-resets';
   static const String _plansPath = '/api/v1/plans';
   static const String _occurrencesPath = '/api/v1/occurrences';
   static const String _spendByCategoryPath =
@@ -159,6 +160,45 @@ class PrudentRepository {
   }) => _client.delete<Budget>(
     Budget.new,
     _budgetPath(categoryId, month, currency),
+  );
+
+  /// Resets one category's carry-over in [currency] from [month] (`YYYY-MM`) onward (M3,
+  /// jlogicsoftware/prudent#61): carry-over into that month becomes zero. No budget is deleted and no
+  /// earlier month changes. The answer is the audit entry, including what was discarded. Refused
+  /// (409) if that slot already has a reset in effect.
+  Future<ZenResult<BudgetCarryOverReset>> resetBudgetCarryOver(
+    ResetBudgetCarryOverRequest request,
+  ) => _client.post<BudgetCarryOverReset>(
+    BudgetCarryOverReset.new,
+    _carryOverResetsPath,
+    body: request,
+  );
+
+  /// The whole reset history, revoked entries included, newest first, optionally narrowed to one
+  /// [categoryId] and/or [currency].
+  Future<ZenResult<ListBudgetCarryOverResetsResponse>>
+  listBudgetCarryOverResets({String? categoryId, String? currency}) {
+    final query = <String, String>{
+      if (categoryId != null) 'categoryId': categoryId,
+      if (currency != null) 'currency': currency,
+    };
+    final path =
+        query.isEmpty
+            ? _carryOverResetsPath
+            : '$_carryOverResetsPath?${_encodeQuery(query)}';
+    return _client.get<ListBudgetCarryOverResetsResponse>(
+      ListBudgetCarryOverResetsResponse.new,
+      path,
+    );
+  }
+
+  /// Takes a reset back. The entry stays in the history, marked revoked with who and when, and
+  /// the carry-over it bounded is counted in full again. Refused (409) if already revoked.
+  Future<ZenResult<BudgetCarryOverReset>> revokeBudgetCarryOverReset(
+    String id,
+  ) => _client.post<BudgetCarryOverReset>(
+    BudgetCarryOverReset.new,
+    '$_carryOverResetsPath/${Uri.encodeComponent(id)}/revoke',
   );
 
   static String _budgetPath(String categoryId, String month, String currency) =>

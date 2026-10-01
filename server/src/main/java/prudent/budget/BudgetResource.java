@@ -49,7 +49,8 @@ import zen.core.http.ZenStatus;
  * <p>{@code GET /summary} is the read side (jlogicsoftware/prudent#59, ADR-044): plan, actual and
  * remaining amount per budgeted category for one month in one currency, calculated on each request
  * from the budgets and the ledger and stored nowhere. Remaining includes the carry-over of the
- * category's earlier budgeted months (jlogicsoftware/prudent#60, ADR-045).
+ * category's earlier budgeted months (jlogicsoftware/prudent#60, ADR-045), counted from its latest
+ * reset if it has one (jlogicsoftware/prudent#61, ADR-046, {@link BudgetCarryOverResetResource}).
  *
  * <p>The resource shape is set out on {@link prudent.category.CategoryResource}.
  */
@@ -100,8 +101,9 @@ public class BudgetResource {
           "Query parameters: month (required, YYYY-MM) and currency (required, ISO-4217). Actual"
               + " is net spending from posted records in that currency, refunds included; a"
               + " planned occurrence is not counted until it is confirmed. Each item also carries"
-              + " the underspend or overspend of the category's earlier budgeted months, which"
-              + " is included in remaining. Never summed across currencies.")
+              + " the underspend or overspend of the category's earlier budgeted months, counted"
+              + " from its latest carry-over reset if it has one, which is included in"
+              + " remaining. Never summed across currencies.")
   @APIResponse(
       responseCode = ZenStatus.OK,
       content = @Content(schema = @Schema(ref = "BudgetSummaryResponse")))
@@ -127,13 +129,7 @@ public class BudgetResource {
     for (BudgetEntity budget : budgets) {
       categories.add(budget.categoryId);
     }
-    // Carry-over reads only the listed categories' earlier budgets and records, in this currency,
-    // so no other category or currency can reach the figure (ADR-045).
-    Map<UUID, Long> carryOver =
-        BudgetCalculator.carryOver(
-            BudgetEntity.listEarlier(userId, parsedMonth, normalized, categories),
-            RecordEntity.netByCategoryAndMonthBefore(
-                userId, normalized, categories, parsedMonth.atDay(1)));
+    CarryOver carryOver = carryOverInto(userId, parsedMonth, normalized, categories);
 
     return Response.ok(
             BudgetCalculator.summarize(
@@ -142,9 +138,35 @@ public class BudgetResource {
                 budgets,
                 RecordEntity.netByCategory(
                     userId, normalized, parsedMonth.atDay(1), parsedMonth.atEndOfMonth()),
-                carryOver))
+                carryOver.amountByCategory(),
+                carryOver.resetMonthByCategory()))
         .build();
   }
+
+  /**
+   * What carries into {@code month}, per category, and the reset month that bounds each figure —
+   * the one place both the summary and a reset's own audit entry get the number, so the amount a
+   * reset records as discarded is exactly the carry-over the summary showed.
+   *
+   * <p>Reads only the given categories' earlier budgets, records and live resets, in this currency,
+   * so no other category or currency can reach the figure (ADR-045, ADR-046).
+   */
+  static CarryOver carryOverInto(
+      UUID userId, YearMonth month, String currency, Set<UUID> categories) {
+    Map<UUID, YearMonth> resetMonths =
+        BudgetCalculator.resetMonths(
+            BudgetCarryResetEntity.listLive(userId, month, currency, categories));
+    return new CarryOver(
+        BudgetCalculator.carryOver(
+            BudgetEntity.listEarlier(userId, month, currency, categories),
+            RecordEntity.netByCategoryAndMonthBefore(
+                userId, currency, categories, month.atDay(1)),
+            resetMonths),
+        resetMonths);
+  }
+
+  /** The carry-over per category and the reset month, if any, that bounds each. */
+  record CarryOver(Map<UUID, Long> amountByCategory, Map<UUID, YearMonth> resetMonthByCategory) {}
 
   @GET
   @Path("/{categoryId}/{month}/{currency}")
@@ -295,7 +317,7 @@ public class BudgetResource {
     }
   }
 
-  private static String parseCurrency(String currency) {
+  static String parseCurrency(String currency) {
     String normalized = Currencies.normalize(currency);
     if (!Currencies.isValid(normalized)) {
       throw PrudentException.invalid("'" + currency + "' is not an ISO-4217 currency.");

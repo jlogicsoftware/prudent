@@ -494,6 +494,142 @@ void main() {
     );
   });
 
+  group('PrudentRepository budget carry-over resets', () {
+    Map<String, Object?> entry({bool revoked = false}) => {
+      'id': 'r1',
+      'categoryId': 'c1',
+      'month': '2026-10',
+      'currency': 'PLN',
+      'discardedMinor': '-5000',
+      'note': 'Fresh start',
+      'createdBy': 'u1',
+      'createdAtMs': '1790000000000',
+      if (revoked) 'revokedBy': 'u1',
+      if (revoked) 'revokedAtMs': '1790000100000',
+    };
+
+    test(
+      'resetBudgetCarryOver posts the slot and decodes the audit entry',
+      () async {
+        String? capturedBody;
+        String? capturedMethod;
+        Uri? capturedUri;
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            capturedBody = request.body;
+            capturedMethod = request.method;
+            capturedUri = _uriOf(request);
+            return _jsonResponse(entry(), status: 201);
+          }),
+        );
+
+        final result = await repository.resetBudgetCarryOver(
+          ResetBudgetCarryOverRequest(
+            categoryId: 'c1',
+            month: '2026-10',
+            currency: 'PLN',
+            note: 'Fresh start',
+          ),
+        );
+
+        expect(capturedMethod, 'POST');
+        expect(capturedUri!.path, '/api/v1/budget-carry-over-resets');
+        expect(capturedBody, contains('"categoryId":"c1"'));
+        expect(capturedBody, contains('"month":"2026-10"'));
+        expect(capturedBody, contains('"note":"Fresh start"'));
+        final reset = result.fold((r) => r, (e) => throw e);
+        expect(reset.id, 'r1');
+        expect(reset.discardedMinor.toInt(), -5000);
+        expect(reset.createdBy, 'u1');
+        expect(reset.createdAtMs.toInt(), 1790000000000);
+        expect(reset.revokedBy, isEmpty);
+      },
+    );
+
+    test(
+      'the history sends only the filters given and decodes revoked entries',
+      () async {
+        final calls = <String>[];
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            calls.add('${request.method} ${_uriOf(request)}');
+            return _jsonResponse({
+              'resets': [entry(revoked: true)],
+            });
+          }),
+        );
+
+        final all = await repository.listBudgetCarryOverResets();
+        await repository.listBudgetCarryOverResets(categoryId: 'c1');
+        await repository.listBudgetCarryOverResets(
+          categoryId: 'c1',
+          currency: 'PLN',
+        );
+
+        final reset = all.fold((r) => r.resets, (e) => throw e).single;
+        expect(reset.revokedBy, 'u1');
+        expect(reset.revokedAtMs.toInt(), 1790000100000);
+        expect(calls, [
+          'GET https://example.test/api/v1/budget-carry-over-resets',
+          'GET https://example.test/api/v1/budget-carry-over-resets?categoryId=c1',
+          'GET https://example.test/api/v1/budget-carry-over-resets?categoryId=c1&currency=PLN',
+        ]);
+      },
+    );
+
+    test(
+      'revokeBudgetCarryOverReset posts to the entry and decodes who revoked it',
+      () async {
+        String? capturedMethod;
+        Uri? capturedUri;
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            capturedMethod = request.method;
+            capturedUri = _uriOf(request);
+            return _jsonResponse(entry(revoked: true));
+          }),
+        );
+
+        final result = await repository.revokeBudgetCarryOverReset('r1');
+
+        expect(capturedMethod, 'POST');
+        expect(capturedUri!.path, '/api/v1/budget-carry-over-resets/r1/revoke');
+        expect(result.fold((r) => r.revokedBy, (e) => throw e), 'u1');
+      },
+    );
+
+    test(
+      'a summary item decodes the reset month that bounds its carry-over',
+      () async {
+        final repository = PrudentRepository(
+          client: _clientAnswering(
+            (request) => _jsonResponse({
+              'month': '2026-10',
+              'currency': 'PLN',
+              'items': [
+                {
+                  'categoryId': 'c1',
+                  'planMinor': '80000',
+                  'actualMinor': '0',
+                  'carryOverMinor': '0',
+                  'remainingMinor': '80000',
+                  'carryOverResetMonth': '2026-10',
+                },
+              ],
+            }),
+          ),
+        );
+
+        final summary = (await repository.getBudgetSummary(
+          month: '2026-10',
+          currency: 'PLN',
+        )).fold((r) => r, (e) => throw e);
+
+        expect(summary.items.single.carryOverResetMonth, '2026-10');
+      },
+    );
+  });
+
   group('PrudentRepository budget summary', () {
     test(
       'getBudgetSummary asks for one month in one currency and decodes every amount',

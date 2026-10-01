@@ -236,6 +236,7 @@ class CategoryBudgetSummary extends $pb.GeneratedMessage {
     $fixnum.Int64? actualMinor,
     $fixnum.Int64? remainingMinor,
     $fixnum.Int64? carryOverMinor,
+    $core.String? carryOverResetMonth,
   }) {
     final result = create();
     if (categoryId != null) result.categoryId = categoryId;
@@ -243,6 +244,8 @@ class CategoryBudgetSummary extends $pb.GeneratedMessage {
     if (actualMinor != null) result.actualMinor = actualMinor;
     if (remainingMinor != null) result.remainingMinor = remainingMinor;
     if (carryOverMinor != null) result.carryOverMinor = carryOverMinor;
+    if (carryOverResetMonth != null)
+      result.carryOverResetMonth = carryOverResetMonth;
     return result;
   }
 
@@ -264,6 +267,7 @@ class CategoryBudgetSummary extends $pb.GeneratedMessage {
     ..aInt64(3, _omitFieldNames ? '' : 'actualMinor')
     ..aInt64(4, _omitFieldNames ? '' : 'remainingMinor')
     ..aInt64(5, _omitFieldNames ? '' : 'carryOverMinor')
+    ..aOS(6, _omitFieldNames ? '' : 'carryOverResetMonth')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -344,6 +348,20 @@ class CategoryBudgetSummary extends $pb.GeneratedMessage {
   $core.bool hasCarryOverMinor() => $_has(4);
   @$pb.TagNumber(5)
   void clearCarryOverMinor() => $_clearField(5);
+
+  /// The month of the live carry-over reset that bounds carry_over_minor (M3,
+  /// jlogicsoftware/prudent#61, ADR-046), YYYY-MM, or empty when there is none. When set, only
+  /// budgeted months from this one up to (not including) the requested month were counted, so a
+  /// zero or a smaller figure is visibly the result of a reset and not of an absent history. The
+  /// entry that made it is in GET /api/v1/budget-carry-over-resets.
+  @$pb.TagNumber(6)
+  $core.String get carryOverResetMonth => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set carryOverResetMonth($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasCarryOverResetMonth() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearCarryOverResetMonth() => $_clearField(6);
 }
 
 /// GET /api/v1/budgets/summary?month=YYYY-MM&currency=XXX — the plan, actual and remaining amount of
@@ -478,6 +496,338 @@ class BudgetSummaryResponse extends $pb.GeneratedMessage {
   $core.bool hasTotalCarryOverMinor() => $_has(6);
   @$pb.TagNumber(7)
   void clearTotalCarryOverMinor() => $_clearField(7);
+}
+
+/// One reset: the audit entry and, while it is not revoked, the boundary. Addressed by id.
+class BudgetCarryOverReset extends $pb.GeneratedMessage {
+  factory BudgetCarryOverReset({
+    $core.String? id,
+    $core.String? categoryId,
+    $core.String? month,
+    $core.String? currency,
+    $fixnum.Int64? discardedMinor,
+    $core.String? note,
+    $core.String? createdBy,
+    $fixnum.Int64? createdAtMs,
+    $core.String? revokedBy,
+    $fixnum.Int64? revokedAtMs,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (categoryId != null) result.categoryId = categoryId;
+    if (month != null) result.month = month;
+    if (currency != null) result.currency = currency;
+    if (discardedMinor != null) result.discardedMinor = discardedMinor;
+    if (note != null) result.note = note;
+    if (createdBy != null) result.createdBy = createdBy;
+    if (createdAtMs != null) result.createdAtMs = createdAtMs;
+    if (revokedBy != null) result.revokedBy = revokedBy;
+    if (revokedAtMs != null) result.revokedAtMs = revokedAtMs;
+    return result;
+  }
+
+  BudgetCarryOverReset._();
+
+  factory BudgetCarryOverReset.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BudgetCarryOverReset.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BudgetCarryOverReset',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'categoryId')
+    ..aOS(3, _omitFieldNames ? '' : 'month')
+    ..aOS(4, _omitFieldNames ? '' : 'currency')
+    ..aInt64(5, _omitFieldNames ? '' : 'discardedMinor')
+    ..aOS(6, _omitFieldNames ? '' : 'note')
+    ..aOS(7, _omitFieldNames ? '' : 'createdBy')
+    ..aInt64(8, _omitFieldNames ? '' : 'createdAtMs')
+    ..aOS(9, _omitFieldNames ? '' : 'revokedBy')
+    ..aInt64(10, _omitFieldNames ? '' : 'revokedAtMs')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BudgetCarryOverReset clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BudgetCarryOverReset copyWith(void Function(BudgetCarryOverReset) updates) =>
+      super.copyWith((message) => updates(message as BudgetCarryOverReset))
+          as BudgetCarryOverReset;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BudgetCarryOverReset create() => BudgetCarryOverReset._();
+  @$core.override
+  BudgetCarryOverReset createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BudgetCarryOverReset getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BudgetCarryOverReset>(create);
+  static BudgetCarryOverReset? _defaultInstance;
+
+  /// The entry's id; what POST .../{id}/revoke addresses.
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  /// The category whose carry-over was reset. The caller's own.
+  @$pb.TagNumber(2)
+  $core.String get categoryId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set categoryId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCategoryId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCategoryId() => $_clearField(2);
+
+  /// The first month the carry-over is counted from, YYYY-MM: carry-over INTO this month is zero,
+  /// and only budgeted months from here on contribute to later months.
+  @$pb.TagNumber(3)
+  $core.String get month => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set month($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasMonth() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearMonth() => $_clearField(3);
+
+  /// ISO-4217. A reset applies to this currency only (ADR-009).
+  @$pb.TagNumber(4)
+  $core.String get currency => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set currency($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasCurrency() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCurrency() => $_clearField(4);
+
+  /// The carry-over into `month` as it stood immediately before this reset — what the user chose to
+  /// discard. Positive for an underspend, negative for an overspend, signed minor units. A snapshot
+  /// taken when the reset was made: it is not recalculated when earlier budgets or records change.
+  @$pb.TagNumber(5)
+  $fixnum.Int64 get discardedMinor => $_getI64(4);
+  @$pb.TagNumber(5)
+  set discardedMinor($fixnum.Int64 value) => $_setInt64(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasDiscardedMinor() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearDiscardedMinor() => $_clearField(5);
+
+  /// The user's own words for why, at most 500 characters; empty when none was given.
+  @$pb.TagNumber(6)
+  $core.String get note => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set note($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasNote() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearNote() => $_clearField(6);
+
+  /// Who made the reset: the authenticated user's id.
+  @$pb.TagNumber(7)
+  $core.String get createdBy => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set createdBy($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasCreatedBy() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearCreatedBy() => $_clearField(7);
+
+  /// When it was made, epoch milliseconds.
+  @$pb.TagNumber(8)
+  $fixnum.Int64 get createdAtMs => $_getI64(7);
+  @$pb.TagNumber(8)
+  set createdAtMs($fixnum.Int64 value) => $_setInt64(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasCreatedAtMs() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearCreatedAtMs() => $_clearField(8);
+
+  /// Set together when the reset was taken back, both empty/zero otherwise. A revoked reset no
+  /// longer bounds anything but stays in the history.
+  @$pb.TagNumber(9)
+  $core.String get revokedBy => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set revokedBy($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasRevokedBy() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearRevokedBy() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $fixnum.Int64 get revokedAtMs => $_getI64(9);
+  @$pb.TagNumber(10)
+  set revokedAtMs($fixnum.Int64 value) => $_setInt64(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasRevokedAtMs() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearRevokedAtMs() => $_clearField(10);
+}
+
+/// POST /api/v1/budget-carry-over-resets — resets one category's carry-over in one currency from
+/// `month` onward. Answers 201 with the new entry, 404 for a category that is not the caller's, and
+/// 409 when that slot already has a live reset.
+class ResetBudgetCarryOverRequest extends $pb.GeneratedMessage {
+  factory ResetBudgetCarryOverRequest({
+    $core.String? categoryId,
+    $core.String? month,
+    $core.String? currency,
+    $core.String? note,
+  }) {
+    final result = create();
+    if (categoryId != null) result.categoryId = categoryId;
+    if (month != null) result.month = month;
+    if (currency != null) result.currency = currency;
+    if (note != null) result.note = note;
+    return result;
+  }
+
+  ResetBudgetCarryOverRequest._();
+
+  factory ResetBudgetCarryOverRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ResetBudgetCarryOverRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ResetBudgetCarryOverRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'categoryId')
+    ..aOS(2, _omitFieldNames ? '' : 'month')
+    ..aOS(3, _omitFieldNames ? '' : 'currency')
+    ..aOS(4, _omitFieldNames ? '' : 'note')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ResetBudgetCarryOverRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ResetBudgetCarryOverRequest copyWith(
+          void Function(ResetBudgetCarryOverRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as ResetBudgetCarryOverRequest))
+          as ResetBudgetCarryOverRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ResetBudgetCarryOverRequest create() =>
+      ResetBudgetCarryOverRequest._();
+  @$core.override
+  ResetBudgetCarryOverRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ResetBudgetCarryOverRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ResetBudgetCarryOverRequest>(create);
+  static ResetBudgetCarryOverRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get categoryId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set categoryId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCategoryId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCategoryId() => $_clearField(1);
+
+  /// YYYY-MM. Need not be a month that has a budget.
+  @$pb.TagNumber(2)
+  $core.String get month => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set month($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMonth() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMonth() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get currency => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set currency($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCurrency() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCurrency() => $_clearField(3);
+
+  /// Optional, at most 500 characters.
+  @$pb.TagNumber(4)
+  $core.String get note => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set note($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasNote() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearNote() => $_clearField(4);
+}
+
+/// GET /api/v1/budget-carry-over-resets — the caller's whole reset history, revoked entries
+/// included, optionally narrowed by the `categoryId` and `currency` query parameters. Newest first,
+/// then by id, so the order is total. Unpaginated in v1 for the reason records.proto gives for
+/// ListRecordsResponse.
+class ListBudgetCarryOverResetsResponse extends $pb.GeneratedMessage {
+  factory ListBudgetCarryOverResetsResponse({
+    $core.Iterable<BudgetCarryOverReset>? resets,
+  }) {
+    final result = create();
+    if (resets != null) result.resets.addAll(resets);
+    return result;
+  }
+
+  ListBudgetCarryOverResetsResponse._();
+
+  factory ListBudgetCarryOverResetsResponse.fromBuffer(
+          $core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListBudgetCarryOverResetsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListBudgetCarryOverResetsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..pPM<BudgetCarryOverReset>(1, _omitFieldNames ? '' : 'resets',
+        subBuilder: BudgetCarryOverReset.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListBudgetCarryOverResetsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListBudgetCarryOverResetsResponse copyWith(
+          void Function(ListBudgetCarryOverResetsResponse) updates) =>
+      super.copyWith((message) =>
+              updates(message as ListBudgetCarryOverResetsResponse))
+          as ListBudgetCarryOverResetsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListBudgetCarryOverResetsResponse create() =>
+      ListBudgetCarryOverResetsResponse._();
+  @$core.override
+  ListBudgetCarryOverResetsResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListBudgetCarryOverResetsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListBudgetCarryOverResetsResponse>(
+          create);
+  static ListBudgetCarryOverResetsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<BudgetCarryOverReset> get resets => $_getList(0);
 }
 
 const $core.bool _omitFieldNames =

@@ -88,6 +88,13 @@ message CategoryBudgetSummary {
   // first budgeted month. Calculated on every read, so editing an earlier month's budget or
   // records changes it.
   int64 carry_over_minor = 5;
+
+  // The month of the live carry-over reset that bounds carry_over_minor (M3,
+  // jlogicsoftware/prudent#61, ADR-046), YYYY-MM, or empty when there is none. When set, only
+  // budgeted months from this one up to (not including) the requested month were counted, so a
+  // zero or a smaller figure is visibly the result of a reset and not of an absent history. The
+  // entry that made it is in GET /api/v1/budget-carry-over-resets.
+  string carry_over_reset_month = 6;
 }
 
 // GET /api/v1/budgets/summary?month=YYYY-MM&currency=XXX — the plan, actual and remaining amount of
@@ -112,3 +119,74 @@ message BudgetSummaryResponse {
   int64 total_remaining_minor = 6;
   int64 total_carry_over_minor = 7;
 }
+
+// --- Carry-over resets (M3, jlogicsoftware/prudent#61, ADR-046) --------------------------------
+//
+// A RESET IS A BOUNDARY, NOT AN EDIT. It tells the carry-over calculation (ADR-045) to stop
+// counting before a chosen month for one category in one currency, and nothing else: no budget is
+// deleted, no record changes, and no earlier month's own plan, actual or remaining moves.
+//
+// EVERY RESET IS AN AUDIT ENTRY, and entries are never deleted. Taking a reset back marks the same
+// entry revoked (who, when), so the history shows that it happened and that it was undone.
+
+// One reset: the audit entry and, while it is not revoked, the boundary. Addressed by id.
+message BudgetCarryOverReset {
+  // The entry's id; what POST .../{id}/revoke addresses.
+  string id = 1;
+
+  // The category whose carry-over was reset. The caller's own.
+  string category_id = 2;
+
+  // The first month the carry-over is counted from, YYYY-MM: carry-over INTO this month is zero,
+  // and only budgeted months from here on contribute to later months.
+  string month = 3;
+
+  // ISO-4217. A reset applies to this currency only (ADR-009).
+  string currency = 4;
+
+  // The carry-over into `month` as it stood immediately before this reset — what the user chose to
+  // discard. Positive for an underspend, negative for an overspend, signed minor units. A snapshot
+  // taken when the reset was made: it is not recalculated when earlier budgets or records change.
+  int64 discarded_minor = 5;
+
+  // The user's own words for why, at most 500 characters; empty when none was given.
+  string note = 6;
+
+  // Who made the reset: the authenticated user's id.
+  string created_by = 7;
+
+  // When it was made, epoch milliseconds.
+  int64 created_at_ms = 8;
+
+  // Set together when the reset was taken back, both empty/zero otherwise. A revoked reset no
+  // longer bounds anything but stays in the history.
+  string revoked_by = 9;
+  int64 revoked_at_ms = 10;
+}
+
+// POST /api/v1/budget-carry-over-resets — resets one category's carry-over in one currency from
+// `month` onward. Answers 201 with the new entry, 404 for a category that is not the caller's, and
+// 409 when that slot already has a live reset.
+message ResetBudgetCarryOverRequest {
+  string category_id = 1;
+
+  // YYYY-MM. Need not be a month that has a budget.
+  string month = 2;
+
+  string currency = 3;
+
+  // Optional, at most 500 characters.
+  string note = 4;
+}
+
+// GET /api/v1/budget-carry-over-resets — the caller's whole reset history, revoked entries
+// included, optionally narrowed by the `categoryId` and `currency` query parameters. Newest first,
+// then by id, so the order is total. Unpaginated in v1 for the reason records.proto gives for
+// ListRecordsResponse.
+message ListBudgetCarryOverResetsResponse {
+  repeated BudgetCarryOverReset resets = 1;
+}
+
+// POST /api/v1/budget-carry-over-resets/{id}/revoke answers the same entry with revoked_by and
+// revoked_at_ms set, 404 for an entry that is not the caller's and 409 when it is already revoked.
+// There is no DELETE: the history is not erased.

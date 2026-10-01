@@ -72,9 +72,15 @@ and currency on each request — actual is net spending from posted ledger recor
 Carry-over (ADR-045, jlogicsoftware/prudent#60) is calculated the same way: the sum of
 `plan − actual` over a category's earlier budgeted months in that currency, passing unchanged across
 months with no budget and recalculating when an earlier budget or record is edited; the summary's
-`remaining` includes it. Nothing yet resets carry-over, keeps an audit trail, or shows any of it —
-those are the epic's later tasks (jlogicsoftware/prudent#35) — and the client has only the
-repository methods.
+`remaining` includes it. A reset (ADR-046, jlogicsoftware/prudent#61) restarts one category's
+carry-over in one currency from a chosen month: `BudgetCarryOverResetResource` over `BudgetCarryResetEntity` at
+`/api/v1/budget-carry-over-resets` is a boundary the sum stops at, not an edit, so prior budgets and
+earlier months are untouched. Every reset is an audit entry that is never deleted — who, when, the
+carry-over it discarded, a note — and taking one back marks it revoked rather than removing it; the
+summary names the reset behind each carry-over. A category with reset history cannot be deleted until
+the category lifecycle task (jlogicsoftware/prudent#62) decides otherwise. Nothing yet audits budget
+edits or shows any of this — those are the epic's later tasks (jlogicsoftware/prudent#35) — and the
+client has only the repository methods.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the

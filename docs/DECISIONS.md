@@ -13,6 +13,84 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-046 — A carry-over reset is a boundary the calculation stops at, and every reset is a kept audit entry
+
+**Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-045 (carry-over is a sum over earlier
+budgeted months, calculated on read), ADR-043 (a budget is the slot it fills), ADR-009 (per
+currency, never blended). **Completes:** ADR-045's "What this does not decide — Reset (task 4)".
+
+### Decision
+
+The fourth M3 task (jlogicsoftware/prudent#61 — "reset from a chosen month onward without deleting
+prior budgets or hiding who/what changed the result") adds a reset that starts a category's
+carry-over again from a month the user chooses.
+
+- **A reset is a boundary, not an edit.** `prudent_budget_carry_reset` holds one row per reset:
+  category, month, currency. For a category, month `M` and currency, carry-over into `M` is now the
+  sum of `plan − actual` over its budgeted months in `[R, M)`, where `R` is the latest live reset at
+  or before `M` (and unbounded below when there is none). Carry-over into `R` itself is zero. No
+  budget and no record is touched, so prior budgets survive and **no earlier month's own plan,
+  actual, carry-over or remaining changes** — a reset at `R` says nothing about a month before `R`,
+  and the query that reads resets stops at the requested month. Still calculated on read, stored
+  nowhere.
+- **Scope is one category in one currency**, the same granularity as carry-over itself, so one
+  category's reset never touches another's and one currency's never touches another's (ADR-009). The
+  month need not have a budget.
+- **Every reset is its own audit entry, and entries are never deleted.** A row records who made it
+  (`created_by`, the authenticated user), when, an optional note (≤ 500 characters), and
+  `discarded_minor` — the carry-over into the reset month as the summary showed it just before, so
+  the entry says what the user chose to throw away. `discarded_minor` is a snapshot: editing an
+  earlier budget afterwards does not rewrite it. It is computed by the same `carryOverInto` the
+  summary uses, so the two cannot disagree.
+- **Undoing is revoking, not deleting.** `POST /api/v1/budget-carry-over-resets/{id}/revoke` sets
+  `revoked_at`/`revoked_by` on the same row; the carry-over is counted in full again and the history
+  still shows the reset and who took it back. There is no `DELETE` route. At most one **live** reset
+  exists per slot, held by a partial unique index and filled with `INSERT … ON CONFLICT DO NOTHING`,
+  so two racing requests leave one row and the other is told 409; a revoked slot can be reset again
+  and both entries stay.
+- **The result names its cause.** `CategoryBudgetSummary.carry_over_reset_month` is the month of the
+  reset that bounds the figure (empty when none), so a carry-over that is smaller than the history
+  alone would give is visibly the result of a reset. The entry behind it is in
+  `GET /api/v1/budget-carry-over-resets` (the whole history, revoked entries included, newest first,
+  filterable by `categoryId` and `currency`).
+- **Why `created_by` when it always equals `user_id`.** Only the owner can write here today. History
+  already written cannot be backfilled truthfully, so the column exists from the first row for the
+  day a second kind of writer does.
+- **Wire:** `BudgetCarryOverReset`, `ResetBudgetCarryOverRequest`,
+  `ListBudgetCarryOverResetsResponse` and the new summary field are in `budgets.proto`. The OpenAPI
+  schema for `CategoryBudgetSummary` also gains the `carryOver*` fields ADR-045 added to the proto but
+  left out of `openapi.yaml`.
+
+### What this does not decide
+
+- **Category lifecycle (task 5, jlogicsoftware/prudent#62).** A category with reset history cannot be
+  deleted (409), because deleting it would erase or orphan the entry the audit trail promises to
+  keep, and unlike budgets there is nothing the user can delete first. That is the conservative
+  answer, not a settled one: whether a deleted category should leave a readable name behind on its
+  history is exactly that task's question. Account erasure is a different thing — the retention
+  cascade deletes a user's reset history with the rest of their data, because erasing a person
+  outranks the history's never-deleted rule, which is a promise to that person.
+- **Audit of budget edits.** The M3 roadmap line "a readable audit trail of budget changes and
+  resets" has two halves. This task delivers resets; a budget amount is still overwritten in place
+  with no history of who changed it.
+- **Reset-all.** One reset names one category and currency; a client resetting every category sends
+  one request each. A bulk call would be a new endpoint and is not needed until a screen asks.
+- **Percent / overspent / empty states and any screen (task 6).** The client gains only repository
+  methods.
+
+### Consequence
+
+Verified by `BudgetCarryOverResetTest` (both transports; the audit fields; a reset restarting the
+figure and naming itself; earlier months and budgets unchanged; mid-history, later-than-requested,
+per-category, per-currency and per-user boundaries; a second reset discarding only what the first
+left counted; the snapshot; revoke restoring the figure and keeping the entry; revoke twice and
+reset twice refused; validation; ownership; no delete route; category delete refused),
+`BudgetCarryResetSchemaTest` (the live-slot index, revoked rows not counting, each check
+constraint, the foreign key), `BudgetCalculatorTest`, the row-level-security and retention suites
+extended to the new table, and a client repository test. `task test:server` green, 403 tests.
+
+---
+
 ## ADR-045 — A budget's unspent or overspent amount carries forward as a sum over its earlier budgeted months, calculated on read
 
 **Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-044 (plan, actual and remaining are
