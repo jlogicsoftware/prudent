@@ -13,6 +13,84 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-048 — The budget overview is a tab of its own, one month in one currency, and its percentage is measured against what was available
+
+**Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-047 (a month without a budget is an empty
+answer; archived categories keep their history), ADR-046 (a reset is named by the summary), ADR-045
+(carry-over), ADR-044 (plan, actual and remaining are calculated on read; percent, empty and overspent
+states are "task 6"), ADR-009 (per currency, never blended). **Completes:** ADR-044's "What this does not
+decide — Percent, empty and overspent states (task 6)".
+
+### Decision
+
+The sixth M3 task (jlogicsoftware/prudent#63 — "navigate months and show plan, actual, carry-over,
+remaining amount and percentage with distinct overspent and empty states") adds the screen that
+renders `GET /api/v1/budgets/summary`. No server or contract change: the summary already carries every
+figure, and nothing here is stored.
+
+- **A fifth navigation tab, "Budgets"**, beside Overview, Records, Analytics and Settings. A budget is
+  looked at monthly and routinely; a button inside another screen would hide it.
+- **One month in one currency at a time.** Previous/next buttons move by calendar month with no limit
+  (a budget can be set ahead), and "This month" appears only away from the current month. The currency
+  is picked from the currencies the user holds accounts in, main currency first, with `ZenSelect`
+  shown only when there is more than one — the same set the analytics screen offers. Month and
+  currency are view state, not settings: they live in the screen's own state and start at the current month and
+  the main currency. With no account there is no currency to budget in and the screen says so.
+- **A card per budgeted category, and one for the month's totals,** each showing plan, carried over,
+  spent (`actual`, net of refunds), remaining and the percentage used with a progress bar. The
+  carry-over row is always drawn, even at zero, so cards line up. A reset is shown as "Carry-over
+  reset from <month>" from `carry_over_reset_month`, so a zero is visibly a reset and not missing
+  history. Cards are ordered by category title on the client (the server's id order is stable but not
+  readable). An archived category is labelled "Archived" and keeps its card (ADR-047).
+- **The percentage is `actual ÷ (plan + carry-over)`, rounded down.** `remaining` already includes the
+  carry-over (ADR-045), so measuring against the plan alone would show 100% for a category that still
+  has money left from last month, or under 100% for one that is overspent. Rounding down means a
+  month that has not used its money never reads 100%. It is over 100 once overspent and 0 when refunds
+  outweigh spending. When the carry-over has consumed the whole plan (`plan + carry-over ≤ 0`) there is
+  nothing to measure against and the percentage is **absent** — no bar and no number — rather than a
+  figure that could be read as meaningful. It is integer arithmetic on `Int64`, and no amount goes
+  through a `double`.
+- **Overspent is `remaining < 0`, using the server's `remaining`,** so the screen cannot disagree
+  with the summary, and it includes an overspend carried in with nothing spent this month. It is said
+  in words ("Overspent by X"), an icon, and the error colour on the bar — never colour alone. The totals
+  card has the same state, judged on the totals.
+- **Empty is its own state.** A summary with no items (ADR-047: no category is budgeted in that month
+  and currency) shows "No budgets for <month> in <currency>." and no card, because a card of zeros would
+  read as "budgeted and untouched". A failed load is reported and draws nothing, rather than zeros.
+- **A change to a record refetches the summary.** `RecordsNotifier` invalidates `budgetSummaryProvider`
+  on add, edit and delete, because `actual` is a sum over records and a stale figure would be wrong with
+  no error to show for it. Transfers and balance corrections are excluded from `actual` (ADR-044), so
+  they do not.
+
+### What this does not decide
+
+- **Setting, editing or deleting a budget from the client.** The repository methods exist; no screen
+  calls them, so a budget can still only be created through the API. The empty state therefore does not
+  tell the user to add one. A budget editor, and a reset/audit-history screen, are new scope.
+- **Spending in a category with no budget.** It is in no figure (ADR-044) and the overview shows
+  nothing for it. Showing "unbudgeted spending" needs a new field or endpoint.
+- **A carry-over into a month where the category has no budget** (ADR-047's open point). The summary
+  lists a month's budgets, so such a category has no card and its carry-over is not shown. The overview
+  does not need a new field to be correct, only to be complete; this is left until a user wants it.
+- **Auditing budget edits** (the epic's remaining work, jlogicsoftware/prudent#35).
+
+### Consequence
+
+Verified by `budget_figures_test.dart` (month arithmetic across a year boundary; percentage rounding,
+the carry-over denominator, zero and absent percentages, large amounts; overspent at, past and below
+zero, and from carry-over alone; ordering), `budget_overview_test.dart` (every figure and the totals on
+screen, an overspent card, an overspend carried in, the empty month, month navigation both ways and back
+to the current month, one currency per request, an archived category, a reset note, an unknown category,
+a failed load, no accounts) and `budget_summary_provider_test.dart` (a record add, edit and delete each
+refetch; an unrelated read does not). `flutter analyze` is clean apart from the pre-existing
+analyzer-plugin deprecation warning. The full client suite passes except `popup_test.dart`, which fails
+identically on an untouched `main` and is unrelated to this change.
+
+**Not verified, and stated rather than implied:** the screen has not been driven in a real browser or
+on a device against a running server; the widget tests render it with a fake summary.
+
+---
+
 ## ADR-047 — A category that has been used is archived, never removed; an archived category keeps its history and takes nothing new
 
 **Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-046 (a carry-over reset is a kept audit

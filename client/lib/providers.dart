@@ -4,6 +4,7 @@ import 'package:zen_core/zen_core.dart';
 
 import 'generated/prudent/v1/accounts.pb.dart';
 import 'generated/prudent/v1/analytics.pb.dart';
+import 'generated/prudent/v1/budgets.pb.dart';
 import 'generated/prudent/v1/categories.pb.dart';
 import 'generated/prudent/v1/plans.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
@@ -75,6 +76,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
     final result = await _repository.createRecord(request);
     final record = result.fold((r) => r, (error) => throw error);
     state = AsyncValue.data([...?state.value, record]);
+    ref.invalidate(budgetSummaryProvider);
   }
 
   Future<void> editRecord(String id, UpdateRecordRequest request) async {
@@ -83,6 +85,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
     state = AsyncValue.data([
       for (final r in state.value ?? const <Record>[]) if (r.id == id) updated else r,
     ]);
+    ref.invalidate(budgetSummaryProvider);
   }
 
   /// Deletes immediately; the caller re-creates on undo (a new server-minted id — there is no
@@ -93,6 +96,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
     state = AsyncValue.data([
       for (final r in state.value ?? const <Record>[]) if (r.id != id) r,
     ]);
+    ref.invalidate(budgetSummaryProvider);
   }
 
   /// Creates a same-currency transfer (jlogicsoftware/prudent#32) and adds both legs to state.
@@ -365,3 +369,41 @@ final plannedOccurrencesProvider = FutureProvider.autoDispose<List<PlanOccurrenc
     ...upcoming.fold((response) => response.occurrences, (error) => throw error),
   ];
 });
+
+// ---------------------------------------------------------------------------------------------
+// Budgets — read-only summary of one month in one currency (budgets.proto, ADR-044, ADR-045)
+// ---------------------------------------------------------------------------------------------
+
+@immutable
+class BudgetSummaryParams {
+  const BudgetSummaryParams({required this.month, required this.currency});
+
+  /// `YYYY-MM`, as the endpoint takes it.
+  final String month;
+  final String currency;
+
+  @override
+  bool operator ==(Object other) =>
+      other is BudgetSummaryParams && other.month == month && other.currency == currency;
+
+  @override
+  int get hashCode => Object.hash(month, currency);
+}
+
+/// Plan, actual, carry-over and remaining for every category budgeted in one month and currency.
+///
+/// Calculated by the server on every read, so this only fetches; nothing here can drift from the
+/// ledger. [RecordsNotifier] invalidates it when a record that counts toward `actual` changes
+/// (transfers and balance corrections are excluded by ADR-044, so they do not).
+final budgetSummaryProvider =
+    FutureProvider.autoDispose.family<BudgetSummaryResponse, BudgetSummaryParams>((
+      ref,
+      params,
+    ) async {
+      final repository = ref.watch(prudentRepositoryProvider);
+      final result = await repository.getBudgetSummary(
+        month: params.month,
+        currency: params.currency,
+      );
+      return result.fold((response) => response, (error) => throw error);
+    });
