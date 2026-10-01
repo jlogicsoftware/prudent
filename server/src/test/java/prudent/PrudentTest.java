@@ -20,6 +20,8 @@ import prudent.account.AccountKind;
 import prudent.budget.BudgetCarryResetEntity;
 import prudent.budget.BudgetEntity;
 import prudent.category.CategoryEntity;
+import prudent.goal.AllocationKind;
+import prudent.goal.GoalAllocationEntity;
 import prudent.goal.GoalEntity;
 import prudent.goal.GoalState;
 import prudent.plan.Frequency;
@@ -77,6 +79,7 @@ public final class PrudentTest {
               PlanEntity.deleteAll();
               BudgetCarryResetEntity.deleteAll();
               BudgetEntity.deleteAll();
+              GoalAllocationEntity.deleteAll();
               GoalEntity.deleteAll();
               AccountEntity.deleteAll();
               CategoryEntity.deleteAll();
@@ -376,6 +379,31 @@ public final class PrudentTest {
               goal.createdAt = java.time.Instant.now();
               goal.statusChangedAt = goal.createdAt;
               goal.persist();
+            });
+    return id;
+  }
+
+  /**
+   * Persists an envelope entry putting {@code amountMinor} into {@code goalId}, directly — for
+   * suites asserting something other than {@code GoalAllocationResource} itself.
+   */
+  public static UUID seedAllocation(
+      String userId, UUID goalId, String currency, long amountMinor) {
+    UUID id = UUID.randomUUID();
+    QuarkusTransaction.requiringNew()
+        .run(
+            () -> {
+              GoalAllocationEntity entry = new GoalAllocationEntity();
+              entry.id = id;
+              entry.userId = UUID.fromString(userId);
+              entry.kind = AllocationKind.ALLOCATE;
+              entry.targetGoalId = goalId;
+              entry.currency = currency;
+              entry.amountMinor = amountMinor;
+              entry.note = "";
+              entry.createdAt = java.time.Instant.now();
+              entry.createdBy = UUID.fromString(userId);
+              entry.persist();
             });
     return id;
   }

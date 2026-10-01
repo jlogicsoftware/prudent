@@ -17,6 +17,7 @@ The directory mirrors the proto package the way `../jZen/proto/zen/v1/` mirrors 
 | `prudent/v1/plans.proto` | `prudent.v1` | `prudent.proto.v1` |
 | `prudent/v1/budgets.proto` | `prudent.v1` | `prudent.proto.v1` |
 | `prudent/v1/goals.proto` | `prudent.v1` | `prudent.proto.v1` |
+| `prudent/v1/goal_allocations.proto` | `prudent.v1` | `prudent.proto.v1` |
 
 `plans.proto` holds **expected** money — one-off and recurring plans (M2) — and is deliberately a
 separate model from `records.proto`: a record moves a balance (ADR-014), a plan never does.
@@ -29,6 +30,11 @@ calculated plan/actual/remaining summary of a month, which is never stored (ADR-
 `goals.proto` holds something the user is **saving for** (M4): a name, one currency, a positive target
 amount, an optional target date and a lifecycle state. A goal is retired — completed or archived — and
 never deleted, so it has no delete route (ADR-049).
+
+`goal_allocations.proto` holds the money **set aside** for goals (M4): allocate, withdraw and move entries in
+an append-only history that is never edited or deleted, and the envelope each goal holds, which is calculated
+from that history and never stored. An entry is virtual — it moves no bank balance and is not a record
+(ADR-050).
 
 `settings.proto` is the odd one: a **singleton**, one row per user, with no id and no list message
 because the JWT is the entire addressing scheme. It carries `main_currency`, which is a **label and

@@ -172,14 +172,15 @@ public class GoalResource {
   @Operation(
       summary = "Archive a goal: retire it without losing its history",
       description =
-          "An archived goal stays in the list and is read-only. Archiving deletes nothing.")
+          "An archived goal stays in the list and is read-only. Archiving deletes nothing, and is"
+              + " refused while the goal's envelope still holds money.")
   @APIResponse(responseCode = ZenStatus.OK, content = @Content(schema = @Schema(ref = "Goal")))
   @APIResponse(
       responseCode = ZenStatus.NOT_FOUND,
       content = @Content(schema = @Schema(ref = "ZenError")))
   @APIResponse(
       responseCode = ZenStatus.CONFLICT,
-      description = "The goal is already archived",
+      description = "The goal is already archived, or still has money set aside in its envelope",
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response archive(@PathParam("id") String id) {
     return transition(id, GoalState.ARCHIVED);
@@ -202,7 +203,21 @@ public class GoalResource {
   }
 
   private Response transition(String id, GoalState target) {
-    GoalEntity entity = require(currentUser.id(), id);
+    // Locked: archiving decides from the envelope's balance, and an entry written between that
+    // read and the commit would leave money in a goal that can no longer release it.
+    GoalEntity entity = GoalEntity.findOwnedForUpdate(currentUser.id(), Ids.parse("goal", id));
+    if (entity == null) {
+      throw PrudentException.notFound("goal", id);
+    }
+    if (target == GoalState.ARCHIVED
+        && entity.status.canMoveTo(target)
+        && GoalAllocationEntity.balance(entity.userId, entity.id) != 0) {
+      // An archived goal is read-only (ADR-049), so money left in it could not be withdrawn or
+      // moved until it was reactivated; asking the user to release it first keeps "archived"
+      // meaning "nothing is set aside here" (ADR-050).
+      throw PrudentException.conflict(
+          "This goal still has money set aside. Withdraw it or move it to another goal first.");
+    }
     entity.transitionTo(target, Instant.now());
     return Response.ok(mapper.toProto(entity)).build();
   }

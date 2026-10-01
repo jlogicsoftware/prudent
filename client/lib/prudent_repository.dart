@@ -5,6 +5,7 @@ import 'generated/prudent/v1/accounts.pb.dart';
 import 'generated/prudent/v1/analytics.pb.dart';
 import 'generated/prudent/v1/budgets.pb.dart';
 import 'generated/prudent/v1/categories.pb.dart';
+import 'generated/prudent/v1/goal_allocations.pb.dart';
 import 'generated/prudent/v1/goals.pb.dart';
 import 'generated/prudent/v1/plans.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
@@ -31,6 +32,7 @@ class PrudentRepository {
   static const String _settingsPath = '/api/v1/settings';
   static const String _budgetsPath = '/api/v1/budgets';
   static const String _goalsPath = '/api/v1/goals';
+  static const String _goalAllocationsPath = '/api/v1/goal-allocations';
   static const String _carryOverResetsPath = '/api/v1/budget-carry-over-resets';
   static const String _plansPath = '/api/v1/plans';
   static const String _occurrencesPath = '/api/v1/occurrences';
@@ -178,6 +180,47 @@ class PrudentRepository {
         );
     }
   }
+
+  // --- Goal envelopes (M4, jlogicsoftware/prudent#64) — money set aside, never a transaction -----
+
+  /// Allocates, withdraws or moves money between goal envelopes — one immutable history entry
+  /// (ADR-050). [CreateGoalAllocationRequest.kind] decides which goal ids it needs: a target for
+  /// an allocation, a source for a withdrawal, both (in one currency) for a move. Refused (404)
+  /// for a goal that is not the user's and (409) when the envelope does not hold the amount or a
+  /// goal's state does not allow the entry. No account balance moves.
+  Future<ZenResult<GoalAllocation>> createGoalAllocation(
+    CreateGoalAllocationRequest request,
+  ) => _client.post<GoalAllocation>(
+    GoalAllocation.new,
+    _goalAllocationsPath,
+    body: request,
+  );
+
+  /// The envelope history, newest first, optionally narrowed to the entries that put money into or
+  /// took it out of one goal. Entries are never edited or deleted.
+  Future<ZenResult<ListGoalAllocationsResponse>> listGoalAllocations({
+    String? goalId,
+  }) {
+    final path =
+        goalId == null
+            ? _goalAllocationsPath
+            : '$_goalAllocationsPath?${_encodeQuery({'goalId': goalId})}';
+    return _client.get<ListGoalAllocationsResponse>(
+      ListGoalAllocationsResponse.new,
+      path,
+    );
+  }
+
+  Future<ZenResult<GoalAllocation>> getGoalAllocation(String id) => _client
+      .get<GoalAllocation>(GoalAllocation.new, '$_goalAllocationsPath/$id');
+
+  /// What each goal's envelope holds right now, one per goal (zero included). Calculated by the
+  /// server from the history on every call; it is money set aside, not part of any account balance.
+  Future<ZenResult<ListGoalEnvelopesResponse>> listGoalEnvelopes() =>
+      _client.get<ListGoalEnvelopesResponse>(
+        ListGoalEnvelopesResponse.new,
+        '$_goalAllocationsPath/envelopes',
+      );
 
   // --- Budgets (M3, jlogicsoftware/prudent#36) — the amount that may be spent, never a transaction
 

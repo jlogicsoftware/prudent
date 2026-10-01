@@ -43,4 +43,20 @@ public enum GoalState {
   public boolean canMoveTo(GoalState target) {
     return successors().contains(target);
   }
+
+  /**
+   * Whether money may be put into an envelope in this state (ADR-050). Only a goal still being
+   * saved for: a completed goal has reached its target and an archived one is retired.
+   */
+  public boolean acceptsMoney() {
+    return this == ACTIVE;
+  }
+
+  /**
+   * Whether money may be taken out of an envelope in this state (ADR-050). A completed goal can
+   * still release what is left in it; an archived goal is read-only, so it cannot.
+   */
+  public boolean releasesMoney() {
+    return this != ARCHIVED;
+  }
 }

@@ -10,6 +10,7 @@ import prudent.account.AccountEntity;
 import prudent.budget.BudgetCarryResetEntity;
 import prudent.budget.BudgetEntity;
 import prudent.category.CategoryEntity;
+import prudent.goal.GoalAllocationEntity;
 import prudent.goal.GoalEntity;
 import prudent.plan.PlanEntity;
 import prudent.plan.PlanOccurrenceEntity;
@@ -49,10 +50,10 @@ import zen.identity.event.UserAnonymised;
  * <p><strong>Deletion order is FK-driven, not arbitrary</strong>: records first (the migration
  * carries no {@code ON DELETE CASCADE} on either the account or category reference — ADR-010 — so
  * a record row must go before the rows it points to), then plan occurrences and plans for the same
- * reason (ADR-037, ADR-038), then budgets (ADR-043) and carry-over resets (ADR-046), then goals
- * (ADR-049), then accounts and categories, then the singleton settings row. Accounts are deleted
- * entity-by-entity rather than by a bulk query so Hibernate cascades the {@code @ElementCollection} balances ({@code prudent_account_balance}) it
- * owns; a bulk HQL delete bypasses the persistence context and would leave orphaned balance rows.
+ * reason (ADR-037, ADR-038), then budgets (ADR-043) and carry-over resets (ADR-046), then envelope
+ * entries and goals (ADR-049, ADR-050), then accounts and categories, then the singleton settings
+ * row. Accounts are deleted entity-by-entity rather than by a bulk query so Hibernate cascades the
+ * {@code @ElementCollection} balances ({@code prudent_account_balance}) it owns; a bulk HQL delete bypasses the persistence context and would leave orphaned balance rows.
  */
 @ApplicationScoped
 public class PrudentRetentionCleanup {
@@ -84,8 +85,9 @@ public class PrudentRetentionCleanup {
     // history's own never-deleted rule, which is a promise to the user, not to the system (ADR-046).
     long resets = BudgetCarryResetEntity.delete("userId", userId);
     // Goals are never deleted through the API (ADR-049); like the reset history, they go here
-    // because erasing a person outranks that promise. Nothing references a goal yet, but the
-    // allocation history that will must be removed before this line, so it sits with the rest.
+    // because erasing a person outranks that promise. The envelope history is just as permanent
+    // and references goals with no cascade (ADR-050), so it goes first.
+    long allocations = GoalAllocationEntity.delete("userId", userId);
     long goals = GoalEntity.delete("userId", userId);
 
     List<AccountEntity> accounts = AccountEntity.list("userId", userId);
@@ -98,14 +100,17 @@ public class PrudentRetentionCleanup {
         || plans > 0
         || budgets > 0
         || resets > 0
+        || allocations > 0
         || goals > 0
         || !accounts.isEmpty()
         || categories > 0
         || settings > 0) {
       LOG.infof(
           "Retention cascade for %s: %d record(s), %d plan(s), %d budget(s), %d carry-over"
-              + " reset(s), %d goal(s), %d account(s), %d category(ies), %d settings row(s)",
-          userId, records, plans, budgets, resets, goals, accounts.size(), categories, settings);
+              + " reset(s), %d envelope entry(ies), %d goal(s), %d account(s), %d category(ies),"
+              + " %d settings row(s)",
+          userId, records, plans, budgets, resets, allocations, goals, accounts.size(),
+          categories, settings);
     }
   }
 }

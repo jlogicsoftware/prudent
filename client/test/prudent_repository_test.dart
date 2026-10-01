@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:prudent/generated/prudent/v1/budgets.pb.dart';
+import 'package:prudent/generated/prudent/v1/goal_allocations.pb.dart';
 import 'package:prudent/generated/prudent/v1/goals.pb.dart';
 import 'package:prudent/generated/prudent/v1/plans.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
@@ -646,6 +647,171 @@ void main() {
       final result = await repository.reactivateGoal('g1');
 
       expect(result.isSuccess, isFalse);
+    });
+  });
+
+  group('PrudentRepository goal envelopes', () {
+    Map<String, Object?> entry({
+      String kind = 'GOAL_ALLOCATION_KIND_ALLOCATE',
+    }) => {
+      'id': 'a1',
+      'kind': kind,
+      if (kind != 'GOAL_ALLOCATION_KIND_ALLOCATE') 'sourceGoalId': 'g1',
+      if (kind != 'GOAL_ALLOCATION_KIND_WITHDRAW') 'targetGoalId': 'g2',
+      'currency': 'PLN',
+      'amountMinor': '25000',
+      'note': 'First month',
+      'createdAtMs': '1790000000000',
+      'createdBy': 'u1',
+    };
+
+    test('createGoalAllocation posts the entry and decodes it', () async {
+      String? capturedBody;
+      String? capturedMethod;
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedBody = request.body;
+          capturedMethod = request.method;
+          capturedUri = _uriOf(request);
+          return _jsonResponse(entry(), status: 201);
+        }),
+      );
+
+      final result = await repository.createGoalAllocation(
+        CreateGoalAllocationRequest(
+          kind: GoalAllocationKind.GOAL_ALLOCATION_KIND_ALLOCATE,
+          targetGoalId: 'g2',
+          amountMinor: Int64(25000),
+          note: 'First month',
+        ),
+      );
+
+      expect(capturedMethod, 'POST');
+      expect(capturedUri!.path, '/api/v1/goal-allocations');
+      expect(capturedBody, contains('"kind":"GOAL_ALLOCATION_KIND_ALLOCATE"'));
+      expect(capturedBody, contains('"targetGoalId":"g2"'));
+      expect(capturedBody, contains('"amountMinor":"25000"'));
+      expect(capturedBody, isNot(contains('sourceGoalId')));
+      final created = result.fold((r) => r, (e) => throw e);
+      expect(created.id, 'a1');
+      expect(created.kind, GoalAllocationKind.GOAL_ALLOCATION_KIND_ALLOCATE);
+      expect(created.hasSourceGoalId(), isFalse);
+      expect(created.targetGoalId, 'g2');
+      expect(created.amountMinor.toInt(), 25000);
+      expect(created.createdBy, 'u1');
+    });
+
+    test('a move carries both goals', () async {
+      String? capturedBody;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedBody = request.body;
+          return _jsonResponse(
+            entry(kind: 'GOAL_ALLOCATION_KIND_MOVE'),
+            status: 201,
+          );
+        }),
+      );
+
+      final result = await repository.createGoalAllocation(
+        CreateGoalAllocationRequest(
+          kind: GoalAllocationKind.GOAL_ALLOCATION_KIND_MOVE,
+          sourceGoalId: 'g1',
+          targetGoalId: 'g2',
+          amountMinor: Int64(25000),
+        ),
+      );
+
+      expect(capturedBody, contains('"sourceGoalId":"g1"'));
+      expect(capturedBody, contains('"targetGoalId":"g2"'));
+      final moved = result.fold((r) => r, (e) => throw e);
+      expect(moved.sourceGoalId, 'g1');
+      expect(moved.targetGoalId, 'g2');
+    });
+
+    test('an overdrawn withdrawal is an error the caller can render', () async {
+      final repository = PrudentRepository(
+        client: _clientAnswering(
+          (request) => _jsonResponse({
+            'code': 'conflict',
+            'message':
+                "This goal's envelope holds less than the amount requested.",
+          }, status: 409),
+        ),
+      );
+
+      final result = await repository.createGoalAllocation(
+        CreateGoalAllocationRequest(
+          kind: GoalAllocationKind.GOAL_ALLOCATION_KIND_WITHDRAW,
+          sourceGoalId: 'g1',
+          amountMinor: Int64(1),
+        ),
+      );
+
+      expect(result.isSuccess, isFalse);
+    });
+
+    test(
+      'listGoalAllocations sends the goal filter only when one is given',
+      () async {
+        final calls = <String>[];
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            calls.add('${request.method} ${_uriOf(request)}');
+            return _jsonResponse({
+              'allocations': [entry()],
+            });
+          }),
+        );
+
+        final all = await repository.listGoalAllocations();
+        expect(all.fold((r) => r.allocations, (e) => throw e).single.id, 'a1');
+        await repository.listGoalAllocations(goalId: 'g2');
+
+        expect(calls, [
+          'GET https://example.test/api/v1/goal-allocations',
+          'GET https://example.test/api/v1/goal-allocations?goalId=g2',
+        ]);
+      },
+    );
+
+    test('getGoalAllocation reads one entry', () async {
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedUri = _uriOf(request);
+          return _jsonResponse(entry());
+        }),
+      );
+
+      final result = await repository.getGoalAllocation('a1');
+
+      expect(capturedUri!.path, '/api/v1/goal-allocations/a1');
+      expect(result.fold((r) => r.note, (e) => throw e), 'First month');
+    });
+
+    test('listGoalEnvelopes decodes one envelope per goal', () async {
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedUri = _uriOf(request);
+          return _jsonResponse({
+            'envelopes': [
+              {'goalId': 'g1', 'currency': 'PLN', 'amountMinor': '25000'},
+              {'goalId': 'g2', 'currency': 'EUR', 'amountMinor': '0'},
+            ],
+          });
+        }),
+      );
+
+      final result = await repository.listGoalEnvelopes();
+
+      expect(capturedUri!.path, '/api/v1/goal-allocations/envelopes');
+      final envelopes = result.fold((r) => r.envelopes, (e) => throw e);
+      expect(envelopes.map((e) => e.goalId), ['g1', 'g2']);
+      expect(envelopes.map((e) => e.currency), ['PLN', 'EUR']);
+      expect(envelopes.map((e) => e.amountMinor.toInt()), [25000, 0]);
     });
   });
 

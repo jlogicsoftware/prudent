@@ -92,9 +92,16 @@ M4 (virtual goal envelopes) has begun: `GoalResource` over `GoalEntity` (ADR-049
 jlogicsoftware/prudent#38) stores a goal — name, currency, positive target amount, optional target date —
 at `/api/v1/goals`, in one of three states (`ACTIVE`, `COMPLETED`, `ARCHIVED`) that
 `/complete`, `/archive` and `/reactivate` move between. A goal is retired, never deleted: there is no
-`DELETE` route, and an archived goal is read-only until reactivated. Nothing yet allocates money to a goal,
-calculates eligible or free money, progress or contribution guidance, or shows goals — those are the epic's
-later tasks (jlogicsoftware/prudent#64–#67) — and the client has only the repository methods.
+`DELETE` route, and an archived goal is read-only until reactivated. Money is set aside for a goal by
+`GoalAllocationResource` over `GoalAllocationEntity` (ADR-050, jlogicsoftware/prudent#64) at
+`/api/v1/goal-allocations`: `ALLOCATE`, `WITHDRAW` and `MOVE` (between goals in one currency) are each one
+immutable, append-only history entry — no update or delete route, and the database refuses an `UPDATE`. A goal's
+envelope has no stored amount: it is the sum of its entries, calculated on every read
+(`GET /api/v1/goal-allocations/envelopes`), and it is virtual — no account balance, record or analytics total
+reads it. Money goes into an active goal and comes out of an active or completed one, an entry cannot take an
+envelope below zero, and a goal that still holds money cannot be archived. Nothing yet limits allocations to
+eligible or free money, calculates progress or contribution guidance, or shows goals or envelopes — those are
+the epic's later tasks (jlogicsoftware/prudent#65–#67) — and the client has only the repository methods.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the

@@ -41,4 +41,18 @@ class GoalStateTest {
   void nothing_is_terminal_because_nothing_is_deleted(GoalState state) {
     assertTrue(!state.successors().isEmpty());
   }
+
+  @Test
+  void moneyGoesIntoAnActiveGoalOnly() {
+    assertTrue(GoalState.ACTIVE.acceptsMoney());
+    assertFalse(GoalState.COMPLETED.acceptsMoney());
+    assertFalse(GoalState.ARCHIVED.acceptsMoney());
+  }
+
+  @Test
+  void moneyComesOutOfAnyGoalThatIsNotArchived() {
+    assertTrue(GoalState.ACTIVE.releasesMoney());
+    assertTrue(GoalState.COMPLETED.releasesMoney());
+    assertFalse(GoalState.ARCHIVED.releasesMoney());
+  }
 }
