@@ -3,6 +3,7 @@ package prudent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.restassured.response.Response;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import prudent.plan.OccurrenceState;
+import prudent.record.RecordEntity;
 import prudent.proto.v1.BudgetSummaryResponse;
 import prudent.proto.v1.CategoryBudgetSummary;
 import zen.proto.v1.ZenError;
@@ -293,6 +295,157 @@ class BudgetSummaryTest {
     assertEquals(1, body.getItemsCount());
     assertEquals(0L, body.getTotalActualMinor());
     assertEquals(800_00L, body.getTotalPlanMinor());
+  }
+
+  // --- Carry-over (jlogicsoftware/prudent#60, ADR-045) ---------------------------------------
+
+  private static final YearMonth AUGUST = YearMonth.of(2026, 8);
+  private static final YearMonth SEPTEMBER = YearMonth.of(2026, 9);
+  private static final LocalDate IN_AUGUST = LocalDate.of(2026, 8, 12);
+  private static final LocalDate IN_SEPTEMBER = LocalDate.of(2026, 9, 12);
+
+  @ParameterizedTest
+  @ValueSource(strings = {PrudentTest.JSON, PrudentTest.PROTOBUF})
+  @TestSecurity(user = PrudentTest.ALICE)
+  void anUnderspendAndAnOverspendCarryIntoTheNextMonthInBothTransports(String mode)
+      throws Exception {
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, SEPTEMBER, "PLN", 800_00L);
+    PrudentTest.seedBudget(PrudentTest.ALICE, rent, SEPTEMBER, "PLN", 100_00L);
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, OCTOBER, "PLN", 800_00L);
+    PrudentTest.seedBudget(PrudentTest.ALICE, rent, OCTOBER, "PLN", 100_00L);
+    spend(food, -300_00L, "PLN", IN_SEPTEMBER);
+    spend(rent, -130_00L, "PLN", IN_SEPTEMBER);
+    spend(food, -50_00L, "PLN", IN_OCTOBER);
+
+    Response response = summaryResponse(mode, "2026-10", "PLN");
+    assertEquals(200, response.statusCode(), response.asString());
+    BudgetSummaryResponse body =
+        PrudentTest.decode(mode, response, BudgetSummaryResponse.newBuilder()).build();
+
+    CategoryBudgetSummary foodItem = item(body, food);
+    assertEquals(500_00L, foodItem.getCarryOverMinor());
+    assertEquals(50_00L, foodItem.getActualMinor());
+    assertEquals(1_250_00L, foodItem.getRemainingMinor());
+    CategoryBudgetSummary rentItem = item(body, rent);
+    assertEquals(-30_00L, rentItem.getCarryOverMinor());
+    assertEquals(70_00L, rentItem.getRemainingMinor());
+    assertEquals(470_00L, body.getTotalCarryOverMinor());
+    assertEquals(1_320_00L, body.getTotalRemainingMinor());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void aFirstBudgetedMonthCarriesNothing() throws Exception {
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, OCTOBER, "PLN", 800_00L);
+    // Spending before the first budget is not measured against anything.
+    spend(food, -900_00L, "PLN", IN_SEPTEMBER);
+
+    CategoryBudgetSummary item = item(summary("2026-10", "PLN"), food);
+
+    assertEquals(0L, item.getCarryOverMinor());
+    assertEquals(800_00L, item.getRemainingMinor());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void aGapMonthPassesTheCarryAcrossUnchanged() throws Exception {
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, AUGUST, "PLN", 800_00L);
+    spend(food, -300_00L, "PLN", IN_AUGUST);
+    // September has no budget, so its spending is not measured and changes nothing.
+    spend(food, -999_00L, "PLN", IN_SEPTEMBER);
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, OCTOBER, "PLN", 800_00L);
+
+    CategoryBudgetSummary item = item(summary("2026-10", "PLN"), food);
+
+    assertEquals(500_00L, item.getCarryOverMinor());
+    assertEquals(1_300_00L, item.getRemainingMinor());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void carryOverCrossesAYearBoundaryAndSpansEveryEarlierMonth() throws Exception {
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, YearMonth.of(2026, 11), "PLN", 100_00L);
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, YearMonth.of(2026, 12), "PLN", 100_00L);
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, YearMonth.of(2027, 1), "PLN", 100_00L);
+    spend(food, -60_00L, "PLN", LocalDate.of(2026, 11, 30));
+    spend(food, -150_00L, "PLN", LocalDate.of(2026, 12, 1));
+    spend(food, -10_00L, "PLN", LocalDate.of(2026, 12, 31));
+    spend(food, -20_00L, "PLN", LocalDate.of(2027, 1, 1));
+
+    CategoryBudgetSummary item = item(summary("2027-01", "PLN"), food);
+
+    // +40 (Nov) and -60 (Dec); January's own 20 is the month's actual, not carried.
+    assertEquals(-20_00L, item.getCarryOverMinor());
+    assertEquals(20_00L, item.getActualMinor());
+    assertEquals(60_00L, item.getRemainingMinor());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void editingAHistoricalBudgetOrRecordRecalculatesTheLaterMonth() throws Exception {
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, SEPTEMBER, "PLN", 800_00L);
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, OCTOBER, "PLN", 800_00L);
+    UUID groceries =
+        PrudentTest.seedRecord(PrudentTest.ALICE, wallet, food, -300_00L, "PLN", IN_SEPTEMBER);
+    assertEquals(500_00L, item(summary("2026-10", "PLN"), food).getCarryOverMinor());
+
+    // The earlier month's budget is raised: the later month follows on the next read.
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, SEPTEMBER, "PLN", 900_00L);
+    assertEquals(600_00L, item(summary("2026-10", "PLN"), food).getCarryOverMinor());
+
+    // A record in the earlier month is deleted: the overspend or underspend is recalculated.
+    QuarkusTransaction.requiringNew().run(() -> RecordEntity.deleteById(groceries));
+    CategoryBudgetSummary item = item(summary("2026-10", "PLN"), food);
+    assertEquals(900_00L, item.getCarryOverMinor());
+    assertEquals(1_700_00L, item.getRemainingMinor());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void carryOverIsPerCategoryAndPerCurrency() throws Exception {
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, SEPTEMBER, "PLN", 800_00L);
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, SEPTEMBER, "EUR", 100_00L);
+    PrudentTest.seedBudget(PrudentTest.ALICE, rent, SEPTEMBER, "PLN", 2_500_00L);
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, OCTOBER, "PLN", 800_00L);
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, OCTOBER, "EUR", 100_00L);
+    spend(food, -300_00L, "PLN", IN_SEPTEMBER);
+    spend(food, -40_00L, "EUR", IN_SEPTEMBER);
+    spend(rent, -2_000_00L, "PLN", IN_SEPTEMBER);
+
+    BudgetSummaryResponse pln = summary("2026-10", "PLN");
+    BudgetSummaryResponse eur = summary("2026-10", "EUR");
+
+    // Rent has no October budget, so it is not listed and its September underspend is not food's.
+    assertEquals(1, pln.getItemsCount());
+    assertEquals(500_00L, item(pln, food).getCarryOverMinor());
+    assertEquals(500_00L, pln.getTotalCarryOverMinor());
+    assertEquals(60_00L, item(eur, food).getCarryOverMinor());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void refundsTransfersAndCorrectionsFollowTheSameRulesWhenCarried() throws Exception {
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, SEPTEMBER, "PLN", 800_00L);
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, OCTOBER, "PLN", 800_00L);
+    spend(food, -300_00L, "PLN", IN_SEPTEMBER);
+    // A refund lowers September's spending; a transfer leg and a correction are not spending.
+    spend(food, 100_00L, "PLN", IN_SEPTEMBER);
+    PrudentTest.seedTransferLeg(PrudentTest.ALICE, wallet, -500_00L, "PLN", UUID.randomUUID());
+    PrudentTest.seedCorrection(PrudentTest.ALICE, wallet, -75_00L, "PLN");
+
+    assertEquals(600_00L, item(summary("2026-10", "PLN"), food).getCarryOverMinor());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void anotherUsersEarlierMonthsAreNeverCarried() throws Exception {
+    UUID bobsWallet = PrudentTest.seedAccount(PrudentTest.BOB, "Wallet", "PLN");
+    UUID bobsFood = PrudentTest.seedCategory(PrudentTest.BOB, "Food");
+    PrudentTest.seedBudget(PrudentTest.BOB, bobsFood, SEPTEMBER, "PLN", 999_00L);
+    PrudentTest.seedRecord(PrudentTest.BOB, bobsWallet, bobsFood, -50_00L, "PLN", IN_SEPTEMBER);
+    PrudentTest.seedBudget(PrudentTest.ALICE, food, OCTOBER, "PLN", 800_00L);
+
+    assertEquals(0L, item(summary("2026-10", "PLN"), food).getCarryOverMinor());
   }
 
   // --- Refusals ------------------------------------------------------------------------------

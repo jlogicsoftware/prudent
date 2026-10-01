@@ -510,12 +510,14 @@ void main() {
                   'categoryId': 'c1',
                   'planMinor': '80000',
                   'actualMinor': '95000',
-                  'remainingMinor': '-15000',
+                  'carryOverMinor': '-5000',
+                  'remainingMinor': '-20000',
                 },
               ],
               'totalPlanMinor': '80000',
               'totalActualMinor': '95000',
-              'totalRemainingMinor': '-15000',
+              'totalCarryOverMinor': '-5000',
+              'totalRemainingMinor': '-20000',
             });
           }),
         );
@@ -537,8 +539,10 @@ void main() {
         expect(item.categoryId, 'c1');
         expect(item.planMinor.toInt(), 80000);
         expect(item.actualMinor.toInt(), 95000);
-        expect(item.remainingMinor.toInt(), -15000);
-        expect(summary.totalRemainingMinor.toInt(), -15000);
+        expect(item.carryOverMinor.toInt(), -5000);
+        expect(item.remainingMinor.toInt(), -20000);
+        expect(summary.totalCarryOverMinor.toInt(), -5000);
+        expect(summary.totalRemainingMinor.toInt(), -20000);
       },
     );
   });

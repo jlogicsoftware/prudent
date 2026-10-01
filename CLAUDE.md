@@ -69,8 +69,12 @@ amount per category, month and currency, addressed by that slot at
 `/api/v1/budgets/{categoryId}/{month}/{currency}`, and `GET /api/v1/budgets/summary` (ADR-044,
 jlogicsoftware/prudent#59) calculates plan, actual and remaining per budgeted category for one month
 and currency on each request — actual is net spending from posted ledger records, refunds included.
-Nothing yet carries amounts between months, keeps an audit trail, or shows them — those are the
-epic's later tasks (jlogicsoftware/prudent#35) — and the client has only the repository methods.
+Carry-over (ADR-045, jlogicsoftware/prudent#60) is calculated the same way: the sum of
+`plan − actual` over a category's earlier budgeted months in that currency, passing unchanged across
+months with no budget and recalculating when an earlier budget or record is edited; the summary's
+`remaining` includes it. Nothing yet resets carry-over, keeps an audit trail, or shows any of it —
+those are the epic's later tasks (jlogicsoftware/prudent#35) — and the client has only the
+repository methods.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the

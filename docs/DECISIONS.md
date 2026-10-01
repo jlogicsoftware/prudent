@@ -13,6 +13,72 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-045 — A budget's unspent or overspent amount carries forward as a sum over its earlier budgeted months, calculated on read
+
+**Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-044 (plan, actual and remaining are
+calculated on read and stored nowhere), ADR-043 (a budget is the slot it fills), ADR-009 (per
+currency, never blended). **Amends:** ADR-044's "Carry-over is not part of it" — `remaining_minor`
+now includes carry-over, as ADR-044 said task 3 would decide.
+
+### Decision
+
+The third M3 task (jlogicsoftware/prudent#60 — "positive and negative results propagate across gaps
+deterministically and historical edits recalculate later months") carries each budgeted category's
+underspend and overspend into later months.
+
+- **Carry-over is a sum, not a chain.** For a category, month `M` and currency, the carry-over into
+  `M` is the sum of `plan − actual` over **every earlier month in which that category has a budget
+  in that currency**. Underspend is positive, overspend negative, so an overspend is paid back by
+  later underspend and an underspend is spent down by later overspend. `actual` is exactly
+  ADR-044's (net of refunds, posted ledger records only), so the two never disagree about what a
+  month spent.
+- **A gap is a month that has no budget, and it contributes nothing.** The figure passes across it
+  unchanged, however many months long, and spending in the gap is not measured against anything
+  (consistent with ADR-044: spending in an unbudgeted category is in no figure). The alternative —
+  treating a gap as a zero plan — would turn every month of unbudgeted spending into a negative
+  carry, penalising a user for a month they chose not to budget. Because the figure is a plain sum
+  over budgeted months, it is deterministic and independent of any iteration order.
+- **The first budgeted month carries zero.** Nothing before a category's first budget is
+  measured.
+- **Per category and per currency.** One category's surplus never offsets another's, and a
+  currency's carry is built only from that currency's budgets and records (ADR-009), in the query
+  rather than filtered afterwards.
+- **Calculated on every request, stored nowhere** — which is what makes historical edits
+  recalculate: raising an earlier month's budget, deleting a budget, or adding, editing or
+  deleting an earlier record changes every later month's carry on the next read. No column holds
+  a result that could go stale, and no recalculation job exists to forget to run.
+- **Wire:** `CategoryBudgetSummary.carry_over_minor` and `BudgetSummaryResponse.total_carry_over_minor`
+  are new fields. `remaining_minor` and `total_remaining_minor` are now
+  `carry_over + plan − actual`, i.e. what may still be spent *this month*. Nothing renders them
+  yet, so the redefinition breaks no screen; `plan_minor` and `actual_minor` are unchanged and
+  remain the month on its own. For a category's first budgeted month `carry_over_minor` is 0 and
+  every figure is as ADR-044 gave it.
+- **Server:** `BudgetCalculator.carryOver` (pure), `BudgetEntity.listEarlier` and
+  `RecordEntity.netByCategoryAndMonthBefore`, which applies the same record filter as
+  `netByCategory` grouped by month. The request reads earlier data only for the categories listed
+  in the requested month.
+
+### What this does not decide
+
+- **Reset (task 4).** There is no "start again from this month" yet, so carry-over currently runs
+  from a category's first budget with no upper bound on how far back it reaches. A reset is a new
+  boundary the sum stops at; the audit trail is that task's.
+- **Category lifecycle (task 5)** and **percent / overspent / empty states (task 6).**
+- **Cost.** One extra grouped ledger query and one budget query per summary request, bounded to
+  the listed categories. If long histories make that slow the answer is an index or a stored
+  rollup *derived from* the rows, decided with measurements, not assumed now.
+
+### Consequence
+
+Verified by `BudgetCalculatorTest` (underspend and overspend, accumulation across months, a gap
+passing the figure unchanged, a first month carrying zero, remaining and totals including carry)
+and `BudgetSummaryTest` against the real queries in both transports (the same, plus a year boundary,
+per-category and per-currency separation, refunds, transfers and corrections, another user's data,
+and an earlier budget raised and an earlier record deleted both changing the later month), a client
+repository test, and the regenerated Dart messages and admin schema.
+
+---
+
 ## ADR-044 — A budget's actual is net spending from posted ledger records, calculated on read
 
 **Date:** 2026-09-29. **Status:** accepted. **Follows:** ADR-043 (budgets are a stored limit,

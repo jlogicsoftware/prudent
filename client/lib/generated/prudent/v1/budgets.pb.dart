@@ -227,7 +227,7 @@ class ListBudgetsResponse extends $pb.GeneratedMessage {
 }
 
 /// One budgeted category's plan, actual and remaining amount for one month, in one currency (M3,
-/// jlogicsoftware/prudent#59, ADR-044). Calculated on every read from the budget and the ledger and
+/// jlogicsoftware/prudent#59, ADR-044; carry-over #60, ADR-045). Calculated on every read from the budget and the ledger and
 /// never stored, so it cannot drift from either.
 class CategoryBudgetSummary extends $pb.GeneratedMessage {
   factory CategoryBudgetSummary({
@@ -235,12 +235,14 @@ class CategoryBudgetSummary extends $pb.GeneratedMessage {
     $fixnum.Int64? planMinor,
     $fixnum.Int64? actualMinor,
     $fixnum.Int64? remainingMinor,
+    $fixnum.Int64? carryOverMinor,
   }) {
     final result = create();
     if (categoryId != null) result.categoryId = categoryId;
     if (planMinor != null) result.planMinor = planMinor;
     if (actualMinor != null) result.actualMinor = actualMinor;
     if (remainingMinor != null) result.remainingMinor = remainingMinor;
+    if (carryOverMinor != null) result.carryOverMinor = carryOverMinor;
     return result;
   }
 
@@ -261,6 +263,7 @@ class CategoryBudgetSummary extends $pb.GeneratedMessage {
     ..aInt64(2, _omitFieldNames ? '' : 'planMinor')
     ..aInt64(3, _omitFieldNames ? '' : 'actualMinor')
     ..aInt64(4, _omitFieldNames ? '' : 'remainingMinor')
+    ..aInt64(5, _omitFieldNames ? '' : 'carryOverMinor')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -316,8 +319,8 @@ class CategoryBudgetSummary extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   void clearActualMinor() => $_clearField(3);
 
-  /// plan_minor - actual_minor: what may still be spent. Negative once the category is overspent.
-  /// Carry-over from earlier months is not included; it is a later task.
+  /// What may still be spent: carry_over_minor + plan_minor - actual_minor. Negative once the
+  /// category is overspent, including by an overspend carried in from an earlier month.
   @$pb.TagNumber(4)
   $fixnum.Int64 get remainingMinor => $_getI64(3);
   @$pb.TagNumber(4)
@@ -326,6 +329,21 @@ class CategoryBudgetSummary extends $pb.GeneratedMessage {
   $core.bool hasRemainingMinor() => $_has(3);
   @$pb.TagNumber(4)
   void clearRemainingMinor() => $_clearField(4);
+
+  /// What the category's EARLIER budgeted months left over (positive) or overspent (negative),
+  /// carried into this month (M3, jlogicsoftware/prudent#60, ADR-045). The sum of
+  /// (plan - actual) over every earlier month that has a budget in this currency; a month with no
+  /// budget contributes nothing, so the figure passes unchanged across a gap. Zero for a category's
+  /// first budgeted month. Calculated on every read, so editing an earlier month's budget or
+  /// records changes it.
+  @$pb.TagNumber(5)
+  $fixnum.Int64 get carryOverMinor => $_getI64(4);
+  @$pb.TagNumber(5)
+  set carryOverMinor($fixnum.Int64 value) => $_setInt64(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasCarryOverMinor() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearCarryOverMinor() => $_clearField(5);
 }
 
 /// GET /api/v1/budgets/summary?month=YYYY-MM&currency=XXX — the plan, actual and remaining amount of
@@ -341,6 +359,7 @@ class BudgetSummaryResponse extends $pb.GeneratedMessage {
     $fixnum.Int64? totalPlanMinor,
     $fixnum.Int64? totalActualMinor,
     $fixnum.Int64? totalRemainingMinor,
+    $fixnum.Int64? totalCarryOverMinor,
   }) {
     final result = create();
     if (month != null) result.month = month;
@@ -350,6 +369,8 @@ class BudgetSummaryResponse extends $pb.GeneratedMessage {
     if (totalActualMinor != null) result.totalActualMinor = totalActualMinor;
     if (totalRemainingMinor != null)
       result.totalRemainingMinor = totalRemainingMinor;
+    if (totalCarryOverMinor != null)
+      result.totalCarryOverMinor = totalCarryOverMinor;
     return result;
   }
 
@@ -373,6 +394,7 @@ class BudgetSummaryResponse extends $pb.GeneratedMessage {
     ..aInt64(4, _omitFieldNames ? '' : 'totalPlanMinor')
     ..aInt64(5, _omitFieldNames ? '' : 'totalActualMinor')
     ..aInt64(6, _omitFieldNames ? '' : 'totalRemainingMinor')
+    ..aInt64(7, _omitFieldNames ? '' : 'totalCarryOverMinor')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -438,6 +460,7 @@ class BudgetSummaryResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(5)
   void clearTotalActualMinor() => $_clearField(5);
 
+  /// Includes the carry-over, like each item's remaining_minor.
   @$pb.TagNumber(6)
   $fixnum.Int64 get totalRemainingMinor => $_getI64(5);
   @$pb.TagNumber(6)
@@ -446,6 +469,15 @@ class BudgetSummaryResponse extends $pb.GeneratedMessage {
   $core.bool hasTotalRemainingMinor() => $_has(5);
   @$pb.TagNumber(6)
   void clearTotalRemainingMinor() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $fixnum.Int64 get totalCarryOverMinor => $_getI64(6);
+  @$pb.TagNumber(7)
+  set totalCarryOverMinor($fixnum.Int64 value) => $_setInt64(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasTotalCarryOverMinor() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearTotalCarryOverMinor() => $_clearField(7);
 }
 
 const $core.bool _omitFieldNames =

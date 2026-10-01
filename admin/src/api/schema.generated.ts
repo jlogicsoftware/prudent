@@ -1146,7 +1146,7 @@ export interface paths {
         };
         /**
          * Plan, actual and remaining amount per budgeted category, for one month
-         * @description Query parameters: month (required, YYYY-MM) and currency (required, ISO-4217). Actual is net spending from posted records in that currency, refunds included; a planned occurrence is not counted until it is confirmed. Never summed across currencies.
+         * @description Query parameters: month (required, YYYY-MM) and currency (required, ISO-4217). Actual is net spending from posted records in that currency, refunds included; a planned occurrence is not counted until it is confirmed. Each item also carries the underspend or overspend of the category's earlier budgeted months, which is included in remaining. Never summed across currencies.
          */
         get: {
             parameters: {
