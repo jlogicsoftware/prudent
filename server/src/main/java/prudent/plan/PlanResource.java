@@ -198,6 +198,12 @@ public class PlanResource {
       throw PrudentException.invalid("No such category for this user: " + categoryId);
     }
 
+    // As for a record (RecordWriter): an archived category takes no NEW plan, but a plan already
+    // filed under it can still be edited without changing its category (ADR-047).
+    if (!category.id.equals(entity.categoryId)) {
+      category.requireActive();
+    }
+
     String normalized = Currencies.normalize(currency);
     if (!Currencies.isValid(normalized)) {
       throw PrudentException.invalid("'" + currency + "' is not an ISO-4217 currency.");

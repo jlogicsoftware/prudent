@@ -578,6 +578,33 @@ void main() {
     );
 
     test(
+      'archiveCategory and restoreCategory post to the category and decode the flag',
+      () async {
+        final calls = <String>[];
+        final repository = PrudentRepository(
+          client: _clientAnswering((request) {
+            calls.add('${request.method} ${_uriOf(request).path}');
+            return _jsonResponse({
+              'id': 'c1',
+              'title': 'Food',
+              'archived': request.url.path.endsWith('/archive'),
+            });
+          }),
+        );
+
+        final archived = await repository.archiveCategory('c1');
+        final restored = await repository.restoreCategory('c1');
+
+        expect(calls, [
+          'POST /api/v1/categories/c1/archive',
+          'POST /api/v1/categories/c1/restore',
+        ]);
+        expect(archived.fold((c) => c.archived, (e) => throw e), isTrue);
+        expect(restored.fold((c) => c.archived, (e) => throw e), isFalse);
+      },
+    );
+
+    test(
       'revokeBudgetCarryOverReset posts to the entry and decodes who revoked it',
       () async {
         String? capturedMethod;

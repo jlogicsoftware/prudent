@@ -276,6 +276,13 @@ components:
           description: >-
             The category colour as unsigned 0xAARRGGBB. A colour is a value and ARGB is its
             portable form, so it survives a user picking outside the shipped palette.
+        archived:
+          type: boolean
+          description: >-
+            True once the category has been retired by POST /api/v1/categories/{id}/archive. An
+            archived category is still listed and still names every record, plan and budget that
+            points at it, so history stays readable; it no longer accepts a NEW record, plan or
+            budget until it is restored. Set only by archive and restore.
     CreateCategoryRequest:
       type: object
       description: Body for POST /api/v1/categories. No id field — the server mints it.

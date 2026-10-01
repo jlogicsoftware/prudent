@@ -24,6 +24,7 @@ const Category$json = {
     {'1': 'icon_key', '3': 3, '4': 1, '5': 9, '10': 'iconKey'},
     {'1': 'description', '3': 4, '4': 1, '5': 9, '10': 'description'},
     {'1': 'color_argb', '3': 5, '4': 1, '5': 13, '10': 'colorArgb'},
+    {'1': 'archived', '3': 6, '4': 1, '5': 8, '10': 'archived'},
   ],
 };
 
@@ -31,7 +32,8 @@ const Category$json = {
 final $typed_data.Uint8List categoryDescriptor = $convert.base64Decode(
     'CghDYXRlZ29yeRIOCgJpZBgBIAEoCVICaWQSFAoFdGl0bGUYAiABKAlSBXRpdGxlEhkKCGljb2'
     '5fa2V5GAMgASgJUgdpY29uS2V5EiAKC2Rlc2NyaXB0aW9uGAQgASgJUgtkZXNjcmlwdGlvbhId'
-    'Cgpjb2xvcl9hcmdiGAUgASgNUgljb2xvckFyZ2I=');
+    'Cgpjb2xvcl9hcmdiGAUgASgNUgljb2xvckFyZ2ISGgoIYXJjaGl2ZWQYBiABKAhSCGFyY2hpdm'
+    'Vk');
 
 @$core.Deprecated('Use createCategoryRequestDescriptor instead')
 const CreateCategoryRequest$json = {

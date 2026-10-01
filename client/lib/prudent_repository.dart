@@ -107,8 +107,20 @@ class PrudentRepository {
     body: request,
   );
 
+  /// Refused (409) while anything — a record, plan, budget or carry-over reset — still points at
+  /// the category; [archiveCategory] is how a used category is taken out of use.
   Future<ZenResult<Category>> deleteCategory(String id) =>
       _client.delete<Category>(Category.new, '$_categoriesPath/$id');
+
+  /// Retires a category (M3, jlogicsoftware/prudent#62): it stays listed and keeps all its history,
+  /// and accepts no new record, plan or budget until [restoreCategory]. Refused (409) if it is
+  /// already archived.
+  Future<ZenResult<Category>> archiveCategory(String id) =>
+      _client.post<Category>(Category.new, '$_categoriesPath/$id/archive');
+
+  /// Returns an archived category to use. Refused (409) if it is not archived.
+  Future<ZenResult<Category>> restoreCategory(String id) =>
+      _client.post<Category>(Category.new, '$_categoriesPath/$id/restore');
 
   // --- Budgets (M3, jlogicsoftware/prudent#36) — the amount that may be spent, never a transaction
 

@@ -220,13 +220,18 @@ public class BudgetResource {
       responseCode = ZenStatus.NOT_FOUND,
       description = "No such category for this user",
       content = @Content(schema = @Schema(ref = "ZenError")))
+  @APIResponse(
+      responseCode = ZenStatus.CONFLICT,
+      description = "The category is archived and the slot has no budget yet",
+      content = @Content(schema = @Schema(ref = "ZenError")))
   public Response set(
       @PathParam("categoryId") String categoryId,
       @PathParam("month") String month,
       @PathParam("currency") String currency,
       SetBudgetRequest request) {
     UUID userId = currentUser.id();
-    UUID category = requireCategory(userId, categoryId);
+    CategoryEntity categoryEntity = findCategory(userId, categoryId);
+    UUID category = categoryEntity.id;
     YearMonth parsedMonth = parseMonth(month);
     String normalized = parseCurrency(currency);
     long amountMinor = request.getAmountMinor();
@@ -239,6 +244,12 @@ public class BudgetResource {
     }
 
     boolean existed = BudgetEntity.findSlot(userId, category, parsedMonth, normalized) != null;
+    // An archived category takes no budget for a slot that has none (ADR-047), so the user cannot
+    // start planning against a category they retired. A slot that already holds one can still be
+    // corrected: that is history being edited, not something being added.
+    if (!existed) {
+      categoryEntity.requireActive();
+    }
     BudgetEntity.upsert(userId, category, parsedMonth, normalized, amountMinor);
 
     // Built from the values just written: the upsert is native, so an entity read now could be the
@@ -289,11 +300,15 @@ public class BudgetResource {
    * one answer, as everywhere else. A malformed id is a 404 for the reason {@link Ids#parse} gives.
    */
   private static UUID requireCategory(UUID userId, String categoryId) {
+    return findCategory(userId, categoryId).id;
+  }
+
+  private static CategoryEntity findCategory(UUID userId, String categoryId) {
     CategoryEntity category = CategoryEntity.findOwned(userId, Ids.parse("category", categoryId));
     if (category == null) {
       throw PrudentException.notFound("category", categoryId);
     }
-    return category.id;
+    return category;
   }
 
   private static PrudentException notSet(String categoryId, YearMonth month, String currency) {

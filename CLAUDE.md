@@ -77,10 +77,13 @@ carry-over in one currency from a chosen month: `BudgetCarryOverResetResource` o
 `/api/v1/budget-carry-over-resets` is a boundary the sum stops at, not an edit, so prior budgets and
 earlier months are untouched. Every reset is an audit entry that is never deleted — who, when, the
 carry-over it discarded, a note — and taking one back marks it revoked rather than removing it; the
-summary names the reset behind each carry-over. A category with reset history cannot be deleted until
-the category lifecycle task (jlogicsoftware/prudent#62) decides otherwise. Nothing yet audits budget
+summary names the reset behind each carry-over. Category lifecycle (ADR-047, jlogicsoftware/prudent#62):
+a category that has been used is archived, not deleted — `POST /api/v1/categories/{id}/archive` and
+`/restore` flip `Category.archived`; an archived category stays listed and changes no figure, and refuses
+only *new* references (a record, plan or budget slot, or a confirmation, filed under it), while delete is
+refused for as long as any record, plan, budget or reset points at the category. Nothing yet audits budget
 edits or shows any of this — those are the epic's later tasks (jlogicsoftware/prudent#35) — and the
-client has only the repository methods.
+client has only the repository methods and no longer offers an archived category in the record form.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the
