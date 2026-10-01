@@ -68,6 +68,13 @@ public class RecordWriter {
       throw PrudentException.invalid("No such category for this user: " + categoryId);
     }
 
+    // An archived category takes no NEW record (ADR-047). Keeping the category a record already has
+    // is not new: the user can still correct the amount or note of a record filed under it, and an
+    // edit must not be the thing that forces them to un-retire a category.
+    if (!category.id.equals(entity.categoryId)) {
+      category.requireActive();
+    }
+
     String normalized = Currencies.normalize(currency);
     if (!Currencies.isValid(normalized)) {
       throw PrudentException.invalid("'" + currency + "' is not an ISO-4217 currency.");

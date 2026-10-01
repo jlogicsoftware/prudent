@@ -24,6 +24,7 @@ class Category extends $pb.GeneratedMessage {
     $core.String? iconKey,
     $core.String? description,
     $core.int? colorArgb,
+    $core.bool? archived,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -31,6 +32,7 @@ class Category extends $pb.GeneratedMessage {
     if (iconKey != null) result.iconKey = iconKey;
     if (description != null) result.description = description;
     if (colorArgb != null) result.colorArgb = colorArgb;
+    if (archived != null) result.archived = archived;
     return result;
   }
 
@@ -52,6 +54,7 @@ class Category extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'iconKey')
     ..aOS(4, _omitFieldNames ? '' : 'description')
     ..aI(5, _omitFieldNames ? '' : 'colorArgb', fieldType: $pb.PbFieldType.OU3)
+    ..aOB(6, _omitFieldNames ? '' : 'archived')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -133,6 +136,20 @@ class Category extends $pb.GeneratedMessage {
   $core.bool hasColorArgb() => $_has(4);
   @$pb.TagNumber(5)
   void clearColorArgb() => $_clearField(5);
+
+  /// True once the category has been retired (POST /api/v1/categories/{id}/archive). An archived
+  /// category is still returned by the list and still names every record, plan and budget that
+  /// points at it, so history stays readable; what it no longer does is accept a NEW record, plan
+  /// or budget. The default, false, is the active state, so a message from a server that predates
+  /// the field reads as active. Set only by archive and restore, never by create or update.
+  @$pb.TagNumber(6)
+  $core.bool get archived => $_getBF(5);
+  @$pb.TagNumber(6)
+  set archived($core.bool value) => $_setBool(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasArchived() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearArchived() => $_clearField(6);
 }
 
 /// POST /api/v1/categories

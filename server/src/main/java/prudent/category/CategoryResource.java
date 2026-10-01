@@ -13,6 +13,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.time.Instant;
 import java.util.UUID;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -140,6 +141,59 @@ public class CategoryResource {
     return Response.ok(mapper.toProto(entity)).build();
   }
 
+  @POST
+  @Path("/{id}/archive")
+  @Transactional
+  @Operation(
+      summary = "Archive a category: take it out of use without losing its history",
+      description =
+          "An archived category stays in the list and keeps every record, plan, budget and"
+              + " carry-over reset that points at it, so history stays readable and every total"
+              + " is unchanged. It accepts no new record, plan or budget until restored.")
+  @APIResponse(
+      responseCode = ZenStatus.OK,
+      content = @Content(schema = @Schema(ref = "Category")))
+  @APIResponse(
+      responseCode = ZenStatus.NOT_FOUND,
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  @APIResponse(
+      responseCode = ZenStatus.CONFLICT,
+      description = "The category is already archived",
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  public Response archive(@PathParam("id") String id) {
+    CategoryEntity entity = require(currentUser.id(), id);
+    // Refused rather than made idempotent, as skip and restore are for occurrences (ADR-039): the
+    // caller asked for a change that is not one, and should be told.
+    if (entity.isArchived()) {
+      throw PrudentException.conflict("This category is already archived.");
+    }
+    entity.archivedAt = Instant.now();
+    return Response.ok(mapper.toProto(entity)).build();
+  }
+
+  @POST
+  @Path("/{id}/restore")
+  @Transactional
+  @Operation(summary = "Restore an archived category to use")
+  @APIResponse(
+      responseCode = ZenStatus.OK,
+      content = @Content(schema = @Schema(ref = "Category")))
+  @APIResponse(
+      responseCode = ZenStatus.NOT_FOUND,
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  @APIResponse(
+      responseCode = ZenStatus.CONFLICT,
+      description = "The category is not archived, so there is nothing to restore",
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  public Response restore(@PathParam("id") String id) {
+    CategoryEntity entity = require(currentUser.id(), id);
+    if (!entity.isArchived()) {
+      throw PrudentException.conflict("This category is not archived.");
+    }
+    entity.archivedAt = null;
+    return Response.ok(mapper.toProto(entity)).build();
+  }
+
   @DELETE
   @Path("/{id}")
   @Transactional
@@ -147,7 +201,9 @@ public class CategoryResource {
   @APIResponse(responseCode = ZenStatus.NO_CONTENT, description = "Deleted")
   @APIResponse(
       responseCode = ZenStatus.CONFLICT,
-      description = "The category still has records, plans or budgets",
+      description =
+          "Something still points at the category: a record, plan, budget or carry-over reset."
+              + " Archive it instead to take it out of use and keep the history.",
       content = @Content(schema = @Schema(ref = "ZenError")))
   @APIResponse(
       responseCode = ZenStatus.NOT_FOUND,
@@ -155,32 +211,35 @@ public class CategoryResource {
   public Response delete(@PathParam("id") String id) {
     UUID userId = currentUser.id();
     CategoryEntity entity = require(userId, id);
-    // REFUSED RATHER THAN CASCADED. Deleting a category that still has records would orphan them —
-    // the same failure ADR-008 refuses for dropping a currency that has records, so it gets the
-    // same answer rather than a second philosophy. The user deletes or re-categorises first.
+    // REFUSED RATHER THAN CASCADED, and the way out is archiving (ADR-047). A category is only ever
+    // deleted while nothing refers to it, so there is no history a delete could orphan or hide: a
+    // used category is retired, never removed. Deleting one that still has records would orphan
+    // them — the same failure ADR-008 refuses for dropping a currency that has records, so it gets
+    // the same answer rather than a second philosophy.
     if (RecordEntity.existsForCategory(userId, entity.id)) {
       throw PrudentException.conflict(
-          "This category still has records. Delete or re-categorise them first.");
+          "This category still has records. Delete or re-categorise them first, or archive it.");
     }
     // The same refusal for plans (ADR-037): a plan filed under a deleted category would confirm
     // into a record with no category to file it under.
     if (PlanEntity.existsForCategory(userId, entity.id)) {
       throw PrudentException.conflict(
-          "This category still has plans. Delete or re-categorise them first.");
+          "This category still has plans. Delete or re-categorise them first, or archive it.");
     }
     // And for budgets (ADR-043): the budget names a category that would no longer exist. Refused
     // rather than cascaded, so the amounts the user set are never deleted as a side effect.
     if (BudgetEntity.existsForCategory(userId, entity.id)) {
       throw PrudentException.conflict(
-          "This category still has budgets. Delete them first.");
+          "This category still has budgets. Delete them first, or archive it.");
     }
     // And for carry-over resets (ADR-046). Unlike a budget there is nothing to delete first: the
-    // reset history is an audit trail and is never erased, so a category that has one stays. What
-    // a deleted category should leave readable is the category lifecycle task's to decide
-    // (jlogicsoftware/prudent#62); until then the history wins over the delete.
+    // reset history is an audit trail and is never erased, so a category that has one stays, and
+    // archiving is the only way it leaves use. That is the answer to what a removed category should
+    // leave readable (jlogicsoftware/prudent#62, ADR-047): it is never removed while it has any.
     if (BudgetCarryResetEntity.existsForCategory(userId, entity.id)) {
       throw PrudentException.conflict(
-          "This category has carry-over reset history, which is kept, so it cannot be deleted.");
+          "This category has carry-over reset history, which is kept, so it cannot be deleted."
+              + " Archive it instead.");
     }
     entity.delete();
     return Response.noContent().build();

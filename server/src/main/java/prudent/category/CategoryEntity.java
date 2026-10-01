@@ -5,8 +5,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import prudent.error.PrudentException;
 
 /**
  * The {@code prudent_category} table (active-record Panache entity).
@@ -57,6 +59,31 @@ public class CategoryEntity extends PanacheEntityBase {
    */
   @Column(name = "color_argb", nullable = false)
   public long colorArgb;
+
+  /**
+   * When the category was retired, or {@code null} while it is in use (jlogicsoftware/prudent#62,
+   * ADR-047). An archived category keeps every record, plan, budget and reset that points at it and
+   * stays readable; what it stops doing is accepting new ones.
+   */
+  @Column(name = "archived_at")
+  public Instant archivedAt;
+
+  public boolean isArchived() {
+    return archivedAt != null;
+  }
+
+  /**
+   * Refuses (409) when the category is archived — the one answer every writer that would point a
+   * NEW record, plan or budget at it gives, so the rule cannot read differently in three places.
+   * Callers that leave an existing reference unchanged do not call it: editing the note of a record
+   * filed under an archived category is not adding anything to it (ADR-047).
+   */
+  public void requireActive() {
+    if (isArchived()) {
+      throw PrudentException.conflict(
+          "Category '" + title + "' is archived. Restore it, or choose another category.");
+    }
+  }
 
   /** Every category owned by one user, in a stable order. */
   public static List<CategoryEntity> listOwnedBy(UUID userId) {

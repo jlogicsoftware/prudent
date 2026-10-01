@@ -47,6 +47,13 @@ message Category {
   // `dart:ui`'s Color cannot appear in a .proto and stays at the client's widget boundary,
   // where Color(color_argb) is the only conversion.
   uint32 color_argb = 5;
+
+  // True once the category has been retired (POST /api/v1/categories/{id}/archive). An archived
+  // category is still returned by the list and still names every record, plan and budget that
+  // points at it, so history stays readable; what it no longer does is accept a NEW record, plan
+  // or budget. The default, false, is the active state, so a message from a server that predates
+  // the field reads as active. Set only by archive and restore, never by create or update.
+  bool archived = 6;
 }
 
 // POST /api/v1/categories
@@ -85,3 +92,8 @@ message ListCategoriesResponse {
 
 // DELETE /api/v1/categories/{id} carries no request body and answers 204 with no body, so it
 // declares no messages. Named here so its absence reads as a decision rather than an omission.
+// It is refused (409) while anything still points at the category; archiving is how a category
+// that has been used is taken out of use.
+//
+// POST /api/v1/categories/{id}/archive and /restore likewise carry no body and answer with the
+// updated Category.

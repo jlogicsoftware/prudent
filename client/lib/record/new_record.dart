@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
+import '../category/selectable_categories.dart';
 import '../generated/prudent/v1/categories.pb.dart';
 import '../generated/prudent/v1/records.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
@@ -127,7 +128,10 @@ class _NewRecordState extends ConsumerState<NewRecord> {
   Widget build(BuildContext context) {
     final t = PrudentLocalizations.of(context);
     final locale = ref.watch(localeProvider);
-    final categories = ref.watch(categoriesProvider).value ?? const <Category>[];
+    final categories = selectableCategories(
+      ref.watch(categoriesProvider).value ?? const <Category>[],
+      keep: widget.initialRecord?.categoryId,
+    );
     final accounts = ref.watch(accountsProvider).value ?? const <Account>[];
     _selectedCategoryId ??= categories.isNotEmpty ? categories.first.id : null;
     _selectedAccountId ??= accounts.isNotEmpty ? accounts.first.id : null;

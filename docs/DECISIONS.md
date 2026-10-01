@@ -13,6 +13,81 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-047 — A category that has been used is archived, never removed; an archived category keeps its history and takes nothing new
+
+**Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-046 (a carry-over reset is a kept audit
+entry), ADR-045 (carry-over is a sum over earlier budgeted months), ADR-044 (plan, actual and
+remaining are calculated on read), ADR-043 (a budget is the slot it fills), ADR-008 (refuse rather
+than orphan). **Completes:** ADR-046's "What this does not decide — Category lifecycle (task 5)".
+
+### Decision
+
+The fifth M3 task (jlogicsoftware/prudent#62 — "inactive or deleted categories and months without a
+budget retain readable history and cannot corrupt totals") gives a category two ways out of use and
+says exactly what each leaves behind.
+
+- **Inactive means archived.** `prudent_category.archived_at` (nullable `TIMESTAMPTZ`; `NULL` is
+  active, which is what every existing row is) and `Category.archived` on the wire.
+  `POST /api/v1/categories/{id}/archive` and `/restore` are the only things that change it — create
+  and replace never do, so renaming an archived category does not quietly bring it back. Archiving
+  an archived category, or restoring an active one, is 409, as skip and restore are for occurrences
+  (ADR-039).
+- **An archived category stays where it was.** `GET /api/v1/categories` still returns it, flagged,
+  because a record, plan or budget reads its category's name through that list; hiding it would turn
+  history into ids. Nothing that sums reads the flag: the budget summary, carry-over, resets, spend
+  analytics and balances are calculated from the same rows as before, so archiving changes **no
+  figure**, and the category's budgets remain in the summary and in the totals, which stay the sum of
+  the listed items.
+- **An archived category takes nothing new.** A write that would *add* a reference to it is refused
+  with 409: a new record, a new plan, moving a record or plan into it, filling an empty budget slot,
+  and confirming an occurrence into it (the confirmation defaults to the plan's category, and the
+  request can name another for that transaction alone, so the user is never stuck). A write that
+  leaves an existing reference as it is is not new and is allowed: editing the amount or note of a
+  record or plan already filed under it, correcting or deleting a budget that already exists, and
+  making or revoking a carry-over reset on its history. The rule is one method,
+  `CategoryEntity.requireActive`, called where each writer already looks the category up.
+- **A category is deleted only while nothing points at it.** Delete stays refused (409) while any
+  record, plan, budget or carry-over reset references the category, now saying "or archive it", and
+  the database's foreign keys (no `ON DELETE CASCADE`) are the backstop behind it. That is the
+  answer to what a deleted category should leave readable: **a used category is never deleted, so
+  there is no deleted category with history to read.** A category that never had any can be deleted,
+  archived or not, and there is nothing to lose. This is the same stance ADR-008 and ADR-043 took for
+  records and budgets, extended to the one reference ADR-046 could not ask the user to delete first.
+- **A month without a budget is an empty answer, and is not a zero.** The summary of a month in
+  which no category is budgeted has no items and every total zero, however much was spent
+  (ADR-044: spending in an unbudgeted category is in no figure) and whichever earlier months are
+  budgeted. A category budgeted before and after that month carries across it unchanged (ADR-045),
+  archived or not.
+
+### What this does not decide
+
+- **Soft delete.** The alternative — mark a deleted category rather than refuse, and let a deleted
+  category's name live on its history — was rejected because it needs a second state beside archived
+  that means almost the same thing, and every query would have to decide which of the two to
+  exclude. Archive is the retire verb; delete is for mistakes.
+- **A carry-over that has no budget this month.** A category budgeted in August and not in
+  October has a carry-over that no October row shows, archived or not: the summary lists a month's
+  budgets and ADR-045 sums over earlier ones. If a screen must show carry-over for an unbudgeted
+  month it is a new field or endpoint, and task 6 will say whether it needs one.
+- **Archiving's effect on a screen.** The client gains the repository methods and stops offering an
+  archived category in the record form (keeping the one a record being edited already has). A
+  categories screen with an archive action, and labelling archived ones in lists, are not built.
+- **Account erasure.** Unchanged: the retention cascade deletes a user's categories with the rest of
+  their data, archived or not (ADR-046).
+
+### Consequence
+
+Verified by `CategoryLifecycleTest` (archive and restore in both transports; both 409s; ownership;
+an edit not restoring; each refusal and each exemption for records, plans, confirmation and budgets;
+that archiving leaves the summary, the analytics and the record list identical and the totals equal
+to the sum of their items; resets on an archived category; an empty month; carry-over across a gap;
+delete allowed for an unreferenced category and refused for a record, plan, budget and reset, with
+the refusal naming archiving), `CategoryArchiveSchemaTest` (the column, its null default, set and
+clear), a client repository test and `selectableCategories`'s test, and the regenerated Dart
+messages and admin schema.
+
+---
+
 ## ADR-046 — A carry-over reset is a boundary the calculation stops at, and every reset is a kept audit entry
 
 **Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-045 (carry-over is a sum over earlier

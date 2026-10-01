@@ -31,10 +31,11 @@ public abstract class CategoryMapper {
 
   /** Flat view of the wire-relevant entity fields; MapStruct fills it in. */
   public record CategoryView(
-      String id, String title, String iconKey, String description, int colorArgb) {}
+      String id, String title, String iconKey, String description, int colorArgb, boolean archived) {}
 
   @Mapping(target = "id", source = "id", qualifiedByName = "uuidToString")
   @Mapping(target = "colorArgb", source = "colorArgb", qualifiedByName = "toUint32")
+  @Mapping(target = "archived", expression = "java(entity.isArchived())")
   abstract CategoryView toView(CategoryEntity entity);
 
   /** Assembles the immutable {@link Category} proto from the mapped view. */
@@ -49,6 +50,7 @@ public abstract class CategoryMapper {
         .setIconKey(view.iconKey() != null ? view.iconKey() : "")
         .setDescription(view.description() != null ? view.description() : "")
         .setColorArgb(view.colorArgb())
+        .setArchived(view.archived())
         .build();
   }
 
