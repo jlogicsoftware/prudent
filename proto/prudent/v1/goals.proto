@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// Prudent's savings goals (M4, jlogicsoftware/prudent#38). CANONICAL SOURCE OF TRUTH for the model:
+// the Java DTOs and the Dart messages are GENERATED from this file and are never hand-edited.
+// Change this file and run `task generate`.
+//
+// A GOAL IS SOMETHING THE USER WANTS TO SAVE FOR, and nothing more. It is not an account and not a
+// transaction: no balance, analytics total or planned cash flow reads it, and creating, editing or
+// completing one moves no money. What has been set aside for it, what is left to save and what to
+// set aside each month are later M4 tasks (jlogicsoftware/prudent#64 onward); they are calculated
+// from the goal or kept beside it, never stored on it.
+//
+// A GOAL IS NEVER DELETED. It is retired — completed when reached, archived when no longer wanted —
+// so the history that later hangs off it (envelope allocations) always has a goal to be read
+// through. There is accordingly no DELETE route.
+//
+// Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that
+// message is not imported here (proto/README.md records why).
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+// See records.proto: named explicitly so the descriptor holder can never collide with a message.
+option java_outer_classname = "GoalsProto";
+
+// Where a goal is in its life. The zero value is UNSPECIFIED and is never stored, for the reason
+// accounts.proto gives for AccountType: proto3 decodes an omitted field to 0, and whichever
+// constant sat there would make "the field is missing" indistinguishable from a real state.
+enum GoalStatus {
+  GOAL_STATUS_UNSPECIFIED = 0;
+  // Being saved for. The state every goal is created in, and the only one that can be completed.
+  GOAL_STATUS_ACTIVE = 1;
+  // Reached. The goal and its history stay readable; it can be archived or reactivated.
+  GOAL_STATUS_COMPLETED = 2;
+  // No longer wanted. Kept, read-only: it cannot be edited until it is reactivated.
+  GOAL_STATUS_ARCHIVED = 3;
+}
+
+// A goal, as the server holds it.
+message Goal {
+  // Server-minted UUID. A create request carries no id.
+  string id = 1;
+
+  // What the user is saving for. Non-blank; not unique.
+  string name = 2;
+
+  // ISO-4217. A goal is in ONE currency and is never converted (ADR-009); it is chosen at creation
+  // and cannot change afterwards, because money set aside for it is held in that currency.
+  string currency = 3;
+
+  // Minor units, POSITIVE: the amount to reach. Zero and negative are rejected. Zero is refused
+  // rather than stored because proto3 decodes an omitted field to 0, so it would make "the client
+  // forgot the target" indistinguishable from "a goal of nothing".
+  int64 target_amount_minor = 4;
+
+  // The day the user wants to have reached it by, ISO-8601 YYYY-MM-DD. A civil date, for the
+  // reason records.proto gives for Record.date. Optional: a goal without one is open-ended. Not
+  // required to be in the future — whether a date is still reachable is progress guidance
+  // (jlogicsoftware/prudent#66), not a reason to refuse it here.
+  optional string target_date = 5;
+
+  GoalStatus status = 6;
+
+  // Milliseconds since the Unix epoch.
+  int64 created_at_ms = 7;
+
+  // When status last changed. Equal to created_at_ms until the first transition. Editing the
+  // goal's name, target or date does not move it.
+  int64 status_changed_at_ms = 8;
+
+  // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
+}
+
+// POST /api/v1/goals — creates an ACTIVE goal.
+message CreateGoalRequest {
+  string name = 1;
+  string currency = 2;
+  // See Goal.target_amount_minor.
+  int64 target_amount_minor = 3;
+  // See Goal.target_date. Absent means no date.
+  optional string target_date = 4;
+}
+
+// PUT /api/v1/goals/{id} — a FULL REPLACEMENT of the mutable fields, for the presence reason set
+// out in categories.proto: an absent target_date CLEARS it. The currency is not here because it
+// cannot change, and the status is not here because only the lifecycle routes change it. Refused
+// (409) for an archived goal.
+message UpdateGoalRequest {
+  string name = 1;
+  int64 target_amount_minor = 2;
+  optional string target_date = 3;
+}
+
+// GET /api/v1/goals — the caller's goals, optionally narrowed by the `status` query parameter
+// (ACTIVE, COMPLETED or ARCHIVED). Ordered by creation time, then id, so the order is total.
+// Unpaginated in v1 for the reason records.proto gives for ListRecordsResponse.
+message ListGoalsResponse {
+  repeated Goal goals = 1;
+}
+
+// The lifecycle routes answer a Goal and take no body:
+//   POST /api/v1/goals/{id}/complete    ACTIVE → COMPLETED
+//   POST /api/v1/goals/{id}/archive     ACTIVE or COMPLETED → ARCHIVED
+//   POST /api/v1/goals/{id}/reactivate  COMPLETED or ARCHIVED → ACTIVE
+// A request for a change that is not one — completing a goal that is not active, archiving one
+// that is archived — is refused (409), not accepted quietly, so a client that believes it changed
+// something finds out that it did not.
