@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:prudent/generated/prudent/v1/budgets.pb.dart';
+import 'package:prudent/generated/prudent/v1/goals.pb.dart';
 import 'package:prudent/generated/prudent/v1/plans.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
 import 'package:prudent/prudent_repository.dart';
@@ -492,6 +493,160 @@ void main() {
         ]);
       },
     );
+  });
+
+  group('PrudentRepository goals', () {
+    Map<String, Object?> goal({String status = 'GOAL_STATUS_ACTIVE'}) => {
+      'id': 'g1',
+      'name': 'Holiday',
+      'currency': 'PLN',
+      'targetAmountMinor': '500000',
+      'targetDate': '2027-06-30',
+      'status': status,
+      'createdAtMs': '1790000000000',
+      'statusChangedAtMs': '1790000000000',
+    };
+
+    test('createGoal posts the request and decodes the goal', () async {
+      String? capturedBody;
+      String? capturedMethod;
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedBody = request.body;
+          capturedMethod = request.method;
+          capturedUri = _uriOf(request);
+          return _jsonResponse(goal(), status: 201);
+        }),
+      );
+
+      final result = await repository.createGoal(
+        CreateGoalRequest(
+          name: 'Holiday',
+          currency: 'PLN',
+          targetAmountMinor: Int64(500000),
+          targetDate: '2027-06-30',
+        ),
+      );
+
+      expect(capturedMethod, 'POST');
+      expect(capturedUri!.path, '/api/v1/goals');
+      expect(capturedBody, contains('"targetAmountMinor":"500000"'));
+      expect(capturedBody, contains('"targetDate":"2027-06-30"'));
+      final created = result.fold((g) => g, (e) => throw e);
+      expect(created.id, 'g1');
+      expect(created.targetAmountMinor.toInt(), 500000);
+      expect(created.hasTargetDate(), isTrue);
+      expect(created.status, GoalStatus.GOAL_STATUS_ACTIVE);
+    });
+
+    test('a goal without a date decodes with no date', () async {
+      final repository = PrudentRepository(
+        client: _clientAnswering(
+          (request) => _jsonResponse(goal()..remove('targetDate')),
+        ),
+      );
+
+      final result = await repository.getGoal('g1');
+
+      expect(result.fold((g) => g.hasTargetDate(), (e) => throw e), isFalse);
+    });
+
+    test('updateGoal puts to the goal address', () async {
+      String? capturedMethod;
+      Uri? capturedUri;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedMethod = request.method;
+          capturedUri = _uriOf(request);
+          return _jsonResponse(goal());
+        }),
+      );
+
+      final result = await repository.updateGoal(
+        'g1',
+        UpdateGoalRequest(name: 'Holiday', targetAmountMinor: Int64(500000)),
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(capturedMethod, 'PUT');
+      expect(capturedUri!.path, '/api/v1/goals/g1');
+    });
+
+    test('listGoals sends the status filter only when one is given', () async {
+      final calls = <String>[];
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          calls.add('${request.method} ${_uriOf(request)}');
+          return _jsonResponse({
+            'goals': [goal()],
+          });
+        }),
+      );
+
+      final all = await repository.listGoals();
+      expect(all.fold((r) => r.goals, (e) => throw e).single.name, 'Holiday');
+      await repository.listGoals(status: GoalStatus.GOAL_STATUS_ACTIVE);
+      await repository.listGoals(status: GoalStatus.GOAL_STATUS_COMPLETED);
+      await repository.listGoals(status: GoalStatus.GOAL_STATUS_ARCHIVED);
+
+      expect(calls, [
+        'GET https://example.test/api/v1/goals',
+        'GET https://example.test/api/v1/goals?status=ACTIVE',
+        'GET https://example.test/api/v1/goals?status=COMPLETED',
+        'GET https://example.test/api/v1/goals?status=ARCHIVED',
+      ]);
+    });
+
+    test('listGoals refuses a status the server cannot filter by', () {
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) => _jsonResponse({})),
+      );
+
+      expect(
+        () => repository.listGoals(status: GoalStatus.GOAL_STATUS_UNSPECIFIED),
+        throwsArgumentError,
+      );
+    });
+
+    test('each lifecycle call posts to its own route', () async {
+      final calls = <String>[];
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          calls.add('${request.method} ${_uriOf(request).path}');
+          return _jsonResponse(goal(status: 'GOAL_STATUS_ARCHIVED'));
+        }),
+      );
+
+      final archived = await repository.archiveGoal('g1');
+      await repository.completeGoal('g1');
+      await repository.reactivateGoal('g1');
+
+      expect(
+        archived.fold((g) => g.status, (e) => throw e),
+        GoalStatus.GOAL_STATUS_ARCHIVED,
+      );
+      expect(calls, [
+        'POST /api/v1/goals/g1/archive',
+        'POST /api/v1/goals/g1/complete',
+        'POST /api/v1/goals/g1/reactivate',
+      ]);
+    });
+
+    test('a refused transition is an error the caller can render', () async {
+      final repository = PrudentRepository(
+        client: _clientAnswering(
+          (request) => _jsonResponse({
+            'code': 'conflict',
+            'message': 'A goal that is ACTIVE cannot be made ACTIVE.',
+          }, status: 409),
+        ),
+      );
+
+      final result = await repository.reactivateGoal('g1');
+
+      expect(result.isSuccess, isFalse);
+    });
   });
 
   group('PrudentRepository budget carry-over resets', () {

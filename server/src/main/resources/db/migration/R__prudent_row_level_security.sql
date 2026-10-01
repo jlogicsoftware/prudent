@@ -88,6 +88,7 @@ BEGIN
         'prudent_budget',
         'prudent_budget_carry_reset',
         'prudent_category',
+        'prudent_goal',
         'prudent_plan',
         'prudent_plan_occurrence',
         'prudent_record',

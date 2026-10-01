@@ -20,6 +20,8 @@ import prudent.account.AccountKind;
 import prudent.budget.BudgetCarryResetEntity;
 import prudent.budget.BudgetEntity;
 import prudent.category.CategoryEntity;
+import prudent.goal.GoalEntity;
+import prudent.goal.GoalState;
 import prudent.plan.Frequency;
 import prudent.plan.OccurrenceState;
 import prudent.plan.PlanEntity;
@@ -75,6 +77,7 @@ public final class PrudentTest {
               PlanEntity.deleteAll();
               BudgetCarryResetEntity.deleteAll();
               BudgetEntity.deleteAll();
+              GoalEntity.deleteAll();
               AccountEntity.deleteAll();
               CategoryEntity.deleteAll();
               SettingsEntity.deleteAll();
@@ -350,6 +353,30 @@ public final class PrudentTest {
                     discarded,
                     "",
                     java.time.Instant.now()));
+    return id;
+  }
+
+  /**
+   * Persists an active goal directly, for suites asserting something other than {@code
+   * GoalResource} itself — the ownership suite needs a goal belonging to a user it is not
+   * authenticated as.
+   */
+  public static UUID seedGoal(String userId, String name, String currency, long targetAmountMinor) {
+    UUID id = UUID.randomUUID();
+    QuarkusTransaction.requiringNew()
+        .run(
+            () -> {
+              GoalEntity goal = new GoalEntity();
+              goal.id = id;
+              goal.userId = UUID.fromString(userId);
+              goal.name = name;
+              goal.currency = currency;
+              goal.targetAmountMinor = targetAmountMinor;
+              goal.status = GoalState.ACTIVE;
+              goal.createdAt = java.time.Instant.now();
+              goal.statusChangedAt = goal.createdAt;
+              goal.persist();
+            });
     return id;
   }
 

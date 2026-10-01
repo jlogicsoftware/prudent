@@ -5,6 +5,7 @@ import 'generated/prudent/v1/accounts.pb.dart';
 import 'generated/prudent/v1/analytics.pb.dart';
 import 'generated/prudent/v1/budgets.pb.dart';
 import 'generated/prudent/v1/categories.pb.dart';
+import 'generated/prudent/v1/goals.pb.dart';
 import 'generated/prudent/v1/plans.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
@@ -29,6 +30,7 @@ class PrudentRepository {
   static const String _categoriesPath = '/api/v1/categories';
   static const String _settingsPath = '/api/v1/settings';
   static const String _budgetsPath = '/api/v1/budgets';
+  static const String _goalsPath = '/api/v1/goals';
   static const String _carryOverResetsPath = '/api/v1/budget-carry-over-resets';
   static const String _plansPath = '/api/v1/plans';
   static const String _occurrencesPath = '/api/v1/occurrences';
@@ -121,6 +123,61 @@ class PrudentRepository {
   /// Returns an archived category to use. Refused (409) if it is not archived.
   Future<ZenResult<Category>> restoreCategory(String id) =>
       _client.post<Category>(Category.new, '$_categoriesPath/$id/restore');
+
+  // --- Goals (M4, jlogicsoftware/prudent#38) — something saved for, never a transaction -----------
+
+  /// The user's goals, oldest first, optionally narrowed to one [status]. Archived and completed
+  /// goals are listed too: a goal is retired, never deleted.
+  Future<ZenResult<ListGoalsResponse>> listGoals({GoalStatus? status}) {
+    final path =
+        status == null
+            ? _goalsPath
+            : '$_goalsPath?${_encodeQuery({'status': _goalStatusName(status)})}';
+    return _client.get<ListGoalsResponse>(ListGoalsResponse.new, path);
+  }
+
+  Future<ZenResult<Goal>> getGoal(String id) =>
+      _client.get<Goal>(Goal.new, '$_goalsPath/$id');
+
+  /// Creates an active goal. The target must be positive; the currency cannot be changed later.
+  Future<ZenResult<Goal>> createGoal(CreateGoalRequest request) =>
+      _client.post<Goal>(Goal.new, _goalsPath, body: request);
+
+  /// Replaces the goal's name, target amount and target date (an absent date clears it). Refused
+  /// (409) while the goal is archived.
+  Future<ZenResult<Goal>> updateGoal(String id, UpdateGoalRequest request) =>
+      _client.put<Goal>(Goal.new, '$_goalsPath/$id', body: request);
+
+  /// Active → completed. Refused (409) if the goal is not active.
+  Future<ZenResult<Goal>> completeGoal(String id) =>
+      _client.post<Goal>(Goal.new, '$_goalsPath/$id/complete');
+
+  /// Active or completed → archived, keeping every bit of history. Refused (409) if already
+  /// archived. There is no delete: this is how a goal is retired.
+  Future<ZenResult<Goal>> archiveGoal(String id) =>
+      _client.post<Goal>(Goal.new, '$_goalsPath/$id/archive');
+
+  /// Completed or archived → active. Refused (409) if the goal is already active.
+  Future<ZenResult<Goal>> reactivateGoal(String id) =>
+      _client.post<Goal>(Goal.new, '$_goalsPath/$id/reactivate');
+
+  /// The name the server's `status` query takes — the constant without the proto prefix.
+  static String _goalStatusName(GoalStatus status) {
+    switch (status) {
+      case GoalStatus.GOAL_STATUS_ACTIVE:
+        return 'ACTIVE';
+      case GoalStatus.GOAL_STATUS_COMPLETED:
+        return 'COMPLETED';
+      case GoalStatus.GOAL_STATUS_ARCHIVED:
+        return 'ARCHIVED';
+      default:
+        throw ArgumentError.value(
+          status,
+          'status',
+          'is not a goal state a list can be filtered by',
+        );
+    }
+  }
 
   // --- Budgets (M3, jlogicsoftware/prudent#36) — the amount that may be spent, never a transaction
 

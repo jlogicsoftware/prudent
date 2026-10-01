@@ -17,6 +17,7 @@ import prudent.account.AccountEntity;
 import prudent.budget.BudgetCarryResetEntity;
 import prudent.budget.BudgetEntity;
 import prudent.category.CategoryEntity;
+import prudent.goal.GoalEntity;
 import prudent.plan.PlanEntity;
 import prudent.plan.PlanOccurrenceEntity;
 import prudent.record.RecordEntity;
@@ -90,6 +91,7 @@ class PrudentRetentionCleanupTest {
     PrudentTest.seedOccurrence(userId.toString(), planId, java.time.LocalDate.of(2026, 9, 1));
     PrudentTest.seedBudget(
         userId.toString(), categoryId, java.time.YearMonth.of(2026, 9), "PLN", 500_00L);
+    UUID goalId = PrudentTest.seedGoal(userId.toString(), "Holiday", "PLN", 5_000_00L);
     PrudentTest.seedCarryReset(
         userId.toString(), categoryId, java.time.YearMonth.of(2026, 9), "PLN", 100_00L);
 
@@ -108,6 +110,7 @@ class PrudentRetentionCleanupTest {
                   0, PlanOccurrenceEntity.count("planId", planId), "the occurrences must be gone");
               assertNull(PlanEntity.findById(planId), "the plan must be gone");
               assertEquals(0, BudgetEntity.count("userId", userId), "the budgets must be gone");
+              assertNull(GoalEntity.findById(goalId), "the goal must be gone");
               assertEquals(
                   0,
                   BudgetCarryResetEntity.count("userId", userId),

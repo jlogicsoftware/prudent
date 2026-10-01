@@ -1129,6 +1129,99 @@ components:
             $ref: '#/components/schemas/BudgetCarryOverReset'
 
     # -----------------------------------------------------------------------------------------
+    # Goals — something the user is saving for (M4, jlogicsoftware/prudent#38, ADR-049). NEVER a
+    # transaction: nothing here moves a balance. Retired (completed, archived), never deleted.
+    # -----------------------------------------------------------------------------------------
+    GoalStatus:
+      type: string
+      description: >-
+        Where a goal is in its life. GOAL_STATUS_UNSPECIFIED is what proto3 decodes an omitted
+        field to and is never stored. ACTIVE is the state a goal is created in; COMPLETED is
+        reached; ARCHIVED is retired and read-only.
+      enum:
+        - GOAL_STATUS_UNSPECIFIED
+        - GOAL_STATUS_ACTIVE
+        - GOAL_STATUS_COMPLETED
+        - GOAL_STATUS_ARCHIVED
+    Goal:
+      type: object
+      description: >-
+        Something the user wants to save for: a name, one currency, a positive target amount and an
+        optional target date. Calculated figures such as the amount set aside are not part of it.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: ISO-4217. Chosen at creation, never changed, never converted.
+        targetAmountMinor:
+          type: string
+          format: int64
+          description: Positive minor units — the amount to reach.
+        targetDate:
+          type: string
+          format: date
+          description: >-
+            YYYY-MM-DD. Absent for an open-ended goal. Not required to be in the future.
+        status:
+          $ref: '#/components/schemas/GoalStatus'
+        createdAtMs:
+          type: string
+          format: int64
+          description: Epoch milliseconds.
+        statusChangedAtMs:
+          type: string
+          format: int64
+          description: >-
+            Epoch milliseconds of the last status change; equal to createdAtMs until the first.
+    CreateGoalRequest:
+      type: object
+      description: Body for POST /api/v1/goals. No id and no status — the server sets both.
+      properties:
+        name:
+          type: string
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        targetAmountMinor:
+          type: string
+          format: int64
+          description: See Goal.targetAmountMinor.
+        targetDate:
+          type: string
+          format: date
+          description: See Goal.targetDate. Absent means no date.
+    UpdateGoalRequest:
+      type: object
+      description: >-
+        Body for PUT /api/v1/goals/{id} — a full replacement of the editable fields, so an absent
+        targetDate clears it. The currency and status are not editable here.
+      properties:
+        name:
+          type: string
+        targetAmountMinor:
+          type: string
+          format: int64
+        targetDate:
+          type: string
+          format: date
+    ListGoalsResponse:
+      type: object
+      description: >-
+        GET /api/v1/goals — the caller's goals, optionally narrowed by status, oldest first.
+      properties:
+        goals:
+          type: array
+          items:
+            $ref: '#/components/schemas/Goal'
+
+    # -----------------------------------------------------------------------------------------
     # Settings — a singleton per user
     # -----------------------------------------------------------------------------------------
     Settings:

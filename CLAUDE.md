@@ -88,6 +88,14 @@ overspent and empty states. Nothing yet audits budget edits, and no client scree
 a budget or a reset — the repository methods exist, the screens do not (jlogicsoftware/prudent#35) — and
 the record form no longer offers an archived category.
 
+M4 (virtual goal envelopes) has begun: `GoalResource` over `GoalEntity` (ADR-049,
+jlogicsoftware/prudent#38) stores a goal — name, currency, positive target amount, optional target date —
+at `/api/v1/goals`, in one of three states (`ACTIVE`, `COMPLETED`, `ARCHIVED`) that
+`/complete`, `/archive` and `/reactivate` move between. A goal is retired, never deleted: there is no
+`DELETE` route, and an archived goal is read-only until reactivated. Nothing yet allocates money to a goal,
+calculates eligible or free money, progress or contribution guidance, or shows goals — those are the epic's
+later tasks (jlogicsoftware/prudent#64–#67) — and the client has only the repository methods.
+
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the
 Taskfile parses with both discoverable in `task --list`, the preflight fails loudly naming every

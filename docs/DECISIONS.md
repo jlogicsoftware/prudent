@@ -13,6 +13,94 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-049 — A goal is its own table with a lifecycle state, retired and never deleted
+
+**Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-043 (a budget is its own table, so it
+cannot reach a balance), ADR-047 (retire a used thing, never delete it; refuse a change that is not
+one), ADR-039 (a state machine lives in one place), ADR-009 (per currency, never blended).
+
+### Decision
+
+The first M4 task (jlogicsoftware/prudent#38 — "create a goal with name, currency, target amount and
+optional date; support active, completed and archived states without deleting history") adds the goal
+and nothing that hangs off it. Allocations, eligible and free money, progress and the views are the
+epic's later tasks (jlogicsoftware/prudent#64–#67).
+
+- **A goal is its own table, `prudent_goal`,** and `GoalResource` at `/api/v1/goals`. It is something the
+  user wants to save for, not money that moved, so — as with plans and budgets — nothing that computes a
+  balance or an analytics total reads it, and creating, editing or completing one changes no figure.
+- **Fields:** a server-minted `id`, a non-blank `name` (trimmed, not unique), an ISO-4217 `currency`, a
+  **positive** `target_amount_minor`, an optional `target_date`, a `status` and two timestamps. Zero is
+  refused for the target for the reason ADR-043 gives for a budget amount: it is what an omitted proto3
+  field decodes to. The schema holds the same invariants as the resource (positive target, non-blank
+  name, upper-case currency, a known status), so a writer that skips the resource is refused too.
+- **The currency is chosen at creation and never changes.** Money set aside for a goal (the next task) is
+  held in that currency, so a goal that changed currency would change what that history means. It is
+  therefore absent from the update request rather than present and ignored.
+- **The target date is a civil date and is not required to be in the future.** Whether a date is still
+  reachable is progress guidance (#66), and the server has no business refusing a date for being past: a
+  goal created or imported late is still a goal. An absent date on update **clears** it — the update is a
+  full replacement, as everywhere else in the API.
+- **Three states, `ACTIVE`, `COMPLETED` and `ARCHIVED`, persisted by name,** with the transitions in one
+  place (`GoalState`) and routes for each: `POST /{id}/complete` (active → completed), `/archive` (active
+  or completed → archived) and `/reactivate` (completed or archived → active). **Nothing is terminal,**
+  because nothing is deleted: a goal marked reached by mistake, or archived and wanted again, comes back
+  rather than being recreated, which would orphan whatever history hangs off the original. A request for a
+  change that is not one — completing a goal that is not active, archiving an archived one — is refused at
+  409 rather than accepted quietly, as ADR-047 does for categories.
+- **There is no `DELETE`.** "Without deleting history" is taken literally and early: the allocation
+  history of the next task will point at a goal, and a goal that could vanish would take the meaning of
+  that history with it. This is the one place the design differs from budgets, which are hard-deleted
+  because a budget is a setting rather than something money is later recorded against. The only thing
+  that removes goal rows is the retention cascade for an anonymised user, which outranks the promise for
+  the reason ADR-046 gives for the reset history.
+- **An archived goal is read-only.** `PUT` is refused at 409 until it is reactivated, so a stray edit
+  cannot change what the user retired. A completed goal can still be edited (to correct its target after
+  the fact). Editing never moves `status_changed_at`; only a transition does, and a refused transition
+  leaves it alone.
+- **`status_changed_at` rather than one timestamp per state.** It answers "when did this last change
+  state" and is equal to `created_at` until the first change. A full per-transition history (who, when,
+  from what) is not stored; it was not asked for, and the allocation history is the audit trail the epic
+  cares about.
+- **The list is the caller's goals, oldest first, optionally narrowed by `?status=`** with the exact
+  constant name; anything else is a 400, not a guess. Archived and completed goals are listed like any
+  other, so history stays readable.
+- **Row-level security and retention** follow every other table: `prudent_goal` is in the repeatable RLS
+  script's list and in `PrudentRetentionCleanup`.
+
+### What this does not decide
+
+- **How an allocation refers to a goal, and what happens to one when its goal is archived** (#64). The
+  table carries no reference to anything and nothing references it yet. Whether archiving a goal with
+  money still set aside is allowed is that task's question: it is the one that knows what "set aside"
+  means.
+- **Whether a goal may be completed before its target is allocated** (#66). Completing is the user's
+  statement that it is done, and the server does not check it against a figure that does not exist yet.
+- **Any screen.** The client gains repository methods and generated messages only, like budgets before
+  their screen (#67).
+- **Goal names being unique.** They are not; two goals called "Holiday" are the user's business.
+
+### Consequence
+
+Verified by `GoalResourceTest` (create and read back in JSON and Protobuf; an optional and a past date; a
+lower-case currency and a padded name normalised; refusal of a blank name, a non-positive target, a
+non-ISO-4217 currency and a malformed or impossible date, each leaving no goal behind; an edit that
+changes name, target and date but not currency, status or timestamps, and an absent date clearing; an edit
+refused identically to a create and changing nothing; an archived goal read-only until reactivated; every
+permitted transition, every refused one, and a refused one leaving the goal untouched; no delete; the
+status filter and creation order; another user's goal answering 404 on every verb; a malformed id
+answering 404; and a goal leaving accounts, records and analytics untouched), `GoalStateTest` (the
+transition table), `GoalSchemaTest` (each constraint refused by name against the owner connection),
+`PrudentRowLevelSecurityTest` and `PrudentRetentionCleanupTest` (both extended), and the Dart repository
+tests. `task test:server` passes **476/476**; the client suite passes except `popup_test.dart`, which
+fails identically on an untouched `main` and is unrelated.
+
+**Not verified, and stated rather than implied:** the migration has run only against the throwaway
+Postgres the suite provisions, not against a Supabase database, and no screen exists to drive the
+endpoints from a client.
+
+---
+
 ## ADR-048 — The budget overview is a tab of its own, one month in one currency, and its percentage is measured against what was available
 
 **Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-047 (a month without a budget is an empty

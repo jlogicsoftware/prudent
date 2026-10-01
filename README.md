@@ -1,7 +1,7 @@
 # Prudent
 
-A **minimalist personal-finance application** — accounts, categories, records, monthly budgets, an
-overview and analytics.
+A **minimalist personal-finance application** — accounts, categories, records, monthly budgets, savings
+goals, an overview and analytics.
 
 Prudent is built on **[jZen](https://github.com/jZenDev/jZen)**, a framework for full-stack
 applications: a Quarkus server, a Flutter client, and a contract in Protobuf. jZen is a **declared
