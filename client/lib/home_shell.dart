@@ -4,11 +4,12 @@ import 'package:zen_ui_navigation/zen_ui_navigation.dart';
 
 import 'record/records_screen.dart';
 import 'analytics/analytics.dart';
+import 'budget/budget_overview_screen.dart';
 import 'overview/overview.dart';
 import 'settings.dart';
 import 'l10n/generated/prudent_localizations.dart';
 
-/// The authenticated shell: the reused `ZenNavigation` adaptive layout hosting Prudent's four
+/// The authenticated shell: the reused `ZenNavigation` adaptive layout hosting Prudent's five
 /// tabs (docs/prudent-migration-plan.md §2.4). `lib/navigation/` is deleted, not adapted.
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -36,6 +37,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         label: t.navRecords,
         icon: Icons.swap_vert_outlined,
         builder: (context) => const RecordsScreen(),
+      ),
+      ZenNavigationItem(
+        id: 'budgets',
+        label: t.navBudgets,
+        icon: Icons.savings_outlined,
+        builder: (context) => const BudgetOverviewScreen(),
       ),
       ZenNavigationItem(
         id: 'analytics',

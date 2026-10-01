@@ -5,6 +5,7 @@
 
   "navOverview": "Огляд",
   "navRecords": "Записи",
+  "navBudgets": "Бюджети",
   "navAnalytics": "Аналітика",
   "navSettings": "Налаштування",
 
@@ -126,6 +127,24 @@
   "plannedCashFlowNet": "Разом заплановано",
   "plannedCashFlowEmpty": "Нічого не заплановано на наступні {days} днів.",
   "plannedCashFlowLoadError": "Не вдалося завантажити запланований рух коштів: {error}",
+
+  "budgetsTitle": "Бюджети",
+  "budgetNoAccounts": "Додайте рахунок, щоб почати планувати бюджет.",
+  "budgetPreviousMonth": "Попередній місяць",
+  "budgetNextMonth": "Наступний місяць",
+  "budgetThisMonth": "Поточний місяць",
+  "budgetCurrency": "Валюта",
+  "budgetTotal": "Разом",
+  "budgetPlan": "План",
+  "budgetCarryOver": "Перенесено",
+  "budgetActual": "Витрачено",
+  "budgetRemaining": "Залишок",
+  "budgetPercentUsed": "Використано {percent}%",
+  "budgetOverspent": "Перевитрата: {amount}",
+  "budgetCarryOverReset": "Перенесення скинуто з {month}",
+  "budgetCategoryArchived": "В архіві",
+  "budgetEmpty": "Немає бюджетів на {month} у валюті {currency}.",
+  "budgetLoadError": "Не вдалося завантажити бюджети: {error}",
 
   "analyticsTitle": "Аналітика",
   "analyticsSpendByMonth": "Витрати за місяцями",

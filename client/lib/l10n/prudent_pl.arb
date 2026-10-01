@@ -5,6 +5,7 @@
 
   "navOverview": "Przegląd",
   "navRecords": "Wpisy",
+  "navBudgets": "Budżety",
   "navAnalytics": "Analityka",
   "navSettings": "Ustawienia",
 
@@ -126,6 +127,24 @@
   "plannedCashFlowNet": "Planowany wynik",
   "plannedCashFlowEmpty": "Nic nie zaplanowano na następne {days} dni.",
   "plannedCashFlowLoadError": "Nie udało się wczytać planowanych przepływów: {error}",
+
+  "budgetsTitle": "Budżety",
+  "budgetNoAccounts": "Dodaj konto, aby zacząć planować budżet.",
+  "budgetPreviousMonth": "Poprzedni miesiąc",
+  "budgetNextMonth": "Następny miesiąc",
+  "budgetThisMonth": "Bieżący miesiąc",
+  "budgetCurrency": "Waluta",
+  "budgetTotal": "Razem",
+  "budgetPlan": "Plan",
+  "budgetCarryOver": "Przeniesiono",
+  "budgetActual": "Wydano",
+  "budgetRemaining": "Pozostało",
+  "budgetPercentUsed": "Wykorzystano {percent}%",
+  "budgetOverspent": "Przekroczono o {amount}",
+  "budgetCarryOverReset": "Przeniesienie wyzerowano od {month}",
+  "budgetCategoryArchived": "Zarchiwizowana",
+  "budgetEmpty": "Brak budżetów na {month} w walucie {currency}.",
+  "budgetLoadError": "Nie udało się wczytać budżetów: {error}",
 
   "analyticsTitle": "Analityka",
   "analyticsSpendByMonth": "Wydatki wg miesiąca",
