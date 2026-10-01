@@ -13,6 +13,94 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-052 — Goal progress and contribution guidance are calculated per goal on every read; the percentage rounds down, the contribution rounds up
+
+**Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-050 (an envelope is calculated from its history, so
+progress is calculated from the envelope), ADR-049 (a goal has a target and an optional date, and "whether a date is
+still reachable" was left to this task), ADR-009 (per currency, never blended), ADR-045 (a figure that can be
+calculated is calculated, never stored), ADR-039 (a rule lives in one place).
+
+### Decision
+
+The fourth M4 task (jlogicsoftware/prudent#66 — "show allocated, remaining and, when dated, the monthly
+contribution needed using documented rounding rules") adds one read, `GET /api/v1/goals/progress`, answering a
+`GoalProgress` for each of the caller's goals in creation order, completed and archived goals included. Nothing is
+stored: no column, no migration, no entry in any history. The calculation is one pure class
+(`GoalProgressCalculator`) fed the goals, the envelope balances and a day, so the figure on screen and the figure the
+tests pin are the same code (ADR-039).
+
+- **Allocated** is the goal's envelope (`GoalAllocationEntity.balances`, ADR-050), unchanged. **Remaining** is
+  `target − allocated`, **never negative**: once an envelope holds the target or more, remaining is zero. Nothing caps
+  an envelope at its goal's target (ADR-050 did not and this does not change that), so `allocated` can exceed
+  `target` and is reported as it is.
+- **Percentage is rounded down**, `floor(allocated × 100 / target)`, at most 100, in `BigInteger` because an envelope
+  near the top of the amount range overflows a `long` when multiplied by 100. Down, so **100 means reached** and a
+  goal at 99.9% is shown as 99, never as done.
+- **The monthly contribution is rounded up**, `ceil(remaining / months_remaining)`, in integer minor units. Up, so
+  paying it every month for `months_remaining` months **always reaches the target**; the cost is that the total paid
+  can exceed `remaining` by at most `months_remaining − 1` minor units, and the last payment may be smaller. Rounding
+  to nearest or down would leave a goal that follows its guidance short. `ceil` is written as `q + (r == 0 ? 0 : 1)`
+  rather than `(remaining + months − 1) / months` so a remainder near the top of the range cannot overflow.
+- **Months remaining counts calendar months, both ends inclusive**: from the as-of date's month through the target
+  date's month. A goal due on 15 December seen on 1 October has three (October, November, December), and one due
+  later this month has one, so the whole remainder is the contribution. The target month counts as a month to
+  contribute in because the goal is not due until its date, so counting it only partly would make the contribution
+  needlessly steep for a goal due on the 31st and needlessly gentle for one due on the 1st; counting a whole month
+  for each is the one rule that does not depend on the day of the month. Months, not 30-day periods, so a figure does
+  not move because February is short. The target month being counted in full when "today" is already late in the
+  as-of month is the same rule seen from the other end, and is accepted.
+- **Which case a goal is in is stated, in a fixed order**, as `GoalGuidance`, so a client never has to re-derive why a
+  contribution is absent: `NOT_ACTIVE` (completed or archived — figures only), then `REACHED` (an active goal whose
+  remaining is zero), `NO_TARGET_DATE` (open-ended), `OVERDUE` (target date before the as-of day), and
+  `CONTRIBUTION` — the only case that sets `monthly_contribution_minor` and `months_remaining`. They are `optional`
+  so absent is distinguishable from zero. `NOT_ACTIVE` comes first so a goal completed by hand with money still
+  missing is not told it is behind; `REACHED` precedes the date cases so a goal that is full is never "overdue".
+- **An overdue goal gets no contribution.** A contribution "to catch up by yesterday" has no meaning, and inventing
+  one (say, the whole remainder this month) would be advice the user did not ask for. The goal is reported overdue
+  with its remaining amount, and moving the date is the user's edit (`PUT /api/v1/goals/{id}`), after which the next
+  read gives a figure. A date equal to the as-of day is **not** overdue: it is due today, one month, the whole
+  remainder.
+- **"Today" is the client's to state.** A goal carries no time zone (the date is a civil date, ADR-049) and the server
+  cannot know the user's, so the endpoint takes an optional `asOf` (`YYYY-MM-DD`) and defaults to the server's UTC
+  date, as `AnalyticsResource` does for its anchor. The day used is echoed as `as_of`. A malformed `asOf` is a 400,
+  not a fallback to today. The alternative — a clock bean as plans have — was not used because plans have a stored
+  zone to apply it to and goals do not; a test can name the day directly.
+- **No total across goals.** Goals are in different currencies and nothing is converted (ADR-009), and a sum of
+  "monthly contributions" across goals in one currency would be a budget the user never made. A client adds them up if
+  it wants to, per currency.
+- **Eligibility and free money are not consulted.** Whether the user *can* afford the contribution is the free-money
+  figure (ADR-051), which is already available; guidance says what the goal needs, not whether it is affordable.
+- **Client.** `PrudentRepository.getGoalProgress({asOf})` and nothing else: no screen shows progress yet (#67).
+
+### What this does not decide
+
+- **A screen for goals, envelopes, progress or guidance** (#67), including how a percentage or a contribution is
+  formatted for display; the server does not format money.
+- **Pacing against what has already been saved this month.** The contribution is the same on the first and the last
+  day of a month, and does not credit money allocated since the month began; that would need a monthly history the
+  design deliberately does not keep (ADR-050).
+- **Reminders** to contribute. They are post-MVP (the backlog's M5 note).
+
+### Consequence
+
+Verified by `GoalProgressCalculatorTest` (the framework-free rules: remaining and percentage, rounding down at 99.9%
+and at thirds, an envelope above the target, the overflow boundary at `Long.MAX_VALUE`, the month count across month
+and year boundaries and a short month, the ceiling on and off a whole division with the "smallest amount that gets
+there" check, due today versus yesterday and earlier in the same month, every guidance case and their precedence, a
+goal with no envelope at zero, the order of the list), `GoalProgressTest` (the figures over HTTP in JSON and
+Protobuf; the contribution rounded up on the wire; figures following a real allocate, withdraw and move; goals in
+two currencies with no total; every guidance case reachable through the API; one goal changing case with the day
+asked about; an archived goal still listed; an edit to the date or target changing the guidance, which is what
+"stored nowhere" means in practice; the default day; a malformed `asOf` refused in five forms; another user's goals and
+envelopes invisible; `/progress` not swallowed by `/{id}`; no identity 401), and the Dart repository and wire tests. `task test:server` passes **612/612**; the client suite passes except
+`popup_test.dart`, which fails identically on an untouched `main` and is unrelated (ADR-049 to ADR-051 record the same).
+
+**Not verified, and stated rather than implied:** no screen shows any of this, so nothing was driven in a browser or
+simulator; and the month count's treatment of the target month is a product choice made here, argued above, not one
+a user has been asked about.
+
+---
+
 ## ADR-051 — Goals draw on accounts the user marks eligible; an allocation may not exceed the free money in its currency
 
 **Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-050 (an envelope is the sum of an append-only

@@ -599,6 +599,59 @@ void main() {
       ]);
     });
 
+    test('getGoalProgress sends the day only when one is given and decodes the guidance', () async {
+      final calls = <String>[];
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          calls.add('${request.method} ${_uriOf(request)}');
+          return _jsonResponse({
+            'asOf': '2026-10-01',
+            'goals': [
+              {
+                'goalId': 'g1',
+                'currency': 'PLN',
+                'allocatedMinor': '10000',
+                'targetAmountMinor': '100000',
+                'remainingMinor': '90000',
+                'progressPercent': 10,
+                'guidance': 'GOAL_GUIDANCE_CONTRIBUTION',
+                'monthlyContributionMinor': '30000',
+                'monthsRemaining': 3,
+              },
+              {
+                'goalId': 'g2',
+                'currency': 'EUR',
+                'targetAmountMinor': '5000',
+                'remainingMinor': '5000',
+                'guidance': 'GOAL_GUIDANCE_NO_TARGET_DATE',
+              },
+            ],
+          });
+        }),
+      );
+
+      final result = await repository.getGoalProgress();
+      await repository.getGoalProgress(asOf: '2026-10-01');
+
+      expect(calls, [
+        'GET https://example.test/api/v1/goals/progress',
+        'GET https://example.test/api/v1/goals/progress?asOf=2026-10-01',
+      ]);
+      final response = result.fold((r) => r, (e) => throw e);
+      expect(response.asOf, '2026-10-01');
+      final dated = response.goals[0];
+      expect(dated.remainingMinor.toInt(), 90000);
+      expect(dated.progressPercent, 10);
+      expect(dated.guidance, GoalGuidance.GOAL_GUIDANCE_CONTRIBUTION);
+      expect(dated.monthlyContributionMinor.toInt(), 30000);
+      expect(dated.monthsRemaining, 3);
+      // The two derived fields are absent, not zero, when there is nothing to suggest.
+      final open = response.goals[1];
+      expect(open.guidance, GoalGuidance.GOAL_GUIDANCE_NO_TARGET_DATE);
+      expect(open.hasMonthlyContributionMinor(), isFalse);
+      expect(open.hasMonthsRemaining(), isFalse);
+    });
+
     test('listGoals refuses a status the server cannot filter by', () {
       final repository = PrudentRepository(
         client: _clientAnswering((request) => _jsonResponse({})),

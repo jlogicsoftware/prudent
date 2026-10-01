@@ -163,6 +163,20 @@ class PrudentRepository {
   Future<ZenResult<Goal>> reactivateGoal(String id) =>
       _client.post<Goal>(Goal.new, '$_goalsPath/$id/reactivate');
 
+  /// How far each goal is, and what to set aside monthly to reach it (M4,
+  /// jlogicsoftware/prudent#66, ADR-052): allocated, remaining and a whole percent per goal and, for an
+  /// active goal with a target date that has not passed, the monthly contribution and the months it is
+  /// spread over. Calculated by the server on every call — the client re-derives none of it. [asOf]
+  /// (`YYYY-MM-DD`) is the day to calculate for; omitted, the server uses its UTC date. Never summed
+  /// across currencies.
+  Future<ZenResult<ListGoalProgressResponse>> getGoalProgress({String? asOf}) =>
+      _client.get<ListGoalProgressResponse>(
+        ListGoalProgressResponse.new,
+        asOf == null
+            ? '$_goalsPath/progress'
+            : '$_goalsPath/progress?${_encodeQuery({'asOf': asOf})}',
+      );
+
   /// The name the server's `status` query takes — the constant without the proto prefix.
   static String _goalStatusName(GoalStatus status) {
     switch (status) {

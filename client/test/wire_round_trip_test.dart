@@ -17,6 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/generated/prudent/v1/categories.pb.dart';
 import 'package:prudent/generated/prudent/v1/goal_allocations.pb.dart';
+import 'package:prudent/generated/prudent/v1/goals.pb.dart';
 import 'package:prudent/generated/prudent/v1/plans.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
 import 'package:prudent/generated/prudent/v1/settings.pb.dart';
@@ -303,6 +304,41 @@ void main() {
           roundTrip(UpdateAccountRequest(eligibleForGoals: true), format, UpdateAccountRequest.new).eligibleForGoals,
           isTrue,
         );
+      });
+
+      test('goal progress survives the round trip, with the two derived fields absent when unset', () {
+        final original = ListGoalProgressResponse(
+          asOf: '2026-10-01',
+          goals: [
+            GoalProgress(
+              goalId: 'g1',
+              currency: 'PLN',
+              allocatedMinor: Int64(10000),
+              targetAmountMinor: Int64(100000),
+              remainingMinor: Int64(90000),
+              progressPercent: 10,
+              guidance: GoalGuidance.GOAL_GUIDANCE_CONTRIBUTION,
+              monthlyContributionMinor: Int64(30000),
+              monthsRemaining: 3,
+            ),
+            GoalProgress(
+              goalId: 'g2',
+              currency: 'EUR',
+              targetAmountMinor: Int64(5000),
+              remainingMinor: Int64(5000),
+              guidance: GoalGuidance.GOAL_GUIDANCE_OVERDUE,
+            ),
+          ],
+        );
+
+        final decoded = roundTrip(original, format, ListGoalProgressResponse.new);
+
+        expect(decoded, original);
+        expect(decoded.goals[0].monthlyContributionMinor, Int64(30000));
+        expect(decoded.goals[0].monthsRemaining, 3);
+        expect(decoded.goals[1].guidance, GoalGuidance.GOAL_GUIDANCE_OVERDUE);
+        expect(decoded.goals[1].hasMonthlyContributionMinor(), isFalse);
+        expect(decoded.goals[1].hasMonthsRemaining(), isFalse);
       });
 
       test('free money survives the round trip, including a negative figure', () {

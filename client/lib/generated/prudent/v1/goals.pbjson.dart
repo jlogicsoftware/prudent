@@ -32,6 +32,26 @@ final $typed_data.Uint8List goalStatusDescriptor = $convert.base64Decode(
     'NfQUNUSVZFEAESGQoVR09BTF9TVEFUVVNfQ09NUExFVEVEEAISGAoUR09BTF9TVEFUVVNfQVJD'
     'SElWRUQQAw==');
 
+@$core.Deprecated('Use goalGuidanceDescriptor instead')
+const GoalGuidance$json = {
+  '1': 'GoalGuidance',
+  '2': [
+    {'1': 'GOAL_GUIDANCE_UNSPECIFIED', '2': 0},
+    {'1': 'GOAL_GUIDANCE_NOT_ACTIVE', '2': 1},
+    {'1': 'GOAL_GUIDANCE_REACHED', '2': 2},
+    {'1': 'GOAL_GUIDANCE_NO_TARGET_DATE', '2': 3},
+    {'1': 'GOAL_GUIDANCE_OVERDUE', '2': 4},
+    {'1': 'GOAL_GUIDANCE_CONTRIBUTION', '2': 5},
+  ],
+};
+
+/// Descriptor for `GoalGuidance`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List goalGuidanceDescriptor = $convert.base64Decode(
+    'CgxHb2FsR3VpZGFuY2USHQoZR09BTF9HVUlEQU5DRV9VTlNQRUNJRklFRBAAEhwKGEdPQUxfR1'
+    'VJREFOQ0VfTk9UX0FDVElWRRABEhkKFUdPQUxfR1VJREFOQ0VfUkVBQ0hFRBACEiAKHEdPQUxf'
+    'R1VJREFOQ0VfTk9fVEFSR0VUX0RBVEUQAxIZChVHT0FMX0dVSURBTkNFX09WRVJEVUUQBBIeCh'
+    'pHT0FMX0dVSURBTkNFX0NPTlRSSUJVVElPThAF');
+
 @$core.Deprecated('Use goalDescriptor instead')
 const Goal$json = {
   '1': 'Goal',
@@ -173,3 +193,86 @@ const ListGoalsResponse$json = {
 final $typed_data.Uint8List listGoalsResponseDescriptor = $convert.base64Decode(
     'ChFMaXN0R29hbHNSZXNwb25zZRImCgVnb2FscxgBIAMoCzIQLnBydWRlbnQudjEuR29hbFIFZ2'
     '9hbHM=');
+
+@$core.Deprecated('Use goalProgressDescriptor instead')
+const GoalProgress$json = {
+  '1': 'GoalProgress',
+  '2': [
+    {'1': 'goal_id', '3': 1, '4': 1, '5': 9, '10': 'goalId'},
+    {'1': 'currency', '3': 2, '4': 1, '5': 9, '10': 'currency'},
+    {'1': 'allocated_minor', '3': 3, '4': 1, '5': 3, '10': 'allocatedMinor'},
+    {
+      '1': 'target_amount_minor',
+      '3': 4,
+      '4': 1,
+      '5': 3,
+      '10': 'targetAmountMinor'
+    },
+    {'1': 'remaining_minor', '3': 5, '4': 1, '5': 3, '10': 'remainingMinor'},
+    {'1': 'progress_percent', '3': 6, '4': 1, '5': 5, '10': 'progressPercent'},
+    {
+      '1': 'guidance',
+      '3': 7,
+      '4': 1,
+      '5': 14,
+      '6': '.prudent.v1.GoalGuidance',
+      '10': 'guidance'
+    },
+    {
+      '1': 'monthly_contribution_minor',
+      '3': 8,
+      '4': 1,
+      '5': 3,
+      '9': 0,
+      '10': 'monthlyContributionMinor',
+      '17': true
+    },
+    {
+      '1': 'months_remaining',
+      '3': 9,
+      '4': 1,
+      '5': 5,
+      '9': 1,
+      '10': 'monthsRemaining',
+      '17': true
+    },
+  ],
+  '8': [
+    {'1': '_monthly_contribution_minor'},
+    {'1': '_months_remaining'},
+  ],
+};
+
+/// Descriptor for `GoalProgress`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List goalProgressDescriptor = $convert.base64Decode(
+    'CgxHb2FsUHJvZ3Jlc3MSFwoHZ29hbF9pZBgBIAEoCVIGZ29hbElkEhoKCGN1cnJlbmN5GAIgAS'
+    'gJUghjdXJyZW5jeRInCg9hbGxvY2F0ZWRfbWlub3IYAyABKANSDmFsbG9jYXRlZE1pbm9yEi4K'
+    'E3RhcmdldF9hbW91bnRfbWlub3IYBCABKANSEXRhcmdldEFtb3VudE1pbm9yEicKD3JlbWFpbm'
+    'luZ19taW5vchgFIAEoA1IOcmVtYWluaW5nTWlub3ISKQoQcHJvZ3Jlc3NfcGVyY2VudBgGIAEo'
+    'BVIPcHJvZ3Jlc3NQZXJjZW50EjQKCGd1aWRhbmNlGAcgASgOMhgucHJ1ZGVudC52MS5Hb2FsR3'
+    'VpZGFuY2VSCGd1aWRhbmNlEkEKGm1vbnRobHlfY29udHJpYnV0aW9uX21pbm9yGAggASgDSABS'
+    'GG1vbnRobHlDb250cmlidXRpb25NaW5vcogBARIuChBtb250aHNfcmVtYWluaW5nGAkgASgFSA'
+    'FSD21vbnRoc1JlbWFpbmluZ4gBAUIdChtfbW9udGhseV9jb250cmlidXRpb25fbWlub3JCEwoR'
+    'X21vbnRoc19yZW1haW5pbmc=');
+
+@$core.Deprecated('Use listGoalProgressResponseDescriptor instead')
+const ListGoalProgressResponse$json = {
+  '1': 'ListGoalProgressResponse',
+  '2': [
+    {'1': 'as_of', '3': 1, '4': 1, '5': 9, '10': 'asOf'},
+    {
+      '1': 'goals',
+      '3': 2,
+      '4': 3,
+      '5': 11,
+      '6': '.prudent.v1.GoalProgress',
+      '10': 'goals'
+    },
+  ],
+};
+
+/// Descriptor for `ListGoalProgressResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listGoalProgressResponseDescriptor =
+    $convert.base64Decode(
+        'ChhMaXN0R29hbFByb2dyZXNzUmVzcG9uc2USEwoFYXNfb2YYASABKAlSBGFzT2YSLgoFZ29hbH'
+        'MYAiADKAsyGC5wcnVkZW50LnYxLkdvYWxQcm9ncmVzc1IFZ29hbHM=');

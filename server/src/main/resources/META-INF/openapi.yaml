@@ -1236,6 +1236,85 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Goal'
+    GoalGuidance:
+      type: string
+      description: >-
+        Why a goal has, or has not, a monthly contribution to suggest. The first that applies, in
+        this order: NOT_ACTIVE (completed or archived), REACHED (the envelope holds the target),
+        NO_TARGET_DATE (open-ended), OVERDUE (the target date is before asOf), CONTRIBUTION (the
+        monthly contribution is set). GOAL_GUIDANCE_UNSPECIFIED is what proto3 decodes an omitted
+        field to and is never produced.
+      enum:
+        - GOAL_GUIDANCE_UNSPECIFIED
+        - GOAL_GUIDANCE_NOT_ACTIVE
+        - GOAL_GUIDANCE_REACHED
+        - GOAL_GUIDANCE_NO_TARGET_DATE
+        - GOAL_GUIDANCE_OVERDUE
+        - GOAL_GUIDANCE_CONTRIBUTION
+    GoalProgress:
+      type: object
+      description: >-
+        How far one goal is and what to set aside monthly to reach it (ADR-052). Calculated on
+        every read from the goal and its envelope, in the goal's own currency, and never stored.
+        Integer arithmetic on minor units. progressPercent is rounded DOWN, so 100 means reached;
+        monthlyContributionMinor is rounded UP, so paying it every month for monthsRemaining months
+        always reaches the target.
+      properties:
+        goalId:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        allocatedMinor:
+          type: string
+          format: int64
+          description: What the goal's envelope holds. Never negative; may exceed the target.
+        targetAmountMinor:
+          type: string
+          format: int64
+        remainingMinor:
+          type: string
+          format: int64
+          description: Target less allocated, never negative; zero once the target is reached.
+        progressPercent:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 100
+          description: floor(allocated * 100 / target), at most 100.
+        guidance:
+          $ref: '#/components/schemas/GoalGuidance'
+        monthlyContributionMinor:
+          type: string
+          format: int64
+          description: >-
+            ceil(remaining / monthsRemaining). Present only for GOAL_GUIDANCE_CONTRIBUTION. The
+            last payment may be smaller; the total paid can exceed remaining by at most
+            monthsRemaining - 1 minor units.
+        monthsRemaining:
+          type: integer
+          format: int32
+          minimum: 1
+          description: >-
+            Calendar months from asOf's month through the target date's month, both inclusive.
+            Present only for GOAL_GUIDANCE_CONTRIBUTION.
+    ListGoalProgressResponse:
+      type: object
+      description: >-
+        GET /api/v1/goals/progress — one GoalProgress per goal, oldest first, completed and
+        archived goals included. There is deliberately no total across goals: they may be in
+        different currencies.
+      properties:
+        asOf:
+          type: string
+          format: date
+          description: The day the figures were calculated for.
+        goals:
+          type: array
+          items:
+            $ref: '#/components/schemas/GoalProgress'
 
     # -----------------------------------------------------------------------------------------
     # Goal envelopes — money set aside for a goal (M4, jlogicsoftware/prudent#64, ADR-050). VIRTUAL:
