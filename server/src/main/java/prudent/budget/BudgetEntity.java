@@ -130,6 +130,22 @@ public class BudgetEntity extends PanacheEntityBase {
         userId, month.atDay(1), currency);
   }
 
+  /**
+   * The caller's budgets in one currency for the given categories in every month before {@code
+   * month} — the rows a carry-over is calculated from. Currency is part of the query, as in {@link
+   * #listForMonthAndCurrency}.
+   */
+  public static List<BudgetEntity> listEarlier(
+      UUID userId, YearMonth month, String currency, java.util.Collection<UUID> categoryIds) {
+    if (categoryIds.isEmpty()) {
+      return List.of();
+    }
+    return list(
+        "userId = ?1 and monthStart < ?2 and currency = ?3 and categoryId in ?4"
+            + " order by monthStart, categoryId",
+        userId, month.atDay(1), currency, categoryIds);
+  }
+
   /** Whether any of the caller's budgets is still set for this category. */
   public static boolean existsForCategory(UUID userId, UUID categoryId) {
     return count("userId = ?1 and categoryId = ?2", userId, categoryId) > 0;

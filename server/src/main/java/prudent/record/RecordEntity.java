@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -329,6 +330,40 @@ public class RecordEntity extends PanacheEntityBase {
             .setParameter("to", to)
             .getResultList()) {
       net.put((UUID) row[0], (Long) row[1]);
+    }
+    return net;
+  }
+
+  /**
+   * {@link #netByCategory} split by calendar month, for the given categories and every record
+   * dated before {@code before} — what a budget's carry-over is calculated from (M3,
+   * jlogicsoftware/prudent#60, ADR-045). The same records count and the same signed sum is taken,
+   * so a month's figure here is exactly what {@code netByCategory} gives for that month. A
+   * category and month with no matching record are absent, not zero.
+   */
+  public static Map<UUID, Map<YearMonth, Long>> netByCategoryAndMonthBefore(
+      UUID userId, String currency, Set<UUID> categoryIds, LocalDate before) {
+    Map<UUID, Map<YearMonth, Long>> net = new HashMap<>();
+    if (categoryIds.isEmpty()) {
+      return net;
+    }
+    for (Object[] row :
+        getEntityManager()
+            .createQuery(
+                "select r.categoryId, year(r.date), month(r.date), sum(r.amountMinor)"
+                    + " from RecordEntity r"
+                    + " where r.userId = :userId and r.currency = :currency"
+                    + " and r.categoryId in :categoryIds and r.transferId is null"
+                    + " and r.isCorrection = false and r.date < :before"
+                    + " group by r.categoryId, year(r.date), month(r.date)",
+                Object[].class)
+            .setParameter("userId", userId)
+            .setParameter("currency", currency)
+            .setParameter("categoryIds", categoryIds)
+            .setParameter("before", before)
+            .getResultList()) {
+      net.computeIfAbsent((UUID) row[0], k -> new HashMap<>())
+          .put(YearMonth.of(((Number) row[1]).intValue(), ((Number) row[2]).intValue()), (Long) row[3]);
     }
     return net;
   }

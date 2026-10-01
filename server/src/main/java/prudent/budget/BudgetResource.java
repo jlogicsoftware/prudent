@@ -15,6 +15,10 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -44,7 +48,8 @@ import zen.core.http.ZenStatus;
  *
  * <p>{@code GET /summary} is the read side (jlogicsoftware/prudent#59, ADR-044): plan, actual and
  * remaining amount per budgeted category for one month in one currency, calculated on each request
- * from the budgets and the ledger and stored nowhere.
+ * from the budgets and the ledger and stored nowhere. Remaining includes the carry-over of the
+ * category's earlier budgeted months (jlogicsoftware/prudent#60, ADR-045).
  *
  * <p>The resource shape is set out on {@link prudent.category.CategoryResource}.
  */
@@ -94,8 +99,9 @@ public class BudgetResource {
       description =
           "Query parameters: month (required, YYYY-MM) and currency (required, ISO-4217). Actual"
               + " is net spending from posted records in that currency, refunds included; a"
-              + " planned occurrence is not counted until it is confirmed. Never summed across"
-              + " currencies.")
+              + " planned occurrence is not counted until it is confirmed. Each item also carries"
+              + " the underspend or overspend of the category's earlier budgeted months, which"
+              + " is included in remaining. Never summed across currencies.")
   @APIResponse(
       responseCode = ZenStatus.OK,
       content = @Content(schema = @Schema(ref = "BudgetSummaryResponse")))
@@ -115,13 +121,28 @@ public class BudgetResource {
     }
     String normalized = parseCurrency(currency);
 
+    List<BudgetEntity> budgets =
+        BudgetEntity.listForMonthAndCurrency(userId, parsedMonth, normalized);
+    Set<UUID> categories = new HashSet<>();
+    for (BudgetEntity budget : budgets) {
+      categories.add(budget.categoryId);
+    }
+    // Carry-over reads only the listed categories' earlier budgets and records, in this currency,
+    // so no other category or currency can reach the figure (ADR-045).
+    Map<UUID, Long> carryOver =
+        BudgetCalculator.carryOver(
+            BudgetEntity.listEarlier(userId, parsedMonth, normalized, categories),
+            RecordEntity.netByCategoryAndMonthBefore(
+                userId, normalized, categories, parsedMonth.atDay(1)));
+
     return Response.ok(
             BudgetCalculator.summarize(
                 parsedMonth,
                 normalized,
-                BudgetEntity.listForMonthAndCurrency(userId, parsedMonth, normalized),
+                budgets,
                 RecordEntity.netByCategory(
-                    userId, normalized, parsedMonth.atDay(1), parsedMonth.atEndOfMonth())))
+                    userId, normalized, parsedMonth.atDay(1), parsedMonth.atEndOfMonth()),
+                carryOver))
         .build();
   }
 

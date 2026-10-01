@@ -72,6 +72,7 @@ const CategoryBudgetSummary$json = {
     {'1': 'plan_minor', '3': 2, '4': 1, '5': 3, '10': 'planMinor'},
     {'1': 'actual_minor', '3': 3, '4': 1, '5': 3, '10': 'actualMinor'},
     {'1': 'remaining_minor', '3': 4, '4': 1, '5': 3, '10': 'remainingMinor'},
+    {'1': 'carry_over_minor', '3': 5, '4': 1, '5': 3, '10': 'carryOverMinor'},
   ],
 };
 
@@ -79,7 +80,8 @@ const CategoryBudgetSummary$json = {
 final $typed_data.Uint8List categoryBudgetSummaryDescriptor = $convert.base64Decode(
     'ChVDYXRlZ29yeUJ1ZGdldFN1bW1hcnkSHwoLY2F0ZWdvcnlfaWQYASABKAlSCmNhdGVnb3J5SW'
     'QSHQoKcGxhbl9taW5vchgCIAEoA1IJcGxhbk1pbm9yEiEKDGFjdHVhbF9taW5vchgDIAEoA1IL'
-    'YWN0dWFsTWlub3ISJwoPcmVtYWluaW5nX21pbm9yGAQgASgDUg5yZW1haW5pbmdNaW5vcg==');
+    'YWN0dWFsTWlub3ISJwoPcmVtYWluaW5nX21pbm9yGAQgASgDUg5yZW1haW5pbmdNaW5vchIoCh'
+    'BjYXJyeV9vdmVyX21pbm9yGAUgASgDUg5jYXJyeU92ZXJNaW5vcg==');
 
 @$core.Deprecated('Use budgetSummaryResponseDescriptor instead')
 const BudgetSummaryResponse$json = {
@@ -110,6 +112,13 @@ const BudgetSummaryResponse$json = {
       '5': 3,
       '10': 'totalRemainingMinor'
     },
+    {
+      '1': 'total_carry_over_minor',
+      '3': 7,
+      '4': 1,
+      '5': 3,
+      '10': 'totalCarryOverMinor'
+    },
   ],
 };
 
@@ -119,4 +128,5 @@ final $typed_data.Uint8List budgetSummaryResponseDescriptor = $convert.base64Dec
     'N5GAIgASgJUghjdXJyZW5jeRI3CgVpdGVtcxgDIAMoCzIhLnBydWRlbnQudjEuQ2F0ZWdvcnlC'
     'dWRnZXRTdW1tYXJ5UgVpdGVtcxIoChB0b3RhbF9wbGFuX21pbm9yGAQgASgDUg50b3RhbFBsYW'
     '5NaW5vchIsChJ0b3RhbF9hY3R1YWxfbWlub3IYBSABKANSEHRvdGFsQWN0dWFsTWlub3ISMgoV'
-    'dG90YWxfcmVtYWluaW5nX21pbm9yGAYgASgDUhN0b3RhbFJlbWFpbmluZ01pbm9y');
+    'dG90YWxfcmVtYWluaW5nX21pbm9yGAYgASgDUhN0b3RhbFJlbWFpbmluZ01pbm9yEjMKFnRvdG'
+    'FsX2NhcnJ5X292ZXJfbWlub3IYByABKANSE3RvdGFsQ2FycnlPdmVyTWlub3I=');
