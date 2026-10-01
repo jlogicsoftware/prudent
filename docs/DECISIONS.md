@@ -13,6 +13,99 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-051 — Goals draw on accounts the user marks eligible; an allocation may not exceed the free money in its currency
+
+**Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-050 (an envelope is the sum of an append-only
+history — and left "what may be allocated" to this task), ADR-014 (an account's balance is derived on every
+read), ADR-009 (per currency, never blended), ADR-045 (a figure that can be calculated is calculated, never
+stored), ADR-039 (a rule lives in one place).
+
+### Decision
+
+The third M4 task (jlogicsoftware/prudent#65 — "define eligible accounts per currency and prevent allocations
+that exceed their available total") decides which money a goal may draw on, and refuses an allocation beyond it.
+
+- **Eligibility is the user's choice, one flag on the account.** `Account.eligible_for_goals`
+  (`prudent_account.eligible_for_goals BOOLEAN NOT NULL DEFAULT FALSE`) says money in this account may be set
+  aside. An account counts only while it is **also active** (`AccountEntity.fundsGoals()`): an inactive account is
+  kept for its history, so what it holds is not money the user is planning with. The flag is **not derived** from
+  `include_in_total`, the account's type or anything else — "what counts as my money" and "what may be earmarked"
+  are different questions, and a guess would earmark money nobody offered. It is a separate flag from
+  `include_in_total` for the reason `include_in_overview` is.
+- **Default false, no backfill.** An existing account is not drawn on until its owner marks it; the cost of the
+  opposite mistake is one switch. Create and update carry the flag (`CreateAccountRequest` 10,
+  `UpdateAccountRequest` 9, `Account` 11). `PUT` is a full replacement (accounts.proto), so a client that does not
+  send the flag turns it off — the client's two account forms send it, and a test pins the replacement rule.
+- **"Per currency" is the shape of the sum, not a second flag.** An account holds several currencies (ADR-008);
+  for each currency, **eligible money** is the sum, over the accounts that fund goals, of the account's *current*
+  balance in that currency — opening amount plus its records, the figure an `Account` already reports. Nothing is
+  converted: an EUR surplus covers nothing in PLN (ADR-009). A per-(account, currency) flag was considered and
+  left out: it would change `CurrencyBalance`, which every create and update already round-trips, to express a
+  distinction nobody has asked for.
+- **Allocated money is every envelope in the currency, whatever the goal's state.** Money in a completed goal is
+  still set aside until it is withdrawn, so it is not free; an archived goal is empty by ADR-050, so it adds
+  nothing. This reads the epic's "total active allocation" as *allocation in force*, not as *in an ACTIVE goal*.
+- **Free money = eligible − allocated, calculated on every read and stored nowhere.**
+  `GET /api/v1/goal-allocations/free-money` returns one `CurrencyFreeMoney` per currency that an eligible account
+  holds or a goal is set in (code order), with the accounts that make up the eligible figure in name order. The
+  calculation is one pure function (`FreeMoney.calculate`), used by both the endpoint and the cap, so the figure a
+  user is shown and the figure an allocation is checked against cannot differ (ADR-039).
+- **Only `ALLOCATE` is capped (409).** A `WITHDRAW` lowers the total allocated and a `MOVE` leaves it unchanged,
+  so neither can exceed anything. The check follows the overflow check, so an amount no envelope could hold is
+  still a 400 however much is free. The message states free and requested in minor units: the server does not
+  format money.
+- **Free money may be negative, and is reported as such.** Spending a record, or un-marking or deactivating an
+  account, lowers eligible money *after* an allocation was made, and an allocation is history that is not
+  rewritten (ADR-050). `free_minor < 0` means the envelopes hold more than the eligible accounts do; it refuses
+  every further `ALLOCATE` until the user withdraws (or the balances recover) and blocks nothing else. Neither a
+  record nor an account edit is refused because of an allocation: the server cannot stop a person spending their
+  own money, and a ledger that refused to record what happened would be the worse failure.
+- **Concurrent allocations are serialized per user and currency.** The cap reads every envelope in the currency,
+  so locking only the goal named would let two allocations to different goals each see the same free money. An
+  `ALLOCATE` first locks **all** the caller's goals in that currency, `SELECT ... FOR UPDATE` in id order (the
+  order `GoalAllocationResource` already takes any pair in, so no deadlock), then proceeds as before. The currency
+  is read as a scalar before the lock so no goal state is read stale. Account balances are *not* locked: a record
+  landing between the check and the commit is the over-allocation case above, reported rather than prevented.
+  `concurrentAllocationsToDifferentGoalsCannotExceedTheFreeMoney` fires eight allocations over two goals at once
+  against 300 free and asserts exactly three succeed; with the lock removed it fails (four succeed) on every run,
+  which is how it is known to test the lock.
+- **Client.** The new-account and edit-account forms gain the switch ("Available for goals", with a hint that only
+  active accounts count) in `en`, `uk` and `pl`, and — being touched — use `ZenSwitchRow` for all their switches
+  (ADR-041's rule for touched screens). `PrudentRepository.getFreeMoney()` is the only other change: no screen
+  shows free money yet (#67).
+
+### What this does not decide
+
+- **Progress and contribution guidance** (#66) and **any screen for goals or envelopes** (#67). Free money is an
+  input to both.
+- **A per-account limit** ("at most 500 of this account"), or a share of an account. An eligible account
+  contributes its whole balance.
+- **Warning when an edit or a spend makes free money negative.** The figure is available; telling the user is a
+  screen's job.
+- **Idempotency of a retried `POST`**, as in ADR-050.
+
+### Consequence
+
+Verified by `FreeMoneyTest` (the rule with no framework: eligible and active, balances combined with records,
+currencies kept apart, an envelope taken off its own currency only, a negative result, an overdrawn eligible
+account offsetting the others, account ids in name order), `GoalFreeMoneyTest` (the flag set, read back and
+replaced in JSON and Protobuf, and cleared by a `PUT` that omits it; the figure per currency in both modes; an
+inactive or un-marked account dropping out; a completed goal still counting; another user's accounts and
+envelopes invisible; the boundary — everything free accepted, one unit more refused, and a refusal writing
+nothing; the cap across goals and per currency; a withdrawal and a move never capped and a withdrawal freeing
+money; spending below what is allocated showing negative free money and refusing allocations until released; no
+balance moved; the concurrency test above; an unknown goal still 404 and no identity still 401),
+`AccountGoalEligibilitySchemaTest` (the column exists, is never null and is off by default), `GoalAllocationTest`
+(every existing case now runs behind an eligible account holding more than it can use), and the Dart wire and
+repository tests. `task test:server` passes **560/560**; the client suite passes except `popup_test.dart`, which
+fails identically on an untouched `main` and is unrelated (ADR-049 and ADR-050 record the same).
+
+**Not verified, and stated rather than implied:** the migration has run only against the throwaway Postgres the
+suite provisions, not against a Supabase database; the two account forms were checked with the analyzer and not
+driven in a browser or simulator; and no screen shows free money.
+
+---
+
 ## ADR-050 — An envelope is the sum of an append-only allocation history, never a stored amount
 
 **Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-049 (a goal is its own table, retired and never

@@ -79,6 +79,13 @@ const Account$json = {
       '6': '.prudent.v1.CurrencyBalance',
       '10': 'balances'
     },
+    {
+      '1': 'eligible_for_goals',
+      '3': 11,
+      '4': 1,
+      '5': 8,
+      '10': 'eligibleForGoals'
+    },
   ],
   '9': [
     {'1': 4, '2': 5},
@@ -94,8 +101,8 @@ final $typed_data.Uint8List accountDescriptor = $convert.base64Decode(
     'CWlzRGVmYXVsdBIbCglpc19hY3RpdmUYByABKAhSCGlzQWN0aXZlEigKEGluY2x1ZGVfaW5fdG'
     '90YWwYCCABKAhSDmluY2x1ZGVJblRvdGFsEi4KE2luY2x1ZGVfaW5fb3ZlcnZpZXcYCSABKAhS'
     'EWluY2x1ZGVJbk92ZXJ2aWV3EjcKCGJhbGFuY2VzGAogAygLMhsucHJ1ZGVudC52MS5DdXJyZW'
-    '5jeUJhbGFuY2VSCGJhbGFuY2VzSgQIBBAFSgQIBRAGUg1iYWxhbmNlX21pbm9yUghjdXJyZW5j'
-    'eQ==');
+    '5jeUJhbGFuY2VSCGJhbGFuY2VzEiwKEmVsaWdpYmxlX2Zvcl9nb2FscxgLIAEoCFIQZWxpZ2li'
+    'bGVGb3JHb2Fsc0oECAQQBUoECAUQBlINYmFsYW5jZV9taW5vclIIY3VycmVuY3k=');
 
 @$core.Deprecated('Use createAccountRequestDescriptor instead')
 const CreateAccountRequest$json = {
@@ -128,6 +135,13 @@ const CreateAccountRequest$json = {
       '6': '.prudent.v1.CurrencyBalance',
       '10': 'balances'
     },
+    {
+      '1': 'eligible_for_goals',
+      '3': 10,
+      '4': 1,
+      '5': 8,
+      '10': 'eligibleForGoals'
+    },
   ],
   '9': [
     {'1': 3, '2': 4},
@@ -143,7 +157,8 @@ final $typed_data.Uint8List createAccountRequestDescriptor = $convert.base64Deco
     'RGVmYXVsdBIbCglpc19hY3RpdmUYBiABKAhSCGlzQWN0aXZlEigKEGluY2x1ZGVfaW5fdG90YW'
     'wYByABKAhSDmluY2x1ZGVJblRvdGFsEi4KE2luY2x1ZGVfaW5fb3ZlcnZpZXcYCCABKAhSEWlu'
     'Y2x1ZGVJbk92ZXJ2aWV3EjcKCGJhbGFuY2VzGAkgAygLMhsucHJ1ZGVudC52MS5DdXJyZW5jeU'
-    'JhbGFuY2VSCGJhbGFuY2VzSgQIAxAESgQIBBAFUg1iYWxhbmNlX21pbm9yUghjdXJyZW5jeQ==');
+    'JhbGFuY2VSCGJhbGFuY2VzEiwKEmVsaWdpYmxlX2Zvcl9nb2FscxgKIAEoCFIQZWxpZ2libGVG'
+    'b3JHb2Fsc0oECAMQBEoECAQQBVINYmFsYW5jZV9taW5vclIIY3VycmVuY3k=');
 
 @$core.Deprecated('Use updateAccountRequestDescriptor instead')
 const UpdateAccountRequest$json = {
@@ -176,6 +191,13 @@ const UpdateAccountRequest$json = {
       '6': '.prudent.v1.CurrencyBalance',
       '10': 'balances'
     },
+    {
+      '1': 'eligible_for_goals',
+      '3': 9,
+      '4': 1,
+      '5': 8,
+      '10': 'eligibleForGoals'
+    },
   ],
   '9': [
     {'1': 3, '2': 4},
@@ -190,7 +212,8 @@ final $typed_data.Uint8List updateAccountRequestDescriptor = $convert.base64Deco
     'RGVmYXVsdBIbCglpc19hY3RpdmUYBSABKAhSCGlzQWN0aXZlEigKEGluY2x1ZGVfaW5fdG90YW'
     'wYBiABKAhSDmluY2x1ZGVJblRvdGFsEi4KE2luY2x1ZGVfaW5fb3ZlcnZpZXcYByABKAhSEWlu'
     'Y2x1ZGVJbk92ZXJ2aWV3EjcKCGJhbGFuY2VzGAggAygLMhsucHJ1ZGVudC52MS5DdXJyZW5jeU'
-    'JhbGFuY2VSCGJhbGFuY2VzSgQIAxAEUg1iYWxhbmNlX21pbm9y');
+    'JhbGFuY2VSCGJhbGFuY2VzEiwKEmVsaWdpYmxlX2Zvcl9nb2FscxgJIAEoCFIQZWxpZ2libGVG'
+    'b3JHb2Fsc0oECAMQBFINYmFsYW5jZV9taW5vcg==');
 
 @$core.Deprecated('Use listAccountsResponseDescriptor instead')
 const ListAccountsResponse$json = {

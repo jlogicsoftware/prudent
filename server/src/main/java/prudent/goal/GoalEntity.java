@@ -101,4 +101,33 @@ public class GoalEntity extends PanacheEntityBase {
         .withLock(LockModeType.PESSIMISTIC_WRITE)
         .firstResult();
   }
+
+  /**
+   * The currency of one goal, but only if the caller owns it, or {@code null}. A scalar rather than
+   * the entity: a goal read here without a lock and read again under one would keep the state the
+   * first read saw, and a goal's currency is the only thing that never changes (ADR-049).
+   */
+  public static String currencyOfOwned(UUID userId, UUID id) {
+    return getEntityManager()
+        .createQuery(
+            "select g.currency from GoalEntity g where g.id = ?1 and g.userId = ?2", String.class)
+        .setParameter(1, id)
+        .setParameter(2, userId)
+        .getResultStream()
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
+   * Every goal the caller has in one currency, locked for the rest of the transaction and taken in
+   * id order, the order {@code GoalAllocationResource} takes any pair in. An allocation must not
+   * exceed the currency's free money, which is the sum over <em>all</em> of those goals'
+   * envelopes, so it serializes with every other allocation in the currency — locking only the
+   * goal named would let two allocations to different goals each see the same free money.
+   */
+  public static List<GoalEntity> lockOwnedIn(UUID userId, String currency) {
+    return find("userId = ?1 and currency = ?2 order by id", userId, currency)
+        .withLock(LockModeType.PESSIMISTIC_WRITE)
+        .list();
+  }
 }

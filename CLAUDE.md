@@ -99,9 +99,14 @@ immutable, append-only history entry — no update or delete route, and the data
 envelope has no stored amount: it is the sum of its entries, calculated on every read
 (`GET /api/v1/goal-allocations/envelopes`), and it is virtual — no account balance, record or analytics total
 reads it. Money goes into an active goal and comes out of an active or completed one, an entry cannot take an
-envelope below zero, and a goal that still holds money cannot be archived. Nothing yet limits allocations to
-eligible or free money, calculates progress or contribution guidance, or shows goals or envelopes — those are
-the epic's later tasks (jlogicsoftware/prudent#65–#67) — and the client has only the repository methods.
+envelope below zero, and a goal that still holds money cannot be archived. Eligible and free money
+(ADR-051, jlogicsoftware/prudent#65): an account funds goals only when the user marks it `eligible_for_goals`
+(default off) and it is active; per currency, free money is those accounts' current balances less every envelope
+in that currency, calculated on every read (`GET /api/v1/goal-allocations/free-money`) and possibly negative after
+a later spend, and an `ALLOCATE` above it is refused (409) — a `WITHDRAW` or `MOVE` never is. The two account forms
+carry the switch. Nothing yet calculates progress or contribution guidance, or shows goals, envelopes or free
+money — those are the epic's later tasks (jlogicsoftware/prudent#66, #67) — and the client has otherwise only the
+repository methods.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the

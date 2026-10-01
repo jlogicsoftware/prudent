@@ -35,7 +35,8 @@ public abstract class AccountMapper {
       boolean isDefault,
       boolean isActive,
       boolean includeInTotal,
-      boolean includeInOverview) {}
+      boolean includeInOverview,
+      boolean eligibleForGoals) {}
 
   @Mapping(target = "id", source = "id", qualifiedByName = "uuidToString")
   abstract AccountView toView(AccountEntity entity);
@@ -59,7 +60,8 @@ public abstract class AccountMapper {
             .setIsDefault(view.isDefault())
             .setIsActive(view.isActive())
             .setIncludeInTotal(view.includeInTotal())
-            .setIncludeInOverview(view.includeInOverview());
+            .setIncludeInOverview(view.includeInOverview())
+            .setEligibleForGoals(view.eligibleForGoals());
 
     // The kind is mapped through AccountKind rather than by name, because the entity enum
     // deliberately has no member for UNSPECIFIED or UNRECOGNIZED. A null kind cannot be persisted,

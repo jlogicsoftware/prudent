@@ -86,7 +86,9 @@ message GoalAllocation {
 // Refused (404) for a goal that is not the caller's, (409) when an entry would take an envelope
 // below zero or touch a goal whose state does not allow it: ALLOCATE and the target of a MOVE need
 // an ACTIVE goal; WITHDRAW and the source of a MOVE need an ACTIVE or COMPLETED one; an ARCHIVED
-// goal is read-only.
+// goal is read-only. An ALLOCATE is also refused (409) when it is more than the currency's free
+// money (CurrencyFreeMoney); a WITHDRAW or a MOVE never changes the total allocated in a currency,
+// so neither is limited by it.
 message CreateGoalAllocationRequest {
   GoalAllocationKind kind = 1;
   optional string source_goal_id = 2;
@@ -120,4 +122,40 @@ message GoalEnvelope {
 // listed too: an envelope is not hidden by the goal's state.
 message ListGoalEnvelopesResponse {
   repeated GoalEnvelope envelopes = 1;
+}
+
+// One currency's money for goals, CALCULATED on every read and never stored (M4,
+// jlogicsoftware/prudent#65, docs/DECISIONS.md ADR-051). Per currency, never blended: there is no
+// FX, so a position in one currency says nothing about another (ADR-009).
+//
+//   eligible  the current balances, in this currency, of the accounts that are active and marked
+//             eligible_for_goals (accounts.proto) — the same derived balance an Account carries.
+//   allocated what the goals' envelopes hold in this currency, whatever the goals' states: money
+//             in a completed goal is still set aside until it is withdrawn.
+//   free      eligible less allocated: what a new ALLOCATE may draw on.
+//
+// FREE MAY BE NEGATIVE. Spending a record, or taking an account out of the eligible set, lowers
+// eligible money after an allocation was made, and the allocation is history that is not
+// rewritten. A negative free says the envelopes hold more than the eligible accounts do; it
+// refuses every further ALLOCATE until the user withdraws or the balances recover.
+message CurrencyFreeMoney {
+  // ISO-4217.
+  string currency = 1;
+  // Minor units; negative when eligible accounts are overdrawn.
+  int64 eligible_minor = 2;
+  // Minor units, never negative.
+  int64 allocated_minor = 3;
+  // eligible_minor less allocated_minor, in minor units; negative when over-allocated.
+  int64 free_minor = 4;
+  // The accounts that make up eligible_minor: active, eligible_for_goals and holding this
+  // currency, in the accounts' name order. Empty when only goals name the currency.
+  repeated string eligible_account_ids = 5;
+}
+
+// GET /api/v1/goal-allocations/free-money — one entry per currency that an eligible account holds
+// or a goal is set in, in currency-code order. A currency nothing names is absent: a client never
+// has to guess what absence means, because with no eligible account and no goal there is nothing
+// to report.
+message GetFreeMoneyResponse {
+  repeated CurrencyFreeMoney currencies = 1;
 }

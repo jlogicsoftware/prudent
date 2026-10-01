@@ -101,9 +101,19 @@ message Account {
   // to grow fields (an as-of date, a hidden flag) that a bare int64 has nowhere to put.
   repeated CurrencyBalance balances = 10;
 
+  // Whether money in this account may be set aside for goals (M4, docs/DECISIONS.md ADR-051). An
+  // account counts toward the money a goal can draw on only when this is true AND the account is
+  // active; the sum of those accounts' balances in one currency is that currency's ELIGIBLE money
+  // (goal_allocations.proto, GetFreeMoneyResponse). It is a separate flag from include_in_total
+  // because the two answer different questions — what counts as "my money" and what may be
+  // earmarked — and false is the default, so no account is drawn on until the user says so.
+  //
+  // Only the user's choice: nothing derives it from the account's type or from the other flags.
+  bool eligible_for_goals = 11;
+
   // NO description FIELD. It existed as an always-null field that nothing could set and
   // nothing rendered; carrying it would commit a decision nobody has made to the contract. If the
-  // product ever needs it, it arrives with the screen that sets it, at field number 11.
+  // product ever needs it, it arrives with the screen that sets it, at field number 12.
   //
   // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
 }
@@ -126,6 +136,9 @@ message CreateAccountRequest {
   // Every later change to the derived balance an Account response carries is an act of the
   // records, not of this field — see Account.balances.
   repeated CurrencyBalance balances = 9;
+
+  // See Account.eligible_for_goals. Omitting it is the same as false.
+  bool eligible_for_goals = 10;
 }
 
 // PUT /api/v1/accounts/{id} — a FULL REPLACEMENT, for the presence reason set out in
@@ -164,6 +177,10 @@ message UpdateAccountRequest {
   //      silently reinterpreted 100 PLN as 100 EUR. Adding a new currency to an account is always
   //      allowed — that is the ordinary way an account becomes multi-currency after the fact.
   repeated CurrencyBalance balances = 8;
+
+  // See Account.eligible_for_goals. A full replacement like every other field: a client that does
+  // not send it is asking for false, and an account that was eligible stops being so.
+  bool eligible_for_goals = 9;
 }
 
 // GET /api/v1/accounts — every account owned by the authenticated user.

@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.UUID;
 import prudent.proto.v1.GoalAllocation;
 import prudent.proto.v1.GoalAllocationKind;
+import prudent.proto.v1.CurrencyFreeMoney;
+import prudent.proto.v1.GetFreeMoneyResponse;
 import prudent.proto.v1.GoalEnvelope;
 import prudent.proto.v1.ListGoalAllocationsResponse;
 import prudent.proto.v1.ListGoalEnvelopesResponse;
@@ -61,6 +63,24 @@ public class GoalAllocationMapper {
               .setGoalId(goal.id.toString())
               .setCurrency(goal.currency)
               .setAmountMinor(balances.getOrDefault(goal.id, 0L)));
+    }
+    return builder.build();
+  }
+
+  /** One entry per currency, in the order the calculation produced them (currency code). */
+  public GetFreeMoneyResponse toFreeMoneyResponse(Map<String, FreeMoney.Position> positions) {
+    GetFreeMoneyResponse.Builder builder = GetFreeMoneyResponse.newBuilder();
+    for (FreeMoney.Position position : positions.values()) {
+      CurrencyFreeMoney.Builder entry =
+          CurrencyFreeMoney.newBuilder()
+              .setCurrency(position.currency())
+              .setEligibleMinor(position.eligibleMinor())
+              .setAllocatedMinor(position.allocatedMinor())
+              .setFreeMinor(position.freeMinor());
+      for (UUID accountId : position.eligibleAccountIds()) {
+        entry.addEligibleAccountIds(accountId.toString());
+      }
+      builder.addCurrencies(entry);
     }
     return builder.build();
   }

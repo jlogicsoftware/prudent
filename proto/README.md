@@ -35,6 +35,9 @@ never deleted, so it has no delete route (ADR-049).
 an append-only history that is never edited or deleted, and the envelope each goal holds, which is calculated
 from that history and never stored. An entry is virtual — it moves no bank balance and is not a record
 (ADR-050).
+It also holds **free money**: per currency, the balances of the accounts the user marked
+`eligible_for_goals` (`accounts.proto`), less what the envelopes already hold — calculated on every read, possibly
+negative, and the limit an allocation is checked against (ADR-051).
 
 `settings.proto` is the odd one: a **singleton**, one row per user, with no id and no list message
 because the JWT is the entire addressing scheme. It carries `main_currency`, which is a **label and

@@ -103,7 +103,8 @@ public class AccountResource {
     entity.id = UUID.randomUUID();
     entity.userId = userId;
     applyScalars(entity, request.getName(), request.getType(), request.getIsDefault(),
-        request.getIsActive(), request.getIncludeInTotal(), request.getIncludeInOverview());
+        request.getIsActive(), request.getIncludeInTotal(), request.getIncludeInOverview(),
+        request.getEligibleForGoals());
     applyBalances(entity, request.getBalancesList(), Set.of(), Set.of());
     entity.persist();
     enforceSingleDefault(userId, entity);
@@ -134,7 +135,8 @@ public class AccountResource {
     UUID userId = currentUser.id();
     AccountEntity entity = require(userId, id);
     applyScalars(entity, request.getName(), request.getType(), request.getIsDefault(),
-        request.getIsActive(), request.getIncludeInTotal(), request.getIncludeInOverview());
+        request.getIsActive(), request.getIncludeInTotal(), request.getIncludeInOverview(),
+        request.getEligibleForGoals());
     // The currencies that must survive this update, because records or plans are denominated in
     // them.
     applyBalances(
@@ -218,7 +220,8 @@ public class AccountResource {
       boolean isDefault,
       boolean isActive,
       boolean includeInTotal,
-      boolean includeInOverview) {
+      boolean includeInOverview,
+      boolean eligibleForGoals) {
     if (name == null || name.isBlank()) {
       throw PrudentException.invalid("An account needs a name.");
     }
@@ -237,6 +240,7 @@ public class AccountResource {
     entity.isActive = isActive;
     entity.includeInTotal = includeInTotal;
     entity.includeInOverview = includeInOverview;
+    entity.eligibleForGoals = eligibleForGoals;
   }
 
   /**

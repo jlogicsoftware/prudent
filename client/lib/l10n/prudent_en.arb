@@ -106,6 +106,8 @@
   "accountIsActive": "Active",
   "accountIncludeInTotal": "Include in total balance",
   "accountIncludeInOverview": "Show on overview",
+  "accountEligibleForGoals": "Available for goals",
+  "accountEligibleForGoalsHint": "Money in this account can be set aside for goals. Only active accounts count.",
   "accountSave": "Save Account",
   "accountDelete": "Delete",
   "accountDeleteTitle": "Delete account",

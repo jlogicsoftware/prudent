@@ -84,6 +84,14 @@ public class AccountEntity extends PanacheEntityBase {
   public boolean includeInOverview;
 
   /**
+   * Whether money here may be set aside for goals (M4, ADR-051). With {@link #isActive} it decides
+   * whether the account's balances count as eligible money; nothing derives it from the other
+   * flags, because "mine" and "may be earmarked" are different questions.
+   */
+  @Column(name = "eligible_for_goals", nullable = false)
+  public boolean eligibleForGoals;
+
+  /**
    * The currencies this account holds, one entry each. Never empty — an account holding no currency
    * cannot receive a record, and the server rejects an empty list rather than creating one nothing
    * can be spent from.
@@ -122,6 +130,15 @@ public class AccountEntity extends PanacheEntityBase {
    */
   public static AccountEntity findOwned(UUID userId, UUID id) {
     return find("id = ?1 and userId = ?2", id, userId).firstResult();
+  }
+
+  /**
+   * Whether this account's money counts toward what goals can draw on: marked eligible by its
+   * owner and still in use. An inactive account is kept for its history, so whatever it holds is
+   * not money the user is planning with.
+   */
+  public boolean fundsGoals() {
+    return eligibleForGoals && isActive;
   }
 
   /**
