@@ -1222,6 +1222,121 @@ components:
             $ref: '#/components/schemas/Goal'
 
     # -----------------------------------------------------------------------------------------
+    # Goal envelopes — money set aside for a goal (M4, jlogicsoftware/prudent#64, ADR-050). VIRTUAL:
+    # never a transaction, never part of an account balance. An append-only history of entries; an
+    # envelope's amount is calculated from it, never stored.
+    # -----------------------------------------------------------------------------------------
+    GoalAllocationKind:
+      type: string
+      description: >-
+        What an entry did. GOAL_ALLOCATION_KIND_UNSPECIFIED is what proto3 decodes an omitted field
+        to and is never stored. ALLOCATE puts money into the target goal's envelope, WITHDRAW takes
+        it out of the source goal's, MOVE does both between two goals in the same currency.
+      enum:
+        - GOAL_ALLOCATION_KIND_UNSPECIFIED
+        - GOAL_ALLOCATION_KIND_ALLOCATE
+        - GOAL_ALLOCATION_KIND_WITHDRAW
+        - GOAL_ALLOCATION_KIND_MOVE
+    GoalAllocation:
+      type: object
+      description: >-
+        One entry of the envelope history. Immutable: there is no edit and no delete, and a mistake
+        is corrected by another entry.
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/GoalAllocationKind'
+        sourceGoalId:
+          type: string
+          format: uuid
+          description: The goal money left. Present for WITHDRAW and MOVE.
+        targetGoalId:
+          type: string
+          format: uuid
+          description: The goal money entered. Present for ALLOCATE and MOVE.
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: ISO-4217; the currency of every goal the entry names. Never converted.
+        amountMinor:
+          type: string
+          format: int64
+          description: Positive minor units. The direction is the kind, not the sign.
+        note:
+          type: string
+          maxLength: 500
+          description: Free text the user attached. Empty when none was given.
+        createdAtMs:
+          type: string
+          format: int64
+          description: Epoch milliseconds, set by the server.
+        createdBy:
+          type: string
+          format: uuid
+          description: The authenticated caller who wrote the entry.
+    CreateGoalAllocationRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/goal-allocations. ALLOCATE needs targetGoalId, WITHDRAW needs
+        sourceGoalId, MOVE needs both; a goal id the kind does not use must be absent.
+      properties:
+        kind:
+          $ref: '#/components/schemas/GoalAllocationKind'
+        sourceGoalId:
+          type: string
+          format: uuid
+        targetGoalId:
+          type: string
+          format: uuid
+        amountMinor:
+          type: string
+          format: int64
+          description: Positive minor units.
+        note:
+          type: string
+          maxLength: 500
+    ListGoalAllocationsResponse:
+      type: object
+      description: >-
+        GET /api/v1/goal-allocations — the caller's history, newest first, optionally narrowed to
+        one goal by the goalId query parameter.
+      properties:
+        allocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/GoalAllocation'
+    GoalEnvelope:
+      type: object
+      description: >-
+        What one goal's envelope holds right now, calculated from the history on every read. Money
+        set aside, not money in a bank account.
+      properties:
+        goalId:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        amountMinor:
+          type: string
+          format: int64
+          description: Minor units, never negative.
+    ListGoalEnvelopesResponse:
+      type: object
+      description: >-
+        GET /api/v1/goal-allocations/envelopes — one envelope per goal, in the goals' creation
+        order, a goal with no entries included at zero.
+      properties:
+        envelopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/GoalEnvelope'
+
+    # -----------------------------------------------------------------------------------------
     # Settings — a singleton per user
     # -----------------------------------------------------------------------------------------
     Settings:

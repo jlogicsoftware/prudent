@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -21,7 +22,7 @@ import prudent.error.PrudentException;
  * analytics total reads this table. See {@code proto/prudent/v1/goals.proto}.
  *
  * <p>A goal is retired, never deleted: there is no delete method here and no route for one, so the
- * allocation history M4 adds next always has a goal to be read through.
+ * envelope history ({@link GoalAllocationEntity}) always has a goal to be read through.
  */
 @Entity
 @Table(name = "prudent_goal")
@@ -87,5 +88,17 @@ public class GoalEntity extends PanacheEntityBase {
   /** One goal, but only if the caller owns it — ownership is part of the lookup. */
   public static GoalEntity findOwned(UUID userId, UUID id) {
     return find("id = ?1 and userId = ?2", id, userId).firstResult();
+  }
+
+  /**
+   * One goal, but only if the caller owns it, locked for the rest of the transaction. Whatever
+   * decides something from a goal's envelope — an entry that must not take it below zero, an
+   * archive that needs it empty — locks the goal first, so two requests cannot both read the same
+   * balance and both act on it. Callers locking more than one goal do so in id order.
+   */
+  public static GoalEntity findOwnedForUpdate(UUID userId, UUID id) {
+    return find("id = ?1 and userId = ?2", id, userId)
+        .withLock(LockModeType.PESSIMISTIC_WRITE)
+        .firstResult();
   }
 }

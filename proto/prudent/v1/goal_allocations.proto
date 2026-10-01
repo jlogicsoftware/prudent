@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// Prudent's goal envelopes and the history of money moved in and out of them (M4,
+// jlogicsoftware/prudent#64). CANONICAL SOURCE OF TRUTH for the model: the Java DTOs and the Dart
+// messages are GENERATED from this file and are never hand-edited. Change this file and run
+// `task generate`.
+//
+// AN ENVELOPE IS THE MONEY SET ASIDE FOR ONE GOAL, and it is VIRTUAL: nothing moves between bank
+// accounts and no record is written. No account balance, analytics total or planned cash flow reads
+// these entries, so reserving money for a goal cannot change what the user has or what they spent.
+//
+// THE HISTORY IS THE ONLY STORE. An envelope has no stored amount: it is the sum of the entries
+// that put money in, less the entries that took it out, and is calculated on every read. An entry
+// is IMMUTABLE — there is no edit and no delete route, and the database refuses an UPDATE — so a
+// mistake is corrected by another entry (a withdrawal or a move), never by rewriting the past.
+//
+// Three actions, one entry each:
+//   ALLOCATE  money into one goal's envelope            (target only)
+//   WITHDRAW  money out of one goal's envelope          (source only)
+//   MOVE      money from one envelope to another        (source and target; one entry, so the two
+//                                                        halves cannot be recorded separately)
+// A goal's currency never changes (goals.proto), an entry carries exactly that currency, and a MOVE
+// between goals of different currencies is refused: money is never converted (ADR-009).
+//
+// Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that
+// message is not imported here (proto/README.md records why).
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+// See records.proto: named explicitly so the descriptor holder can never collide with a message.
+option java_outer_classname = "GoalAllocationsProto";
+
+// What an entry did. The zero value is UNSPECIFIED and is never stored, for the reason
+// accounts.proto gives for AccountType.
+enum GoalAllocationKind {
+  GOAL_ALLOCATION_KIND_UNSPECIFIED = 0;
+  // Money set aside for a goal: increases the target's envelope.
+  GOAL_ALLOCATION_KIND_ALLOCATE = 1;
+  // Money released from a goal: decreases the source's envelope.
+  GOAL_ALLOCATION_KIND_WITHDRAW = 2;
+  // Money reassigned from one goal to another in the same currency: decreases the source's
+  // envelope and increases the target's by the same amount, as one entry.
+  GOAL_ALLOCATION_KIND_MOVE = 3;
+}
+
+// One entry of the history, as the server holds it. Immutable once written.
+message GoalAllocation {
+  // Server-minted UUID. A create request carries no id.
+  string id = 1;
+
+  GoalAllocationKind kind = 2;
+
+  // The goal money left. Present for WITHDRAW and MOVE, absent for ALLOCATE.
+  optional string source_goal_id = 3;
+
+  // The goal money entered. Present for ALLOCATE and MOVE, absent for WITHDRAW.
+  optional string target_goal_id = 4;
+
+  // ISO-4217: the currency of every goal the entry names. Never converted.
+  string currency = 5;
+
+  // Minor units, POSITIVE: how much moved. The direction is the kind, not the sign, so a zero or
+  // negative amount is rejected rather than read as the opposite action. Zero is refused for the
+  // reason goals.proto gives for Goal.target_amount_minor.
+  int64 amount_minor = 6;
+
+  // Free text the user attached, at most 500 characters. Empty when none was given.
+  string note = 7;
+
+  // Milliseconds since the Unix epoch, set by the server.
+  int64 created_at_ms = 8;
+
+  // The authenticated caller who wrote the entry (the user id today, because only the owner can
+  // write here). Recorded so the history stays truthful if a second kind of writer ever exists.
+  string created_by = 9;
+
+  // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
+}
+
+// POST /api/v1/goal-allocations — records one entry. Which goal ids are required follows the kind
+// (see GoalAllocationKind); a field the kind does not use must be absent, and the request is
+// refused (400) if it is present, so a client that mixed up two actions finds out.
+//
+// Refused (404) for a goal that is not the caller's, (409) when an entry would take an envelope
+// below zero or touch a goal whose state does not allow it: ALLOCATE and the target of a MOVE need
+// an ACTIVE goal; WITHDRAW and the source of a MOVE need an ACTIVE or COMPLETED one; an ARCHIVED
+// goal is read-only.
+message CreateGoalAllocationRequest {
+  GoalAllocationKind kind = 1;
+  optional string source_goal_id = 2;
+  optional string target_goal_id = 3;
+  // See GoalAllocation.amount_minor.
+  int64 amount_minor = 4;
+  // See GoalAllocation.note. Optional.
+  string note = 5;
+}
+
+// GET /api/v1/goal-allocations — the caller's history, optionally narrowed by the `goalId` query
+// parameter to the entries that put money into or took it out of that goal. Newest first, then by
+// id, so the order is total. Unpaginated in v1 for the reason records.proto gives for
+// ListRecordsResponse.
+message ListGoalAllocationsResponse {
+  repeated GoalAllocation allocations = 1;
+}
+
+// What one goal's envelope holds right now. CALCULATED from the history on every read, never
+// stored, so it cannot disagree with the entries behind it.
+message GoalEnvelope {
+  string goal_id = 1;
+  // The goal's currency.
+  string currency = 2;
+  // Minor units, never negative: entries that put money in less entries that took it out.
+  int64 amount_minor = 3;
+}
+
+// GET /api/v1/goal-allocations/envelopes — one envelope per goal the caller has, in the goals'
+// creation order, a goal with no entries included at zero. Completed and archived goals are
+// listed too: an envelope is not hidden by the goal's state.
+message ListGoalEnvelopesResponse {
+  repeated GoalEnvelope envelopes = 1;
+}

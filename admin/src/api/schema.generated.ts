@@ -2184,6 +2184,261 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/goal-allocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The authenticated user's envelope history
+         * @description Every entry, newest first. Optionally narrowed by goalId (UUID) to the entries that put money into or took it out of that goal.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    goalId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListGoalAllocationsResponse"];
+                        "application/x-protobuf": components["schemas"]["ListGoalAllocationsResponse"];
+                    };
+                };
+                /** @description A malformed goalId */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Allocate, withdraw or move money between goal envelopes
+         * @description ALLOCATE needs targetGoalId, WITHDRAW needs sourceGoalId and MOVE needs both, in the same currency. The entry is added to an append-only history; nothing already written is changed. No account balance moves.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateGoalAllocationRequest"];
+                    "application/x-protobuf": components["schemas"]["CreateGoalAllocationRequest"];
+                };
+            };
+            responses: {
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoalAllocation"];
+                        "application/x-protobuf": components["schemas"]["GoalAllocation"];
+                    };
+                };
+                /** @description An unknown kind, an amount that is not positive, a goal id the kind does not use or lacks, a malformed goal id, a move to the same goal or between currencies, a note longer than 500 characters, or an envelope that would exceed what an amount can hold */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No such goal for this user */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The envelope does not hold the amount, or a goal's state does not allow the entry (money goes into an active goal, comes out of an active or completed one) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/goal-allocations/envelopes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What each goal's envelope holds
+         * @description One envelope per goal, in the goals' creation order, a goal with no entries included at zero. Calculated from the history on every call. This is virtual money set aside: it is not part of any account balance.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListGoalEnvelopesResponse"];
+                        "application/x-protobuf": components["schemas"]["ListGoalEnvelopesResponse"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/goal-allocations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one history entry */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoalAllocation"];
+                        "application/x-protobuf": components["schemas"]["GoalAllocation"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No such entry for this user */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/goals": {
         parameters: {
             query?: never;
@@ -2449,7 +2704,7 @@ export interface paths {
         put?: never;
         /**
          * Archive a goal: retire it without losing its history
-         * @description An archived goal stays in the list and is read-only. Archiving deletes nothing.
+         * @description An archived goal stays in the list and is read-only. Archiving deletes nothing, and is refused while the goal's envelope still holds money.
          */
         post: {
             parameters: {
@@ -2495,7 +2750,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
-                /** @description The goal is already archived */
+                /** @description The goal is already archived, or still has money set aside in its envelope */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -4595,6 +4850,79 @@ export interface components {
         /** @description GET /api/v1/goals — the caller's goals, optionally narrowed by status, oldest first. */
         ListGoalsResponse: {
             goals?: components["schemas"]["Goal"][];
+        };
+        /**
+         * @description What an entry did. GOAL_ALLOCATION_KIND_UNSPECIFIED is what proto3 decodes an omitted field to and is never stored. ALLOCATE puts money into the target goal's envelope, WITHDRAW takes it out of the source goal's, MOVE does both between two goals in the same currency.
+         * @enum {string}
+         */
+        GoalAllocationKind: "GOAL_ALLOCATION_KIND_UNSPECIFIED" | "GOAL_ALLOCATION_KIND_ALLOCATE" | "GOAL_ALLOCATION_KIND_WITHDRAW" | "GOAL_ALLOCATION_KIND_MOVE";
+        /** @description One entry of the envelope history. Immutable: there is no edit and no delete, and a mistake is corrected by another entry. */
+        GoalAllocation: {
+            /** Format: uuid */
+            id?: string;
+            kind?: components["schemas"]["GoalAllocationKind"];
+            /**
+             * Format: uuid
+             * @description The goal money left. Present for WITHDRAW and MOVE.
+             */
+            sourceGoalId?: string;
+            /**
+             * Format: uuid
+             * @description The goal money entered. Present for ALLOCATE and MOVE.
+             */
+            targetGoalId?: string;
+            /** @description ISO-4217; the currency of every goal the entry names. Never converted. */
+            currency?: string;
+            /**
+             * Format: int64
+             * @description Positive minor units. The direction is the kind, not the sign.
+             */
+            amountMinor?: string;
+            /** @description Free text the user attached. Empty when none was given. */
+            note?: string;
+            /**
+             * Format: int64
+             * @description Epoch milliseconds, set by the server.
+             */
+            createdAtMs?: string;
+            /**
+             * Format: uuid
+             * @description The authenticated caller who wrote the entry.
+             */
+            createdBy?: string;
+        };
+        /** @description Body for POST /api/v1/goal-allocations. ALLOCATE needs targetGoalId, WITHDRAW needs sourceGoalId, MOVE needs both; a goal id the kind does not use must be absent. */
+        CreateGoalAllocationRequest: {
+            kind?: components["schemas"]["GoalAllocationKind"];
+            /** Format: uuid */
+            sourceGoalId?: string;
+            /** Format: uuid */
+            targetGoalId?: string;
+            /**
+             * Format: int64
+             * @description Positive minor units.
+             */
+            amountMinor?: string;
+            note?: string;
+        };
+        /** @description GET /api/v1/goal-allocations — the caller's history, newest first, optionally narrowed to one goal by the goalId query parameter. */
+        ListGoalAllocationsResponse: {
+            allocations?: components["schemas"]["GoalAllocation"][];
+        };
+        /** @description What one goal's envelope holds right now, calculated from the history on every read. Money set aside, not money in a bank account. */
+        GoalEnvelope: {
+            /** Format: uuid */
+            goalId?: string;
+            currency?: string;
+            /**
+             * Format: int64
+             * @description Minor units, never negative.
+             */
+            amountMinor?: string;
+        };
+        /** @description GET /api/v1/goal-allocations/envelopes — one envelope per goal, in the goals' creation order, a goal with no entries included at zero. */
+        ListGoalEnvelopesResponse: {
+            envelopes?: components["schemas"]["GoalEnvelope"][];
         };
         /** @description The authenticated user's settings. A SINGLETON: there is no id, no create, no delete and no list, and the URL carries no id because the token is the entire addressing scheme. The row is created on first login, not by a client. */
         Settings: {

@@ -13,6 +13,106 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-050 — An envelope is the sum of an append-only allocation history, never a stored amount
+
+**Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-049 (a goal is its own table, retired and never
+deleted — and left open what archiving a goal with money set aside means), ADR-046 (an audit entry is never
+deleted by the application; erasure of a person outranks that), ADR-043 (a separate table cannot reach a
+balance), ADR-009 (per currency, never blended), ADR-039 (a rule lives in one place).
+
+### Decision
+
+The second M4 task (jlogicsoftware/prudent#64 — "allocate, withdraw and move money between same-currency
+envelopes as explicit immutable history entries") adds the actions and the history they leave. What may be
+allocated at all (eligible and free money, #65), progress and guidance (#66) and the screens (#67) are the
+epic's later tasks.
+
+- **An envelope is the money set aside for one goal, and it is virtual.** Nothing moves between bank
+  accounts and no record is written. The history is its own table, `prudent_goal_allocation`, which no
+  balance, analytics total or planned cash flow reads, so reserving money cannot change what the user has or
+  spent (the epic's "excluded from bank balances and income/expense analytics").
+- **The history is the only store.** An envelope has **no stored amount**: it is the entries that put money
+  in less the entries that took it out, calculated on every read (`GET /api/v1/goal-allocations/envelopes`
+  returns one per goal, zero included). A stored balance would be a second place to keep right and to drift;
+  this follows how budget carry-over is calculated (ADR-045). The sum runs in the database, so a running
+  total that would overflow a `long` is no problem while the net, which is capped, always fits.
+- **Three kinds, one entry each:** `ALLOCATE` (a target goal only), `WITHDRAW` (a source goal only) and
+  `MOVE` (both). A move is **one** entry, not a withdrawal plus an allocation, so the two halves cannot be
+  recorded separately, left half-applied or fail to match. The amount is **positive** and the direction is the
+  kind, never the sign; zero is refused for the reason ADR-043 gives (it is what an omitted proto3 field
+  decodes to). Which goal ids each kind needs is stated once, in `AllocationKind`; a body that carries an id
+  its kind does not use is refused at 400 rather than having the extra field ignored.
+- **Entries are immutable.** The API has no update and no delete route, and the **database refuses an
+  `UPDATE`** (a trigger), so the guarantee does not rest on the resource. A mistake is corrected by another
+  entry — a withdrawal or a move — which is exactly the audit trail a correction should leave. `DELETE` is
+  deliberately **not** blocked: the retention cascade for an anonymised user removes the history, because
+  erasure of a person outranks the history's own promise (the reasoning of ADR-046 for the reset history).
+- **Currency safety is structural.** An entry stores the currency and references each goal **together with
+  it** (a composite foreign key onto `prudent_goal (id, currency)`, which a goal's immutable currency makes
+  safe), so the database itself refuses an entry whose currency is not its goal's — including the second goal
+  of a move. The resource states the same rule first, refusing a move between currencies at 400; there is no
+  conversion (ADR-009).
+- **Goal state decides what may be done.** Money goes **into** an `ACTIVE` goal only (`GoalState.acceptsMoney`)
+  and comes **out of** an `ACTIVE` or `COMPLETED` one (`releasesMoney`): a goal that has been reached can still
+  release what is left in it, and an archived goal is read-only (ADR-049), so nothing enters or leaves it. A
+  refusal is **409**.
+- **Archiving a goal that still holds money is refused (409).** This settles the question ADR-049 left to this
+  task. An archived goal cannot release money until it is reactivated, so allowing it would strand money in a
+  goal the user said they were finished with, and would make the sum of "active" envelopes (#65) depend on which
+  archived goals still hold something. The user withdraws or moves the money first. Completing a goal with money
+  in it stays allowed.
+- **An entry cannot take an envelope below zero** (409), and cannot raise it past what an amount can hold (400).
+  The check reads the balance, so the goals involved are **locked for the transaction** — `SELECT ... FOR
+  UPDATE`, in id order so two moves over the same pair cannot deadlock. The same lock guards the archive
+  check, so an entry written between "it is empty" and the commit cannot leave money in an archived goal.
+  `concurrentWithdrawalsCannotOverdrawAnEnvelope` fires eight withdrawals of the whole balance at once and
+  asserts exactly one succeeds; with the lock removed it fails (two succeed), which is how it is known to
+  test the lock.
+- **There is no cap yet.** Nothing stops the total allocated from exceeding the money the user actually has.
+  The epic's "total active allocation cannot exceed eligible money" is #65, which defines eligible accounts per
+  currency; until then an allocation is checked only against the goal and its own envelope.
+- **Each entry records who wrote it** (`created_by`, the user id today) and when, plus an optional note of up
+  to 500 characters (trimmed; a blank note is stored empty), as the carry-over reset history does.
+- **The history is listed newest first, then by id, optionally narrowed by `?goalId=`** to entries that put
+  money into or took it out of that goal. It is unpaginated, as records are in v1.
+- **Row-level security and retention** follow every other table: `prudent_goal_allocation` is in the
+  repeatable RLS script's list and in `PrudentRetentionCleanup`, ahead of goals (the entries reference them
+  with no cascade).
+
+### What this does not decide
+
+- **What may be allocated** — which accounts count as eligible and what is already spoken for (#65).
+- **Progress and contribution guidance** — allocated, remaining and the monthly amount (#66). The envelope
+  amount is the input.
+- **Any screen.** The client gains repository methods and generated messages only (#67).
+- **Idempotency of a retried POST.** Two identical requests are two entries. A client that retries after a
+  timeout should read the history first.
+- **A user-supplied time for an entry.** `created_at` is the server's clock; backdating is not offered.
+
+### Consequence
+
+Verified by `GoalAllocationTest` (each kind recorded and read back in JSON and Protobuf; the envelope changing
+by exactly the amount; a move shifting money between two envelopes as one entry; a withdrawal emptying but not
+overdrawing, and a refused entry changing nothing; the overflow edges, including a net that fits when the
+running totals would not; no move between currencies; refusal of a non-positive amount, a missing or unknown
+kind, a missing or surplus goal id, a move to the same goal, a malformed id (400) and an unknown one (404) and
+an over-long note; money into an active goal only, out of an active or completed one, and an archived goal
+read-only until reactivated; archiving refused while an envelope holds money; history newest first, narrowed
+by goal, with no edit or delete route; a mistake corrected by a new entry; another user's goals and entries
+invisible and unusable on every path; one envelope per goal including empty and archived ones; account
+balances, analytics and records untouched; concurrent withdrawals unable to overdraw), `AllocationKindTest`
+and `GoalStateTest` (the rules with no framework around them), `GoalAllocationSchemaTest` (each constraint
+refused by name against the owner connection, including the composite currency keys, the immutability trigger
+and the fact that deletion still works), `PrudentRowLevelSecurityTest` and `PrudentRetentionCleanupTest` (both
+extended), and the Dart repository tests. `task test:server` passes **528/528**; the client suite passes except `popup_test.dart`, which
+fails identically on an untouched `main` and is unrelated (ADR-049 records the same).
+
+**Not verified, and stated rather than implied:** the migration has run only against the throwaway Postgres
+the suite provisions, not against a Supabase database, and no screen exists to drive the endpoints from a
+client.
+
+---
+
 ## ADR-049 — A goal is its own table with a lifecycle state, retired and never deleted
 
 **Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-043 (a budget is its own table, so it
