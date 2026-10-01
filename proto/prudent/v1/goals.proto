@@ -106,3 +106,89 @@ message ListGoalsResponse {
 // A request for a change that is not one — completing a goal that is not active, archiving one
 // that is archived — is refused (409), not accepted quietly, so a client that believes it changed
 // something finds out that it did not.
+
+// Why a goal has, or has not, a monthly contribution to suggest. CALCULATED, never stored. The
+// reason travels with the figure so a client never has to re-derive the rule (ADR-052): which of
+// these a goal is in follows a fixed order, the first that applies —
+//   NOT_ACTIVE → REACHED → NO_TARGET_DATE → OVERDUE → CONTRIBUTION.
+// The zero value is UNSPECIFIED and is never produced, for the reason accounts.proto gives for
+// AccountType.
+enum GoalGuidance {
+  GOAL_GUIDANCE_UNSPECIFIED = 0;
+  // The goal is completed or archived: nothing is being saved towards it, so nothing is suggested.
+  GOAL_GUIDANCE_NOT_ACTIVE = 1;
+  // An active goal whose envelope already holds the target. Nothing is left to save.
+  GOAL_GUIDANCE_REACHED = 2;
+  // An active goal with money still to save and no date to save it by: open-ended, so there is no
+  // pace to suggest.
+  GOAL_GUIDANCE_NO_TARGET_DATE = 3;
+  // An active goal with money still to save whose target date is before the as-of date. Reported,
+  // not refused: a date that has slipped is the user's to move (PUT /api/v1/goals/{id}), and a
+  // contribution "to catch up by yesterday" would be a number with no meaning.
+  GOAL_GUIDANCE_OVERDUE = 4;
+  // An active goal with money still to save and a target date that has not passed:
+  // monthly_contribution_minor and months_remaining are set.
+  GOAL_GUIDANCE_CONTRIBUTION = 5;
+}
+
+// How far one goal is, and what to set aside each month to get there (M4,
+// jlogicsoftware/prudent#66, docs/DECISIONS.md ADR-052). CALCULATED on every read from the goal and
+// its envelope and stored nowhere, so it cannot disagree with either. Per goal and in the goal's
+// own currency, never blended (ADR-009): there is deliberately no total across goals.
+//
+// ROUNDING RULES — all integer arithmetic on minor units, so a figure is exactly reproducible:
+//   progress_percent         floor(allocated * 100 / target), at most 100. Rounded DOWN so 100 means
+//                            the target is reached and never "99.6% shown as 100".
+//   monthly_contribution     ceil(remaining / months_remaining). Rounded UP so paying it every month
+//                            for months_remaining months always reaches the target; the last
+//                            payment may be smaller, and the total paid can exceed remaining by
+//                            at most months_remaining - 1 minor units.
+//   months_remaining         calendar months from the as-of month through the target-date month,
+//                            BOTH inclusive: the month a goal is due in is a month to contribute in.
+//                            Counted in months, not 30-day periods, so a contribution never moves
+//                            because a month is short.
+message GoalProgress {
+  // The goal this describes.
+  string goal_id = 1;
+
+  // The goal's currency, repeated so a figure never has to be read apart from its unit.
+  string currency = 2;
+
+  // Minor units: what the goal's envelope holds right now (GoalEnvelope.amount_minor). Never
+  // negative. May exceed the target; nothing caps an envelope at its goal's target.
+  int64 allocated_minor = 3;
+
+  // Minor units: the goal's target, repeated so the percentage and the remainder can be checked
+  // against the figures they came from.
+  int64 target_amount_minor = 4;
+
+  // Minor units, never negative: target less allocated, and zero once the target is reached or
+  // passed. Calculated for every goal whatever its status.
+  int64 remaining_minor = 5;
+
+  // Whole percent, 0 to 100. See the rounding rules above.
+  int32 progress_percent = 6;
+
+  // Which case applies, and so whether the two fields below are set.
+  GoalGuidance guidance = 7;
+
+  // Minor units, positive. Set only for GOAL_GUIDANCE_CONTRIBUTION. See the rounding rules above.
+  optional int64 monthly_contribution_minor = 8;
+
+  // At least 1. Set only for GOAL_GUIDANCE_CONTRIBUTION. 1 means the goal is due this month, so the
+  // whole remainder is the contribution.
+  optional int32 months_remaining = 9;
+}
+
+// GET /api/v1/goals/progress — one GoalProgress per goal the caller has, in the goals' creation
+// order, completed and archived goals included (their figures are history, and guidance says why it
+// is absent). The optional `asOf` query parameter (YYYY-MM-DD) names the day "today" is for the
+// month count and the overdue test; omitted, it is the server's current UTC date. A goal carries no
+// time zone, so the day is the client's to state: a civil date, for the reason records.proto gives
+// for Record.date.
+message ListGoalProgressResponse {
+  // The day the figures were calculated for, ISO-8601 YYYY-MM-DD: the `asOf` asked for, or the
+  // server's UTC date. Echoed so a client can see which day it was shown.
+  string as_of = 1;
+  repeated GoalProgress goals = 2;
+}

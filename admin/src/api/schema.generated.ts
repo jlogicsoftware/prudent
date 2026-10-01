@@ -2611,6 +2611,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/goals/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How far each goal is, and what to set aside monthly to reach it
+         * @description One entry per goal, oldest first: what its envelope holds, what is left, the whole percent reached (rounded down) and, for an active goal with a target date that has not passed, the monthly contribution needed (rounded up) over the calendar months from asOf's month through the target date's month, both inclusive. Calculated on every call from the goal and its envelope and never stored. asOf (YYYY-MM-DD) names today and defaults to the server's UTC date.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    asOf?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListGoalProgressResponse"];
+                        "application/x-protobuf": components["schemas"]["ListGoalProgressResponse"];
+                    };
+                };
+                /** @description An asOf that is not YYYY-MM-DD */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/goals/{id}": {
         parameters: {
             query?: never;
@@ -4910,6 +4976,54 @@ export interface components {
         /** @description GET /api/v1/goals — the caller's goals, optionally narrowed by status, oldest first. */
         ListGoalsResponse: {
             goals?: components["schemas"]["Goal"][];
+        };
+        /**
+         * @description Why a goal has, or has not, a monthly contribution to suggest. The first that applies, in this order: NOT_ACTIVE (completed or archived), REACHED (the envelope holds the target), NO_TARGET_DATE (open-ended), OVERDUE (the target date is before asOf), CONTRIBUTION (the monthly contribution is set). GOAL_GUIDANCE_UNSPECIFIED is what proto3 decodes an omitted field to and is never produced.
+         * @enum {string}
+         */
+        GoalGuidance: "GOAL_GUIDANCE_UNSPECIFIED" | "GOAL_GUIDANCE_NOT_ACTIVE" | "GOAL_GUIDANCE_REACHED" | "GOAL_GUIDANCE_NO_TARGET_DATE" | "GOAL_GUIDANCE_OVERDUE" | "GOAL_GUIDANCE_CONTRIBUTION";
+        /** @description How far one goal is and what to set aside monthly to reach it (ADR-052). Calculated on every read from the goal and its envelope, in the goal's own currency, and never stored. Integer arithmetic on minor units. progressPercent is rounded DOWN, so 100 means reached; monthlyContributionMinor is rounded UP, so paying it every month for monthsRemaining months always reaches the target. */
+        GoalProgress: {
+            /** Format: uuid */
+            goalId?: string;
+            currency?: string;
+            /**
+             * Format: int64
+             * @description What the goal's envelope holds. Never negative; may exceed the target.
+             */
+            allocatedMinor?: string;
+            /** Format: int64 */
+            targetAmountMinor?: string;
+            /**
+             * Format: int64
+             * @description Target less allocated, never negative; zero once the target is reached.
+             */
+            remainingMinor?: string;
+            /**
+             * Format: int32
+             * @description floor(allocated * 100 / target), at most 100.
+             */
+            progressPercent?: number;
+            guidance?: components["schemas"]["GoalGuidance"];
+            /**
+             * Format: int64
+             * @description ceil(remaining / monthsRemaining). Present only for GOAL_GUIDANCE_CONTRIBUTION. The last payment may be smaller; the total paid can exceed remaining by at most monthsRemaining - 1 minor units.
+             */
+            monthlyContributionMinor?: string;
+            /**
+             * Format: int32
+             * @description Calendar months from asOf's month through the target date's month, both inclusive. Present only for GOAL_GUIDANCE_CONTRIBUTION.
+             */
+            monthsRemaining?: number;
+        };
+        /** @description GET /api/v1/goals/progress — one GoalProgress per goal, oldest first, completed and archived goals included. There is deliberately no total across goals: they may be in different currencies. */
+        ListGoalProgressResponse: {
+            /**
+             * Format: date
+             * @description The day the figures were calculated for.
+             */
+            asOf?: string;
+            goals?: components["schemas"]["GoalProgress"][];
         };
         /**
          * @description What an entry did. GOAL_ALLOCATION_KIND_UNSPECIFIED is what proto3 decodes an omitted field to and is never stored. ALLOCATE puts money into the target goal's envelope, WITHDRAW takes it out of the source goal's, MOVE does both between two goals in the same currency.

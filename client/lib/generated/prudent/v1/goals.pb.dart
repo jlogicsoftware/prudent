@@ -400,6 +400,257 @@ class ListGoalsResponse extends $pb.GeneratedMessage {
   $pb.PbList<Goal> get goals => $_getList(0);
 }
 
+/// How far one goal is, and what to set aside each month to get there (M4,
+/// jlogicsoftware/prudent#66, docs/DECISIONS.md ADR-052). CALCULATED on every read from the goal and
+/// its envelope and stored nowhere, so it cannot disagree with either. Per goal and in the goal's
+/// own currency, never blended (ADR-009): there is deliberately no total across goals.
+///
+/// ROUNDING RULES — all integer arithmetic on minor units, so a figure is exactly reproducible:
+///   progress_percent         floor(allocated * 100 / target), at most 100. Rounded DOWN so 100 means
+///                            the target is reached and never "99.6% shown as 100".
+///   monthly_contribution     ceil(remaining / months_remaining). Rounded UP so paying it every month
+///                            for months_remaining months always reaches the target; the last
+///                            payment may be smaller, and the total paid can exceed remaining by
+///                            at most months_remaining - 1 minor units.
+///   months_remaining         calendar months from the as-of month through the target-date month,
+///                            BOTH inclusive: the month a goal is due in is a month to contribute in.
+///                            Counted in months, not 30-day periods, so a contribution never moves
+///                            because a month is short.
+class GoalProgress extends $pb.GeneratedMessage {
+  factory GoalProgress({
+    $core.String? goalId,
+    $core.String? currency,
+    $fixnum.Int64? allocatedMinor,
+    $fixnum.Int64? targetAmountMinor,
+    $fixnum.Int64? remainingMinor,
+    $core.int? progressPercent,
+    GoalGuidance? guidance,
+    $fixnum.Int64? monthlyContributionMinor,
+    $core.int? monthsRemaining,
+  }) {
+    final result = create();
+    if (goalId != null) result.goalId = goalId;
+    if (currency != null) result.currency = currency;
+    if (allocatedMinor != null) result.allocatedMinor = allocatedMinor;
+    if (targetAmountMinor != null) result.targetAmountMinor = targetAmountMinor;
+    if (remainingMinor != null) result.remainingMinor = remainingMinor;
+    if (progressPercent != null) result.progressPercent = progressPercent;
+    if (guidance != null) result.guidance = guidance;
+    if (monthlyContributionMinor != null)
+      result.monthlyContributionMinor = monthlyContributionMinor;
+    if (monthsRemaining != null) result.monthsRemaining = monthsRemaining;
+    return result;
+  }
+
+  GoalProgress._();
+
+  factory GoalProgress.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GoalProgress.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GoalProgress',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'goalId')
+    ..aOS(2, _omitFieldNames ? '' : 'currency')
+    ..aInt64(3, _omitFieldNames ? '' : 'allocatedMinor')
+    ..aInt64(4, _omitFieldNames ? '' : 'targetAmountMinor')
+    ..aInt64(5, _omitFieldNames ? '' : 'remainingMinor')
+    ..aI(6, _omitFieldNames ? '' : 'progressPercent')
+    ..aE<GoalGuidance>(7, _omitFieldNames ? '' : 'guidance',
+        enumValues: GoalGuidance.values)
+    ..aInt64(8, _omitFieldNames ? '' : 'monthlyContributionMinor')
+    ..aI(9, _omitFieldNames ? '' : 'monthsRemaining')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GoalProgress clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GoalProgress copyWith(void Function(GoalProgress) updates) =>
+      super.copyWith((message) => updates(message as GoalProgress))
+          as GoalProgress;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GoalProgress create() => GoalProgress._();
+  @$core.override
+  GoalProgress createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static GoalProgress getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GoalProgress>(create);
+  static GoalProgress? _defaultInstance;
+
+  /// The goal this describes.
+  @$pb.TagNumber(1)
+  $core.String get goalId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set goalId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasGoalId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearGoalId() => $_clearField(1);
+
+  /// The goal's currency, repeated so a figure never has to be read apart from its unit.
+  @$pb.TagNumber(2)
+  $core.String get currency => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set currency($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCurrency() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCurrency() => $_clearField(2);
+
+  /// Minor units: what the goal's envelope holds right now (GoalEnvelope.amount_minor). Never
+  /// negative. May exceed the target; nothing caps an envelope at its goal's target.
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get allocatedMinor => $_getI64(2);
+  @$pb.TagNumber(3)
+  set allocatedMinor($fixnum.Int64 value) => $_setInt64(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAllocatedMinor() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAllocatedMinor() => $_clearField(3);
+
+  /// Minor units: the goal's target, repeated so the percentage and the remainder can be checked
+  /// against the figures they came from.
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get targetAmountMinor => $_getI64(3);
+  @$pb.TagNumber(4)
+  set targetAmountMinor($fixnum.Int64 value) => $_setInt64(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasTargetAmountMinor() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearTargetAmountMinor() => $_clearField(4);
+
+  /// Minor units, never negative: target less allocated, and zero once the target is reached or
+  /// passed. Calculated for every goal whatever its status.
+  @$pb.TagNumber(5)
+  $fixnum.Int64 get remainingMinor => $_getI64(4);
+  @$pb.TagNumber(5)
+  set remainingMinor($fixnum.Int64 value) => $_setInt64(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasRemainingMinor() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearRemainingMinor() => $_clearField(5);
+
+  /// Whole percent, 0 to 100. See the rounding rules above.
+  @$pb.TagNumber(6)
+  $core.int get progressPercent => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set progressPercent($core.int value) => $_setSignedInt32(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasProgressPercent() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearProgressPercent() => $_clearField(6);
+
+  /// Which case applies, and so whether the two fields below are set.
+  @$pb.TagNumber(7)
+  GoalGuidance get guidance => $_getN(6);
+  @$pb.TagNumber(7)
+  set guidance(GoalGuidance value) => $_setField(7, value);
+  @$pb.TagNumber(7)
+  $core.bool hasGuidance() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearGuidance() => $_clearField(7);
+
+  /// Minor units, positive. Set only for GOAL_GUIDANCE_CONTRIBUTION. See the rounding rules above.
+  @$pb.TagNumber(8)
+  $fixnum.Int64 get monthlyContributionMinor => $_getI64(7);
+  @$pb.TagNumber(8)
+  set monthlyContributionMinor($fixnum.Int64 value) => $_setInt64(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasMonthlyContributionMinor() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearMonthlyContributionMinor() => $_clearField(8);
+
+  /// At least 1. Set only for GOAL_GUIDANCE_CONTRIBUTION. 1 means the goal is due this month, so the
+  /// whole remainder is the contribution.
+  @$pb.TagNumber(9)
+  $core.int get monthsRemaining => $_getIZ(8);
+  @$pb.TagNumber(9)
+  set monthsRemaining($core.int value) => $_setSignedInt32(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasMonthsRemaining() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearMonthsRemaining() => $_clearField(9);
+}
+
+/// GET /api/v1/goals/progress — one GoalProgress per goal the caller has, in the goals' creation
+/// order, completed and archived goals included (their figures are history, and guidance says why it
+/// is absent). The optional `asOf` query parameter (YYYY-MM-DD) names the day "today" is for the
+/// month count and the overdue test; omitted, it is the server's current UTC date. A goal carries no
+/// time zone, so the day is the client's to state: a civil date, for the reason records.proto gives
+/// for Record.date.
+class ListGoalProgressResponse extends $pb.GeneratedMessage {
+  factory ListGoalProgressResponse({
+    $core.String? asOf,
+    $core.Iterable<GoalProgress>? goals,
+  }) {
+    final result = create();
+    if (asOf != null) result.asOf = asOf;
+    if (goals != null) result.goals.addAll(goals);
+    return result;
+  }
+
+  ListGoalProgressResponse._();
+
+  factory ListGoalProgressResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListGoalProgressResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListGoalProgressResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'asOf')
+    ..pPM<GoalProgress>(2, _omitFieldNames ? '' : 'goals',
+        subBuilder: GoalProgress.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListGoalProgressResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListGoalProgressResponse copyWith(
+          void Function(ListGoalProgressResponse) updates) =>
+      super.copyWith((message) => updates(message as ListGoalProgressResponse))
+          as ListGoalProgressResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListGoalProgressResponse create() => ListGoalProgressResponse._();
+  @$core.override
+  ListGoalProgressResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListGoalProgressResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListGoalProgressResponse>(create);
+  static ListGoalProgressResponse? _defaultInstance;
+
+  /// The day the figures were calculated for, ISO-8601 YYYY-MM-DD: the `asOf` asked for, or the
+  /// server's UTC date. Echoed so a client can see which day it was shown.
+  @$pb.TagNumber(1)
+  $core.String get asOf => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set asOf($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasAsOf() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAsOf() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<GoalProgress> get goals => $_getList(1);
+}
+
 const $core.bool _omitFieldNames =
     $core.bool.fromEnvironment('protobuf.omit_field_names');
 const $core.bool _omitMessageNames =

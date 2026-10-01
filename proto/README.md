@@ -38,6 +38,9 @@ from that history and never stored. An entry is virtual — it moves no bank bal
 It also holds **free money**: per currency, the balances of the accounts the user marked
 `eligible_for_goals` (`accounts.proto`), less what the envelopes already hold — calculated on every read, possibly
 negative, and the limit an allocation is checked against (ADR-051).
+`goals.proto` also holds each goal's **progress and contribution guidance**: allocated, remaining, a whole percent
+(rounded down) and, for an active dated goal, the monthly contribution (rounded up) over the calendar months left —
+calculated on every read, never stored (ADR-052).
 
 `settings.proto` is the odd one: a **singleton**, one row per user, with no id and no list message
 because the JWT is the entire addressing scheme. It carries `main_currency`, which is a **label and

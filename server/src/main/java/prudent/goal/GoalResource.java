@@ -15,6 +15,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.UUID;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -67,6 +68,34 @@ public class GoalResource {
   public Response list(@QueryParam("status") String status) {
     GoalState parsed = status == null || status.isBlank() ? null : parseStatus(status);
     return Response.ok(mapper.toListResponse(GoalEntity.listOwnedBy(currentUser.id(), parsed)))
+        .build();
+  }
+
+  @GET
+  @Path("/progress")
+  @Operation(
+      summary = "How far each goal is, and what to set aside monthly to reach it",
+      description =
+          "One entry per goal, oldest first: what its envelope holds, what is left, the whole"
+              + " percent reached (rounded down) and, for an active goal with a target date that has"
+              + " not passed, the monthly contribution needed (rounded up) over the calendar months"
+              + " from asOf's month through the target date's month, both inclusive. Calculated on"
+              + " every call from the goal and its envelope and never stored. asOf (YYYY-MM-DD)"
+              + " names today and defaults to the server's UTC date.")
+  @APIResponse(
+      responseCode = ZenStatus.OK,
+      content = @Content(schema = @Schema(ref = "ListGoalProgressResponse")))
+  @APIResponse(
+      responseCode = ZenStatus.BAD_REQUEST,
+      description = "An asOf that is not YYYY-MM-DD",
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  public Response progress(@QueryParam("asOf") String asOf) {
+    LocalDate day =
+        asOf == null || asOf.isBlank() ? LocalDate.now(ZoneOffset.UTC) : parseAsOf(asOf);
+    UUID userId = currentUser.id();
+    return Response.ok(
+            GoalProgressCalculator.calculate(
+                GoalEntity.listOwnedBy(userId, null), GoalAllocationEntity.balances(userId), day))
         .build();
   }
 
@@ -265,6 +294,15 @@ public class GoalResource {
     } catch (DateTimeParseException malformed) {
       throw PrudentException.invalid(
           "'" + date + "' is not an ISO-8601 target date. Expected YYYY-MM-DD.");
+    }
+  }
+
+  /** Strict {@code YYYY-MM-DD}, as {@link #parseDate}, but named for the query that carries it. */
+  private static LocalDate parseAsOf(String asOf) {
+    try {
+      return LocalDate.parse(asOf);
+    } catch (DateTimeParseException malformed) {
+      throw PrudentException.invalid("'" + asOf + "' is not an ISO-8601 date. Expected YYYY-MM-DD.");
     }
   }
 
