@@ -3,6 +3,8 @@ package prudent.budget;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.List;
 import prudent.proto.v1.Budget;
+import prudent.proto.v1.BudgetCarryOverReset;
+import prudent.proto.v1.ListBudgetCarryOverResetsResponse;
 import prudent.proto.v1.ListBudgetsResponse;
 
 /**
@@ -29,6 +31,34 @@ public class BudgetMapper {
     ListBudgetsResponse.Builder builder = ListBudgetsResponse.newBuilder();
     for (BudgetEntity entity : entities) {
       builder.addBudgets(toProto(entity));
+    }
+    return builder.build();
+  }
+
+  public BudgetCarryOverReset toProto(BudgetCarryResetEntity entity) {
+    BudgetCarryOverReset.Builder builder =
+        BudgetCarryOverReset.newBuilder()
+            .setId(entity.id.toString())
+            .setCategoryId(entity.categoryId.toString())
+            .setMonth(entity.month().toString())
+            .setCurrency(entity.currency)
+            .setDiscardedMinor(entity.discardedMinor)
+            .setNote(entity.note)
+            .setCreatedBy(entity.createdBy.toString())
+            .setCreatedAtMs(entity.createdAt.toEpochMilli());
+    if (entity.isRevoked()) {
+      builder.setRevokedBy(entity.revokedBy.toString()).setRevokedAtMs(entity.revokedAt.toEpochMilli());
+    }
+    return builder.build();
+  }
+
+  /** The history, in the order the entity query returned. */
+  public ListBudgetCarryOverResetsResponse toHistoryResponse(
+      List<BudgetCarryResetEntity> entities) {
+    ListBudgetCarryOverResetsResponse.Builder builder =
+        ListBudgetCarryOverResetsResponse.newBuilder();
+    for (BudgetCarryResetEntity entity : entities) {
+      builder.addResets(toProto(entity));
     }
     return builder.build();
   }

@@ -992,12 +992,25 @@ components:
           description: >-
             Net spending from posted records dated in the month, in the summary's currency: money
             out minus refunds. Negative when refunds outweigh spending.
+        carryOverMinor:
+          type: string
+          format: int64
+          description: >-
+            What the category's earlier budgeted months left over (positive) or overspent
+            (negative), carried into this month (ADR-045). Counted from the category's latest
+            carry-over reset when it has one (ADR-046). Zero for a first budgeted month.
+        carryOverResetMonth:
+          type: string
+          description: >-
+            YYYY-MM of the live carry-over reset that bounds carryOverMinor, or empty when there is
+            none. Names the reset behind a carry-over that is smaller than the history alone would
+            give; the entry is in GET /api/v1/budget-carry-over-resets.
         remainingMinor:
           type: string
           format: int64
           description: >-
-            planMinor minus actualMinor. Negative once the category is overspent. Carry-over from
-            earlier months is not included.
+            carryOverMinor plus planMinor minus actualMinor — what may still be spent this month.
+            Negative once the category is overspent.
     BudgetSummaryResponse:
       type: object
       description: >-
@@ -1022,9 +1035,91 @@ components:
         totalActualMinor:
           type: string
           format: int64
+        totalCarryOverMinor:
+          type: string
+          format: int64
         totalRemainingMinor:
           type: string
           format: int64
+          description: Includes the carry-over, like each item's remainingMinor.
+    BudgetCarryOverReset:
+      type: object
+      description: >-
+        One carry-over reset (M3, jlogicsoftware/prudent#61, ADR-046): the audit entry and, while
+        it is not revoked, the boundary the carry-over is counted from. A boundary and nothing
+        else — no budget is deleted and no earlier month's own figures change. Entries are never
+        deleted.
+      properties:
+        id:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        month:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+          description: >-
+            The first month carry-over is counted from, YYYY-MM: carry-over into it is zero.
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: ISO-4217. The reset applies to this currency only.
+        discardedMinor:
+          type: string
+          format: int64
+          description: >-
+            The carry-over into the month just before the reset — what was discarded. Signed minor
+            units, a snapshot that is not recalculated when earlier data changes.
+        note:
+          type: string
+          maxLength: 500
+          description: The user's own words for why; empty when none was given.
+        createdBy:
+          type: string
+          format: uuid
+          description: Who made the reset — the authenticated user.
+        createdAtMs:
+          type: string
+          format: int64
+          description: Epoch milliseconds.
+        revokedBy:
+          type: string
+          description: Who took the reset back; empty while it is in effect.
+        revokedAtMs:
+          type: string
+          format: int64
+          description: Epoch milliseconds the reset was taken back; 0 while it is in effect.
+    ResetBudgetCarryOverRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/budget-carry-over-resets. The month need not have a budget.
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        month:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        note:
+          type: string
+          maxLength: 500
+          description: Optional.
+    ListBudgetCarryOverResetsResponse:
+      type: object
+      description: >-
+        GET /api/v1/budget-carry-over-resets — the whole history, revoked entries included, newest
+        first.
+      properties:
+        resets:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetCarryOverReset'
 
     # -----------------------------------------------------------------------------------------
     # Settings — a singleton per user

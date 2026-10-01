@@ -241,4 +241,103 @@ class BudgetCalculatorTest {
     assertEquals(0L, item.getCarryOverMinor());
     assertEquals(800_00L, item.getRemainingMinor());
   }
+
+  // --- Carry-over resets (jlogicsoftware/prudent#61, ADR-046) ---------------------------------
+
+  private static BudgetCarryResetEntity resetAt(UUID category, YearMonth month) {
+    BudgetCarryResetEntity entity = new BudgetCarryResetEntity();
+    entity.categoryId = category;
+    entity.monthStart = month.atDay(1);
+    entity.currency = "PLN";
+    return entity;
+  }
+
+  @Test
+  void aResetStopsCountingTheMonthsBeforeIt() {
+    UUID food = UUID.randomUUID();
+    YearMonth july = YearMonth.of(2026, 7);
+    YearMonth august = YearMonth.of(2026, 8);
+    YearMonth september = YearMonth.of(2026, 9);
+    List<BudgetEntity> earlier =
+        List.of(
+            budgetIn(food, july, 100_00L),
+            budgetIn(food, august, 100_00L),
+            budgetIn(food, september, 100_00L));
+
+    Map<UUID, Long> carry =
+        BudgetCalculator.carryOver(earlier, Map.of(), Map.of(food, august));
+
+    // July is before the reset and is not summed; August and September are.
+    assertEquals(200_00L, carry.get(food));
+  }
+
+  @Test
+  void aResetAtTheFirstBudgetedMonthChangesNothing() {
+    UUID food = UUID.randomUUID();
+    YearMonth july = YearMonth.of(2026, 7);
+    List<BudgetEntity> earlier = List.of(budgetIn(food, july, 100_00L));
+
+    assertEquals(
+        BudgetCalculator.carryOver(earlier, Map.of()),
+        BudgetCalculator.carryOver(earlier, Map.of(), Map.of(food, july)));
+  }
+
+  @Test
+  void aResetEmptiesTheCarryWhenNoBudgetedMonthIsLeftAfterIt() {
+    UUID food = UUID.randomUUID();
+    List<BudgetEntity> earlier = List.of(budgetIn(food, YearMonth.of(2026, 7), 100_00L));
+
+    Map<UUID, Long> carry =
+        BudgetCalculator.carryOver(earlier, Map.of(), Map.of(food, YearMonth.of(2026, 9)));
+
+    assertTrue(carry.isEmpty());
+  }
+
+  @Test
+  void aResetOnlyBoundsItsOwnCategory() {
+    UUID food = UUID.randomUUID();
+    UUID rent = UUID.randomUUID();
+    YearMonth july = YearMonth.of(2026, 7);
+
+    Map<UUID, Long> carry =
+        BudgetCalculator.carryOver(
+            List.of(budgetIn(food, july, 100_00L), budgetIn(rent, july, 200_00L)),
+            Map.of(),
+            Map.of(food, YearMonth.of(2026, 9)));
+
+    assertEquals(null, carry.get(food));
+    assertEquals(200_00L, carry.get(rent));
+  }
+
+  @Test
+  void theLatestResetOfACategoryIsTheOneThatBounds() {
+    UUID food = UUID.randomUUID();
+
+    Map<UUID, YearMonth> months =
+        BudgetCalculator.resetMonths(
+            List.of(
+                resetAt(food, YearMonth.of(2026, 8)),
+                resetAt(food, YearMonth.of(2026, 10)),
+                resetAt(food, YearMonth.of(2026, 9))));
+
+    assertEquals(Map.of(food, YearMonth.of(2026, 10)), months);
+  }
+
+  @Test
+  void aSummaryItemNamesTheResetThatBoundsItsCarryOver() {
+    UUID food = UUID.randomUUID();
+    UUID rent = UUID.randomUUID();
+
+    BudgetSummaryResponse response =
+        BudgetCalculator.summarize(
+            OCTOBER,
+            "PLN",
+            List.of(budget(food, 800_00L), budget(rent, 500_00L)),
+            Map.of(),
+            Map.of(),
+            Map.of(food, OCTOBER));
+
+    assertEquals("2026-10", response.getItems(0).getCarryOverResetMonth());
+    assertEquals("", response.getItems(1).getCarryOverResetMonth());
+  }
 }

@@ -17,6 +17,7 @@ import java.util.UUID;
 import prudent.account.AccountBalance;
 import prudent.account.AccountEntity;
 import prudent.account.AccountKind;
+import prudent.budget.BudgetCarryResetEntity;
 import prudent.budget.BudgetEntity;
 import prudent.category.CategoryEntity;
 import prudent.plan.Frequency;
@@ -72,6 +73,7 @@ public final class PrudentTest {
               RecordEntity.deleteAll();
               PlanOccurrenceEntity.deleteAll();
               PlanEntity.deleteAll();
+              BudgetCarryResetEntity.deleteAll();
               BudgetEntity.deleteAll();
               AccountEntity.deleteAll();
               CategoryEntity.deleteAll();
@@ -330,6 +332,25 @@ public final class PrudentTest {
             () ->
                 BudgetEntity.upsert(
                     UUID.fromString(userId), categoryId, month, currency, amountMinor));
+  }
+
+  /** Persists a live carry-over reset directly, for suites that need one to exist already. */
+  public static UUID seedCarryReset(
+      String userId, UUID categoryId, java.time.YearMonth month, String currency, long discarded) {
+    UUID id = UUID.randomUUID();
+    QuarkusTransaction.requiringNew()
+        .run(
+            () ->
+                BudgetCarryResetEntity.insertLive(
+                    id,
+                    UUID.fromString(userId),
+                    categoryId,
+                    month,
+                    currency,
+                    discarded,
+                    "",
+                    java.time.Instant.now()));
+    return id;
   }
 
   /**

@@ -73,6 +73,13 @@ const CategoryBudgetSummary$json = {
     {'1': 'actual_minor', '3': 3, '4': 1, '5': 3, '10': 'actualMinor'},
     {'1': 'remaining_minor', '3': 4, '4': 1, '5': 3, '10': 'remainingMinor'},
     {'1': 'carry_over_minor', '3': 5, '4': 1, '5': 3, '10': 'carryOverMinor'},
+    {
+      '1': 'carry_over_reset_month',
+      '3': 6,
+      '4': 1,
+      '5': 9,
+      '10': 'carryOverResetMonth'
+    },
   ],
 };
 
@@ -81,7 +88,8 @@ final $typed_data.Uint8List categoryBudgetSummaryDescriptor = $convert.base64Dec
     'ChVDYXRlZ29yeUJ1ZGdldFN1bW1hcnkSHwoLY2F0ZWdvcnlfaWQYASABKAlSCmNhdGVnb3J5SW'
     'QSHQoKcGxhbl9taW5vchgCIAEoA1IJcGxhbk1pbm9yEiEKDGFjdHVhbF9taW5vchgDIAEoA1IL'
     'YWN0dWFsTWlub3ISJwoPcmVtYWluaW5nX21pbm9yGAQgASgDUg5yZW1haW5pbmdNaW5vchIoCh'
-    'BjYXJyeV9vdmVyX21pbm9yGAUgASgDUg5jYXJyeU92ZXJNaW5vcg==');
+    'BjYXJyeV9vdmVyX21pbm9yGAUgASgDUg5jYXJyeU92ZXJNaW5vchIzChZjYXJyeV9vdmVyX3Jl'
+    'c2V0X21vbnRoGAYgASgJUhNjYXJyeU92ZXJSZXNldE1vbnRo');
 
 @$core.Deprecated('Use budgetSummaryResponseDescriptor instead')
 const BudgetSummaryResponse$json = {
@@ -130,3 +138,68 @@ final $typed_data.Uint8List budgetSummaryResponseDescriptor = $convert.base64Dec
     '5NaW5vchIsChJ0b3RhbF9hY3R1YWxfbWlub3IYBSABKANSEHRvdGFsQWN0dWFsTWlub3ISMgoV'
     'dG90YWxfcmVtYWluaW5nX21pbm9yGAYgASgDUhN0b3RhbFJlbWFpbmluZ01pbm9yEjMKFnRvdG'
     'FsX2NhcnJ5X292ZXJfbWlub3IYByABKANSE3RvdGFsQ2FycnlPdmVyTWlub3I=');
+
+@$core.Deprecated('Use budgetCarryOverResetDescriptor instead')
+const BudgetCarryOverReset$json = {
+  '1': 'BudgetCarryOverReset',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'category_id', '3': 2, '4': 1, '5': 9, '10': 'categoryId'},
+    {'1': 'month', '3': 3, '4': 1, '5': 9, '10': 'month'},
+    {'1': 'currency', '3': 4, '4': 1, '5': 9, '10': 'currency'},
+    {'1': 'discarded_minor', '3': 5, '4': 1, '5': 3, '10': 'discardedMinor'},
+    {'1': 'note', '3': 6, '4': 1, '5': 9, '10': 'note'},
+    {'1': 'created_by', '3': 7, '4': 1, '5': 9, '10': 'createdBy'},
+    {'1': 'created_at_ms', '3': 8, '4': 1, '5': 3, '10': 'createdAtMs'},
+    {'1': 'revoked_by', '3': 9, '4': 1, '5': 9, '10': 'revokedBy'},
+    {'1': 'revoked_at_ms', '3': 10, '4': 1, '5': 3, '10': 'revokedAtMs'},
+  ],
+};
+
+/// Descriptor for `BudgetCarryOverReset`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List budgetCarryOverResetDescriptor = $convert.base64Decode(
+    'ChRCdWRnZXRDYXJyeU92ZXJSZXNldBIOCgJpZBgBIAEoCVICaWQSHwoLY2F0ZWdvcnlfaWQYAi'
+    'ABKAlSCmNhdGVnb3J5SWQSFAoFbW9udGgYAyABKAlSBW1vbnRoEhoKCGN1cnJlbmN5GAQgASgJ'
+    'UghjdXJyZW5jeRInCg9kaXNjYXJkZWRfbWlub3IYBSABKANSDmRpc2NhcmRlZE1pbm9yEhIKBG'
+    '5vdGUYBiABKAlSBG5vdGUSHQoKY3JlYXRlZF9ieRgHIAEoCVIJY3JlYXRlZEJ5EiIKDWNyZWF0'
+    'ZWRfYXRfbXMYCCABKANSC2NyZWF0ZWRBdE1zEh0KCnJldm9rZWRfYnkYCSABKAlSCXJldm9rZW'
+    'RCeRIiCg1yZXZva2VkX2F0X21zGAogASgDUgtyZXZva2VkQXRNcw==');
+
+@$core.Deprecated('Use resetBudgetCarryOverRequestDescriptor instead')
+const ResetBudgetCarryOverRequest$json = {
+  '1': 'ResetBudgetCarryOverRequest',
+  '2': [
+    {'1': 'category_id', '3': 1, '4': 1, '5': 9, '10': 'categoryId'},
+    {'1': 'month', '3': 2, '4': 1, '5': 9, '10': 'month'},
+    {'1': 'currency', '3': 3, '4': 1, '5': 9, '10': 'currency'},
+    {'1': 'note', '3': 4, '4': 1, '5': 9, '10': 'note'},
+  ],
+};
+
+/// Descriptor for `ResetBudgetCarryOverRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List resetBudgetCarryOverRequestDescriptor =
+    $convert.base64Decode(
+        'ChtSZXNldEJ1ZGdldENhcnJ5T3ZlclJlcXVlc3QSHwoLY2F0ZWdvcnlfaWQYASABKAlSCmNhdG'
+        'Vnb3J5SWQSFAoFbW9udGgYAiABKAlSBW1vbnRoEhoKCGN1cnJlbmN5GAMgASgJUghjdXJyZW5j'
+        'eRISCgRub3RlGAQgASgJUgRub3Rl');
+
+@$core.Deprecated('Use listBudgetCarryOverResetsResponseDescriptor instead')
+const ListBudgetCarryOverResetsResponse$json = {
+  '1': 'ListBudgetCarryOverResetsResponse',
+  '2': [
+    {
+      '1': 'resets',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.prudent.v1.BudgetCarryOverReset',
+      '10': 'resets'
+    },
+  ],
+};
+
+/// Descriptor for `ListBudgetCarryOverResetsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listBudgetCarryOverResetsResponseDescriptor =
+    $convert.base64Decode(
+        'CiFMaXN0QnVkZ2V0Q2FycnlPdmVyUmVzZXRzUmVzcG9uc2USOAoGcmVzZXRzGAEgAygLMiAucH'
+        'J1ZGVudC52MS5CdWRnZXRDYXJyeU92ZXJSZXNldFIGcmVzZXRz');
