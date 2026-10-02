@@ -9,8 +9,7 @@ import 'l10n/pl_identity_delegate.dart';
 import 'l10n/pl_navigation_delegate.dart';
 import 'l10n/pl_widgets_delegate.dart';
 import 'providers.dart';
-import 'auth/auth_flow.dart';
-import 'home_shell.dart';
+import 'app_root.dart';
 
 /// The root of Prudent. Routes on the identity session: anonymous -> the auth flow,
 /// authenticated -> the home shell. The whole app sits behind login (docs/prudent-migration-plan.md
@@ -45,7 +44,7 @@ class PrudentApp extends ConsumerWidget {
       supportedLocales: [for (final tag in prudentSupportedLocales) Locale(tag)],
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),
-      home: const ZenAuthLinkListener(child: _Root()),
+      home: const ZenAuthLinkListener(child: AppRoot()),
     );
   }
 
@@ -67,31 +66,4 @@ class PrudentApp extends ConsumerWidget {
       ],
     );
   }
-}
-
-class _Root extends ConsumerWidget {
-  const _Root();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(identitySessionStoreProvider);
-
-    return session.when(
-      loading: () => const _Splash(),
-      error: (_, _) => const AuthFlow(),
-      data: (identity) {
-        if (identity == null) return const AuthFlow();
-        if (ref.watch(passwordResetRequiredProvider)) return const SetPasswordScreen();
-        return const HomeShell();
-      },
-    );
-  }
-}
-
-class _Splash extends StatelessWidget {
-  const _Splash();
-
-  @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: CircularProgressIndicator()));
 }
