@@ -6,6 +6,7 @@
   "navOverview": "Overview",
   "navRecords": "Records",
   "navBudgets": "Budgets",
+  "navGoals": "Goals",
   "navAnalytics": "Analytics",
   "navSettings": "Settings",
 
@@ -171,6 +172,124 @@
   "@budgetLoadError": {
     "placeholders": { "error": { "type": "String" } }
   },
+
+  "goalsTitle": "Goals",
+  "goalNew": "New goal",
+  "goalSegmentActive": "Active",
+  "goalSegmentCompleted": "Completed",
+  "goalSegmentArchived": "Archived",
+  "goalsEmptyActive": "No active goals. Add one to start setting money aside.",
+  "goalsEmptyCompleted": "No completed goals yet.",
+  "goalsEmptyArchived": "No archived goals.",
+  "goalsLoadError": "Could not load goals: {error}",
+  "@goalsLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "goalStatusCompleted": "Completed",
+  "goalStatusArchived": "Archived",
+  "goalSetAside": "Set aside",
+  "goalTarget": "Target",
+  "goalRemaining": "Still to save",
+  "goalProgressPercent": "{percent}% of target",
+  "@goalProgressPercent": {
+    "placeholders": { "percent": { "type": "int" } }
+  },
+  "goalTargetDate": "By {date}",
+  "@goalTargetDate": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "goalGuidanceContribution": "Set aside {amount} a month",
+  "@goalGuidanceContribution": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "goalDueThisMonth": "Due this month",
+  "goalMonthsLeft": "{months, plural, one{{months} month left} other{{months} months left}}",
+  "@goalMonthsLeft": {
+    "placeholders": { "months": { "type": "int" } }
+  },
+  "goalGuidanceReached": "Target reached",
+  "goalGuidanceNoDate": "No target date",
+  "goalGuidanceOverdue": "The target date has passed",
+  "goalEnvelopeSemantics": "Set aside for goals: {amount}",
+  "@goalEnvelopeSemantics": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "goalFreeMoneyTitle": "Money for goals",
+  "goalFreeMoneyNote": "Money set aside stays in your accounts. It never changes a balance or your spending.",
+  "goalEligible": "In eligible accounts",
+  "goalFree": "Free to set aside",
+  "goalOverAllocated": "Envelopes hold {amount} more than your eligible accounts",
+  "@goalOverAllocated": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "goalFreeMoneyEmpty": "Mark an account as available for goals to start setting money aside.",
+  "goalFreeMoneyLoadError": "Could not load money for goals: {error}",
+  "@goalFreeMoneyLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "goalHistory": "History",
+  "goalHistoryEmpty": "Nothing has been set aside for this goal yet.",
+  "goalHistoryLoadError": "Could not load the history: {error}",
+  "@goalHistoryLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "goalEntryAllocate": "Set aside",
+  "goalEntryWithdraw": "Withdrawn",
+  "goalEntryMoveIn": "Moved from {goal}",
+  "@goalEntryMoveIn": {
+    "placeholders": { "goal": { "type": "String" } }
+  },
+  "goalEntryMoveOut": "Moved to {goal}",
+  "@goalEntryMoveOut": {
+    "placeholders": { "goal": { "type": "String" } }
+  },
+  "goalActionAllocate": "Add money",
+  "goalActionWithdraw": "Withdraw",
+  "goalActionMove": "Move",
+  "goalActionEdit": "Edit",
+  "goalActionComplete": "Mark as reached",
+  "goalActionArchive": "Archive",
+  "goalActionReactivate": "Reactivate",
+  "goalArchivedReadOnly": "This goal is archived. Reactivate it to change it or move its money.",
+  "goalActionFailed": "The change was not made.",
+  "goalNameField": "Name",
+  "goalNameRequired": "Enter a name",
+  "goalCurrencyField": "Currency",
+  "goalTargetField": "Target amount",
+  "goalAmountInvalid": "Enter an amount above zero",
+  "goalDateField": "Target date",
+  "goalNoCurrency": "Add an account first: a goal is saved in a currency you hold.",
+  "goalSave": "Save",
+  "goalEditTitle": "Edit goal",
+  "goalAmountField": "Amount",
+  "goalNoteField": "Note (optional)",
+  "goalMoveTo": "Move to",
+  "goalMoveNoTarget": "There is no other active goal in {currency}.",
+  "@goalMoveNoTarget": {
+    "placeholders": { "currency": { "type": "String" } }
+  },
+  "goalAvailableFree": "Free to set aside: {amount}",
+  "@goalAvailableFree": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "goalAvailableEnvelope": "In this envelope: {amount}",
+  "@goalAvailableEnvelope": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "goalAllocateTitle": "Add money to {goal}",
+  "@goalAllocateTitle": {
+    "placeholders": { "goal": { "type": "String" } }
+  },
+  "goalWithdrawTitle": "Withdraw from {goal}",
+  "@goalWithdrawTitle": {
+    "placeholders": { "goal": { "type": "String" } }
+  },
+  "goalMoveTitle": "Move from {goal}",
+  "@goalMoveTitle": {
+    "placeholders": { "goal": { "type": "String" } }
+  },
+  "goalNotFound": "This goal could not be found.",
+  "goalUnknown": "Unknown goal",
 
   "analyticsTitle": "Analytics",
   "analyticsSpendByMonth": "Spend by month",

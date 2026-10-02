@@ -1,11 +1,14 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:zen_core/zen_core.dart';
 
 import 'generated/prudent/v1/accounts.pb.dart';
 import 'generated/prudent/v1/analytics.pb.dart';
 import 'generated/prudent/v1/budgets.pb.dart';
 import 'generated/prudent/v1/categories.pb.dart';
+import 'generated/prudent/v1/goal_allocations.pb.dart';
+import 'generated/prudent/v1/goals.pb.dart';
 import 'generated/prudent/v1/plans.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
@@ -77,6 +80,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
     final record = result.fold((r) => r, (error) => throw error);
     state = AsyncValue.data([...?state.value, record]);
     ref.invalidate(budgetSummaryProvider);
+    ref.invalidate(goalFreeMoneyProvider);
   }
 
   Future<void> editRecord(String id, UpdateRecordRequest request) async {
@@ -86,6 +90,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
       for (final r in state.value ?? const <Record>[]) if (r.id == id) updated else r,
     ]);
     ref.invalidate(budgetSummaryProvider);
+    ref.invalidate(goalFreeMoneyProvider);
   }
 
   /// Deletes immediately; the caller re-creates on undo (a new server-minted id — there is no
@@ -97,6 +102,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
       for (final r in state.value ?? const <Record>[]) if (r.id != id) r,
     ]);
     ref.invalidate(budgetSummaryProvider);
+    ref.invalidate(goalFreeMoneyProvider);
   }
 
   /// Creates a same-currency transfer (jlogicsoftware/prudent#32) and adds both legs to state.
@@ -109,6 +115,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
     final transfer = result.fold((t) => t, (error) => throw error);
     state = AsyncValue.data([...?state.value, transfer.fromRecord, transfer.toRecord]);
     ref.invalidate(accountsProvider);
+    ref.invalidate(goalFreeMoneyProvider);
     return transfer;
   }
 
@@ -120,6 +127,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
       for (final r in state.value ?? const <Record>[]) if (r.transferId != transferId) r,
     ]);
     ref.invalidate(accountsProvider);
+    ref.invalidate(goalFreeMoneyProvider);
   }
 
   /// Records an explicit balance correction (M1, jlogicsoftware/prudent#53) and adds it to state.
@@ -131,6 +139,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
     final correction = result.fold((r) => r, (error) => throw error);
     state = AsyncValue.data([...?state.value, correction]);
     ref.invalidate(accountsProvider);
+    ref.invalidate(goalFreeMoneyProvider);
     return correction;
   }
 
@@ -143,6 +152,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
       for (final r in state.value ?? const <Record>[]) if (r.id != id) r,
     ]);
     ref.invalidate(accountsProvider);
+    ref.invalidate(goalFreeMoneyProvider);
   }
 }
 
@@ -165,6 +175,7 @@ class AccountsNotifier extends AsyncNotifier<List<Account>> {
     final result = await _repository.createAccount(request);
     final account = result.fold((a) => a, (error) => throw error);
     state = AsyncValue.data([...?state.value, account]);
+    ref.invalidate(goalFreeMoneyProvider);
   }
 
   Future<void> editAccount(String id, UpdateAccountRequest request) async {
@@ -173,6 +184,7 @@ class AccountsNotifier extends AsyncNotifier<List<Account>> {
     state = AsyncValue.data([
       for (final a in state.value ?? const <Account>[]) if (a.id == id) updated else a,
     ]);
+    ref.invalidate(goalFreeMoneyProvider);
   }
 
   Future<void> removeAccount(String id) async {
@@ -181,6 +193,7 @@ class AccountsNotifier extends AsyncNotifier<List<Account>> {
     state = AsyncValue.data([
       for (final a in state.value ?? const <Account>[]) if (a.id != id) a,
     ]);
+    ref.invalidate(goalFreeMoneyProvider);
   }
 }
 
@@ -407,3 +420,113 @@ final budgetSummaryProvider =
       );
       return result.fold((response) => response, (error) => throw error);
     });
+
+// ---------------------------------------------------------------------------------------------
+// Goals and their envelopes — money set aside, never a transaction (goals.proto,
+// goal_allocations.proto, ADR-049..ADR-052)
+// ---------------------------------------------------------------------------------------------
+
+/// Every goal the user has, in creation order — active, completed and archived alike, because a
+/// goal is retired and never deleted (ADR-049); the goals screen splits them by state.
+///
+/// Every change here invalidates the calculated reads beside it: progress, envelopes and free money
+/// are sums the server works out on each request (ADR-050, ADR-051, ADR-052), so the only way to
+/// show the new figure is to ask again.
+class GoalsNotifier extends AsyncNotifier<List<Goal>> {
+  PrudentRepository get _repository => ref.read(prudentRepositoryProvider);
+
+  @override
+  Future<List<Goal>> build() async {
+    final result = await _repository.listGoals();
+    return result.fold((response) => response.goals, (error) => throw error);
+  }
+
+  Future<void> addGoal(CreateGoalRequest request) async {
+    final result = await _repository.createGoal(request);
+    _replace(result.fold((g) => g, (error) => throw error));
+  }
+
+  Future<void> editGoal(String id, UpdateGoalRequest request) async {
+    final result = await _repository.updateGoal(id, request);
+    _replace(result.fold((g) => g, (error) => throw error));
+  }
+
+  Future<void> completeGoal(String id) async {
+    final result = await _repository.completeGoal(id);
+    _replace(result.fold((g) => g, (error) => throw error));
+  }
+
+  Future<void> archiveGoal(String id) async {
+    final result = await _repository.archiveGoal(id);
+    _replace(result.fold((g) => g, (error) => throw error));
+  }
+
+  Future<void> reactivateGoal(String id) async {
+    final result = await _repository.reactivateGoal(id);
+    _replace(result.fold((g) => g, (error) => throw error));
+  }
+
+  /// Writes one envelope history entry (ADR-050). No goal row changes, but every figure read from
+  /// the history does: the progress, the free money and the history of each goal it names.
+  Future<void> recordAllocation(CreateGoalAllocationRequest request) async {
+    final result = await _repository.createGoalAllocation(request);
+    result.fold((_) => null, (error) => throw error);
+    _invalidateFigures();
+  }
+
+  void _replace(Goal goal) {
+    final current = state.value ?? const <Goal>[];
+    state = AsyncValue.data(
+      current.any((g) => g.id == goal.id)
+          ? [
+            for (final g in current)
+              if (g.id == goal.id) goal else g,
+          ]
+          : [...current, goal],
+    );
+    _invalidateFigures();
+  }
+
+  void _invalidateFigures() {
+    ref.invalidate(goalProgressProvider);
+    ref.invalidate(goalFreeMoneyProvider);
+    ref.invalidate(goalHistoryProvider);
+  }
+}
+
+final goalsProvider = AsyncNotifierProvider<GoalsNotifier, List<Goal>>(GoalsNotifier.new);
+
+/// The day progress guidance is calculated for, as `YYYY-MM-DD`. A goal carries no time zone, so
+/// "today" is the client's to state (goals.proto `ListGoalProgressResponse`): the user's own date,
+/// not the server's UTC one, decides whether a target date has passed and which month counts.
+final goalProgressAsOfProvider = Provider<String>(
+  (ref) => DateFormat('yyyy-MM-dd').format(DateTime.now()),
+);
+
+/// Allocated, remaining, percentage and contribution guidance per goal, keyed by goal id.
+/// Calculated by the server on every read (ADR-052); this only fetches.
+final goalProgressProvider = FutureProvider.autoDispose<Map<String, GoalProgress>>((ref) async {
+  final repository = ref.watch(prudentRepositoryProvider);
+  final result = await repository.getGoalProgress(asOf: ref.watch(goalProgressAsOfProvider));
+  final response = result.fold((r) => r, (error) => throw error);
+  return {for (final progress in response.goals) progress.goalId: progress};
+});
+
+/// Per currency: what the eligible accounts hold, what the envelopes hold, and the difference
+/// (ADR-051). Calculated from account balances, so a record or account change invalidates it too.
+final goalFreeMoneyProvider = FutureProvider.autoDispose<List<CurrencyFreeMoney>>((ref) async {
+  final repository = ref.watch(prudentRepositoryProvider);
+  final result = await repository.getFreeMoney();
+  return result.fold((response) => response.currencies, (error) => throw error);
+});
+
+/// One goal's envelope history, newest first: the entries that put money into it or took money
+/// out of it. Entries are never edited or deleted (ADR-050), so this list only ever grows.
+final goalHistoryProvider = FutureProvider.autoDispose.family<List<GoalAllocation>, String>((
+  ref,
+  goalId,
+) async {
+  final repository = ref.watch(prudentRepositoryProvider);
+  final result = await repository.listGoalAllocations(goalId: goalId);
+  return result.fold((response) => response.allocations, (error) => throw error);
+});

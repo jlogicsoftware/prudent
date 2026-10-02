@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_identity/zen_ui_identity.dart';
 import 'package:zen_ui_navigation/zen_ui_navigation.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import 'l10n/generated/prudent_localizations.dart';
 import 'l10n/pl_identity_delegate.dart';
 import 'l10n/pl_navigation_delegate.dart';
+import 'l10n/pl_widgets_delegate.dart';
 import 'providers.dart';
 import 'auth/auth_flow.dart';
 import 'home_shell.dart';
@@ -28,13 +30,17 @@ class PrudentApp extends ConsumerWidget {
       // type that supports the locale — so Prudent's own Polish wins over the framework's
       // degrading English fallback (`identityLocaleDelegate` / `navigationLocaleDelegate`,
       // composed after them, still needed for {en, uk} and as the fallback for any locale
-      // Prudent's own delegate declines).
+      // Prudent's own delegate declines). `zen_ui_widgets` is composed the same way: its amount
+      // and date fields read their own strings, and without a delegate the first one to render
+      // throws.
       localizationsDelegates: const [
         ...PrudentLocalizations.localizationsDelegates,
         prudentPlIdentityDelegate,
         identityLocaleDelegate,
         prudentPlNavigationDelegate,
         navigationLocaleDelegate,
+        prudentPlWidgetsDelegate,
+        zenWidgetsLocaleDelegate,
       ],
       supportedLocales: [for (final tag in prudentSupportedLocales) Locale(tag)],
       theme: _theme(Brightness.light),

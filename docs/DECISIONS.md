@@ -13,6 +13,93 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-053 — Goals are a tab of their own, and an envelope amount is never drawn the way a balance is
+
+**Date:** 2026-10-02. **Status:** accepted. **Follows:** ADR-052 (progress and guidance are calculated per goal),
+ADR-051 (free money per currency), ADR-050 (an envelope is the sum of an append-only history), ADR-049 (a goal is
+retired, never deleted), ADR-048 (the budget overview's tab, view state and error/empty conventions), ADR-041
+(`zen_ui_widgets` is the rule for new screens), ADR-009 (per currency, never blended). **Completes:** M4
+(jlogicsoftware/prudent#37).
+
+### Decision
+
+The fifth M4 task (jlogicsoftware/prudent#67 — "show active and archived goals, history and actions while keeping
+envelope amounts visually distinct from account balances") adds the client screens over the reads and writes
+ADR-049–052 put on the server. No server or contract change: every figure is already calculated there.
+
+- **A sixth navigation tab, "Goals"**, after Budgets. With `zenMaxItemsMobile = 4` it sits in the mobile bar and
+  pushes Analytics and Settings into "More", as Budgets already pushed Settings. Goals are looked at as routinely as
+  budgets; a button inside Overview would hide them.
+- **The tab shows free money first, then one goal state at a time.** A "Money for goals" card gives, per currency,
+  what the eligible accounts hold, what the envelopes hold and what is free (ADR-051), never summed across
+  currencies; a negative free amount is said in words and an icon ("Envelopes hold X more than your eligible
+  accounts"), not colour alone. Below it a `ZenSegmentedControl` picks Active, Completed or Archived — archived and
+  completed goals are a tap away, not hidden, because their history is still the user's (ADR-049). Each segment has
+  its own empty state; a failed load says so and draws nothing.
+- **A goal card** shows the name, the state when it is not active, the target date, a progress bar and the server's
+  whole percent, what is set aside, the target, what is still to save and one line of guidance worded from
+  `GoalGuidance` — the client never re-derives which case applies (ADR-052). A card with no progress yet (loading or
+  failed) shows only the goal's own name and target, rather than a zero envelope that would read as "nothing set
+  aside".
+- **A goal opens to a page** with its card, the actions its state allows, and its history newest first. Active:
+  add money, withdraw, move, plus edit, mark as reached and archive in the menu. Completed: withdraw and move (money
+  can still come out, goal_allocations.proto), edit, archive, reactivate. Archived: a read-only note and reactivate
+  only. Offering only what the state allows is a convenience; the server still decides, and a refusal — archiving a
+  goal that holds money, an allocation above free money — is shown in the server's words. The add/withdraw/move and
+  create/edit forms open through `showAdaptivePresentation`, show what the entry draws on (free money, or what the
+  envelope holds) and **do not enforce it**: that rule lives on the server (ADR-050, ADR-051), and a client copy
+  would be a second source of truth. They check only that the amount is a positive number, and stay open with the
+  server's message when it refuses. A move offers only active goals in the same currency.
+- **A history entry is read from the goal's side**: `+` for money in, `−` for money out, so a MOVE is an outflow on
+  its source ("Moved to Trip") and an inflow on its target ("Moved from Car"), with its date and note.
+- **Envelope amounts are never drawn as plain text.** Every amount that is money *set aside* — on a goal card, in
+  the free-money card, in the history — goes through one widget, `EnvelopeAmount`: an envelope icon on the
+  `tertiaryContainer` colour, and a semantics label "Set aside for goals: X" so screen readers hear the difference
+  too. Account money (eligible and free money, a target, what is still to save) stays plain text, as balances are
+  everywhere else. A single widget means the distinction cannot be forgotten on one screen. The card also says in
+  words that set-aside money stays in the accounts and never changes a balance or spending.
+- **"Today" for guidance is the client's date.** `goalProgressAsOfProvider` sends `asOf` as the device's local
+  `YYYY-MM-DD`, because a goal carries no time zone and the server's UTC date can be a day off for the user
+  (goals.proto `ListGoalProgressResponse`).
+- **What refetches what.** Progress, free money and history are calculated on read, so `GoalsNotifier` invalidates
+  all three after any goal change or allocation, and free money is also invalidated by every record, transfer,
+  correction and account change — it is a function of eligible balances.
+- **The screens are built on `zen_ui_widgets`** (ADR-041): `ZenSegmentedControl`, `ZenButton`, `ZenSelect`,
+  `ZenAmountField`, `ZenDateField`. They are the first Prudent screens to use the amount and date fields, which read
+  `ZenWidgetsLocalizations` — and the app had never registered that delegate, so the first field to render would
+  have thrown. `app.dart` now composes `zenWidgetsLocaleDelegate`, with Prudent's own Polish
+  (`PlWidgetsDelegate`) ahead of it for the reason ADR-044's ordering test pins for identity and navigation.
+
+### What this does not decide
+
+- **A delete for a goal or an entry.** There is none on the server (ADR-049, ADR-050), so there is none here.
+- **A total across goals or currencies.** There is none on purpose (ADR-009, ADR-052).
+- **Reminders on goal progress.** Post-MVP (`docs/github-backlog.md`, M5's closing note).
+
+### Consequence
+
+Verified by `goal_figures_test.dart` (an entry's direction from either side of a move, the move targets, the
+status filter, every guidance case including "due this month", an unparseable date), `goal_views_test.dart`
+(through the real repository over a mock server: active goals with envelope, percent, target, remainder and
+guidance; envelope amounts inside `EnvelopeAmount` and account money outside it, with the semantics label; the
+over-allocated warning; completed and archived segments; empty states; a failed load; the history's signs, names
+and order; add money sending exactly one ALLOCATE with the right ids, amount and note and refetching progress; a
+refusal shown in the open form; a zero amount refused before sending; a move offering only same-currency active
+goals; completed and archived goals' actions; reactivate; a refused archive in the server's words),
+`goal_providers_test.dart` (free money refetched after a record and an account change; progress and free money after
+an allocation; `asOf` is the client's date) and `prudent_l10n_test.dart` (the widgets' own strings in Polish, and the
+delegate loads synchronously). The full client suite passes (199 tests) under `ZEN_PLATFORM=macos`, and
+`goal_views_test.dart` also under `android` and `web`. `flutter analyze` is clean apart from the pre-existing
+analyzer-plugin deprecation warning. `task zen:test:client` stops at `zen:verify:widget-files`, which fails on
+four files whose widget classes this change leaves as they are on `main` (`account_list.dart`, `analytics.dart`,
+`chart_screen.dart`, and `app.dart`'s existing `_Root`/`_Splash`); the gate scans the whole tree, so `main` fails it
+the same way. Every file this change adds holds one widget.
+
+**Not verified, and stated rather than implied:** the screens have not been driven in a real browser or on a device
+against a running server.
+
+---
+
 ## ADR-052 — Goal progress and contribution guidance are calculated per goal on every read; the percentage rounds down, the contribution rounds up
 
 **Date:** 2026-10-01. **Status:** accepted. **Follows:** ADR-050 (an envelope is calculated from its history, so
