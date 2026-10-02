@@ -11,9 +11,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
 import 'package:prudent/l10n/pl_identity_delegate.dart';
 import 'package:prudent/l10n/pl_identity_localizations.dart';
+import 'package:prudent/l10n/pl_widgets_delegate.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_identity/zen_identity.dart';
 import 'package:zen_ui_identity/zen_ui_identity.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 /// A repository that answers nothing — the widgets under test here never complete a real auth
 /// flow, they only render.
@@ -155,5 +157,30 @@ void main() {
     // a widget test that always pumpAndSettle()s past it. Asserted directly here.
     final future = const PlIdentityDelegate().load(const Locale('pl'));
     expect(future, isA<SynchronousFuture<IdentityLocalizations>>());
+  });
+
+  testWidgets('the framework widgets\' own strings render Polish under Prudent\'s delegate', (
+    tester,
+  ) async {
+    // An amount field reads its error from ZenWidgetsLocalizations; without a delegate it throws,
+    // and with only the framework's it degrades to English under `pl`.
+    await tester.pumpWidget(
+      _app(
+        locale: 'pl',
+        extra: const [prudentPlWidgetsDelegate, zenWidgetsLocaleDelegate],
+        home: const Scaffold(body: ZenAmountField(label: 'Kwota', errorText: null)),
+      ),
+    );
+    await tester.enterText(find.byType(TextFormField), '1.2.3');
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final context = tester.element(find.byType(ZenAmountField));
+    expect(ZenWidgetsLocalizations.of(context).invalidAmount, 'Wpisz poprawną kwotę');
+    expect(ZenWidgetsLocalizations.of(context).clearDate, 'Wyczyść datę');
+  });
+
+  test('the widgets delegate load is synchronous, for the reason the identity one is', () {
+    final future = const PlWidgetsDelegate().load(const Locale('pl'));
+    expect(future, isA<SynchronousFuture<ZenWidgetsLocalizations>>());
   });
 }

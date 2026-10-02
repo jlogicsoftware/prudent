@@ -109,8 +109,11 @@ on every read at `GET /api/v1/goals/progress`: allocated, remaining (never negat
 down (so 100 means reached) and — for an active goal with money left and a target date that has not passed — the
 monthly contribution rounded up over the calendar months from the as-of month through the target month, both
 inclusive. A `GoalGuidance` says why a contribution is absent (not active, reached, no date, overdue); `asOf` names
-today and defaults to the server's UTC date. Nothing shows goals, envelopes, free money or progress yet — that is
-the epic's last task (jlogicsoftware/prudent#67) — and the client has otherwise only the repository methods.
+today and defaults to the server's UTC date. The client's "Goals" tab (ADR-053, jlogicsoftware/prudent#67) shows
+free money per currency, then active, completed or archived goals with progress and guidance; a goal opens to its
+envelope history and the actions its state allows (add, withdraw, move, edit, complete, archive, reactivate).
+Every envelope amount is drawn by `EnvelopeAmount` — an envelope icon on the tertiary container colour, read out as
+"set aside for goals" — so it is never mistaken for an account balance. That completes M4's backlog.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the
@@ -244,8 +247,11 @@ consumer that bends them stops being a consumer:
   consume it (ADR-036, ADR-041), don't hand-roll it. What an amount *means* (minor units, currency,
   `client/lib/money.dart`) stays Prudent's; `AlertDialog`, `PopupMenuButton`, `ListTile`, `Card` and
   layout have no counterpart and are used directly. **Status:** overlays are migrated (ADR-041); the
-  buttons, dropdowns, segmented control, switch rows and date/amount fields are still stock Material
-  in older screens, so the rule binds new and touched screens — don't describe the rest as done.
+  goal screens (ADR-053) are the first built wholly on the package's controls, and `app.dart` now
+  registers `zenWidgetsLocaleDelegate` (with Prudent's Polish ahead of it) because the amount and
+  date fields read their own strings; the buttons, dropdowns, segmented control, switch rows and
+  date/amount fields are still stock Material in older screens, so the rule binds new and touched
+  screens — don't describe the rest as done.
   `docs/jzen/README.md` has the state of the upstream issues.
 - **Typed, generated i18n.** No hardcoded user-facing strings. Each package owns `lib/l10n/*.arb`
   + `l10n.yaml` and generates accessors with `flutter gen-l10n`; the generated output is built, not
