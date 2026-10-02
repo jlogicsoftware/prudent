@@ -90,10 +90,9 @@ goals; completed and archived goals' actions; reactivate; a refused archive in t
 an allocation; `asOf` is the client's date) and `prudent_l10n_test.dart` (the widgets' own strings in Polish, and the
 delegate loads synchronously). The full client suite passes (199 tests) under `ZEN_PLATFORM=macos`, and
 `goal_views_test.dart` also under `android` and `web`. `flutter analyze` is clean apart from the pre-existing
-analyzer-plugin deprecation warning. `task zen:test:client` stops at `zen:verify:widget-files`, which fails on
-four files whose widget classes this change leaves as they are on `main` (`account_list.dart`, `analytics.dart`,
-`chart_screen.dart`, and `app.dart`'s existing `_Root`/`_Splash`); the gate scans the whole tree, so `main` fails it
-the same way. Every file this change adds holds one widget.
+analyzer-plugin deprecation warning. `task zen:test:client` passes end to end, including
+`zen:verify:widget-files`, once merged with `main` after jlogicsoftware/prudent#122 split out the helper widgets it
+had been failing on.
 
 **Not verified, and stated rather than implied:** the screens have not been driven in a real browser or on a device
 against a running server.
