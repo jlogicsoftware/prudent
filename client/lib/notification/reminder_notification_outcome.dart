@@ -1,5 +1,5 @@
-/// What a reconciliation pass did, so a screen can say so (the denied and unsupported cases are the
-/// next task's to explain) and a test can pin it.
+/// What a reconciliation pass did, so a screen can say so (the reminder centre explains
+/// [unsupported] and [denied], ADR-058) and a test can pin it.
 enum ReminderNotificationOutcome {
   /// This platform cannot schedule a notification for later: the web, Linux.
   unsupported,

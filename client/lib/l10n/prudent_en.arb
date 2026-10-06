@@ -298,6 +298,8 @@
   },
   "remindersSectionOverdue": "Overdue",
   "remindersSectionDue": "Due soon",
+  "remindersNoticeUnsupported": "This device can't show reminders as notifications. They appear here, in Prudent.",
+  "remindersNoticeDenied": "Notifications are turned off for Prudent, so reminders appear only here. To get them as notifications too, allow them in your device's settings.",
   "remindersEmpty": "No reminders. Switch on a plan's reminder to hear about it before it falls due.",
   "remindersLoadError": "Could not load reminders: {error}",
   "@remindersLoadError": {

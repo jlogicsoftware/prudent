@@ -1,4 +1,5 @@
 import 'local_notification_gateway.dart';
+import 'notification_permission_memory.dart';
 import 'reminder_notification.dart';
 import 'reminder_notification_outcome.dart';
 
@@ -7,13 +8,16 @@ import 'reminder_notification_outcome.dart';
 ///
 /// The prompt is the platform's one chance to be heard, so it comes when a reminder exists —
 /// something the user switched on (ADR-054) — and never at launch, on sign-in with nothing to
-/// remind of, or on a platform that cannot deliver anything. Once the user has been asked in a
-/// session, a refusal is accepted for that session rather than asked again.
+/// remind of, or on a platform that cannot deliver anything. Once the user has been asked, a
+/// refusal is accepted rather than asked again — in this session and, through the
+/// [NotificationPermissionMemory], in every later launch (ADR-058). A user who changes their mind
+/// does so in the system's settings, and the next pass sees the permission without asking.
 class ReminderNotificationScheduler {
-  ReminderNotificationScheduler(this._gateway);
+  ReminderNotificationScheduler(this._gateway, {NotificationPermissionMemory? memory})
+    : _memory = memory ?? InMemoryNotificationPermissionMemory();
 
   final LocalNotificationGateway _gateway;
-  bool _asked = false;
+  final NotificationPermissionMemory _memory;
 
   // Passes are queued, never interleaved: a pass cancels and schedules across several awaits, and
   // two running at once could leave the older one's notifications on the device.
@@ -52,8 +56,10 @@ class ReminderNotificationScheduler {
     }
 
     var permitted = await _gateway.hasPermission();
-    if (!permitted && !_asked) {
-      _asked = true;
+    if (!permitted && !await _memory.hasAsked()) {
+      // Recorded before the prompt, not after: a launch that ends with the prompt on screen has
+      // still asked.
+      await _memory.markAsked();
       permitted = await _gateway.requestPermission();
     }
     if (!permitted) {
