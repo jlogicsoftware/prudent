@@ -79,6 +79,32 @@ message Recurrence {
   }
 }
 
+// A plan's reminder setting (M5, jlogicsoftware/prudent#40, ADR-054): whether the user wants to be
+// reminded before each occurrence falls due, and how many days ahead. It is a SETTING only — it
+// stores no reminder, schedules nothing and sends nothing; the in-app reminder centre and local
+// notifications that read it are the following M5 tasks.
+//
+// OFF BY DEFAULT, with a one-day lead time ready for when it is switched on. Reminders are opt-in
+// because the first local notification is also the moment the platform asks for permission, and
+// that prompt belongs to something the user asked for, not to saving a plan.
+//
+// The same message is in the requests and in Plan. In Plan it is always present and lead_days is
+// always set.
+message Reminder {
+  // Whether this plan's occurrences produce reminders. A plain bool: false is a real answer.
+  bool enabled = 1;
+
+  // How many days before an occurrence's date the reminder falls due. One of the SUPPORTED lead
+  // times, 0 (the day itself), 1, 2, 3 or 7; anything else is REFUSED rather than rounded, so a
+  // client cannot believe it set a lead time the server then quietly changed. Counted in the
+  // plan's own calendar days (Recurrence.time_zone), like every other date on a plan.
+  //
+  // `optional` because 0 is a real lead time and proto3 decodes an omitted number to 0: absent
+  // means the DEFAULT (1), present 0 means "on the day". The value is kept while `enabled` is
+  // false, so switching a reminder off and on again does not forget the user's choice.
+  optional uint32 lead_days = 2;
+}
+
 // A plan, as the server holds it.
 message Plan {
   // Server-minted UUID. A create request carries no id.
@@ -107,6 +133,10 @@ message Plan {
 
   Recurrence recurrence = 9;
 
+  // Always present. Plans that existed before reminders were added read as disabled with a
+  // one-day lead time.
+  Reminder reminder = 10;
+
   // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
 }
 
@@ -122,6 +152,8 @@ message CreatePlanRequest {
   optional string note = 7;
   // Required.
   Recurrence recurrence = 8;
+  // Optional. Absent is the default: disabled, one day ahead.
+  optional Reminder reminder = 9;
 }
 
 // PUT /api/v1/plans/{id} — a FULL REPLACEMENT, for the presence reason set out in
@@ -135,6 +167,9 @@ message UpdatePlanRequest {
   optional string payee = 6;
   optional string note = 7;
   Recurrence recurrence = 8;
+  // Part of the replacement, like every other field: absent RESETS the setting to the default
+  // (disabled, one day ahead), so a client that edits a plan sends back the reminder it read.
+  optional Reminder reminder = 9;
 }
 
 // GET /api/v1/plans — every plan owned by the authenticated user. Unpaginated in v1 for the reason

@@ -115,6 +115,15 @@ envelope history and the actions its state allows (add, withdraw, move, edit, co
 Every envelope amount is drawn by `EnvelopeAmount` — an envelope icon on the tertiary container colour, read out as
 "set aside for goals" — so it is never mistaken for an account balance. That completes M4's backlog.
 
+M5 (local reminders) has begun: a plan carries a reminder setting (ADR-054, jlogicsoftware/prudent#40) —
+`Plan.reminder`, `enabled` plus `lead_days` — on `prudent_plan`. It is a setting only: nothing stores,
+schedules or sends a reminder yet. It is off by default (existing plans too), the lead time is one of 0, 1, 2, 3
+or 7 days and anything else is refused (400) rather than rounded, `lead_days` is kept while the reminder is off,
+and `PUT` is a full replacement, so an absent `reminder` resets it. Changing it never touches a plan's
+occurrences. No client screen sets it — the repository methods carry it, as they do the rest of a plan. The
+in-app reminder centre, local notifications, their reconciliation and the denied/unsupported path are the four
+tasks still to come.
+
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the
 Taskfile parses with both discoverable in `task --list`, the preflight fails loudly naming every

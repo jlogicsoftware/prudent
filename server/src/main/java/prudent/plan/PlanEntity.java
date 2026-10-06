@@ -23,7 +23,8 @@ import java.util.UUID;
  *
  * <p>The recurrence rule is stored flat on the row, and {@link #rule()} / {@link #setRule} are the
  * only way in or out of it, so the columns can never be written in a combination {@link
- * RecurrenceRule} has not validated.
+ * RecurrenceRule} has not validated. The reminder setting is the same: {@link #reminder()} /
+ * {@link #setReminder} (M5, ADR-054).
  */
 @Entity
 @Table(name = "prudent_plan")
@@ -75,6 +76,24 @@ public class PlanEntity extends PanacheEntityBase {
 
   @Column(name = "occurrence_count")
   Integer occurrenceCount;
+
+  // Defaults match the migration's, so a row that never had a setting reads as the default.
+  @Column(name = "reminder_enabled", nullable = false)
+  boolean reminderEnabled;
+
+  @Column(name = "reminder_lead_days", nullable = false)
+  int reminderLeadDays = ReminderSetting.DEFAULT_LEAD_DAYS;
+
+  /** The stored reminder setting, as the validated value. */
+  public ReminderSetting reminder() {
+    return new ReminderSetting(reminderEnabled, reminderLeadDays);
+  }
+
+  /** Replaces the stored reminder setting with an already-validated one. */
+  public void setReminder(ReminderSetting reminder) {
+    reminderEnabled = reminder.enabled();
+    reminderLeadDays = reminder.leadDays();
+  }
 
   /** The stored recurrence, as the validated value the date arithmetic runs on. */
   public RecurrenceRule rule() {

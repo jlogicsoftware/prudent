@@ -23,6 +23,7 @@ import prudent.proto.v1.ListRecordsResponse;
 import prudent.proto.v1.Plan;
 import prudent.proto.v1.Recurrence;
 import prudent.proto.v1.RecurrenceFrequency;
+import prudent.proto.v1.Reminder;
 import prudent.proto.v1.UpdateAccountRequest;
 import prudent.proto.v1.UpdatePlanRequest;
 import zen.proto.v1.ZenError;
@@ -163,6 +164,175 @@ class PlanResourceTest {
     assertEquals(2, plan.getRecurrence().getInterval());
     assertEquals("America/New_York", plan.getRecurrence().getTimeZone());
     assertEquals("2027-06-30", plan.getRecurrence().getUntilDate());
+  }
+
+  // --- Reminder settings (M5, jlogicsoftware/prudent#40, ADR-054) ---------------------------
+
+  private static Reminder reminder(boolean enabled, int leadDays) {
+    return Reminder.newBuilder().setEnabled(enabled).setLeadDays(leadDays).build();
+  }
+
+  private ZenError createRefused(CreatePlanRequest request) throws Exception {
+    return refused(post(PrudentTest.JSON, request), 400);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {PrudentTest.JSON, PrudentTest.PROTOBUF})
+  @TestSecurity(user = PrudentTest.ALICE)
+  void create_withoutAReminderIsOffWithTheDefaultLeadTime(String mode) throws Exception {
+    Plan plan = created(mode, validCreate().build());
+
+    assertTrue(plan.hasReminder(), "a plan always states its reminder setting");
+    assertFalse(plan.getReminder().getEnabled(), "reminders are opt-in");
+    assertEquals(1, plan.getReminder().getLeadDays());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {PrudentTest.JSON, PrudentTest.PROTOBUF})
+  @TestSecurity(user = PrudentTest.ALICE)
+  void create_storesTheChosenReminderAndReadsItBack(String mode) throws Exception {
+    Plan plan = created(mode, validCreate().setReminder(reminder(true, 3)).build());
+
+    assertEquals(reminder(true, 3), plan.getReminder());
+    Response read = PrudentTest.request(mode).when().get("/api/v1/plans/" + plan.getId()).andReturn();
+    assertEquals(reminder(true, 3), PrudentTest.decode(mode, read, Plan.newBuilder()).build().getReminder());
+    Response listed = PrudentTest.request(mode).when().get("/api/v1/plans").andReturn();
+    assertEquals(
+        reminder(true, 3),
+        PrudentTest.decode(mode, listed, ListPlansResponse.newBuilder()).build().getPlans(0).getReminder());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {PrudentTest.JSON, PrudentTest.PROTOBUF})
+  @TestSecurity(user = PrudentTest.ALICE)
+  void create_zeroDaysIsTheDayItselfNotTheDefault(String mode) throws Exception {
+    Plan plan = created(mode, validCreate().setReminder(reminder(true, 0)).build());
+
+    assertTrue(plan.getReminder().getEnabled());
+    assertEquals(0, plan.getReminder().getLeadDays());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void create_enabledWithNoLeadTimeTakesTheDefault() throws Exception {
+    Plan plan =
+        created(
+            PrudentTest.JSON,
+            validCreate().setReminder(Reminder.newBuilder().setEnabled(true)).build());
+
+    assertEquals(reminder(true, 1), plan.getReminder());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void create_aDisabledReminderKeepsTheLeadTimeItWasGiven() throws Exception {
+    Plan plan = created(PrudentTest.JSON, validCreate().setReminder(reminder(false, 7)).build());
+
+    assertEquals(reminder(false, 7), plan.getReminder());
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {4, 5, 8, 30, 366, -1})
+  @TestSecurity(user = PrudentTest.ALICE)
+  void create_anUnsupportedLeadTimeIsRefusedAndNothingIsSaved(int days) throws Exception {
+    ZenError error = createRefused(validCreate().setReminder(reminder(true, days)).build());
+
+    assertEquals("invalid", error.getCode());
+    assertTrue(error.getMessage().contains("[0, 1, 2, 3, 7]"), error.getMessage());
+    Response listed = PrudentTest.request(PrudentTest.JSON).when().get("/api/v1/plans").andReturn();
+    assertEquals(
+        0, PrudentTest.decode(PrudentTest.JSON, listed, ListPlansResponse.newBuilder()).build().getPlansCount());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void create_anUnsupportedLeadTimeIsRefusedEvenWhileTheReminderIsOff() throws Exception {
+    // The kept lead time is what a later switch-on uses, so it must be one the server supports.
+    createRefused(validCreate().setReminder(reminder(false, 4)).build());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void aPlanSavedBeforeRemindersExistedReadsAsOff() throws Exception {
+    UUID legacy = PrudentTest.seedPlan(PrudentTest.ALICE, walletId, rentId, -100L, "PLN");
+
+    Response read = PrudentTest.request(PrudentTest.JSON).when().get("/api/v1/plans/" + legacy).andReturn();
+
+    Plan plan = PrudentTest.decode(PrudentTest.JSON, read, Plan.newBuilder()).build();
+    assertEquals(reminder(false, 1), plan.getReminder());
+  }
+
+  private Response replaceReminder(Plan plan, Reminder reminder) throws Exception {
+    UpdatePlanRequest.Builder update =
+        UpdatePlanRequest.newBuilder()
+            .setTitle(plan.getTitle())
+            .setAmountMinor(plan.getAmountMinor())
+            .setCurrency(plan.getCurrency())
+            .setAccountId(plan.getAccountId())
+            .setCategoryId(plan.getCategoryId())
+            .setRecurrence(plan.getRecurrence());
+    if (reminder != null) {
+      update.setReminder(reminder);
+    }
+    return PrudentTest.body(PrudentTest.request(PrudentTest.JSON), PrudentTest.JSON, update.build())
+        .when()
+        .put("/api/v1/plans/" + plan.getId())
+        .andReturn();
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void replace_changesTheReminder() throws Exception {
+    Plan plan = created(PrudentTest.JSON, validCreate().build());
+
+    Response response = replaceReminder(plan, reminder(true, 2));
+
+    assertEquals(200, response.statusCode(), response.asString());
+    assertEquals(
+        reminder(true, 2),
+        PrudentTest.decode(PrudentTest.JSON, response, Plan.newBuilder()).build().getReminder());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void replace_anAbsentReminderResetsToTheDefault() throws Exception {
+    Plan plan = created(PrudentTest.JSON, validCreate().setReminder(reminder(true, 7)).build());
+
+    Response response = replaceReminder(plan, null);
+
+    assertEquals(200, response.statusCode(), response.asString());
+    assertEquals(
+        reminder(false, 1),
+        PrudentTest.decode(PrudentTest.JSON, response, Plan.newBuilder()).build().getReminder(),
+        "a PUT is a full replacement, so an absent reminder is the default, not 'unchanged'");
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void replace_anUnsupportedLeadTimeIsRefusedAndTheSettingIsUnchanged() throws Exception {
+    Plan plan = created(PrudentTest.JSON, validCreate().setReminder(reminder(true, 3)).build());
+
+    refused(replaceReminder(plan, reminder(true, 4)), 400);
+
+    Response read = PrudentTest.request(PrudentTest.JSON).when().get("/api/v1/plans/" + plan.getId()).andReturn();
+    assertEquals(
+        reminder(true, 3), PrudentTest.decode(PrudentTest.JSON, read, Plan.newBuilder()).build().getReminder());
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void replace_changingOnlyTheReminderKeepsTheGeneratedOccurrences() throws Exception {
+    Plan plan = created(PrudentTest.JSON, validCreate().build());
+    PrudentTest.seedOccurrence(
+        PrudentTest.ALICE, UUID.fromString(plan.getId()), java.time.LocalDate.of(2026, 10, 31));
+
+    Response response = replaceReminder(plan, reminder(true, 1));
+
+    assertEquals(200, response.statusCode(), response.asString());
+    assertEquals(
+        1,
+        occurrenceCount(plan.getId()),
+        "a reminder is not part of the recurrence, so it must not drop still-planned occurrences");
   }
 
   // --- Separate from transactions ------------------------------------------------------------

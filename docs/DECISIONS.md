@@ -13,6 +13,82 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-054 — A plan's reminder is a setting: off by default, a lead time from a closed set, and nothing stored or sent
+
+**Date:** 2026-10-06. **Status:** accepted. **Follows:** ADR-037 (a plan is a validated rule stored flat on its row,
+and "today" is reckoned in the plan's own zone), ADR-039 (a rule lives in one place), ADR-045 (what can be calculated
+is never stored), ADR-051 (a switch defaults off, with no backfill).
+
+### Decision
+
+The first M5 task (jlogicsoftware/prudent#40 — "enable/disable and choose supported lead time with validation and a
+safe default") gives every plan a reminder **setting**. It does not create reminders: the in-app centre, the local
+notifications and their reconciliation are the next four tasks, and they read this.
+
+- **Two columns on `prudent_plan`, not a table.** `reminder_enabled BOOLEAN NOT NULL DEFAULT FALSE` and
+  `reminder_lead_days INTEGER NOT NULL DEFAULT 1`. A plan has exactly one setting, so a second table would be a
+  one-to-one join (ADR-037's reason for keeping the recurrence flat). `PlanEntity.reminder()` / `setReminder` are the
+  only way in or out, as `rule()` / `setRule` are for the recurrence, so the columns cannot be written in a
+  combination `ReminderSetting` has not validated.
+- **Off by default, and "safe" means that.** A plan that has no reminder chosen produces none, and that includes
+  every plan that existed before this migration (no backfill). The reason is the next task's, not this one's: the
+  first local notification is also when a platform asks for notification permission, and that prompt should follow
+  something the user asked for, not the saving of a plan. The one-day lead time is what the setting holds until the
+  user picks another, so switching the reminder on needs no second decision.
+- **The lead time is one of 0, 1, 2, 3 or 7 days before the occurrence's date, and anything else is refused (400),
+  never rounded.** A client that asks for four days and is quietly given three would show the user a setting that is
+  not the one in force. "Days" are the plan's own calendar days (`Recurrence.time_zone`), as every date on a plan is
+  (ADR-037). The set lives in `ReminderSetting.SUPPORTED`; the refusal names it. **The database does not list it** —
+  the CHECK is structural only (`reminder_lead_days BETWEEN 0 AND 365`) — for the reason `prudent_account.kind` has no
+  CHECK: the supported set is the application's to decide, and widening a CHECK is a DDL migration in every
+  environment, so adding "14 days" later is a one-line Java change.
+- **`lead_days` is `optional`, because 0 is a real lead time.** proto3 decodes an omitted number to 0, which here
+  means "on the day"; presence is what tells it from unset. An absent `lead_days` is the default (1); a present 0 is
+  the day itself. A whole absent `reminder` is the default setting rather than an error — a plan is useful without
+  one. `Plan.reminder` is always present in a response and always states `lead_days`: a response says what is in
+  force, never "default".
+- **The lead time is kept while the reminder is off**, and is validated even then, so switching off and on again does
+  not forget the user's choice and the kept value is always one the server supports.
+- **`PUT` is a full replacement, so an absent `reminder` resets to the default** — the rule every other optional
+  field on a plan follows (an absent payee or note clears it). The alternative, "absent means unchanged", would give
+  one field a different rule from the rest and make the API's semantics depend on which field you are looking at. A
+  client that edits a plan sends back the reminder it read, as it does the recurrence.
+- **A reminder change is not a recurrence change.** `PlanResource.replace` drops stale still-planned occurrences only
+  when the rule differs (ADR-038); the setting is not part of `RecurrenceRule`, so toggling a reminder leaves every
+  occurrence where it was. A test pins it, because the cost of getting it wrong is silently deleting the user's
+  planned occurrences.
+
+### What this does not decide
+
+- **A client screen.** There is none for plans at all (CLAUDE.md, M2), so none sets this. The repository methods carry
+  the field. **The set of supported lead times is not served to the client** — a screen that offers them would
+  otherwise hold a second copy of `ReminderSetting.SUPPORTED`. When a plan screen exists, serving the set is the
+  better answer than copying it, and that is that task's to settle.
+- **Per-occurrence or per-currency reminders, a time of day, repeated nudges.** One setting per plan, in whole days.
+  The time of day a notification fires is a device concern for the scheduling task.
+- **What a "due" reminder is.** An occurrence's reminder falls due `lead_days` before its date; deriving and
+  presenting that is the in-app centre's (the next task), and it should be calculated on read, not stored
+  (ADR-045), for the reason overdue is (ADR-039).
+
+### Consequence
+
+Verified by `ReminderSettingTest` (the default, every supported value, 0 versus omitted, a kept lead time, refusal of
+unsupported values including ones past the signed range, the message naming the supported set),
+`PlanReminderSchemaTest` (the columns default to off and one day on a row nobody set, are never null, and the lead
+time is structurally bounded — refused by constraint name), and `PlanResourceTest` over both transports (the default
+on create, a stored setting read back by get and list, 0 days, enabled with no lead time, a disabled setting keeping
+its lead time, unsupported values refused with nothing saved, a pre-existing plan reading as off, replace changing
+it, an absent reminder resetting it, a refused replace leaving the setting unchanged, and a reminder-only change
+keeping the occurrences). On the client, `wire_round_trip_test.dart` pins that 0 days and an absent lead time survive
+both formats, and `prudent_repository_test.dart` that the setting reaches the wire and a refusal surfaces as an
+error. The full backend suite passes (663 tests), and regenerating the contracts a second time changes nothing further
+(`task verify:contracts` itself compares against the commit, so it is the merge's to confirm).
+
+**Not verified, and stated rather than implied:** nothing here has been driven in a real browser or on a device —
+there is no screen to drive.
+
+---
+
 ## ADR-053 — Goals are a tab of their own, and an envelope amount is never drawn the way a balance is
 
 **Date:** 2026-10-02. **Status:** accepted. **Follows:** ADR-052 (progress and guidance are calculated per goal),

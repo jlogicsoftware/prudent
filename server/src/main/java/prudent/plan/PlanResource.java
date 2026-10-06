@@ -82,7 +82,8 @@ public class PlanResource {
       responseCode = ZenStatus.BAD_REQUEST,
       description =
           "A blank title, a zero amount, an account or category that is not the caller's, a"
-              + " currency the account does not hold, or an invalid recurrence",
+              + " currency the account does not hold, an invalid recurrence, or a reminder lead"
+              + " time that is not one of the supported ones",
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response create(CreatePlanRequest request) {
     UUID userId = currentUser.id();
@@ -94,7 +95,8 @@ public class PlanResource {
         request.getAccountId(), request.getCategoryId(),
         request.hasPayee() ? request.getPayee() : null,
         request.hasNote() ? request.getNote() : null,
-        request.getRecurrence(), request.hasRecurrence());
+        request.getRecurrence(), request.hasRecurrence(),
+        ReminderSetting.fromProto(request.getReminder(), request.hasReminder()));
     entity.persist();
     return Response.status(Response.Status.CREATED).entity(mapper.toProto(entity)).build();
   }
@@ -119,7 +121,8 @@ public class PlanResource {
         request.getAccountId(), request.getCategoryId(),
         request.hasPayee() ? request.getPayee() : null,
         request.hasNote() ? request.getNote() : null,
-        request.getRecurrence(), request.hasRecurrence());
+        request.getRecurrence(), request.hasRecurrence(),
+        ReminderSetting.fromProto(request.getReminder(), request.hasReminder()));
     if (!before.equals(entity.rule())) {
       // Generation only ever adds (ADR-038), so still-planned occurrences the new rule no longer
       // produces would sit beside its own for good. Completed and skipped ones are the user's
@@ -177,7 +180,8 @@ public class PlanResource {
       String payee,
       String note,
       Recurrence recurrence,
-      boolean hasRecurrence) {
+      boolean hasRecurrence,
+      ReminderSetting reminder) {
 
     if (title == null || title.isBlank()) {
       throw PrudentException.invalid("A plan needs a title.");
@@ -224,6 +228,7 @@ public class PlanResource {
     entity.payee = blankToNull(payee);
     entity.note = blankToNull(note);
     entity.setRule(rule);
+    entity.setReminder(reminder);
   }
 
   /**
