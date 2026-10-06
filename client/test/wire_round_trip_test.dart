@@ -20,6 +20,7 @@ import 'package:prudent/generated/prudent/v1/goal_allocations.pb.dart';
 import 'package:prudent/generated/prudent/v1/goals.pb.dart';
 import 'package:prudent/generated/prudent/v1/plans.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
+import 'package:prudent/generated/prudent/v1/reminders.pb.dart';
 import 'package:prudent/generated/prudent/v1/settings.pb.dart';
 import 'package:protobuf/protobuf.dart';
 import 'package:zen_transport/zen_transport.dart';
@@ -139,6 +140,45 @@ void main() {
 
         expect(decoded.reminder.enabled, isTrue);
         expect(decoded.reminder.hasLeadDays(), isFalse);
+        expect(decoded, original);
+      });
+
+      test('a reminder keeps its occurrence, read state and a lead time of zero days', () {
+        // false and 0 are real answers here ("unread", "on the day"), so they must survive the trip
+        // as values, not vanish as unset fields.
+        final original = ListRemindersResponse(
+          reminders: [
+            DueReminder(
+              occurrence: PlanOccurrence(
+                id: 'occ-1',
+                planId: 'plan-1',
+                occurrenceDate: '2026-10-17',
+                status: OccurrenceStatus.OCCURRENCE_STATUS_OVERDUE,
+                title: 'Rent',
+                amountMinor: Int64(-250000),
+                currency: 'PLN',
+              ),
+              remindOn: '2026-10-17',
+              leadDays: 0,
+              read: false,
+            ),
+            DueReminder(
+              occurrence: PlanOccurrence(id: 'occ-2', occurrenceDate: '2026-10-20'),
+              remindOn: '2026-10-18',
+              leadDays: 2,
+              read: true,
+            ),
+          ],
+        );
+
+        final decoded = roundTrip(original, format, ListRemindersResponse.new);
+
+        expect(decoded.reminders, hasLength(2));
+        expect(decoded.reminders[0].occurrence.status, OccurrenceStatus.OCCURRENCE_STATUS_OVERDUE);
+        expect(decoded.reminders[0].occurrence.amountMinor, Int64(-250000));
+        expect(decoded.reminders[0].leadDays, 0);
+        expect(decoded.reminders[0].read, isFalse);
+        expect(decoded.reminders[1].read, isTrue);
         expect(decoded, original);
       });
 

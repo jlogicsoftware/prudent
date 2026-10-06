@@ -291,6 +291,50 @@
   "goalNotFound": "This goal could not be found.",
   "goalUnknown": "Unknown goal",
 
+  "remindersTitle": "Reminders",
+  "remindersOpen": "{count, plural, =0{Reminders} one{Reminders, 1 unread} other{Reminders, {count} unread}}",
+  "@remindersOpen": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "remindersSectionOverdue": "Overdue",
+  "remindersSectionDue": "Due soon",
+  "remindersEmpty": "No reminders. Switch on a plan's reminder to hear about it before it falls due.",
+  "remindersLoadError": "Could not load reminders: {error}",
+  "@remindersLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "remindersMarkAllRead": "Mark all as read",
+  "reminderMarkRead": "Mark as read",
+  "reminderMarkUnread": "Mark as unread",
+  "reminderUnread": "Unread",
+  "reminderDueOn": "Due {date}",
+  "@reminderDueOn": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "reminderOverdueSince": "Overdue since {date}",
+  "@reminderOverdueSince": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "reminderActionFailed": "The reminder was not updated.",
+  "occurrenceTitle": "Planned transaction",
+  "occurrenceDate": "Date",
+  "occurrenceAmount": "Amount",
+  "occurrenceAccount": "Account",
+  "occurrenceCategory": "Category",
+  "occurrenceStatus": "Status",
+  "occurrenceStatusPlanned": "Planned",
+  "occurrenceStatusOverdue": "Overdue",
+  "occurrenceStatusCompleted": "Confirmed",
+  "occurrenceStatusSkipped": "Skipped",
+  "occurrenceUnknownAccount": "Unknown account",
+  "occurrenceUnknownCategory": "Unknown category",
+  "occurrenceConfirm": "Confirm as planned",
+  "occurrenceConfirmHint": "Records this transaction with the amount, account and category above.",
+  "occurrenceSkip": "Skip",
+  "occurrenceRestore": "Restore",
+  "occurrenceActionFailed": "The change was not made.",
+  "occurrenceNotPlannedHint": "This occurrence is no longer waiting on you.",
+
   "analyticsTitle": "Analytics",
   "analyticsSpendByMonth": "Spend by month",
   "analyticsEmpty": "No spending in the last 12 months.",

@@ -120,9 +120,15 @@ M5 (local reminders) has begun: a plan carries a reminder setting (ADR-054, jlog
 schedules or sends a reminder yet. It is off by default (existing plans too), the lead time is one of 0, 1, 2, 3
 or 7 days and anything else is refused (400) rather than rounded, `lead_days` is kept while the reminder is off,
 and `PUT` is a full replacement, so an absent `reminder` resets it. Changing it never touches a plan's
-occurrences. No client screen sets it — the repository methods carry it, as they do the rest of a plan. The
-in-app reminder centre, local notifications, their reconciliation and the denied/unsupported path are the four
-tasks still to come.
+occurrences. No client screen sets it — the repository methods carry it, as they do the rest of a plan.
+The in-app reminder centre (ADR-055, jlogicsoftware/prudent#68) reads it: `ReminderResource` at `/api/v1/reminders`
+finds, on every read, the still-planned occurrences of a plan whose reminder is on that are within its lead time or
+past their date (in the plan's own calendar day) — nothing about a reminder is stored except that the user has read
+it, `prudent_plan_occurrence.reminder_read_at`. `read` / `unread` / `read-all` set it; a reminder ends when its
+occurrence is confirmed or skipped. The client's bell on the overview opens the centre — overdue, then due soon, unread
+said in words — and a reminder opens `OccurrenceDetailScreen`, the first client screen for an occurrence, where it can
+be confirmed as planned, skipped or restored. Local notifications, their reconciliation and the denied/unsupported
+path are the three tasks still to come, and with no plan screen yet nothing in the UI switches a reminder on.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the

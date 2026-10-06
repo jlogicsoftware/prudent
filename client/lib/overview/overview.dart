@@ -6,6 +6,7 @@ import '../account/account_screen.dart';
 import '../analytics/chart_screen.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
+import '../reminder/reminder_bell.dart';
 import 'overview_totals.dart';
 import 'planned_cash_flow.dart';
 import 'planned_cash_flow_section.dart';
@@ -39,6 +40,7 @@ class OverviewScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(t.appTitle),
         actions: [
+          const ReminderBell(),
           IconButton(
             icon: const Icon(Icons.pie_chart_outline),
             onPressed:

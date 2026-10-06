@@ -4041,6 +4041,258 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Due and overdue reminders, with their read state
+         * @description Every still-planned occurrence of a plan whose reminder is on that is within its lead time or past its date, in its plan's calendar day. Oldest date first, so the most overdue lead. Confirmed and skipped occurrences have no reminder.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListRemindersResponse"];
+                        "application/x-protobuf": components["schemas"]["ListRemindersResponse"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reminders/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark every current reminder read
+         * @description Marks each reminder that is due or overdue now as read, keeping the time of any that were already read, and answers with the list.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListRemindersResponse"];
+                        "application/x-protobuf": components["schemas"]["ListRemindersResponse"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reminders/{occurrenceId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark one reminder read */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    occurrenceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DueReminder"];
+                        "application/x-protobuf": components["schemas"]["DueReminder"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The occurrence has no reminder right now */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reminders/{occurrenceId}/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark one reminder unread again */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    occurrenceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DueReminder"];
+                        "application/x-protobuf": components["schemas"]["DueReminder"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The occurrence has no reminder right now */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings": {
         parameters: {
             query?: never;
@@ -4813,6 +5065,23 @@ export interface components {
         /** @description GET /api/v1/occurrences/upcoming and /overdue — ordered by date ascending, then id. */
         ListOccurrencesResponse: {
             occurrences?: components["schemas"]["PlanOccurrence"][];
+        };
+        /** @description One reminder (M5, jlogicsoftware/prudent#68, ADR-055), addressed by the occurrence it is about. Calculated on every read from the occurrence's date, its plan's lead time and its plan's own calendar day; only `read` is stored. */
+        DueReminder: {
+            occurrence?: components["schemas"]["PlanOccurrence"];
+            /** @description The civil date the reminder fell due — the occurrence's date less the lead time — as YYYY-MM-DD. */
+            remindOn?: string;
+            /**
+             * Format: int32
+             * @description The plan's lead time in days as it is now.
+             */
+            leadDays?: number;
+            /** @description Whether the user has read it. False is unread. */
+            read?: boolean;
+        };
+        /** @description GET /api/v1/reminders and POST /api/v1/reminders/read-all — every reminder due or overdue now, ordered by the occurrence's date ascending, then id. */
+        ListRemindersResponse: {
+            reminders?: components["schemas"]["DueReminder"][];
         };
         /** @description The amount that may be spent in one category, in one calendar month, in one currency. Its identity is that slot — there is no id — and a slot holds at most one budget. */
         Budget: {

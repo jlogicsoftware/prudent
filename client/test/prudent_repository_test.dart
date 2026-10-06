@@ -1441,4 +1441,88 @@ void main() {
       },
     );
   });
+
+  group('PrudentRepository reminders (jlogicsoftware/prudent#68)', () {
+    Map<String, Object?> reminder(String id, {bool read = false}) => {
+      'occurrence': {
+        'id': id,
+        'planId': 'plan-1',
+        'occurrenceDate': '2026-10-17',
+        'status': 'OCCURRENCE_STATUS_PLANNED',
+        'title': 'Rent',
+        'amountMinor': '-250000',
+        'currency': 'PLN',
+      },
+      'remindOn': '2026-10-15',
+      'leadDays': 2,
+      'read': read,
+    };
+
+    test('listReminders GETs the centre and decodes each reminder with its read state', () async {
+      final calls = <String>[];
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          calls.add('${request.method} ${_uriOf(request).path}');
+          return _jsonResponse({
+            'reminders': [reminder('occ-1'), reminder('occ-2', read: true)],
+          });
+        }),
+      );
+
+      final result = await repository.listReminders();
+
+      expect(calls, ['GET /api/v1/reminders']);
+      final reminders = result.fold((r) => r.reminders, (e) => throw e);
+      expect(reminders.map((r) => r.occurrence.id), ['occ-1', 'occ-2']);
+      expect(reminders.map((r) => r.read), [false, true]);
+      expect(reminders.first.leadDays, 2);
+      expect(reminders.first.remindOn, '2026-10-15');
+    });
+
+    test('read, unread and read-all each POST to their own route', () async {
+      final calls = <String>[];
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          calls.add('${request.method} ${_uriOf(request).path}');
+          return _uriOf(request).path.endsWith('read-all')
+              ? _jsonResponse({
+                  'reminders': [reminder('occ-1', read: true)],
+                })
+              : _jsonResponse(reminder('occ-1', read: _uriOf(request).path.endsWith('/read')));
+        }),
+      );
+
+      final read = await repository.markReminderRead('occ-1');
+      final unread = await repository.markReminderUnread('occ-1');
+      final all = await repository.markAllRemindersRead();
+
+      expect(calls, [
+        'POST /api/v1/reminders/occ-1/read',
+        'POST /api/v1/reminders/occ-1/unread',
+        'POST /api/v1/reminders/read-all',
+      ]);
+      expect(read.fold((r) => r.read, (e) => throw e), isTrue);
+      expect(unread.fold((r) => r.read, (e) => throw e), isFalse);
+      expect(all.fold((r) => r.reminders.single.read, (e) => throw e), isTrue);
+    });
+
+    test('a conflict surfaces as an error, not as an empty reminder', () async {
+      final repository = PrudentRepository(
+        client: _clientAnswering(
+          (request) => _jsonResponse({
+            'code': 'conflict',
+            'message': 'That occurrence has no reminder right now.',
+          }, status: 409),
+        ),
+      );
+
+      final result = await repository.markReminderRead('occ-1');
+
+      expect(result.isSuccess, isFalse);
+      expect(
+        result.fold((_) => '', (e) => e.message),
+        'That occurrence has no reminder right now.',
+      );
+    });
+  });
 }
