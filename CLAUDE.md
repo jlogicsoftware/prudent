@@ -131,9 +131,11 @@ be confirmed as planned, skipped or restored. Local-device notifications (ADR-05
 scheduled by `client/lib/notification/` on sign-in: each still-planned occurrence in the next 30 days whose plan's
 reminder is on and whose reminder date is still ahead becomes one notification at 09:00 device time, with no amount in
 its text, and the platform permission is asked for only when one is waiting (never at launch). It works on Android, iOS,
-macOS and Windows; the web and Linux report `unsupported`. Nothing reconciles them yet — an occurrence skipped, confirmed
-or edited after its notification was scheduled can still fire — and nothing explains a refusal or an unsupported
-platform: those are the two tasks still to come. No notification has been seen to fire on a device. With no plan screen
+macOS and Windows; the web and Linux report `unsupported`. Reconciliation (ADR-057, jlogicsoftware/prudent#70) makes the pending
+notifications match what the server says now — each pass schedules what is wanted and cancels what is not — on every
+sign-in or launch (so after an app update too) and after a skip, restore or confirmation, a plan created, edited or
+deleted through `PlanActions`, or a confirming record deleted. Nothing explains a refusal or an unsupported platform:
+that is the one task still to come. No notification has been seen to fire on a device. With no plan screen
 yet nothing in the UI switches a reminder on.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`

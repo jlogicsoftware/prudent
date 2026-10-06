@@ -97,8 +97,14 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
   /// Deletes immediately; the caller re-creates on undo (a new server-minted id — there is no
   /// deferred/pending-delete state to keep honest against a server that might already have acted).
   Future<void> removeRecord(String id) async {
+    final removed = state.value?.where((r) => r.id == id).firstOrNull;
     final result = await _repository.deleteRecord(id);
     result.fold((_) => null, (error) => throw error);
+    // Deleting the record a confirmation made reopens its occurrence (ADR-040), which can be a
+    // reminder to deliver again.
+    if (removed != null && removed.planOccurrenceId.isNotEmpty) {
+      ref.read(reminderScheduleRevisionProvider.notifier).bump();
+    }
     state = AsyncValue.data([
       for (final r in state.value ?? const <Record>[]) if (r.id != id) r,
     ]);
@@ -480,10 +486,63 @@ class OccurrenceActions {
   void _refreshPlanned() {
     _ref.invalidate(remindersProvider);
     _ref.invalidate(plannedOccurrencesProvider);
+    _ref.read(reminderScheduleRevisionProvider.notifier).bump();
   }
 }
 
 final occurrenceActionsProvider = Provider<OccurrenceActions>(OccurrenceActions.new);
+
+/// Creating, editing and deleting a plan, which changes whether and when its occurrences' reminders
+/// fire (M5, ADR-054, ADR-057). The repository carries the same calls; this is what a screen uses,
+/// so the device's notifications follow the change.
+class PlanActions {
+  PlanActions(this._ref);
+
+  final Ref _ref;
+
+  PrudentRepository get _repository => _ref.read(prudentRepositoryProvider);
+
+  Future<Plan> create(CreatePlanRequest request) async {
+    final result = await _repository.createPlan(request);
+    return _changed(result.fold((plan) => plan, (error) => throw error));
+  }
+
+  Future<Plan> update(String id, UpdatePlanRequest request) async {
+    final result = await _repository.updatePlan(id, request);
+    return _changed(result.fold((plan) => plan, (error) => throw error));
+  }
+
+  Future<Plan> delete(String id) async {
+    final result = await _repository.deletePlan(id);
+    return _changed(result.fold((plan) => plan, (error) => throw error));
+  }
+
+  Plan _changed(Plan plan) {
+    _ref.invalidate(remindersProvider);
+    _ref.invalidate(plannedOccurrencesProvider);
+    _ref.read(reminderScheduleRevisionProvider.notifier).bump();
+    return plan;
+  }
+}
+
+final planActionsProvider = Provider<PlanActions>(PlanActions.new);
+
+/// Counts the changes that can make a device notification stale: an occurrence skipped, restored or
+/// confirmed, a plan created, edited or deleted, a confirming record deleted (ADR-057).
+///
+/// It is a signal and nothing else. The notification pass watches it, so each bump re-runs the pass;
+/// it lives here, beside what changes, so the code that makes a change does not import the
+/// notification code that reacts to it.
+class ReminderScheduleRevisionNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final reminderScheduleRevisionProvider = NotifierProvider<ReminderScheduleRevisionNotifier, int>(
+  ReminderScheduleRevisionNotifier.new,
+);
 
 // ---------------------------------------------------------------------------------------------
 // Budgets — read-only summary of one month in one currency (budgets.proto, ADR-044, ADR-045)
