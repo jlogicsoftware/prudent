@@ -13,6 +13,106 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-055 — A reminder is an occurrence the server finds due; only "the user has read it" is stored
+
+**Date:** 2026-10-06. **Status:** accepted. **Follows:** ADR-054 (the plan's reminder setting, and "what a due reminder
+is" left to this task), ADR-045 (what can be calculated is never stored), ADR-039 (overdue is derived, and a view
+generates what it reads), ADR-037 (every date on a plan is in the plan's own zone), ADR-040 (only confirming moves
+money), ADR-053 (a tab's conventions: refusal shown in the server's words, nothing re-derived on the client).
+
+### Decision
+
+The second M5 task (jlogicsoftware/prudent#68 — "show due and overdue reminders with unread/read state and
+navigation to the relevant planned occurrence") adds the in-app reminder centre.
+
+- **A planned occurrence has a reminder when its plan's reminder is on and its date is no further ahead than the
+  plan's lead time — and it keeps one, as an overdue one, until it is confirmed or skipped.** "Due" is
+  `today >= date − lead_days` and "overdue" is `date < today`, both on the plan's own calendar day
+  (`Recurrence.time_zone`), so a Warsaw plan is not made due or overdue by the server's UTC midnight. A completed or
+  skipped occurrence is resolved and has no reminder; a plan whose reminder is off has none at all, however overdue.
+  `ReminderResource.hasReminder` is the one place that says so, and the list's query bound and the single-row routes
+  both use it. **None of this is stored** (ADR-045): there is no reminder row, no job to miss at midnight and no stale
+  reminder to find after a plan is edited — a plan edit that drops an occurrence, a skip, a confirmation or a switched
+  reminder simply stops producing one, because the next read does not find it.
+- **The one stored fact is that the user has read it: `prudent_plan_occurrence.reminder_read_at`, nullable.** `NULL`
+  is unread, and is what every existing and every newly generated occurrence has (the generator's insert names no
+  value, as it names no state). It is a column and not a table because a reminder is not an entity: a table would be a
+  one-to-one join on the occurrence, and would have a row to remove wherever an occurrence is removed (a plan's
+  delete, a rule change dropping still-planned occurrences) where a column goes with its row — so there is no
+  retention, RLS or cascade change either. A timestamp, not a boolean: it is what the user did and when, and reading
+  twice keeps the first time. Written only through `markReminderRead` / `markReminderUnread`.
+- **`/api/v1/reminders`, addressed by the occurrence's id.** `GET` lists every current reminder oldest date first, so
+  the most overdue lead; `POST /{occurrenceId}/read` and `/unread` set one; `POST /read-all` sets every current one and
+  answers with the list. Each `DueReminder` carries the `PlanOccurrence` (with its plan's fields, and its status —
+  `PLANNED` while it is within the lead time, `OVERDUE` once its date has passed, which is how a screen tells "due"
+  from "overdue" without working it out again), `remind_on` (the date it fell due), `lead_days` and `read`. A read or
+  unread of an occurrence that has no reminder right now — its plan's reminder is off, it is resolved, it is not yet
+  within the lead time — is a **409**, not a silent success: a client that is behind is told so and refetches, and the
+  alternative would let a stale tap write a flag on something that is not a reminder. An unknown, malformed or
+  someone else's id is a 404, as everywhere. The occurrence is locked for the transaction, so a read racing a
+  confirmation sees the confirmation or is refused.
+- **Listing generates what it reads, as the occurrence views do (ADR-039).** No job materialises occurrences, so a
+  reminder whose occurrence has never been generated would never appear. `OccurrenceGenerator.ensureWindow` is the
+  window — `LOOKBACK_DAYS` back, the plan's lead time ahead, never before the plan's first date — and the occurrence
+  views now call it too, so there is one definition of the window rather than two copies. A plan whose reminder is off
+  is not generated for by the centre.
+- **Read state belongs to the occurrence, and is not reset by anything.** It survives the plan's reminder being
+  switched off and on again, and a skipped occurrence being restored. Becoming overdue does **not** make a read
+  reminder unread again: a flag that flips by itself would be a state the user did not set.
+- **The client: a bell with the unread count on the overview, opening the centre.** The overview is where the app
+  opens, and a seventh navigation tab would sit in "More" on mobile (`zenMaxItemsMobile = 4`), hiding exactly the badge
+  that makes it useful. The count is in the tooltip and the semantics label as well as the badge. The centre groups
+  reminders by the server's status — "Overdue", then "Due soon" — and says unread with a filled bell, a bold title and
+  a semantics label, never weight or colour alone; it never compares a date with the device's clock. Opening a
+  reminder marks it read (it has been seen) and then opens the occurrence; the button on a tile flips either way; "mark
+  all as read" is in the bar. A refusal is shown in the server's words and the list is fetched again, so a reminder
+  resolved on another device does not linger.
+- **Navigation to the occurrence is a screen that can act on it.** There was no client screen for an occurrence at all
+  (CLAUDE.md, M2), so a reminder had nowhere to lead. `OccurrenceDetailScreen` shows the occurrence with its account and
+  category and offers what its status allows — confirm as planned, skip, or restore — through `OccurrenceActions`, which
+  refetches the centre and the overview's planned cash flow, and after a confirmation the records, accounts, budgets and
+  free money that a record added by hand also refetches. The status drawn is the server's last answer.
+
+### What this does not decide
+
+- **Local-device notifications, their permission prompt and their reconciliation.** The next three M5 tasks; they read
+  this resource's definition of "due" rather than a second one.
+- **Confirming with a different date, amount, account or category.** The server takes it (`ConfirmOccurrenceRequest`,
+  ADR-040); the occurrence screen confirms exactly as planned, and a form for the overrides is its own piece of work.
+- **A plan screen, and so a client way to switch a plan's reminder on.** ADR-054's gap stands: until one exists the
+  centre is empty for anyone who has not set a reminder through the API, and its empty state says how it fills.
+- **Unread counts on the server, filtering, paging.** The list is bounded by the lookback window and the lead time, and
+  the client counts what it holds; an `unread_count` field would be a second copy of a number the list already gives.
+- **A reminder resurfacing as unread when it turns overdue.** Deliberately not done (above); if it is wanted it is a
+  decision about what "read" means, not a bug here.
+
+### Consequence
+
+Verified by `ReminderResourceTest` (a due reminder with its plan's fields, `remind_on`, lead time and unread state in
+both transports; a plan whose reminder is off producing none and generating nothing; switching off and on again keeping
+read state; overdue ones oldest first with `OVERDUE` status; the lead-time boundary at 7 and 0 days, both sides; resolved
+occurrences excluded; Kiritimati and Pago Pago on one civil date; listing idempotent and generating nothing the second
+time; read and unread in both transports; reading twice keeping the first time; read-all in both transports keeping
+earlier times and not marking what is not a reminder; 409 for an occurrence with no reminder; 404 for unknown and
+malformed ids and for another user's; 401 unauthenticated; skip ending a reminder and restore returning it still read;
+confirm ending it with no record created by listing or reading), `OccurrenceReminderReadSchemaTest` (the column exists,
+is nullable and timestamptz, round-trips, and goes with its row), and the existing `OccurrenceResourceTest` unchanged
+over the shared window. On the client, `reminder_views_test.dart` (grouping, dates and amounts, unread said in words,
+empty and failed states, a tile flipping one reminder, mark-all, a refusal shown and the list refetched, opening marking
+read once and not twice, a refused mark keeping the occurrence closed, confirm posting an empty body and ending the
+reminder, skip and restore, the bell's badge and tooltip), `reminder_figures_test.dart`, the repository calls in
+`prudent_repository_test.dart` and the wire in `wire_round_trip_test.dart` (both formats; `false` and `0` surviving).
+The full backend suite passes (688 tests, 25 of them new) and the full client suite passes (230 tests); `task generate` was
+run after the last contract change and `reminders.pb.dart`, `reminders.pbenum.dart`, `reminders.pbjson.dart` and the
+admin `schema.generated.ts` are its output. `task verify:contracts` compares against the commit, so it is the merge's to
+confirm.
+
+**Not verified, and stated rather than implied:** nothing here has been driven in a real browser or on a device — the
+widget tests render the screens against a mock server, which is not the same as seeing them on a phone, and there is
+still no screen that switches a plan's reminder on, so the centre cannot be filled from the UI.
+
+---
+
 ## ADR-054 — A plan's reminder is a setting: off by default, a lead time from a closed set, and nothing stored or sent
 
 **Date:** 2026-10-06. **Status:** accepted. **Follows:** ADR-037 (a plan is a validated rule stored flat on its row,

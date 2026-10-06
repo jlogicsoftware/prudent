@@ -91,6 +91,25 @@ public class OccurrenceGenerator {
   }
 
   /**
+   * Ensures the occurrences a view of "around today" reads exist: from {@code lookbackDays} before
+   * {@code today} (never before the plan's first date) to {@code horizonDays} after it. Shared by
+   * the occurrence views and the reminder centre, so what counts as the window is decided once.
+   *
+   * @param today the plan's own calendar day ({@link RecurrenceRule#today})
+   */
+  @Transactional
+  public void ensureWindow(PlanEntity plan, LocalDate today, int lookbackDays, int horizonDays) {
+    LocalDate from = today.minusDays(lookbackDays);
+    if (from.isBefore(plan.rule().startDate())) {
+      from = plan.rule().startDate();
+    }
+    LocalDate to = today.plusDays(horizonDays);
+    if (!to.isBefore(from)) {
+      generate(plan, from, to);
+    }
+  }
+
+  /**
    * Removes the plan's still-planned occurrences that its <em>current</em> rule no longer
    * produces, and returns how many went (M2, jlogicsoftware/prudent#56, ADR-039).
    *

@@ -978,6 +978,37 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PlanOccurrence'
+    DueReminder:
+      type: object
+      description: >-
+        One reminder (M5, jlogicsoftware/prudent#68, ADR-055), addressed by the occurrence it is
+        about. Calculated on every read from the occurrence's date, its plan's lead time and its
+        plan's own calendar day; only `read` is stored.
+      properties:
+        occurrence:
+          $ref: '#/components/schemas/PlanOccurrence'
+        remindOn:
+          type: string
+          description: >-
+            The civil date the reminder fell due — the occurrence's date less the lead time — as
+            YYYY-MM-DD.
+        leadDays:
+          type: integer
+          format: int32
+          description: The plan's lead time in days as it is now.
+        read:
+          type: boolean
+          description: Whether the user has read it. False is unread.
+    ListRemindersResponse:
+      type: object
+      description: >-
+        GET /api/v1/reminders and POST /api/v1/reminders/read-all — every reminder due or overdue
+        now, ordered by the occurrence's date ascending, then id.
+      properties:
+        reminders:
+          type: array
+          items:
+            $ref: '#/components/schemas/DueReminder'
 
     # -----------------------------------------------------------------------------------------
     # Budgets — the amount the user may spend in a category, month and currency (M3,

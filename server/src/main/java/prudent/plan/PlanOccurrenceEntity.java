@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,6 +49,31 @@ public class PlanOccurrenceEntity extends PanacheEntityBase {
   @Enumerated(EnumType.STRING)
   @Column(nullable = false)
   public OccurrenceState state = OccurrenceState.PLANNED;
+
+  /**
+   * When the user read this occurrence's reminder, or {@code null} while they have not (M5,
+   * ADR-055). The only stored fact about a reminder: whether one is due is calculated on every read.
+   * Written only through {@link #markReminderRead} and {@link #markReminderUnread}.
+   */
+  @Column(name = "reminder_read_at")
+  public Instant reminderReadAt;
+
+  /** Whether the user has read this occurrence's reminder. */
+  public boolean isReminderRead() {
+    return reminderReadAt != null;
+  }
+
+  /** Marks the reminder read at {@code now}; reading it again keeps the first time. */
+  public void markReminderRead(Instant now) {
+    if (reminderReadAt == null) {
+      reminderReadAt = now;
+    }
+  }
+
+  /** Marks the reminder unread again. */
+  public void markReminderUnread() {
+    reminderReadAt = null;
+  }
 
   /**
    * Moves this occurrence to {@code target}, or refuses.
@@ -121,6 +147,21 @@ public class PlanOccurrenceEntity extends PanacheEntityBase {
     }
     query.append(" order by occurrenceDate, id");
     return list(query.toString(), params.toArray());
+  }
+
+  /**
+   * One plan's still-planned occurrences dated on or before {@code to}, oldest first then by id —
+   * what a reminder is calculated from (ADR-055).
+   */
+  public static List<PlanOccurrenceEntity> listPlannedOfPlanUpTo(
+      UUID userId, UUID planId, LocalDate to) {
+    return list(
+        "userId = ?1 and planId = ?2 and state = ?3 and occurrenceDate <= ?4"
+            + " order by occurrenceDate, id",
+        userId,
+        planId,
+        OccurrenceState.PLANNED,
+        to);
   }
 
   /** Removes every occurrence of one plan, returning how many there were. */

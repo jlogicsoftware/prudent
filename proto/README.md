@@ -18,11 +18,16 @@ The directory mirrors the proto package the way `../jZen/proto/zen/v1/` mirrors 
 | `prudent/v1/budgets.proto` | `prudent.v1` | `prudent.proto.v1` |
 | `prudent/v1/goals.proto` | `prudent.v1` | `prudent.proto.v1` |
 | `prudent/v1/goal_allocations.proto` | `prudent.v1` | `prudent.proto.v1` |
+| `prudent/v1/reminders.proto` | `prudent.v1` | `prudent.proto.v1` |
 
 `plans.proto` holds **expected** money — one-off and recurring plans (M2) — and is deliberately a
 separate model from `records.proto`: a record moves a balance (ADR-014), a plan never does.
 ADR-037 records the shape of the recurrence rule. A plan also carries a **reminder setting** (M5): on or
 off, and how many days ahead — a setting only, off by default, that stores and sends nothing (ADR-054).
+
+`reminders.proto` holds the **in-app reminder centre** (M5): the planned occurrences that are due, or overdue, for a plan
+whose reminder is on, each with whether the user has read it. A reminder is calculated on every read and never stored;
+the only stored fact is the read flag, kept on the occurrence (ADR-055).
 
 `budgets.proto` holds the amount the user **may spend** per category, month and currency (M3). It has
 no id: a budget is addressed by the slot it fills, and the slot is unique (ADR-043). It also holds the

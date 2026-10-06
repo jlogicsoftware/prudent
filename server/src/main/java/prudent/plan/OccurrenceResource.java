@@ -271,15 +271,7 @@ public class OccurrenceResource {
       todays.put(plan.id, today);
       earliestToday = earliestToday == null || today.isBefore(earliestToday) ? today : earliestToday;
       latestToday = latestToday == null || today.isAfter(latestToday) ? today : latestToday;
-
-      LocalDate from = today.minusDays(LOOKBACK_DAYS);
-      if (from.isBefore(plan.rule().startDate())) {
-        from = plan.rule().startDate();
-      }
-      LocalDate to = today.plusDays(horizon);
-      if (!to.isBefore(from)) {
-        generator.generate(plan, from, to);
-      }
+      generator.ensureWindow(plan, today, LOOKBACK_DAYS, horizon);
     }
     if (plans.isEmpty()) {
       return Response.ok(mapper.toListResponse(List.of())).build();

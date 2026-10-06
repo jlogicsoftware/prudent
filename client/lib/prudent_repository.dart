@@ -9,6 +9,7 @@ import 'generated/prudent/v1/goal_allocations.pb.dart';
 import 'generated/prudent/v1/goals.pb.dart';
 import 'generated/prudent/v1/plans.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
+import 'generated/prudent/v1/reminders.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
 import 'record/record_filter.dart';
 
@@ -36,6 +37,7 @@ class PrudentRepository {
   static const String _carryOverResetsPath = '/api/v1/budget-carry-over-resets';
   static const String _plansPath = '/api/v1/plans';
   static const String _occurrencesPath = '/api/v1/occurrences';
+  static const String _remindersPath = '/api/v1/reminders';
   static const String _spendByCategoryPath =
       '/api/v1/analytics/spend-by-category';
   static const String _spendByPeriodPath = '/api/v1/analytics/spend-by-period';
@@ -407,6 +409,26 @@ class PrudentRepository {
     '$_occurrencesPath/$id/confirm',
     body: request ?? ConfirmOccurrenceRequest(),
   );
+
+  // --- Reminders (M5, jlogicsoftware/prudent#68) — calculated on read; only "read" is stored ------
+
+  /// Every reminder due or overdue now — a still-planned occurrence of a plan whose reminder is on,
+  /// within its lead time or past its date — oldest date first, with each one's read state.
+  Future<ZenResult<ListRemindersResponse>> listReminders() =>
+      _client.get<ListRemindersResponse>(ListRemindersResponse.new, _remindersPath);
+
+  /// Marks one reminder read, addressed by its occurrence's id. Refused (409) for an occurrence
+  /// that has no reminder right now, so a client that is behind refetches rather than guesses.
+  Future<ZenResult<DueReminder>> markReminderRead(String occurrenceId) =>
+      _client.post<DueReminder>(DueReminder.new, '$_remindersPath/$occurrenceId/read');
+
+  /// Marks one reminder unread again. Refused (409) like [markReminderRead].
+  Future<ZenResult<DueReminder>> markReminderUnread(String occurrenceId) =>
+      _client.post<DueReminder>(DueReminder.new, '$_remindersPath/$occurrenceId/unread');
+
+  /// Marks every current reminder read and answers with the list as it now stands.
+  Future<ZenResult<ListRemindersResponse>> markAllRemindersRead() =>
+      _client.post<ListRemindersResponse>(ListRemindersResponse.new, '$_remindersPath/read-all');
 
   // --- Settings -----------------------------------------------------------------------------------
 

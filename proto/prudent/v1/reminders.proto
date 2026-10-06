@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// Prudent's in-app reminder centre (M5, jlogicsoftware/prudent#68, ADR-055): the planned occurrences
+// that have come due, or gone overdue, for a plan whose reminder is switched on (plans.proto
+// `Reminder`, ADR-054), and whether the user has read each one. CANONICAL SOURCE OF TRUTH for the
+// model: the Java DTOs and the Dart messages are GENERATED from this file and are never hand-edited.
+// Change this file and run `task generate`.
+//
+// A REMINDER IS NOT STORED. Whether an occurrence is due is worked out on every read from its date,
+// its plan's lead time and its plan's own calendar day, as OVERDUE is (plans.proto
+// OccurrenceStatus), so there is no job to miss and no stale row to find. The one thing that IS
+// stored is that the user has read it, on the occurrence the reminder is about. Nothing here is a
+// transaction: reading a reminder moves no balance and changes no occurrence's state.
+//
+// Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that
+// message is not imported here (proto/README.md records why).
+
+import "prudent/v1/plans.proto";
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+// See records.proto: named explicitly so the descriptor holder can never collide with a message.
+option java_outer_classname = "RemindersProto";
+
+// One reminder, addressed by the occurrence it is about: `occurrence.id` is what the read and
+// unread routes take, and what a screen opens to act on the occurrence (confirm, skip).
+message DueReminder {
+  // The occurrence this reminds of, with its plan's fields alongside. Its status is PLANNED while
+  // the occurrence is still ahead (it is within its plan's lead time) and OVERDUE once its date has
+  // passed — which is how a screen tells "due" from "overdue" without working it out again. A
+  // completed or skipped occurrence is resolved and has no reminder, so neither status appears.
+  PlanOccurrence occurrence = 1;
+
+  // The civil date the reminder fell due: the occurrence's date less the plan's lead time, in the
+  // plan's own calendar days. ISO-8601 YYYY-MM-DD.
+  string remind_on = 2;
+
+  // The plan's lead time in days as it is now, so a screen can say "due in 3 days" without a second
+  // call for the plan. One of the lead times plans.proto `Reminder.lead_days` lists.
+  uint32 lead_days = 3;
+
+  // Whether the user has read it. false is "unread". Read state belongs to the occurrence, so it
+  // survives the plan's reminder being switched off and on again.
+  bool read = 4;
+}
+
+// GET /api/v1/reminders, and the answer to POST /api/v1/reminders/read-all: every reminder that is
+// due or overdue now, ordered by the occurrence's date ascending, then id, so the order is total and
+// the most overdue come first. Unpaginated in v1 for the reason records.proto gives for
+// ListRecordsResponse.
+message ListRemindersResponse {
+  repeated DueReminder reminders = 1;
+}
+
+// POST /api/v1/reminders/{occurrenceId}/read and .../unread carry no request body and answer with
+// the updated DueReminder. POST /api/v1/reminders/read-all carries none either and answers with a
+// ListRemindersResponse. Each is refused (409) for an occurrence that has no reminder right now —
+// its plan's reminder is off, it is resolved, or it is not yet within its lead time.

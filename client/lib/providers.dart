@@ -11,6 +11,7 @@ import 'generated/prudent/v1/goal_allocations.pb.dart';
 import 'generated/prudent/v1/goals.pb.dart';
 import 'generated/prudent/v1/plans.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
+import 'generated/prudent/v1/reminders.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
 import 'overview/planned_cash_flow.dart';
 import 'prudent_repository.dart';
@@ -382,6 +383,107 @@ final plannedOccurrencesProvider = FutureProvider.autoDispose<List<PlanOccurrenc
     ...upcoming.fold((response) => response.occurrences, (error) => throw error),
   ];
 });
+
+// ---------------------------------------------------------------------------------------------
+// Reminders — due and overdue planned occurrences, and whether each has been read (M5,
+// reminders.proto, ADR-055)
+// ---------------------------------------------------------------------------------------------
+
+/// Every reminder due or overdue now, oldest date first.
+///
+/// A reminder is calculated by the server on every read, from the occurrence's date, its plan's
+/// lead time and its plan's own calendar day, so this only fetches and never works out what is due.
+/// The one thing the client changes is the read flag; each change replaces the reminder the server
+/// answered with rather than flipping a local bit, so what is drawn is what is stored. Anything
+/// that resolves an occurrence ends its reminder, which [OccurrenceActions] refetches.
+class RemindersNotifier extends AsyncNotifier<List<DueReminder>> {
+  PrudentRepository get _repository => ref.read(prudentRepositoryProvider);
+
+  @override
+  Future<List<DueReminder>> build() async {
+    final result = await _repository.listReminders();
+    return result.fold((response) => response.reminders, (error) => throw error);
+  }
+
+  Future<void> markRead(String occurrenceId) async {
+    final result = await _repository.markReminderRead(occurrenceId);
+    _replace(result.fold((reminder) => reminder, (error) => throw error));
+  }
+
+  Future<void> markUnread(String occurrenceId) async {
+    final result = await _repository.markReminderUnread(occurrenceId);
+    _replace(result.fold((reminder) => reminder, (error) => throw error));
+  }
+
+  Future<void> markAllRead() async {
+    final result = await _repository.markAllRemindersRead();
+    state = AsyncValue.data(result.fold((response) => response.reminders, (error) => throw error));
+  }
+
+  void _replace(DueReminder reminder) {
+    state = AsyncValue.data([
+      for (final r in state.value ?? const <DueReminder>[])
+        if (r.occurrence.id == reminder.occurrence.id) reminder else r,
+    ]);
+  }
+}
+
+final remindersProvider = AsyncNotifierProvider<RemindersNotifier, List<DueReminder>>(
+  RemindersNotifier.new,
+);
+
+/// How many reminders are unread: what the bell's badge shows. Zero while loading or after a
+/// failed load, because a badge that guesses is worse than none.
+final unreadReminderCountProvider = Provider<int>(
+  (ref) => (ref.watch(remindersProvider).value ?? const <DueReminder>[]).where((r) => !r.read).length,
+);
+
+/// Resolving a planned occurrence from the screen a reminder opens: skip, restore, or confirm it
+/// as planned (M2, ADR-039, ADR-040).
+///
+/// Each one changes what the reminder centre and the overview's planned cash flow show, so each
+/// invalidates them. Confirming also writes the actual record, which changes balances, budgets and
+/// free money exactly as a record added by hand does, so it invalidates what those read.
+class OccurrenceActions {
+  OccurrenceActions(this._ref);
+
+  final Ref _ref;
+
+  PrudentRepository get _repository => _ref.read(prudentRepositoryProvider);
+
+  Future<PlanOccurrence> skip(String id) async {
+    final result = await _repository.skipOccurrence(id);
+    final occurrence = result.fold((o) => o, (error) => throw error);
+    _refreshPlanned();
+    return occurrence;
+  }
+
+  Future<PlanOccurrence> restore(String id) async {
+    final result = await _repository.restoreOccurrence(id);
+    final occurrence = result.fold((o) => o, (error) => throw error);
+    _refreshPlanned();
+    return occurrence;
+  }
+
+  /// Confirms [id] exactly as planned — the date, amount, account and category the plan gives.
+  Future<PlanOccurrence> confirm(String id) async {
+    final result = await _repository.confirmOccurrence(id);
+    final confirmed = result.fold((r) => r, (error) => throw error);
+    _refreshPlanned();
+    _ref.invalidate(recordsProvider);
+    _ref.invalidate(accountsProvider);
+    _ref.invalidate(budgetSummaryProvider);
+    _ref.invalidate(goalFreeMoneyProvider);
+    return confirmed.occurrence;
+  }
+
+  void _refreshPlanned() {
+    _ref.invalidate(remindersProvider);
+    _ref.invalidate(plannedOccurrencesProvider);
+  }
+}
+
+final occurrenceActionsProvider = Provider<OccurrenceActions>(OccurrenceActions.new);
 
 // ---------------------------------------------------------------------------------------------
 // Budgets — read-only summary of one month in one currency (budgets.proto, ADR-044, ADR-045)
