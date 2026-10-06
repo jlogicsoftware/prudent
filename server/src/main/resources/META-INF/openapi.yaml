@@ -761,6 +761,25 @@ components:
           minimum: 1
           maximum: 10000
           description: The total number of occurrences, counting the one on startDate.
+    Reminder:
+      type: object
+      description: >-
+        A plan's reminder setting (M5, jlogicsoftware/prudent#40, ADR-054). A setting only: it stores
+        no reminder and sends nothing. Off by default, with a one-day lead time ready for when it is
+        switched on.
+      properties:
+        enabled:
+          type: boolean
+          description: Whether this plan's occurrences produce reminders.
+        leadDays:
+          type: integer
+          format: int32
+          enum: [0, 1, 2, 3, 7]
+          description: >-
+            Days before an occurrence's date that its reminder falls due, in the plan's own
+            calendar days; 0 is the day itself. Any other value is refused (400), never rounded.
+            Always present in a Plan. Omitted in a request it means the default, 1 — present 0
+            means the day itself. Kept while enabled is false.
     Plan:
       type: object
       description: A plan, as the server holds it.
@@ -795,6 +814,8 @@ components:
           description: Optional.
         recurrence:
           $ref: '#/components/schemas/Recurrence'
+        reminder:
+          $ref: '#/components/schemas/Reminder'
     CreatePlanRequest:
       type: object
       description: Body for POST /api/v1/plans. No id field — the server mints it.
@@ -820,6 +841,10 @@ components:
           type: string
         recurrence:
           $ref: '#/components/schemas/Recurrence'
+        reminder:
+          allOf:
+            - $ref: '#/components/schemas/Reminder'
+          description: Optional. Absent means the default, disabled and one day ahead.
     UpdatePlanRequest:
       type: object
       description: >-
@@ -846,6 +871,12 @@ components:
           type: string
         recurrence:
           $ref: '#/components/schemas/Recurrence'
+        reminder:
+          allOf:
+            - $ref: '#/components/schemas/Reminder'
+          description: >-
+            Part of the replacement: absent RESETS the setting to the default (disabled, one day
+            ahead), so a client that edits a plan sends back the reminder it read.
     ListPlansResponse:
       type: object
       description: GET /api/v1/plans — every plan owned by the caller, earliest start first.

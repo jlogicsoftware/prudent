@@ -367,6 +367,70 @@ void main() {
       },
     );
 
+    test('createPlan sends the reminder setting and decodes the one in force', () async {
+      String? capturedBody;
+      final repository = PrudentRepository(
+        client: _clientAnswering((request) {
+          capturedBody = request.body;
+          return _jsonResponse({
+            'id': 'plan-1',
+            'title': 'Rent',
+            'amountMinor': '-250000',
+            'currency': 'PLN',
+            'accountId': 'a1',
+            'categoryId': 'c1',
+            'recurrence': {
+              'frequency': 'RECURRENCE_FREQUENCY_ONCE',
+              'interval': 1,
+              'startDate': '2026-10-31',
+              'timeZone': 'Europe/Warsaw',
+            },
+            'reminder': {'enabled': true, 'leadDays': 0},
+          }, status: 201);
+        }),
+      );
+
+      final result = await repository.createPlan(
+        CreatePlanRequest(
+          title: 'Rent',
+          amountMinor: Int64(-250000),
+          currency: 'PLN',
+          accountId: 'a1',
+          categoryId: 'c1',
+          recurrence: Recurrence(
+            frequency: RecurrenceFrequency.RECURRENCE_FREQUENCY_ONCE,
+            startDate: '2026-10-31',
+            timeZone: 'Europe/Warsaw',
+          ),
+          reminder: Reminder(enabled: true, leadDays: 0),
+        ),
+      );
+
+      // 0 days must reach the wire: dropping it would make "on the day" mean "the default".
+      expect(capturedBody, contains('"reminder":{"enabled":true,"leadDays":0}'));
+      final plan = result.fold((p) => p, (e) => throw e);
+      expect(plan.reminder.enabled, isTrue);
+      expect(plan.reminder.leadDays, 0);
+    });
+
+    test('a refused lead time surfaces as an error, not as a default', () async {
+      final repository = PrudentRepository(
+        client: _clientAnswering(
+          (request) => _jsonResponse({
+            'code': 'invalid',
+            'message': "A reminder's lead time must be one of [0, 1, 2, 3, 7]",
+          }, status: 400),
+        ),
+      );
+
+      final result = await repository.updatePlan(
+        'plan-1',
+        UpdatePlanRequest(reminder: Reminder(enabled: true, leadDays: 4)),
+      );
+
+      expect(result.isSuccess, isFalse);
+    });
+
     test('listPlans decodes the list, and deletePlan deletes by id', () async {
       final calls = <String>[];
       final repository = PrudentRepository(

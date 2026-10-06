@@ -3537,7 +3537,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["Plan"];
                     };
                 };
-                /** @description A blank title, a zero amount, an account or category that is not the caller's, a currency the account does not hold, or an invalid recurrence */
+                /** @description A blank title, a zero amount, an account or category that is not the caller's, a currency the account does not hold, an invalid recurrence, or a reminder lead time that is not one of the supported ones */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -4686,6 +4686,17 @@ export interface components {
              */
             occurrenceCount?: number;
         };
+        /** @description A plan's reminder setting (M5, jlogicsoftware/prudent#40, ADR-054). A setting only: it stores no reminder and sends nothing. Off by default, with a one-day lead time ready for when it is switched on. */
+        Reminder: {
+            /** @description Whether this plan's occurrences produce reminders. */
+            enabled?: boolean;
+            /**
+             * Format: int32
+             * @description Days before an occurrence's date that its reminder falls due, in the plan's own calendar days; 0 is the day itself. Any other value is refused (400), never rounded. Always present in a Plan. Omitted in a request it means the default, 1 — present 0 means the day itself. Kept while enabled is false.
+             * @enum {integer}
+             */
+            leadDays?: 0 | 1 | 2 | 3 | 7;
+        };
         /** @description A plan, as the server holds it. */
         Plan: {
             /** Format: uuid */
@@ -4707,6 +4718,7 @@ export interface components {
             /** @description Optional. */
             note?: string;
             recurrence?: components["schemas"]["Recurrence"];
+            reminder?: components["schemas"]["Reminder"];
         };
         /** @description Body for POST /api/v1/plans. No id field — the server mints it. */
         CreatePlanRequest: {
@@ -4721,6 +4733,8 @@ export interface components {
             payee?: string;
             note?: string;
             recurrence?: components["schemas"]["Recurrence"];
+            /** @description Optional. Absent means the default, disabled and one day ahead. */
+            reminder?: components["schemas"]["Reminder"];
         };
         /** @description Body for PUT /api/v1/plans/{id}. A FULL REPLACEMENT: an absent payee or note clears it. */
         UpdatePlanRequest: {
@@ -4735,6 +4749,8 @@ export interface components {
             payee?: string;
             note?: string;
             recurrence?: components["schemas"]["Recurrence"];
+            /** @description Part of the replacement: absent RESETS the setting to the default (disabled, one day ahead), so a client that edits a plan sends back the reminder it read. */
+            reminder?: components["schemas"]["Reminder"];
         };
         /** @description GET /api/v1/plans — every plan owned by the caller, earliest start first. */
         ListPlansResponse: {

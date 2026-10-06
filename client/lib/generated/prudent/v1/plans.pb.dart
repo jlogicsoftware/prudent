@@ -172,6 +172,91 @@ class Recurrence extends $pb.GeneratedMessage {
   void clearOccurrenceCount() => $_clearField(6);
 }
 
+/// A plan's reminder setting (M5, jlogicsoftware/prudent#40, ADR-054): whether the user wants to be
+/// reminded before each occurrence falls due, and how many days ahead. It is a SETTING only — it
+/// stores no reminder, schedules nothing and sends nothing; the in-app reminder centre and local
+/// notifications that read it are the following M5 tasks.
+///
+/// OFF BY DEFAULT, with a one-day lead time ready for when it is switched on. Reminders are opt-in
+/// because the first local notification is also the moment the platform asks for permission, and
+/// that prompt belongs to something the user asked for, not to saving a plan.
+///
+/// The same message is in the requests and in Plan. In Plan it is always present and lead_days is
+/// always set.
+class Reminder extends $pb.GeneratedMessage {
+  factory Reminder({
+    $core.bool? enabled,
+    $core.int? leadDays,
+  }) {
+    final result = create();
+    if (enabled != null) result.enabled = enabled;
+    if (leadDays != null) result.leadDays = leadDays;
+    return result;
+  }
+
+  Reminder._();
+
+  factory Reminder.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory Reminder.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'Reminder',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'enabled')
+    ..aI(2, _omitFieldNames ? '' : 'leadDays', fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Reminder clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Reminder copyWith(void Function(Reminder) updates) =>
+      super.copyWith((message) => updates(message as Reminder)) as Reminder;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static Reminder create() => Reminder._();
+  @$core.override
+  Reminder createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static Reminder getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Reminder>(create);
+  static Reminder? _defaultInstance;
+
+  /// Whether this plan's occurrences produce reminders. A plain bool: false is a real answer.
+  @$pb.TagNumber(1)
+  $core.bool get enabled => $_getBF(0);
+  @$pb.TagNumber(1)
+  set enabled($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEnabled() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEnabled() => $_clearField(1);
+
+  /// How many days before an occurrence's date the reminder falls due. One of the SUPPORTED lead
+  /// times, 0 (the day itself), 1, 2, 3 or 7; anything else is REFUSED rather than rounded, so a
+  /// client cannot believe it set a lead time the server then quietly changed. Counted in the
+  /// plan's own calendar days (Recurrence.time_zone), like every other date on a plan.
+  ///
+  /// `optional` because 0 is a real lead time and proto3 decodes an omitted number to 0: absent
+  /// means the DEFAULT (1), present 0 means "on the day". The value is kept while `enabled` is
+  /// false, so switching a reminder off and on again does not forget the user's choice.
+  @$pb.TagNumber(2)
+  $core.int get leadDays => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set leadDays($core.int value) => $_setUnsignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasLeadDays() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLeadDays() => $_clearField(2);
+}
+
 /// A plan, as the server holds it.
 class Plan extends $pb.GeneratedMessage {
   factory Plan({
@@ -184,6 +269,7 @@ class Plan extends $pb.GeneratedMessage {
     $core.String? payee,
     $core.String? note,
     Recurrence? recurrence,
+    Reminder? reminder,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -195,6 +281,7 @@ class Plan extends $pb.GeneratedMessage {
     if (payee != null) result.payee = payee;
     if (note != null) result.note = note;
     if (recurrence != null) result.recurrence = recurrence;
+    if (reminder != null) result.reminder = reminder;
     return result;
   }
 
@@ -221,6 +308,8 @@ class Plan extends $pb.GeneratedMessage {
     ..aOS(8, _omitFieldNames ? '' : 'note')
     ..aOM<Recurrence>(9, _omitFieldNames ? '' : 'recurrence',
         subBuilder: Recurrence.create)
+    ..aOM<Reminder>(10, _omitFieldNames ? '' : 'reminder',
+        subBuilder: Reminder.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -332,6 +421,19 @@ class Plan extends $pb.GeneratedMessage {
   void clearRecurrence() => $_clearField(9);
   @$pb.TagNumber(9)
   Recurrence ensureRecurrence() => $_ensure(8);
+
+  /// Always present. Plans that existed before reminders were added read as disabled with a
+  /// one-day lead time.
+  @$pb.TagNumber(10)
+  Reminder get reminder => $_getN(9);
+  @$pb.TagNumber(10)
+  set reminder(Reminder value) => $_setField(10, value);
+  @$pb.TagNumber(10)
+  $core.bool hasReminder() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearReminder() => $_clearField(10);
+  @$pb.TagNumber(10)
+  Reminder ensureReminder() => $_ensure(9);
 }
 
 /// POST /api/v1/plans
@@ -345,6 +447,7 @@ class CreatePlanRequest extends $pb.GeneratedMessage {
     $core.String? payee,
     $core.String? note,
     Recurrence? recurrence,
+    Reminder? reminder,
   }) {
     final result = create();
     if (title != null) result.title = title;
@@ -355,6 +458,7 @@ class CreatePlanRequest extends $pb.GeneratedMessage {
     if (payee != null) result.payee = payee;
     if (note != null) result.note = note;
     if (recurrence != null) result.recurrence = recurrence;
+    if (reminder != null) result.reminder = reminder;
     return result;
   }
 
@@ -380,6 +484,8 @@ class CreatePlanRequest extends $pb.GeneratedMessage {
     ..aOS(7, _omitFieldNames ? '' : 'note')
     ..aOM<Recurrence>(8, _omitFieldNames ? '' : 'recurrence',
         subBuilder: Recurrence.create)
+    ..aOM<Reminder>(9, _omitFieldNames ? '' : 'reminder',
+        subBuilder: Reminder.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -476,6 +582,18 @@ class CreatePlanRequest extends $pb.GeneratedMessage {
   void clearRecurrence() => $_clearField(8);
   @$pb.TagNumber(8)
   Recurrence ensureRecurrence() => $_ensure(7);
+
+  /// Optional. Absent is the default: disabled, one day ahead.
+  @$pb.TagNumber(9)
+  Reminder get reminder => $_getN(8);
+  @$pb.TagNumber(9)
+  set reminder(Reminder value) => $_setField(9, value);
+  @$pb.TagNumber(9)
+  $core.bool hasReminder() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearReminder() => $_clearField(9);
+  @$pb.TagNumber(9)
+  Reminder ensureReminder() => $_ensure(8);
 }
 
 /// PUT /api/v1/plans/{id} — a FULL REPLACEMENT, for the presence reason set out in
@@ -490,6 +608,7 @@ class UpdatePlanRequest extends $pb.GeneratedMessage {
     $core.String? payee,
     $core.String? note,
     Recurrence? recurrence,
+    Reminder? reminder,
   }) {
     final result = create();
     if (title != null) result.title = title;
@@ -500,6 +619,7 @@ class UpdatePlanRequest extends $pb.GeneratedMessage {
     if (payee != null) result.payee = payee;
     if (note != null) result.note = note;
     if (recurrence != null) result.recurrence = recurrence;
+    if (reminder != null) result.reminder = reminder;
     return result;
   }
 
@@ -525,6 +645,8 @@ class UpdatePlanRequest extends $pb.GeneratedMessage {
     ..aOS(7, _omitFieldNames ? '' : 'note')
     ..aOM<Recurrence>(8, _omitFieldNames ? '' : 'recurrence',
         subBuilder: Recurrence.create)
+    ..aOM<Reminder>(9, _omitFieldNames ? '' : 'reminder',
+        subBuilder: Reminder.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -619,6 +741,19 @@ class UpdatePlanRequest extends $pb.GeneratedMessage {
   void clearRecurrence() => $_clearField(8);
   @$pb.TagNumber(8)
   Recurrence ensureRecurrence() => $_ensure(7);
+
+  /// Part of the replacement, like every other field: absent RESETS the setting to the default
+  /// (disabled, one day ahead), so a client that edits a plan sends back the reminder it read.
+  @$pb.TagNumber(9)
+  Reminder get reminder => $_getN(8);
+  @$pb.TagNumber(9)
+  set reminder(Reminder value) => $_setField(9, value);
+  @$pb.TagNumber(9)
+  $core.bool hasReminder() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearReminder() => $_clearField(9);
+  @$pb.TagNumber(9)
+  Reminder ensureReminder() => $_ensure(8);
 }
 
 /// GET /api/v1/plans — every plan owned by the authenticated user. Unpaginated in v1 for the reason

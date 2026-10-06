@@ -92,6 +92,31 @@ final $typed_data.Uint8List recurrenceDescriptor = $convert.base64Decode(
     'p1bnRpbF9kYXRlGAUgASgJSABSCXVudGlsRGF0ZRIrChBvY2N1cnJlbmNlX2NvdW50GAYgASgN'
     'SABSD29jY3VycmVuY2VDb3VudEIFCgNlbmQ=');
 
+@$core.Deprecated('Use reminderDescriptor instead')
+const Reminder$json = {
+  '1': 'Reminder',
+  '2': [
+    {'1': 'enabled', '3': 1, '4': 1, '5': 8, '10': 'enabled'},
+    {
+      '1': 'lead_days',
+      '3': 2,
+      '4': 1,
+      '5': 13,
+      '9': 0,
+      '10': 'leadDays',
+      '17': true
+    },
+  ],
+  '8': [
+    {'1': '_lead_days'},
+  ],
+};
+
+/// Descriptor for `Reminder`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List reminderDescriptor = $convert.base64Decode(
+    'CghSZW1pbmRlchIYCgdlbmFibGVkGAEgASgIUgdlbmFibGVkEiAKCWxlYWRfZGF5cxgCIAEoDU'
+    'gAUghsZWFkRGF5c4gBAUIMCgpfbGVhZF9kYXlz');
+
 @$core.Deprecated('Use planDescriptor instead')
 const Plan$json = {
   '1': 'Plan',
@@ -112,6 +137,14 @@ const Plan$json = {
       '6': '.prudent.v1.Recurrence',
       '10': 'recurrence'
     },
+    {
+      '1': 'reminder',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.prudent.v1.Reminder',
+      '10': 'reminder'
+    },
   ],
   '8': [
     {'1': '_payee'},
@@ -126,7 +159,8 @@ final $typed_data.Uint8List planDescriptor = $convert.base64Decode(
     'YWNjb3VudF9pZBgFIAEoCVIJYWNjb3VudElkEh8KC2NhdGVnb3J5X2lkGAYgASgJUgpjYXRlZ2'
     '9yeUlkEhkKBXBheWVlGAcgASgJSABSBXBheWVliAEBEhcKBG5vdGUYCCABKAlIAVIEbm90ZYgB'
     'ARI2CgpyZWN1cnJlbmNlGAkgASgLMhYucHJ1ZGVudC52MS5SZWN1cnJlbmNlUgpyZWN1cnJlbm'
-    'NlQggKBl9wYXllZUIHCgVfbm90ZQ==');
+    'NlEjAKCHJlbWluZGVyGAogASgLMhQucHJ1ZGVudC52MS5SZW1pbmRlclIIcmVtaW5kZXJCCAoG'
+    'X3BheWVlQgcKBV9ub3Rl');
 
 @$core.Deprecated('Use createPlanRequestDescriptor instead')
 const CreatePlanRequest$json = {
@@ -147,10 +181,21 @@ const CreatePlanRequest$json = {
       '6': '.prudent.v1.Recurrence',
       '10': 'recurrence'
     },
+    {
+      '1': 'reminder',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.prudent.v1.Reminder',
+      '9': 2,
+      '10': 'reminder',
+      '17': true
+    },
   ],
   '8': [
     {'1': '_payee'},
     {'1': '_note'},
+    {'1': '_reminder'},
   ],
 };
 
@@ -160,8 +205,9 @@ final $typed_data.Uint8List createPlanRequestDescriptor = $convert.base64Decode(
     '9yGAIgASgDUgthbW91bnRNaW5vchIaCghjdXJyZW5jeRgDIAEoCVIIY3VycmVuY3kSHQoKYWNj'
     'b3VudF9pZBgEIAEoCVIJYWNjb3VudElkEh8KC2NhdGVnb3J5X2lkGAUgASgJUgpjYXRlZ29yeU'
     'lkEhkKBXBheWVlGAYgASgJSABSBXBheWVliAEBEhcKBG5vdGUYByABKAlIAVIEbm90ZYgBARI2'
-    'CgpyZWN1cnJlbmNlGAggASgLMhYucHJ1ZGVudC52MS5SZWN1cnJlbmNlUgpyZWN1cnJlbmNlQg'
-    'gKBl9wYXllZUIHCgVfbm90ZQ==');
+    'CgpyZWN1cnJlbmNlGAggASgLMhYucHJ1ZGVudC52MS5SZWN1cnJlbmNlUgpyZWN1cnJlbmNlEj'
+    'UKCHJlbWluZGVyGAkgASgLMhQucHJ1ZGVudC52MS5SZW1pbmRlckgCUghyZW1pbmRlcogBAUII'
+    'CgZfcGF5ZWVCBwoFX25vdGVCCwoJX3JlbWluZGVy');
 
 @$core.Deprecated('Use updatePlanRequestDescriptor instead')
 const UpdatePlanRequest$json = {
@@ -182,10 +228,21 @@ const UpdatePlanRequest$json = {
       '6': '.prudent.v1.Recurrence',
       '10': 'recurrence'
     },
+    {
+      '1': 'reminder',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.prudent.v1.Reminder',
+      '9': 2,
+      '10': 'reminder',
+      '17': true
+    },
   ],
   '8': [
     {'1': '_payee'},
     {'1': '_note'},
+    {'1': '_reminder'},
   ],
 };
 
@@ -195,8 +252,9 @@ final $typed_data.Uint8List updatePlanRequestDescriptor = $convert.base64Decode(
     '9yGAIgASgDUgthbW91bnRNaW5vchIaCghjdXJyZW5jeRgDIAEoCVIIY3VycmVuY3kSHQoKYWNj'
     'b3VudF9pZBgEIAEoCVIJYWNjb3VudElkEh8KC2NhdGVnb3J5X2lkGAUgASgJUgpjYXRlZ29yeU'
     'lkEhkKBXBheWVlGAYgASgJSABSBXBheWVliAEBEhcKBG5vdGUYByABKAlIAVIEbm90ZYgBARI2'
-    'CgpyZWN1cnJlbmNlGAggASgLMhYucHJ1ZGVudC52MS5SZWN1cnJlbmNlUgpyZWN1cnJlbmNlQg'
-    'gKBl9wYXllZUIHCgVfbm90ZQ==');
+    'CgpyZWN1cnJlbmNlGAggASgLMhYucHJ1ZGVudC52MS5SZWN1cnJlbmNlUgpyZWN1cnJlbmNlEj'
+    'UKCHJlbWluZGVyGAkgASgLMhQucHJ1ZGVudC52MS5SZW1pbmRlckgCUghyZW1pbmRlcogBAUII'
+    'CgZfcGF5ZWVCBwoFX25vdGVCCwoJX3JlbWluZGVy');
 
 @$core.Deprecated('Use listPlansResponseDescriptor instead')
 const ListPlansResponse$json = {

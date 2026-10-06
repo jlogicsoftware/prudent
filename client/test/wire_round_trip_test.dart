@@ -104,6 +104,44 @@ void main() {
         expect(decoded, original);
       });
 
+      test('a Plan keeps its reminder, including a lead time of zero days', () {
+        // 0 is a real lead time ("on the day"), so presence is what keeps it from reading as unset.
+        final original = Plan(
+          id: 'p1',
+          reminder: Reminder(enabled: true, leadDays: 0),
+        );
+
+        final decoded = roundTrip(original, format, Plan.new);
+
+        expect(decoded.reminder.enabled, isTrue);
+        expect(decoded.reminder.hasLeadDays(), isTrue);
+        expect(decoded.reminder.leadDays, 0);
+        expect(decoded, original);
+      });
+
+      test('a request without a reminder stays without one', () {
+        // Absent means "the default" on the server, which is not the same as "disabled, 0 days".
+        final original = CreatePlanRequest(title: 'Rent');
+
+        final decoded = roundTrip(original, format, CreatePlanRequest.new);
+
+        expect(decoded.hasReminder(), isFalse);
+        expect(decoded, original);
+      });
+
+      test('a reminder with no lead time stays without one', () {
+        final original = UpdatePlanRequest(
+          title: 'Rent',
+          reminder: Reminder(enabled: true),
+        );
+
+        final decoded = roundTrip(original, format, UpdatePlanRequest.new);
+
+        expect(decoded.reminder.enabled, isTrue);
+        expect(decoded.reminder.hasLeadDays(), isFalse);
+        expect(decoded, original);
+      });
+
       test('a confirmation keeps its plan link, and an unset override stays unset', () {
         final response = ConfirmOccurrenceResponse(
           occurrence: PlanOccurrence(

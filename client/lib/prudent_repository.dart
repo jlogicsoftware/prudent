@@ -346,9 +346,13 @@ class PrudentRepository {
   Future<ZenResult<ListPlansResponse>> listPlans() =>
       _client.get<ListPlansResponse>(ListPlansResponse.new, _plansPath);
 
+  /// A plan's `reminder` is a setting only (M5, jlogicsoftware/prudent#40): absent means disabled,
+  /// one day ahead; a lead time outside the supported set is refused (400), never rounded.
   Future<ZenResult<Plan>> createPlan(CreatePlanRequest request) =>
       _client.post<Plan>(Plan.new, _plansPath, body: request);
 
+  /// A full replacement: a request without a `reminder` resets it to the default, so send back the
+  /// one that was read.
   Future<ZenResult<Plan>> updatePlan(String id, UpdatePlanRequest request) =>
       _client.put<Plan>(Plan.new, '$_plansPath/$id', body: request);
 

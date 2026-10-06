@@ -6,6 +6,7 @@ import java.util.List;
 import prudent.proto.v1.ListPlansResponse;
 import prudent.proto.v1.Plan;
 import prudent.proto.v1.Recurrence;
+import prudent.proto.v1.Reminder;
 
 /**
  * Maps {@link PlanEntity} to its wire {@link Plan} proto. Entity → proto only; the other direction
@@ -28,7 +29,8 @@ public class PlanMapper {
             .setCurrency(entity.currency)
             .setAccountId(entity.accountId.toString())
             .setCategoryId(entity.categoryId.toString())
-            .setRecurrence(toProto(entity.rule()));
+            .setRecurrence(toProto(entity.rule()))
+            .setReminder(toProto(entity.reminder()));
     if (entity.payee != null) {
       builder.setPayee(entity.payee);
     }
@@ -45,6 +47,14 @@ public class PlanMapper {
       builder.addPlans(toProto(entity));
     }
     return builder.build();
+  }
+
+  /** Always sets {@code lead_days}: a response states the setting in force, never "default". */
+  private static Reminder toProto(ReminderSetting setting) {
+    return Reminder.newBuilder()
+        .setEnabled(setting.enabled())
+        .setLeadDays(setting.leadDays())
+        .build();
   }
 
   private static Recurrence toProto(RecurrenceRule rule) {
