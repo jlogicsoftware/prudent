@@ -27,7 +27,9 @@
       "brace-expansion": "GHSA-mh99-v99m-4gvg, GHSA-rgw5-rvv9-x895, GHSA-6j4f-fj2g-mc7p, GHSA-qhr7-859c-m2p7 and GHSA-q2hr-2g5m-vwhr, via openapi-typescript > @redocly/openapi-core > minimatch. Build tooling only; same reasoning as zen_demo_admin.",
       "postcss": "GHSA-fxqj-rqcc-2cmp, same reasoning as zen_demo_admin.",
       "nanoid": "GHSA-2v37-7h3g-55p8, same reasoning as zen_demo_admin.",
-      "dompurify": "GHSA-p98j-92pf-mc4p (DOM XSS via an afterSanitize hook with IN_PLACE), via react-admin > ra-ui-materialui. Shipped in the bundle; the fix is a patch release."
+      "dompurify": "GHSA-p98j-92pf-mc4p (DOM XSS via an afterSanitize hook with IN_PLACE), via react-admin > ra-ui-materialui. Shipped in the bundle; the fix is a patch release.",
+      "source-map-js": "GHSA-68fv-2mgg-jv7q (event-loop DoS through indexed source-map section offsets), via vite > postcss. Build tooling only; the fix is a patch release.",
+      "decode-uri-component": "GHSA-vcc3-ghjq-m6fr (DoS by exponential decoding of malformed percent-encoded input), via ra-data-simple-rest > query-string. Shipped in the bundle."
     },
     "overrides": {
       "react-router": "^8.3.0",
@@ -35,7 +37,9 @@
       "brace-expansion": "^2.1.7",
       "postcss": "^8.5.23",
       "nanoid": "^3.3.18",
-      "dompurify": "^3.4.16"
+      "dompurify": "^3.4.16",
+      "source-map-js": "^1.2.2",
+      "decode-uri-component": "^0.5.0"
     }
   },
   "devDependencies": {

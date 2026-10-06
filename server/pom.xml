@@ -76,7 +76,7 @@
   <packaging>quarkus</packaging>
 
   <!--
-    A single dependency-version override, taken here rather than reported upstream. task audit
+    Dependency-version overrides, taken here rather than reported upstream. task audit
     (docs/prudent-migration-plan.md Phase 5 §4) found io.netty:netty-codec-http:4.1.136.Final —
     pinned transitively by Quarkus 3.38.0's own BOM in zen-parent — vulnerable to GHSA-8c42-7qj2-3j46
     (CorsHandler overwriting an existing Vary header, enabling cache poisoning). Fixed in
@@ -86,9 +86,25 @@
     the vulnerable class (io.netty.handler.codec.http.cors.CorsHandler) is not one Quarkus's own CORS
     handling routes through, but a patch release costs nothing and closes the finding outright rather
     than arguing the exploit path is unreachable in a suppressions file.
+
+    Jackson is the second: zen-parent pins jackson-bom 2.22.1, which task audit reports against seven
+    advisories in jackson-core and jackson-databind (GHSA-7hhh-6rmp-j9qf, GHSA-p6pp-m3f8-5c89,
+    GHSA-cxp5-3px4-pw24, GHSA-gx83-3vf8-gh7j, GHSA-q4xh-88c3-wmh7, GHSA-wjgm-6hv5-3cvf,
+    GHSA-wv8q-qhhj-9h54), every one fixed in 2.22.3. Jackson reaches Prudent only through
+    zen-identity's outbound client; there is deliberately no server-side quarkus-rest-jackson. The
+    whole BOM rather than one artifact, because core, databind and annotations are released together
+    and mixing them is how a NoSuchMethodError arrives months later. Drop this import once zen-parent
+    manages 2.22.3 or later.
   -->
   <dependencyManagement>
     <dependencies>
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>2.22.3</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-codec-http</artifactId>
