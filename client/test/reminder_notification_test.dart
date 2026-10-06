@@ -27,7 +27,13 @@ import 'package:zen_transport/zen_transport.dart';
 /// A device: whether it can schedule, whether the user has allowed notifications, what a prompt
 /// would be answered with, and what was scheduled — keyed by id, as a real one is.
 class _FakeGateway implements LocalNotificationGateway {
-  _FakeGateway({this.supported = true, this.allowed = false, this.userAnswer = true});
+  _FakeGateway({
+    this.supported = true,
+    this.allowed = false,
+    this.userAnswer = true,
+    this.scheduleDelay = Duration.zero,
+    this.failNextSchedule = false,
+  });
 
   final bool supported;
   bool allowed;
@@ -35,9 +41,14 @@ class _FakeGateway implements LocalNotificationGateway {
   /// What the user says when the prompt appears.
   final bool userAnswer;
 
+  /// How long a schedule call takes, so two passes can overlap.
+  final Duration scheduleDelay;
+  bool failNextSchedule;
+
   int prompts = 0;
   int permissionChecks = 0;
   int scheduleCalls = 0;
+  int cancelCalls = 0;
   final Map<int, ReminderNotification> held = {};
 
   @override
@@ -59,7 +70,21 @@ class _FakeGateway implements LocalNotificationGateway {
   @override
   Future<void> schedule(ReminderNotification notification) async {
     scheduleCalls++;
+    if (failNextSchedule) {
+      failNextSchedule = false;
+      throw StateError('the device refused');
+    }
+    await Future<void>.delayed(scheduleDelay);
     held[notification.id] = notification;
+  }
+
+  @override
+  Future<Set<int>> pendingIds() async => held.keys.toSet();
+
+  @override
+  Future<void> cancel(int id) async {
+    cancelCalls++;
+    held.remove(id);
   }
 }
 
@@ -255,7 +280,7 @@ void main() {
     test('does not touch a platform that cannot schedule, nor ask it anything', () async {
       final gateway = _FakeGateway(supported: false);
 
-      final result = await ReminderNotificationScheduler(gateway).schedule([one('o1')]);
+      final result = await ReminderNotificationScheduler(gateway).reconcile([one('o1')]);
 
       expect(result.outcome, ReminderNotificationOutcome.unsupported);
       expect(gateway.permissionChecks, 0);
@@ -266,7 +291,7 @@ void main() {
     test('asks for no permission when there is nothing to remind of', () async {
       final gateway = _FakeGateway();
 
-      final result = await ReminderNotificationScheduler(gateway).schedule(const []);
+      final result = await ReminderNotificationScheduler(gateway).reconcile(const []);
 
       expect(result.outcome, ReminderNotificationOutcome.nothingToSchedule);
       expect(gateway.permissionChecks, 0);
@@ -276,7 +301,7 @@ void main() {
     test('does not prompt a user who has already allowed notifications', () async {
       final gateway = _FakeGateway(allowed: true);
 
-      final result = await ReminderNotificationScheduler(gateway).schedule([one('o1'), one('o2')]);
+      final result = await ReminderNotificationScheduler(gateway).reconcile([one('o1'), one('o2')]);
 
       expect(result.outcome, ReminderNotificationOutcome.scheduled);
       expect(result.scheduled, 2);
@@ -287,7 +312,7 @@ void main() {
     test('prompts once there is a reminder to deliver, and schedules when it is granted', () async {
       final gateway = _FakeGateway();
 
-      final result = await ReminderNotificationScheduler(gateway).schedule([one('o1')]);
+      final result = await ReminderNotificationScheduler(gateway).reconcile([one('o1')]);
 
       expect(gateway.prompts, 1);
       expect(result.outcome, ReminderNotificationOutcome.scheduled);
@@ -298,8 +323,8 @@ void main() {
       final gateway = _FakeGateway(userAnswer: false);
       final scheduler = ReminderNotificationScheduler(gateway);
 
-      final first = await scheduler.schedule([one('o1')]);
-      final second = await scheduler.schedule([one('o1')]);
+      final first = await scheduler.reconcile([one('o1')]);
+      final second = await scheduler.reconcile([one('o1')]);
 
       expect(first.outcome, ReminderNotificationOutcome.denied);
       expect(second.outcome, ReminderNotificationOutcome.denied);
@@ -307,12 +332,94 @@ void main() {
       expect(gateway.scheduleCalls, 0);
     });
 
+    test('cancels what is pending but no longer wanted, and keeps what still is', () async {
+      final gateway = _FakeGateway(allowed: true);
+      final scheduler = ReminderNotificationScheduler(gateway);
+      await scheduler.reconcile([one('o1'), one('o2')]);
+
+      final result = await scheduler.reconcile([one('o2')]);
+
+      expect(result.outcome, ReminderNotificationOutcome.scheduled);
+      expect(result.cancelled, 1);
+      expect(gateway.held.keys, [reminderNotificationId('o2')]);
+    });
+
+    test('cancels everything when nothing is wanted any more, without asking for permission', () async {
+      final gateway = _FakeGateway(allowed: true);
+      final scheduler = ReminderNotificationScheduler(gateway);
+      await scheduler.reconcile([one('o1')]);
+      gateway.allowed = false;
+
+      final result = await scheduler.reconcile(const []);
+
+      expect(result.outcome, ReminderNotificationOutcome.nothingToSchedule);
+      expect(result.cancelled, 1);
+      expect(gateway.held, isEmpty);
+      expect(gateway.prompts, 0);
+    });
+
+    test('cancels what is stale even when the user has since refused notifications', () async {
+      final gateway = _FakeGateway(userAnswer: false, allowed: true);
+      final scheduler = ReminderNotificationScheduler(gateway);
+      await scheduler.reconcile([one('o1')]);
+      gateway.allowed = false;
+
+      final result = await scheduler.reconcile([one('o2')]);
+
+      expect(result.outcome, ReminderNotificationOutcome.denied);
+      expect(result.cancelled, 1);
+      expect(gateway.held, isEmpty);
+    });
+
+    test('a pass repeated cancels nothing the second time', () async {
+      final gateway = _FakeGateway(allowed: true);
+      final scheduler = ReminderNotificationScheduler(gateway);
+      await scheduler.reconcile([one('o1'), one('o2')]);
+
+      await scheduler.reconcile([one('o2')]);
+      final again = await scheduler.reconcile([one('o2')]);
+
+      expect(again.cancelled, 0);
+      expect(gateway.cancelCalls, 1);
+      expect(gateway.held, hasLength(1));
+    });
+
+    test('does not cancel on a platform that cannot schedule', () async {
+      final gateway = _FakeGateway(supported: false);
+
+      await ReminderNotificationScheduler(gateway).reconcile(const []);
+
+      expect(gateway.cancelCalls, 0);
+    });
+
+    test('passes run one after another, so the later one is the last word', () async {
+      final gateway = _FakeGateway(allowed: true, scheduleDelay: const Duration(milliseconds: 20));
+      final scheduler = ReminderNotificationScheduler(gateway);
+
+      final first = scheduler.reconcile([one('o1')]);
+      final second = scheduler.reconcile([one('o2')]);
+      await Future.wait([first, second]);
+
+      expect(gateway.held.keys, [reminderNotificationId('o2')]);
+    });
+
+    test('a failed pass does not stop the next one', () async {
+      final gateway = _FakeGateway(allowed: true, failNextSchedule: true);
+      final scheduler = ReminderNotificationScheduler(gateway);
+
+      await expectLater(scheduler.reconcile([one('o1')]), throwsA(isA<StateError>()));
+      final next = await scheduler.reconcile([one('o1')]);
+
+      expect(next.outcome, ReminderNotificationOutcome.scheduled);
+      expect(gateway.held, hasLength(1));
+    });
+
     test('is idempotent: the same pass twice leaves one notification each', () async {
       final gateway = _FakeGateway(allowed: true);
       final scheduler = ReminderNotificationScheduler(gateway);
 
-      await scheduler.schedule([one('o1'), one('o2')]);
-      await scheduler.schedule([one('o1'), one('o2')]);
+      await scheduler.reconcile([one('o1'), one('o2')]);
+      await scheduler.reconcile([one('o1'), one('o2')]);
 
       expect(gateway.scheduleCalls, 4);
       expect(gateway.held, hasLength(2));
@@ -431,4 +538,258 @@ void main() {
       expect(gateway.scheduleCalls, 0);
     });
   });
+
+  group('reconciliation after a change', () {
+    final server = _Server();
+    late _FakeGateway gateway;
+    late ProviderContainer c;
+
+    ProviderContainer start({Map<int, ReminderNotification>? pending}) {
+      gateway = _FakeGateway(allowed: true);
+      if (pending != null) gateway.held.addAll(pending);
+      final client = ZenClient(
+        baseUrl: 'https://example.test',
+        format: ZenTransportFormat.json,
+        httpClient: MockClient(server.handle),
+      );
+      c = ProviderContainer(
+        retry: (_, _) => null,
+        overrides: [
+          prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
+          localNotificationGatewayProvider.overrideWithValue(gateway),
+          reminderNotificationClockProvider.overrideWithValue(() => now),
+        ],
+      );
+      addTearDown(c.dispose);
+      // Held alive as the signed-in shell holds it.
+      c.listen(reminderNotificationSyncProvider, (_, _) {});
+      return c;
+    }
+
+    /// The pass that follows a change, once it has finished.
+    Future<ReminderNotificationResult> settled() async {
+      await Future<void>.delayed(Duration.zero);
+      return c.read(reminderNotificationSyncProvider.future);
+    }
+
+    Set<String> held() => gateway.held.values.map((n) => n.occurrenceId).toSet();
+
+    setUp(server.reset);
+
+    test('on sign-in, schedules what is wanted and cancels what an older version left behind', () async {
+      final stale = ReminderNotification(
+        id: reminderNotificationId('gone'),
+        occurrenceId: 'gone',
+        fireAt: DateTime(2026, 10, 18, 9),
+        title: 'old',
+        body: 'old',
+        channelName: 'old',
+      );
+      final outdated = ReminderNotification(
+        id: reminderNotificationId('o1'),
+        occurrenceId: 'o1',
+        fireAt: DateTime(2026, 10, 1, 9),
+        title: 'old',
+        body: 'old',
+        channelName: 'old',
+      );
+      start(pending: {stale.id: stale, outdated.id: outdated});
+
+      final result = await settled();
+
+      expect(result.cancelled, 1);
+      expect(held(), {'o1', 'o2'});
+      expect(gateway.held[outdated.id]!.fireAt, DateTime(2026, 10, 18, 9));
+      expect(gateway.held[outdated.id]!.body, 'Rent on Oct 20, 2026');
+    });
+
+    test('skipping cancels the notification, and restoring schedules it again', () async {
+      start();
+      await settled();
+      expect(held(), {'o1', 'o2'});
+
+      await c.read(occurrenceActionsProvider).skip('o1');
+      expect((await settled()).cancelled, 1);
+      expect(held(), {'o2'});
+
+      await c.read(occurrenceActionsProvider).restore('o1');
+      await settled();
+      expect(held(), {'o1', 'o2'});
+    });
+
+    test('confirming cancels the notification', () async {
+      start();
+      await settled();
+
+      await c.read(occurrenceActionsProvider).confirm('o2');
+      await settled();
+
+      expect(held(), {'o1'});
+    });
+
+    test('deleting the record that confirmed an occurrence reschedules it', () async {
+      server.records = [
+        {'id': 'rec-1', 'planOccurrenceId': 'o1'},
+        {'id': 'rec-2'},
+      ];
+      server.occurrences[0]['status'] = 'OCCURRENCE_STATUS_COMPLETED';
+      start();
+      await settled();
+      expect(held(), {'o2'});
+      await c.read(recordsProvider.future);
+      final passes = server.upcomingReads;
+
+      // A record no occurrence made changes nothing a notification reads.
+      await c.read(recordsProvider.notifier).removeRecord('rec-2');
+      await settled();
+      expect(server.upcomingReads, passes);
+
+      server.occurrences[0]['status'] = 'OCCURRENCE_STATUS_PLANNED';
+      await c.read(recordsProvider.notifier).removeRecord('rec-1');
+      await settled();
+      expect(held(), {'o1', 'o2'});
+    });
+
+    test('editing a plan reschedules for its new lead time, and switching the reminder off cancels', () async {
+      start();
+      await settled();
+
+      server.leadDays = 5;
+      await c.read(planActionsProvider).update('plan-1', UpdatePlanRequest());
+      await settled();
+      expect(gateway.held.values.map((n) => n.fireAt).toSet(), {DateTime(2026, 10, 15, 9), DateTime(2026, 10, 16, 9)});
+      expect(gateway.held, hasLength(2));
+
+      server.reminderEnabled = false;
+      await c.read(planActionsProvider).update('plan-1', UpdatePlanRequest());
+      final result = await settled();
+
+      expect(result.outcome, ReminderNotificationOutcome.nothingToSchedule);
+      expect(gateway.held, isEmpty);
+      expect(gateway.prompts, 0);
+    });
+
+    test('deleting a plan cancels the notifications of its occurrences', () async {
+      start();
+      await settled();
+
+      server.plans.clear();
+      await c.read(planActionsProvider).delete('plan-1');
+      await settled();
+
+      expect(gateway.held, isEmpty);
+    });
+
+    test('creating a plan schedules its notifications', () async {
+      server.plans.clear();
+      start();
+      await settled();
+      expect(gateway.held, isEmpty);
+
+      server.addPlan();
+      await c.read(planActionsProvider).create(CreatePlanRequest());
+      await settled();
+
+      expect(held(), {'o1', 'o2'});
+    });
+
+    test('a pass repeated for the same state changes nothing on the device', () async {
+      start();
+      await settled();
+      final before = Map.of(gateway.held);
+
+      c.read(reminderScheduleRevisionProvider.notifier).bump();
+      await settled();
+      c.read(reminderScheduleRevisionProvider.notifier).bump();
+      final last = await settled();
+
+      expect(gateway.held, before);
+      expect(last.cancelled, 0);
+    });
+
+    test('a pass superseded while it reads leaves the device to the one that replaced it', () async {
+      start();
+      c.read(reminderScheduleRevisionProvider.notifier).bump();
+      c.read(reminderScheduleRevisionProvider.notifier).bump();
+
+      final result = await settled();
+
+      expect(result.outcome, ReminderNotificationOutcome.scheduled);
+      expect(held(), {'o1', 'o2'});
+      expect(gateway.cancelCalls, 0);
+    });
+  });
+}
+
+/// A server whose plans and occurrences can be changed under a test, answering the routes the
+/// reconciliation reads and the actions write.
+class _Server {
+  late List<Map<String, Object?>> plans;
+  late List<Map<String, Object?>> occurrences;
+  late List<Map<String, Object?>> records;
+  bool reminderEnabled = true;
+  int leadDays = 2;
+  int upcomingReads = 0;
+
+  void reset() {
+    reminderEnabled = true;
+    leadDays = 2;
+    upcomingReads = 0;
+    records = [];
+    plans = [];
+    addPlan();
+    occurrences = [_occurrenceJson('o1', '2026-10-20'), _occurrenceJson('o2', '2026-10-21')];
+  }
+
+  void addPlan() => plans.add({'id': 'plan-1', 'title': 'Rent', 'currency': 'PLN'});
+
+  Map<String, Object?> _occurrenceJson(String id, String date) => {
+    'id': id,
+    'planId': 'plan-1',
+    'occurrenceDate': date,
+    'status': 'OCCURRENCE_STATUS_PLANNED',
+    'title': 'Rent',
+    'amountMinor': '-250000',
+    'currency': 'PLN',
+  };
+
+  Map<String, Object?> _occurrence(String id) => occurrences.firstWhere((o) => o['id'] == id);
+
+  Future<http.Response> handle(http.Request request) async {
+    const headers = {'X-Zen-Transport': 'json'};
+    http.Response ok(Object? body) => http.Response(jsonEncode(body), 200, headers: headers);
+
+    final path = request.url.path;
+    final method = request.method;
+    if (path == '/api/v1/plans' && method == 'GET') {
+      return ok({
+        'plans': [
+          for (final plan in plans) {...plan, 'reminder': {'enabled': reminderEnabled, 'leadDays': leadDays}},
+        ],
+      });
+    }
+    if (path == '/api/v1/plans' && method == 'POST') return ok(plans.isEmpty ? {'id': 'plan-1'} : plans.first);
+    if (path == '/api/v1/plans/plan-1') return ok({'id': 'plan-1'});
+    if (path == '/api/v1/occurrences/upcoming') {
+      upcomingReads++;
+      return ok({'occurrences': occurrences});
+    }
+    if (path == '/api/v1/occurrences/overdue') return ok({'occurrences': <Object>[]});
+    if (path == '/api/v1/records' && method == 'GET') return ok({'records': records});
+    if (path.startsWith('/api/v1/records/') && method == 'DELETE') {
+      return ok({'id': path.split('/').last});
+    }
+
+    final action = RegExp(r'^/api/v1/occurrences/([^/]+)/(skip|restore|confirm)$').firstMatch(path);
+    if (action != null && method == 'POST') {
+      final occurrence = _occurrence(action.group(1)!);
+      occurrence['status'] = switch (action.group(2)) {
+        'skip' => 'OCCURRENCE_STATUS_SKIPPED',
+        'restore' => 'OCCURRENCE_STATUS_PLANNED',
+        _ => 'OCCURRENCE_STATUS_COMPLETED',
+      };
+      return ok(action.group(2) == 'confirm' ? {'occurrence': occurrence, 'record': {'id': 'rec-new'}} : occurrence);
+    }
+    return http.Response('unexpected $method $path', 500);
+  }
 }

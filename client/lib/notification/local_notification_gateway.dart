@@ -21,4 +21,12 @@ abstract interface class LocalNotificationGateway {
   /// Schedules [notification] for its [ReminderNotification.fireAt]. The same
   /// [ReminderNotification.id] replaces what was scheduled under it.
   Future<void> schedule(ReminderNotification notification);
+
+  /// The ids of the notifications this app has scheduled that have not yet been shown. Every
+  /// notification the app schedules is a reminder's ([ReminderNotification.id]), so this is what
+  /// reconciliation compares against what should be pending.
+  Future<Set<int>> pendingIds();
+
+  /// Cancels the pending notification [id]. Cancelling one that is not pending is not an error.
+  Future<void> cancel(int id);
 }

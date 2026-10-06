@@ -20,4 +20,10 @@ class _UnsupportedGateway implements LocalNotificationGateway {
   @override
   Future<void> schedule(ReminderNotification notification) =>
       throw UnsupportedError('Local notifications cannot be scheduled on this platform');
+
+  @override
+  Future<Set<int>> pendingIds() async => const {};
+
+  @override
+  Future<void> cancel(int id) => throw UnsupportedError('Local notifications cannot be cancelled on this platform');
 }

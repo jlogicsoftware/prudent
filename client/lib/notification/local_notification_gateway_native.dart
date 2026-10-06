@@ -26,6 +26,12 @@ class _UnsupportedGateway implements LocalNotificationGateway {
   @override
   Future<void> schedule(ReminderNotification notification) =>
       throw UnsupportedError('Local notifications cannot be scheduled on this platform');
+
+  @override
+  Future<Set<int>> pendingIds() async => const {};
+
+  @override
+  Future<void> cancel(int id) => throw UnsupportedError('Local notifications cannot be cancelled on this platform');
 }
 
 class _PluginGateway implements LocalNotificationGateway {
@@ -126,5 +132,18 @@ class _PluginGateway implements LocalNotificationGateway {
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       payload: notification.occurrenceId,
     );
+  }
+
+  @override
+  Future<Set<int>> pendingIds() async {
+    await _initialize();
+    final pending = await _plugin.pendingNotificationRequests();
+    return {for (final request in pending) request.id};
+  }
+
+  @override
+  Future<void> cancel(int id) async {
+    await _initialize();
+    await _plugin.cancel(id: id);
   }
 }

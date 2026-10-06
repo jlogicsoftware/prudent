@@ -13,6 +13,69 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-057 — Notifications are reconciled to what the server says now, not patched by what changed
+
+**Date:** 2026-10-06. **Status:** accepted. **Follows:** ADR-056 (what is scheduled, its id, and the known gap this closes),
+ADR-055 (what a reminder is), ADR-054 (the setting), ADR-040 (deleting a confirming record reopens the occurrence), ADR-045
+(what can be calculated is never stored).
+
+### Decision
+
+The fourth M5 task (jlogicsoftware/prudent#70 — "edits, confirmation, skip, login and app update reschedule or cancel
+notifications idempotently") closes the gap ADR-056 stated: a notification scheduled for an occurrence that has since
+been skipped, confirmed or whose plan was edited could still fire.
+
+- **A pass reconciles; it does not react.** Each pass computes the *whole* wanted set from the plans and the upcoming
+  window as they are now (ADR-056's rules), reads the ids the device has pending, **cancels every pending id that is not
+  wanted** and schedules every wanted one. It never asks what changed, so one rule covers a skip, a confirmation, a plan
+  edit or delete, a switched-off reminder, a changed lead time and a notification an older app version left behind — and a
+  change the client did not make (another device, the admin panel) is repaired by the next pass rather than missed. The
+  alternative, a cancel per kind of change, needs a case for each way the server can change and drifts the day one is added.
+- **Idempotent by construction.** Scheduling replaces what the device holds under an id (ADR-056); cancelling leaves nothing
+  to cancel the second time. Repeating a pass for the same state changes nothing on the device.
+- **Cancelling needs no permission and comes first.** Stale notifications are cancelled before permission is considered, so
+  a reminder switched off, or a plan deleted, stops firing when nothing is left to schedule, and when the user has since
+  refused notifications. The permission rules of ADR-056 are unchanged: asked for only when something is to be scheduled.
+- **When a pass runs.** On every build of the signed-in shell — a sign-in, a launch with a saved session, and so the first
+  launch after an app update, which is how an update replaces what the old version scheduled (the new version's text and
+  times win by id) — and again whenever `reminderScheduleRevisionProvider` changes. That counter is bumped by skipping,
+  restoring and confirming an occurrence (`OccurrenceActions`), by creating, editing and deleting a plan (the new
+  `PlanActions`, which a plan screen will use and the repository methods are not to be called around), and by deleting a
+  record that has a `plan_occurrence_id`, since that reopens the occurrence. It lives beside what changes in `providers.dart`
+  so that code does not import the notification code that reacts to it. A record with no occurrence, an account or a
+  category changes nothing a notification reads and does not trigger a pass.
+- **Passes are queued and a stale one stands down.** The scheduler runs passes one after another (a pass spans several awaits;
+  two interleaved could leave the older one's notifications behind), and a pass whose provider was invalidated while it was
+  still reading returns `superseded` without touching the device.
+- **The gateway gained `pendingIds()` and `cancel(id)`.** Every notification the app schedules is a reminder's, so "pending"
+  is exactly the set to compare. The result of a pass now also says how many it cancelled.
+
+### What this does not decide
+
+- **The window moving with time.** A pass runs on launch and on a change, not on a clock: an app left open for days does not
+  reschedule as its 30-day window or the 60-notification cap moves, and a notification that fired stays delivered. The next
+  launch repairs it.
+- **Windows without a package identity.** ADR-056 recorded that the plugin's `cancel` does nothing for an unpackaged Windows
+  app; on such a build a stale notification can still fire. Not worked around here.
+- **Explaining a refusal or an unsupported platform** — the next task; the pass returns the outcome for it.
+
+### Consequence
+
+Verified by `reminder_notification_test.dart` against a fake device and a mock server whose plans and occurrences change
+under the test: the scheduler cancelling what is pending and not wanted and keeping what is, cancelling everything with no
+prompt when nothing is wanted or permission has since been refused, not cancelling twice, doing nothing on an unsupported
+platform, running overlapping passes in order, and surviving a failed pass; and, through the real repository and actions,
+sign-in cancelling an older version's leftovers and replacing an outdated one by id, skip cancelling and restore
+rescheduling, confirmation cancelling, deleting a confirming record rescheduling (and deleting any other record not
+running a pass), a plan edit moving the notifications and switching the reminder off cancelling them, a plan deleted and a
+plan created, a repeated pass changing nothing, and a superseded pass leaving the device to its replacement. Removing the
+trigger makes five of these fail.
+
+**Not verified, as in ADR-056:** nothing was cancelled or delivered on a device or simulator; "cancelled" means the plugin
+was asked without an error. `pendingNotificationRequests` on each platform is the plugin's own and was not exercised.
+
+---
+
 ## ADR-056 — A local notification is a reminder date turned into a device time; it carries no amount, and permission is asked for only when one is waiting
 
 **Date:** 2026-10-06. **Status:** accepted. **Follows:** ADR-055 (what a due reminder is, and that nothing about one is
