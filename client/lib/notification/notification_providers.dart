@@ -4,9 +4,11 @@ import '../l10n/generated/prudent_localizations.dart';
 import '../providers.dart';
 import 'local_notification_gateway.dart';
 import 'local_notification_gateway_factory.dart';
+import 'notification_permission_memory.dart';
 import 'plan_reminder_notifications.dart';
 import 'reminder_notification_outcome.dart';
 import 'reminder_notification_scheduler.dart';
+import 'shared_preferences_permission_memory.dart';
 
 /// The device's notification facility. Overridden in tests with a fake, so no test reaches a
 /// plugin.
@@ -14,8 +16,18 @@ final localNotificationGatewayProvider = Provider<LocalNotificationGateway>(
   (ref) => createLocalNotificationGateway(),
 );
 
+/// Whether the user has already been asked for notification permission, kept across launches so a
+/// refusal is not prompted again (ADR-058). Overridden in tests, which would otherwise reach the
+/// platform's preferences.
+final notificationPermissionMemoryProvider = Provider<NotificationPermissionMemory>(
+  (ref) => const SharedPreferencesPermissionMemory(),
+);
+
 final reminderNotificationSchedulerProvider = Provider<ReminderNotificationScheduler>(
-  (ref) => ReminderNotificationScheduler(ref.watch(localNotificationGatewayProvider)),
+  (ref) => ReminderNotificationScheduler(
+    ref.watch(localNotificationGatewayProvider),
+    memory: ref.watch(notificationPermissionMemoryProvider),
+  ),
 );
 
 /// The moment "now" is for working out which reminders are still ahead. Overridden in tests.

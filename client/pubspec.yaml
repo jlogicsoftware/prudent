@@ -77,6 +77,9 @@ dependencies:
   flutter_local_notifications: ^22.3.1
   timezone: ^0.11.1
   flutter_timezone: ^5.1.1
+  # One fact is kept across launches: that the notification permission has been asked for, so a
+  # refusal is respected rather than prompted again (ADR-058). Not secret, so not the keystore.
+  shared_preferences: ^2.5.6
 
 dev_dependencies:
   flutter_test:

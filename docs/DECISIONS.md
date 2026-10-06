@@ -13,6 +13,56 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-058 — A refusal or an unsupported platform is explained where reminders are read, and a refusal is remembered across launches
+
+**Date:** 2026-10-06. **Status:** accepted. **Follows:** ADR-057 (the pass returns an outcome "for the next task"),
+ADR-056 (permission is asked for only when a reminder is waiting), ADR-055 (the in-app reminder centre), ADR-054 (the setting).
+
+### Decision
+
+The last M5 task (jlogicsoftware/prudent#71 — "explain platform limitations and retain the in-app reminder path without
+repeated permission prompts") makes the two outcomes ADR-057 only returned visible, and closes the way a prompt could repeat.
+
+- **The reminder centre says why.** `NotificationNotice` sits above the list in `RemindersScreen` and reads the outcome of
+  `reminderNotificationSyncProvider`: for `unsupported` ("this device can't show reminders as notifications; they appear
+  here") and for `denied` ("notifications are turned off for Prudent, so reminders appear only here; allow them in your
+  device's settings to get them too"). It is silent for every other outcome, while the pass is running, and when the pass
+  failed — a failed read of the plans is that provider's own error state and is not a reason to talk about permissions. It is
+  shown with an empty list too, because on the web and Linux the centre is all the user has. It has no button: it explains,
+  it does not ask. The strings are in `en`, `uk` and `pl`.
+- **The in-app path never depended on the device.** `remindersProvider` reads the server (ADR-055) and the notice only adds a
+  line above it; nothing in this change gates a reminder on a permission or a platform.
+- **A refusal is remembered across launches.** ADR-056 remembered "already asked" in the scheduler, so once per session. A
+  `NotificationPermissionMemory` port now holds it, implemented over `shared_preferences` (one boolean, not secret, so not
+  the keystore). The scheduler asks only when permission is absent **and** the user has not been asked, and records the ask
+  **before** showing the prompt, so a launch that ends with the prompt on screen has still asked. A grant made later in the
+  system's settings is seen by `hasPermission()` on the next pass and scheduled without a prompt — the memory only ever
+  suppresses the prompt, never the schedule.
+- **A new dependency, `shared_preferences`**, for that one fact. The scheduler defaults to an in-memory memory when none is
+  given, which is the old per-session behaviour and what tests that do not care use.
+
+### What this does not decide
+
+- **No "open settings" action.** Reaching the system's notification settings needs a platform call the gateway does not have;
+  the notice says where to go and leaves it there.
+- **A user asked before this change.** The memory starts empty, so someone who refused under ADR-056 can be asked once more
+  after updating. iOS and macOS answer a repeat request without a prompt; Android 13+ may show it once.
+- **The notice follows the pass, not the clock.** It changes when the pass runs again (a launch or a change of state), not the
+  moment the user flips the system setting.
+
+### Consequence
+
+Verified by `notification_notice_test.dart`: a refusal not prompted again by a later scheduler sharing the memory; the ask
+recorded even when the prompt throws; a later grant scheduled with no second prompt; an unsupported platform and an empty
+reminder set recording nothing; the preferences memory starting empty and keeping its value; and the notice's text for
+`unsupported` and `denied`, none for the other outcomes, a pending pass or a failed one, Polish wording, no control, and its
+position above the reminders (still listed) and above an empty list in the real `RemindersScreen`.
+
+**Not verified:** no prompt, refusal or settings change was seen on a device or simulator, and `shared_preferences` was
+exercised only through its test mock.
+
+---
+
 ## ADR-057 — Notifications are reconciled to what the server says now, not patched by what changed
 
 **Date:** 2026-10-06. **Status:** accepted. **Follows:** ADR-056 (what is scheduled, its id, and the known gap this closes),

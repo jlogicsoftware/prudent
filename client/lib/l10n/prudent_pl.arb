@@ -220,6 +220,8 @@
   "remindersOpen": "{count, plural, =0{Przypomnienia} one{Przypomnienia, 1 nieprzeczytane} few{Przypomnienia, {count} nieprzeczytane} many{Przypomnienia, {count} nieprzeczytanych} other{Przypomnienia, {count} nieprzeczytanego}}",
   "remindersSectionOverdue": "Zaległe",
   "remindersSectionDue": "Wkrótce",
+  "remindersNoticeUnsupported": "To urządzenie nie może pokazywać przypomnień jako powiadomień. Pojawiają się tutaj, w Prudent.",
+  "remindersNoticeDenied": "Powiadomienia są wyłączone dla Prudent, więc przypomnienia pojawiają się tylko tutaj. Aby otrzymywać je także jako powiadomienia, zezwól na nie w ustawieniach urządzenia.",
   "remindersEmpty": "Brak przypomnień. Włącz przypomnienie w planie, aby dowiedzieć się o nim przed terminem.",
   "remindersLoadError": "Nie udało się wczytać przypomnień: {error}",
   "remindersMarkAllRead": "Oznacz wszystkie jako przeczytane",

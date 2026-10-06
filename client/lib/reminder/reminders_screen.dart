@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../generated/prudent/v1/reminders.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../notification/notification_notice.dart';
 import '../providers.dart';
 import 'reminder_figures.dart';
 import 'reminder_section.dart';
@@ -42,37 +44,51 @@ class RemindersScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: remindersAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(t.remindersLoadError(error.toString()))),
-        data: (reminders) {
-          if (reminders.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  t.remindersEmpty,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
+      body: Column(
+        children: [
+          const NotificationNotice(),
+          Expanded(child: _reminders(context, ref, t, remindersAsync)),
+        ],
+      ),
+    );
+  }
+
+  Widget _reminders(
+    BuildContext context,
+    WidgetRef ref,
+    PrudentLocalizations t,
+    AsyncValue<List<DueReminder>> remindersAsync,
+  ) {
+    return remindersAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => Center(child: Text(t.remindersLoadError(error.toString()))),
+      data: (reminders) {
+        if (reminders.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                t.remindersEmpty,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge,
               ),
-            );
-          }
-          final overdue = overdueReminders(reminders);
-          final due = dueReminders(reminders);
-          return RefreshIndicator(
-            onRefresh: () async => ref.refresh(remindersProvider.future),
-            child: ListView(
-              children: [
-                if (overdue.isNotEmpty)
-                  ReminderSection(title: t.remindersSectionOverdue, reminders: overdue),
-                if (due.isNotEmpty)
-                  ReminderSection(title: t.remindersSectionDue, reminders: due),
-              ],
             ),
           );
-        },
-      ),
+        }
+        final overdue = overdueReminders(reminders);
+        final due = dueReminders(reminders);
+        return RefreshIndicator(
+          onRefresh: () async => ref.refresh(remindersProvider.future),
+          child: ListView(
+            children: [
+              if (overdue.isNotEmpty)
+                ReminderSection(title: t.remindersSectionOverdue, reminders: overdue),
+              if (due.isNotEmpty)
+                ReminderSection(title: t.remindersSectionDue, reminders: due),
+            ],
+          ),
+        );
+      },
     );
   }
 }
