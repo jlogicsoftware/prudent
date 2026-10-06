@@ -1,5 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Brings scheduled reminder notifications back after a reboot. Deliberately NOT
+         SCHEDULE_EXACT_ALARM / USE_EXACT_ALARM: a reminder is for a day, so the inexact alarm is
+         used and the user is never sent to a special "alarms & reminders" setting. The permission
+         to *show* notifications (POST_NOTIFICATIONS) comes from the plugin and is requested at
+         runtime, only when a reminder is waiting. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
         android:label="prudent"
         android:name="${applicationName}"
@@ -53,6 +59,17 @@
                 <data android:scheme="prudent" android:host="auth-callback"/>
             </intent-filter>
         </activity>
+        <!-- flutter_local_notifications: shows a scheduled notification when its alarm fires, and
+             reschedules them after a reboot or an app update. -->
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
