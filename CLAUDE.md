@@ -127,8 +127,14 @@ past their date (in the plan's own calendar day) — nothing about a reminder is
 it, `prudent_plan_occurrence.reminder_read_at`. `read` / `unread` / `read-all` set it; a reminder ends when its
 occurrence is confirmed or skipped. The client's bell on the overview opens the centre — overdue, then due soon, unread
 said in words — and a reminder opens `OccurrenceDetailScreen`, the first client screen for an occurrence, where it can
-be confirmed as planned, skipped or restored. Local notifications, their reconciliation and the denied/unsupported
-path are the three tasks still to come, and with no plan screen yet nothing in the UI switches a reminder on.
+be confirmed as planned, skipped or restored. Local-device notifications (ADR-056, jlogicsoftware/prudent#69) are
+scheduled by `client/lib/notification/` on sign-in: each still-planned occurrence in the next 30 days whose plan's
+reminder is on and whose reminder date is still ahead becomes one notification at 09:00 device time, with no amount in
+its text, and the platform permission is asked for only when one is waiting (never at launch). It works on Android, iOS,
+macOS and Windows; the web and Linux report `unsupported`. Nothing reconciles them yet — an occurrence skipped, confirmed
+or edited after its notification was scheduled can still fire — and nothing explains a refusal or an unsupported
+platform: those are the two tasks still to come. No notification has been seen to fire on a device. With no plan screen
+yet nothing in the UI switches a reminder on.
 
 **Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
 exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the

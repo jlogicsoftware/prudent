@@ -316,6 +316,16 @@
     "placeholders": { "date": { "type": "String" } }
   },
   "reminderActionFailed": "The reminder was not updated.",
+  "reminderNotificationChannel": "Planned transaction reminders",
+  "reminderNotificationTitle": "Planned transaction due",
+  "reminderNotificationBody": "{title} on {date}",
+  "@reminderNotificationBody": {
+    "placeholders": { "title": { "type": "String" }, "date": { "type": "String" } }
+  },
+  "reminderNotificationBodyWithAmount": "{title}, {amount}, on {date}",
+  "@reminderNotificationBodyWithAmount": {
+    "placeholders": { "title": { "type": "String" }, "amount": { "type": "String" }, "date": { "type": "String" } }
+  },
   "occurrenceTitle": "Planned transaction",
   "occurrenceDate": "Date",
   "occurrenceAmount": "Amount",

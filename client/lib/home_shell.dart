@@ -6,6 +6,7 @@ import 'record/records_screen.dart';
 import 'analytics/analytics.dart';
 import 'budget/budget_overview_screen.dart';
 import 'goal/goals_screen.dart';
+import 'notification/notification_providers.dart';
 import 'overview/overview.dart';
 import 'settings.dart';
 import 'l10n/generated/prudent_localizations.dart';
@@ -25,6 +26,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final t = PrudentLocalizations.of(context);
+
+    // Schedules the device notifications for the plans' reminders on sign-in. Listened to rather
+    // than watched so its result never rebuilds the shell; the listener is what keeps the
+    // auto-disposed pass alive until it finishes.
+    ref.listen(reminderNotificationSyncProvider, (_, _) {});
 
     final items = [
       ZenNavigationItem(

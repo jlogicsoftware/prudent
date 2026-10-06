@@ -13,6 +13,102 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-056 — A local notification is a reminder date turned into a device time; it carries no amount, and permission is asked for only when one is waiting
+
+**Date:** 2026-10-06. **Status:** accepted. **Follows:** ADR-055 (what a due reminder is, and that nothing about one is
+stored), ADR-054 (the setting; off by default so the platform prompt follows something the user chose), ADR-045 (what can
+be calculated is never stored), ADR-038 (the occurrence window), ADR-009 (per currency, never blended).
+
+### Decision
+
+The third M5 task (jlogicsoftware/prudent#69 — "request permission only when needed and schedule a local notification
+with no sensitive amount in lock-screen text by default") schedules notifications on the device. It does not reconcile
+them after a change (the next task) and does not explain a refusal (the one after).
+
+- **What is scheduled: the reminders that are still ahead.** One notification for each still-`PLANNED` occurrence in the
+  next 30 days (`reminderNotificationHorizonDays`) whose plan's reminder is on and whose reminder date — the occurrence's
+  date less the plan's lead time, in calendar days — has not yet passed. The client reads `GET /plans` and
+  `GET /occurrences/upcoming` and joins them by `plan_id`. A reminder that has *already* fallen due is not scheduled: it is
+  in the centre (ADR-055), and a notification for a moment that has passed would only appear at once. **The client therefore
+  does one subtraction the server also does** (`date − lead_days`); it does not decide what is due, overdue or read, which
+  stay the server's. An endpoint that lists *future* reminders would remove even that, and is the better answer if the
+  reconciliation task needs the server's word for a date.
+- **The time of day is a device matter, fixed at 09:00 local** (`reminderNotificationHour`). A plan's reminder is in whole
+  days (ADR-054) and every date on a plan is in the plan's own zone (ADR-037), but a notification fires on the device in
+  the device's zone: the reminder's civil date at 09:00 wherever the phone is then. The date is built from calendar
+  fields, never by subtracting a `Duration`, so a daylight-saving change between the two dates cannot move it a day.
+- **A notification's id is a hash of its occurrence's id** (`reminderNotificationId`, FNV-1a, a non-negative 31-bit
+  integer — platforms identify one by a 32-bit int). The same occurrence always lands on the same id, so scheduling it
+  again *replaces* its notification: a repeated pass is idempotent without reading what the device already holds, which
+  is also the property reconciliation will need to cancel exactly the right one. Two occurrences colliding is possible
+  in principle (31 bits) and would make the later replace the earlier; at most 60 are scheduled at once, so the
+  probability is negligible and the cost is one missed notification, not a wrong one.
+- **No amount in the text by default.** A notification is shown on the lock screen, where anyone holding the phone can
+  read it. The title is generic ("Planned transaction due") and the body names the plan and its date ("Rent on Oct 20,
+  2026"); the amount is added only when `showAmounts` is passed (`planReminderNotifications`), which nothing sets yet —
+  there is no preference screen, and a switch that nothing reads would be a second source of truth about the setting.
+  **The plan's title is on the lock screen.** The task names amounts; a title can be as revealing ("Clinic"), so
+  hiding it too is a decision for when the preference exists, not one made here by silently dropping the one thing that
+  says which obligation is coming.
+- **Permission is requested only when a reminder is waiting.** `ReminderNotificationScheduler` asks the platform for
+  permission when it has at least one notification to deliver and the user has not already allowed them — never at
+  launch, never when no plan has a reminder on, and never on a platform that cannot deliver one. Initialising the
+  platform plugin does not prompt (the Darwin `request*Permission` flags are all off); only `requestPermission` does.
+  Once asked in a session, a refusal is accepted for that session and not asked again. **Across sessions it relies on the
+  platform**: iOS and macOS show the prompt once and answer "no" thereafter; Android 13+ shows it at most twice and then
+  answers "no". Persisting "the user declined" in the app (Android cannot tell "never asked" from "refused" with
+  `areNotificationsEnabled`) belongs to the denied/unsupported task, which is about exactly that.
+- **Where it works.** Android, iOS, macOS and Windows, through `flutter_local_notifications`. **Not the web** (browsers do not
+  show a notification for a page that is closed) **and not Linux** (the plugin has no scheduler API there): both answer
+  `unsupported` and the in-app centre is the path. The web build never reaches the plugin — the gateway is behind a
+  `dart.library.io` conditional import, as `app_links` is — and Linux is told by `Platform.isLinux` inside the native-only file.
+  Windows toasts need no grant (there is none to read), so `hasPermission` is true there; `cancel` does nothing for an
+  unpackaged Windows app (the plugin's limitation), which the reconciliation task has to know.
+- **Inexact alarms, no special permission.** Android schedules with `inexactAllowWhileIdle`, so the app neither declares
+  `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM` nor sends the user to the "alarms & reminders" setting that Android 14 turns
+  off by default; a reminder for a day does not need the minute. `RECEIVE_BOOT_COMPLETED` and the plugin's two receivers
+  are declared so notifications survive a reboot and an app update, and core-library desugaring is on, as the plugin
+  requires. iOS sets the `UNUserNotificationCenter` delegate, which the plugin documents, so one can be presented while
+  the app is open. **The iOS deployment target is now 15.0** (was 13.0): Flutter raised it when the plugins were added, because one of them
+  requires it, so an iPhone on iOS 13 or 14 can no longer install the app.
+- **When it runs.** `reminderNotificationSyncProvider` is listened to by `HomeShell`, so one pass runs on each sign-in and
+  is dropped on sign-out. It is **not** re-run after an edit, a confirmation, a skip, a language change or an app update:
+  those are the reconciliation task, and until it lands a notification already scheduled for an occurrence that has since
+  been skipped, confirmed or whose plan was edited **can still fire**. This is the known gap, stated rather than hidden.
+  Failure to read the plans or to schedule is the provider's error state (Riverpod retries it with backoff), not swallowed.
+- **At most 60 are scheduled at once** (`maxScheduledReminderNotifications`): iOS keeps 64 pending and drops the rest
+  silently. The nearest are kept; the later ones are scheduled by a later pass.
+
+### What this does not decide
+
+- **Reconciling after a change, and cancelling.** The next task. Nothing here cancels a notification.
+- **Explaining a refusal or a platform that cannot deliver, and not asking again across sessions.** The task after it; the
+  outcome (`unsupported`, `denied`, `scheduled`, `nothingToSchedule`) is returned by the pass so that screen can say so.
+- **Tapping a notification.** It opens the app; it does not open the occurrence. The payload carries the occurrence id for it.
+- **A preference for amounts or for the hour.** One setting each would be a client-local store the app does not have yet.
+
+### Consequence
+
+Verified by `reminder_notification_test.dart` against a fake device (no plugin is reached): the notification for a planned
+occurrence at 09:00 on its date less the lead time, a lead of 0 and one reaching back across a month end, an absent lead time
+being the contract's default of 1, the date holding across a daylight-saving change, a disabled or unknown plan and every
+non-planned status producing none, a reminder date that has passed (today included, to the minute) being left to the
+centre, nearest-first with a cap, a malformed date refused; the text carrying no amount or currency by default and the
+amount only when asked, and following the app language; the id being stable, 31-bit and distinct over 200 occurrences;
+the scheduler touching and prompting nothing on an unsupported platform or with nothing to remind of, not prompting a
+user who has allowed notifications, prompting once with a reminder waiting, scheduling nothing and not asking again after
+a refusal, and a repeated pass leaving one notification each; and the whole pass through the real `PrudentRepository`
+over a mock server (the plans and the upcoming window read, a skipped occurrence ignored, the horizon sent, no plans read
+on an unsupported platform, a failed read an error with nothing scheduled).
+
+**Not verified, and stated rather than implied:** no notification was delivered on a device or simulator. The plugin's
+scheduling, the permission prompt, the Android receivers and desugaring, the iOS delegate and the Windows toast were
+compiled where the toolchain allows (see the commit) but never seen to fire. A scheduled notification is a wall-clock
+event days away, and the dev loop cannot wait for it. Until someone runs it on a phone, "scheduled" means "handed to
+the plugin without an error", not "appeared".
+
+---
+
 ## ADR-055 — A reminder is an occurrence the server finds due; only "the user has read it" is stored
 
 **Date:** 2026-10-06. **Status:** accepted. **Follows:** ADR-054 (the plan's reminder setting, and "what a due reminder
