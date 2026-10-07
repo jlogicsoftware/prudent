@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_core/zen_core.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/categories.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
@@ -20,36 +21,37 @@ class CategoriesScreen extends ConsumerWidget {
     final categoriesAsync = ref.watch(categoriesProvider);
     final t = PrudentLocalizations.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(t.categoriesTitle),
-        actions: [
-          Popup(
-            popupLeading: const Icon(Icons.add),
-            popupBody: NewCategory(
-              onSave:
-                  ({
-                    required title,
-                    required iconKey,
-                    required description,
-                    required colorArgb,
-                  }) => ref
-                      .read(categoriesProvider.notifier)
-                      .addCategory(
-                        CreateCategoryRequest(
-                          title: title,
-                          iconKey: iconKey,
-                          description: description,
-                          colorArgb: colorArgb,
-                        ),
+    return ZenPageScaffold(
+      title: t.categoriesTitle,
+      actions: [
+        Popup(
+          icon: Icons.add,
+          label: t.addCategoryTooltip,
+          popupBody: NewCategory(
+            onSave:
+                ({
+                  required title,
+                  required iconKey,
+                  required description,
+                  required colorArgb,
+                }) => ref
+                    .read(categoriesProvider.notifier)
+                    .addCategory(
+                      CreateCategoryRequest(
+                        title: title,
+                        iconKey: iconKey,
+                        description: description,
+                        colorArgb: colorArgb,
                       ),
-            ),
+                    ),
           ),
-        ],
-      ),
+        ),
+      ],
       body: categoriesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(t.categoriesLoadError(error.toString()))),
+        loading: () => const Center(child: ZenProgressIndicator()),
+        error:
+            (error, _) =>
+                Center(child: Text(t.categoriesLoadError(error.toString()))),
         data: (categories) {
           if (categories.isEmpty) {
             return Center(child: Text(t.categoriesEmpty));
@@ -81,14 +83,19 @@ class CategoriesScreen extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(15),
                           onTap:
                               () => Navigator.of(context).push(
-                                MaterialPageRoute(builder: (ctx) => CategoryRecords(category: category)),
+                                MaterialPageRoute(
+                                  builder:
+                                      (ctx) =>
+                                          CategoryRecords(category: category),
+                                ),
                               ),
                           child: CategoryGridItem(category: category),
                         ),
                         Align(
                           alignment: Alignment.topRight,
                           child: Popup(
-                            popupLeading: const Icon(Icons.edit_outlined, size: 18),
+                            icon: Icons.edit_outlined,
+                            label: t.editCategoryTooltip,
                             popupBody: NewCategory(
                               initialCategory: category,
                               onSave:

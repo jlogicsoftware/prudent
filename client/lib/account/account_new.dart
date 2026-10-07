@@ -19,10 +19,10 @@ class AccountNew extends StatefulWidget {
 
 class _AccountNewState extends State<AccountNew> {
   final _formKey = GlobalKey<FormState>();
-  var _name = '';
+  final _nameController = TextEditingController();
   final _balance = TextEditingController(text: '0');
   var _balanceInvalid = false;
-  var _currency = 'PLN';
+  final _currencyController = TextEditingController(text: 'PLN');
   var _selectedType = AccountType.ACCOUNT_TYPE_CARD;
   var _isDefault = false;
   var _isActive = true;
@@ -32,6 +32,8 @@ class _AccountNewState extends State<AccountNew> {
 
   @override
   void dispose() {
+    _nameController.dispose();
+    _currencyController.dispose();
     _balance.dispose();
     super.dispose();
   }
@@ -44,18 +46,16 @@ class _AccountNewState extends State<AccountNew> {
     final minor = canonical == null ? null : parseMinorUnits(canonical);
     setState(() => _balanceInvalid = minor == null);
     if (!formValid || minor == null) return;
-    _formKey.currentState!.save();
-
     widget.onAddAccount(
       CreateAccountRequest(
-        name: _name,
+        name: _nameController.text,
         type: _selectedType,
         isDefault: _isDefault,
         isActive: _isActive,
         includeInTotal: _includeInTotal,
         includeInOverview: _includeInOverview,
         eligibleForGoals: _eligibleForGoals,
-        balances: [CurrencyBalance(currency: _currency, amountMinor: minor)],
+        balances: [CurrencyBalance(currency: _currencyController.text.toUpperCase(), amountMinor: minor)],
       ),
     );
     Navigator.pop(context);
@@ -78,10 +78,10 @@ class _AccountNewState extends State<AccountNew> {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 32.0),
         child: Column(
           children: [
-            TextFormField(
-              decoration: InputDecoration(labelText: t.accountNameField),
+            ZenTextField(
+              label: t.accountNameField,
+              controller: _nameController,
               validator: (value) => value == null || value.isEmpty ? t.accountNameRequired : null,
-              onSaved: (newValue) => _name = newValue ?? '',
             ),
             Row(
               children: [
@@ -99,12 +99,11 @@ class _AccountNewState extends State<AccountNew> {
                 const SizedBox(width: 16),
                 SizedBox(
                   width: 80,
-                  child: TextFormField(
-                    initialValue: _currency,
-                    decoration: InputDecoration(labelText: t.accountCurrencyField),
-                    textCapitalization: TextCapitalization.characters,
+                  child: ZenTextField(
+                    label: t.accountCurrencyField,
+                    controller: _currencyController,
                     maxLength: 3,
-                    onSaved: (newValue) => _currency = (newValue ?? 'PLN').toUpperCase(),
+                    textCapitalization: TextCapitalization.characters,
                   ),
                 ),
               ],

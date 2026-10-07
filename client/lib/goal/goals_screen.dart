@@ -35,40 +35,50 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
     final progress = ref.watch(goalProgressProvider).value ?? const {};
     final freeMoneyAsync = ref.watch(goalFreeMoneyProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(t.goalsTitle),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: t.goalNew,
-            onPressed:
-                () => showAdaptivePresentation<void>(context, builder: (_) => const GoalForm()),
-          ),
-        ],
-      ),
+    return ZenPageScaffold(
+      title: t.goalsTitle,
+      actions: [
+        ZenIconButton(
+          icon: Icons.add,
+          label: t.goalNew,
+          onPressed:
+              () => showAdaptivePresentation<void>(
+                context,
+                builder: (_) => const GoalForm(),
+              ),
+        ),
+      ],
       body: goalsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(t.goalsLoadError(error.toString()))),
+        loading: () => const Center(child: ZenProgressIndicator()),
+        error:
+            (error, _) => Center(child: Text(t.goalsLoadError(error.toString()))),
         data: (goals) {
           final shown = goalsWithStatus(goals, _status);
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
               freeMoneyAsync.when(
-                loading: () => const LinearProgressIndicator(),
-                error: (error, _) => Text(t.goalFreeMoneyLoadError(error.toString())),
+                loading: () => const Center(child: ZenProgressIndicator()),
+                error:
+                    (error, _) =>
+                        Text(t.goalFreeMoneyLoadError(error.toString())),
                 data: (currencies) => FreeMoneyCard(currencies: currencies),
               ),
               const SizedBox(height: 16),
               ZenSegmentedControl<GoalStatus>(
                 segments: [
-                  ZenSegment(value: GoalStatus.GOAL_STATUS_ACTIVE, label: t.goalSegmentActive),
+                  ZenSegment(
+                    value: GoalStatus.GOAL_STATUS_ACTIVE,
+                    label: t.goalSegmentActive,
+                  ),
                   ZenSegment(
                     value: GoalStatus.GOAL_STATUS_COMPLETED,
                     label: t.goalSegmentCompleted,
                   ),
-                  ZenSegment(value: GoalStatus.GOAL_STATUS_ARCHIVED, label: t.goalSegmentArchived),
+                  ZenSegment(
+                    value: GoalStatus.GOAL_STATUS_ARCHIVED,
+                    label: t.goalSegmentArchived,
+                  ),
                 ],
                 selected: _status,
                 onChanged: (status) => setState(() => _status = status),
@@ -92,9 +102,11 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                   goal: goal,
                   progress: progress[goal.id],
                   onTap:
-                      () => Navigator.of(
-                        context,
-                      ).push(MaterialPageRoute(builder: (_) => GoalDetailScreen(goalId: goal.id))),
+                      () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => GoalDetailScreen(goalId: goal.id),
+                        ),
+                      ),
                 ),
             ],
           );

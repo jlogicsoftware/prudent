@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../l10n/generated/prudent_localizations.dart';
 import '../providers.dart';
@@ -16,13 +17,10 @@ class ReminderBell extends ConsumerWidget {
     final t = PrudentLocalizations.of(context);
     final unread = ref.watch(unreadReminderCountProvider);
 
-    return IconButton(
-      icon: Badge(
-        isLabelVisible: unread > 0,
-        label: Text('$unread'),
-        child: const Icon(Icons.notifications_outlined),
-      ),
-      tooltip: t.remindersOpen(unread),
+    return ZenIconButton(
+      icon: Icons.notifications_outlined,
+      badge: unread,
+      label: t.remindersOpen(unread),
       onPressed:
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RemindersScreen())),
     );

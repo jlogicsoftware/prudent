@@ -104,7 +104,7 @@ class ShowDialog(unittest.TestCase):
         self.assertEqual(rc, 1)
 
     def test_an_alert_dialog_with_an_input_is_a_form_and_fails(self) -> None:
-        for widget in ("TextField", "TextFormField", "Form"):
+        for widget in ("TextField", "TextFormField", "ZenTextField", "Form"):
             with self.subTest(widget=widget):
                 body = ALERT.replace("content: Text(t.message)", f"content: {widget}()")
                 rc, out = run_gate(screen(body))
@@ -112,7 +112,7 @@ class ShowDialog(unittest.TestCase):
                 self.assertIn(f"carries an input ({widget})", out)
 
     def test_an_input_outside_the_dialog_is_not_charged_to_it(self) -> None:
-        source = "final field = TextField();\n" + screen(ALERT)["screen.dart"]
+        source = "final field = ZenTextField(label: 'x');\n" + screen(ALERT)["screen.dart"]
         rc, out = run_gate({"screen.dart": source})
         self.assertEqual(rc, 0, out)
 
@@ -202,6 +202,43 @@ class Scope(unittest.TestCase):
         rc, out = run_gate({"generated/api.dart": "final ok = 1;\n"})
         self.assertEqual(rc, 1)
         self.assertIn("stale", out)
+
+
+class FrameworkCounterparts(unittest.TestCase):
+    """The Material twins of the controls jZen renders Cupertino are banned outright: there is no
+    capability left that a carve-out could stand on."""
+
+    def test_multiline_and_badged_and_actioned_forms_are_still_violations(self) -> None:
+        for body in (
+            "TextField(controller: c, maxLines: 3)",
+            "TextFormField(controller: c, minLines: 2)",
+            "IconButton(icon: Badge(child: Icon(Icons.add)), onPressed: null)",
+            "SnackBar(content: Text('x'), action: SnackBarAction(label: 'u', onPressed: f))",
+        ):
+            with self.subTest(body=body):
+                rc, out = run_gate(screen(body))
+                self.assertEqual(rc, 1, out)
+
+    def test_a_scaffold_is_a_violation_even_where_a_snack_bar_is_shown(self) -> None:
+        source = (
+            screen("Scaffold(appBar: AppBar(title: Text('x')), body: Text('y'))")["screen.dart"]
+            + "void f() { messenger.showSnackBar(s); }\n"
+        )
+        rc, out = run_gate({"screen.dart": source})
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Scaffold is a raw", out)
+        self.assertIn("AppBar is a raw", out)
+
+    def test_the_framework_page_message_bar_and_inputs_are_allowed(self) -> None:
+        rc, out = run_gate(
+            screen("ZenPageScaffold(title: 't', body: ZenProgressBar(value: 0.5, label: 'l'))")
+            | {
+                "b.dart": "void f(c) { showZenMessage(c, 'x', actionLabel: 'u', onAction: g);"
+                " final i = ZenIconButton(icon: a, label: 'l', badge: 2, onPressed: null);"
+                " final t = ZenTextField(label: 'l', maxLines: 3); }\n"
+            }
+        )
+        self.assertEqual(rc, 0, out)
 
 
 class RealTree(unittest.TestCase):

@@ -367,8 +367,8 @@ void main() {
     expect(find.text('Add money to Car'), findsOneWidget);
     expect(find.text('Free to set aside: 5750.00 PLN'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextFormField).first, '100.5');
-    await tester.enterText(find.byType(TextField).last, 'Bonus');
+    await tester.enterText(find.byType(ZenTextField).first, '100.5');
+    await tester.enterText(find.byType(ZenTextField).last, 'Bonus');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
@@ -391,7 +391,7 @@ void main() {
     await tester.tap(find.text('Add money'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).first, '9000');
+    await tester.enterText(find.byType(ZenTextField).first, '9000');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
@@ -408,7 +408,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('In this envelope: 1250.00 PLN'), findsOneWidget);
-    await tester.enterText(find.byType(TextFormField).first, '0');
+    await tester.enterText(find.byType(ZenTextField).first, '0');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
@@ -433,7 +433,7 @@ void main() {
     await tester.tap(find.text('Trip').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).first, '25');
+    await tester.enterText(find.byType(ZenTextField).first, '25');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 

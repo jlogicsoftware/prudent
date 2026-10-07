@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/reminders.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
@@ -36,9 +37,9 @@ class ReminderTile extends StatelessWidget {
         style: unread ? const TextStyle(fontWeight: FontWeight.bold) : null,
       ),
       subtitle: Text('$when · ${formatMinorUnits(occurrence.amountMinor)} ${occurrence.currency}'),
-      trailing: IconButton(
-        icon: Icon(unread ? Icons.drafts_outlined : Icons.mark_email_unread_outlined),
-        tooltip: unread ? t.reminderMarkRead : t.reminderMarkUnread,
+      trailing: ZenIconButton(
+        icon: unread ? Icons.drafts_outlined : Icons.mark_email_unread_outlined,
+        label: unread ? t.reminderMarkRead : t.reminderMarkUnread,
         onPressed: onToggleRead,
       ),
       onTap: onOpen,

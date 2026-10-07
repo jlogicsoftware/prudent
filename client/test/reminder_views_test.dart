@@ -18,6 +18,7 @@ import 'package:prudent/reminder/reminder_bell.dart';
 import 'package:prudent/reminder/reminders_screen.dart';
 import 'package:zen_transport/zen_transport.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
+import 'zen_fields.dart';
 
 const _headers = {'X-Zen-Transport': 'json'};
 
@@ -248,13 +249,13 @@ void main() {
     testWidgets('the button on a tile flips one reminder and no other', (tester) async {
       await pump(tester, standard());
 
-      await tester.tap(find.byTooltip('Mark as read').first);
+      await tester.tap(iconButton('Mark as read').first);
       await tester.pumpAndSettle();
 
       expect(server.calls, contains('POST /api/v1/reminders/old/read'));
       expect(unreadMarks(), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Mark as unread').first);
+      await tester.tap(iconButton('Mark as unread').first);
       await tester.pumpAndSettle();
 
       expect(server.calls, contains('POST /api/v1/reminders/old/unread'));
@@ -265,12 +266,12 @@ void main() {
     testWidgets('mark all as read sends one request and leaves nothing unread', (tester) async {
       await pump(tester, standard());
 
-      await tester.tap(find.byTooltip('Mark all as read'));
+      await tester.tap(iconButton('Mark all as read'));
       await tester.pumpAndSettle();
 
       expect(server.count('POST /api/v1/reminders/read-all'), 1);
       expect(unreadMarks(), findsNothing);
-      final button = tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.done_all));
+      final button = tester.widget<ZenIconButton>(find.widgetWithIcon(ZenIconButton, Icons.done_all));
       expect(button.onPressed, isNull, reason: 'nothing left to mark');
     });
 
@@ -281,7 +282,7 @@ void main() {
       server.refuseRead = 'That occurrence has no reminder right now.';
       final before = server.count('GET /api/v1/reminders');
 
-      await tester.tap(find.byTooltip('Mark as read').first);
+      await tester.tap(iconButton('Mark as read').first);
       await tester.pumpAndSettle();
 
       expect(find.text('That occurrence has no reminder right now.'), findsOneWidget);
@@ -345,7 +346,7 @@ void main() {
       expect(find.text('Confirmed'), findsOneWidget);
       expect(find.text('Confirm as planned'), findsNothing);
 
-      await tester.pageBack();
+      await tester.tap(iconButton('Back'));
       await tester.pumpAndSettle();
 
       expect(find.text('Internet'), findsNothing, reason: 'a confirmed occurrence has no reminder');
@@ -381,29 +382,29 @@ void main() {
       await pump(tester, standard(), home: bell());
 
       expect(find.descendant(of: find.byType(Badge), matching: find.text('2')), findsOneWidget);
-      expect(find.byTooltip('Reminders, 2 unread'), findsOneWidget);
+      expect(iconButton('Reminders, 2 unread'), findsOneWidget);
     });
 
     testWidgets('shows no badge when everything is read, or when there is nothing', (tester) async {
       await pump(tester, _Server([_Entry('a', 'Rent', '2026-10-17', read: true)]), home: bell());
 
       expect(find.descendant(of: find.byType(Badge), matching: find.text('0')), findsNothing);
-      expect(find.byTooltip('Reminders'), findsOneWidget);
+      expect(iconButton('Reminders'), findsOneWidget);
     });
 
     testWidgets('opens the centre, and reading there updates the count', (tester) async {
       await pump(tester, standard(), home: bell());
 
-      await tester.tap(find.byTooltip('Reminders, 2 unread'));
+      await tester.tap(iconButton('Reminders, 2 unread'));
       await tester.pumpAndSettle();
       expect(find.text('Due soon'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Mark all as read'));
+      await tester.tap(iconButton('Mark all as read'));
       await tester.pumpAndSettle();
-      await tester.pageBack();
+      await tester.tap(iconButton('Back'));
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip('Reminders'), findsOneWidget);
+      expect(iconButton('Reminders'), findsOneWidget);
     });
   });
 }

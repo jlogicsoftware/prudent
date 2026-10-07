@@ -21,9 +21,9 @@ class SettingsScreen extends ConsumerWidget {
     final locale = ref.watch(localeProvider);
     final t = PrudentLocalizations.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: Text(t.settingsTitle)),
-      // Full width, so the actions stay centred: a Column is only as wide as its widest child, and
+    return ZenPageScaffold(
+      title:
+          t.settingsTitle, // Full width, so the actions stay centred: a Column is only as wide as its widest child, and
       // the language select no longer stretches to the edge the way its ListTile did.
       body: SizedBox(
         width: double.infinity,
@@ -33,16 +33,17 @@ class SettingsScreen extends ConsumerWidget {
               label: t.accountsTitle,
               variant: ZenButtonVariant.text,
               onPressed:
-                  () =>
-                      Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const AccountScreen())),
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (ctx) => const AccountScreen()),
+                  ),
             ),
             ZenButton(
               label: t.categoriesTitle,
               variant: ZenButtonVariant.text,
               onPressed:
-                  () => Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (ctx) => const CategoriesScreen())),
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (ctx) => const CategoriesScreen()),
+                  ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -53,7 +54,10 @@ class SettingsScreen extends ConsumerWidget {
                   items: _languageNames.keys.toList(),
                   itemLabel: (code) => _languageNames[code]!,
                   value: locale.languageCode,
-                  onChanged: (code) => ref.read(localeProvider.notifier).setLocale(Locale(code)),
+                  onChanged:
+                      (code) => ref
+                          .read(localeProvider.notifier)
+                          .setLocale(Locale(code)),
                 ),
               ),
             ),
@@ -61,14 +65,16 @@ class SettingsScreen extends ConsumerWidget {
               label: t.settingsProfile,
               variant: ZenButtonVariant.text,
               onPressed:
-                  () =>
-                      Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const ProfileScreen())),
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (ctx) => const ProfileScreen()),
+                  ),
             ),
             const Spacer(),
             ZenButton(
               label: t.settingsLogOut,
               variant: ZenButtonVariant.text,
-              onPressed: () => ref.read(identitySessionStoreProvider.notifier).logout(),
+              onPressed:
+                  () => ref.read(identitySessionStoreProvider.notifier).logout(),
             ),
           ],
         ),

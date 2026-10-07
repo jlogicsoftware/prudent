@@ -9,10 +9,13 @@ treatment, silently became the one that does not have it.
 
 THE RULE, in two parts.
 
-1. **Banned outright** in `client/lib` (generated code and `l10n/` excluded): every name in
+1. **Banned** in `client/lib` (generated code and `l10n/` excluded): every name in
    `BANNED_CONTROLS`. Each has a `zen_ui_widgets` counterpart — `ZenButton` (all three variants),
-   `ZenSelect`, `ZenSegmentedControl`, `ZenSwitchRow`, `ZenDateField` / `ZenDateRangeField` — or,
-   for `showModalBottomSheet`, `showAdaptivePresentation`.
+   `ZenSelect`, `ZenSegmentedControl`, `ZenSwitchRow`, `ZenDateField` / `ZenDateRangeField`,
+   `ZenTextField`, `ZenIconButton`, `ZenProgressIndicator`, `ZenProgressBar`, `ZenPageScaffold` (for
+   `Scaffold` and `AppBar`), `showZenMessage` (for `SnackBar`) — or, for `showModalBottomSheet`,
+   `showAdaptivePresentation`. These are the controls that render Cupertino on iOS and macOS
+   (jlogicsoftware/prudent#116): a raw Material one is Material on every platform.
 
 2. **`showDialog` is allowed only to show an `AlertDialog`.** An acknowledgement ("that input was
    invalid — Okay") or a confirmation ("delete this account? Cancel / Delete") is a message with a
@@ -68,11 +71,19 @@ BANNED_CONTROLS = (
     "showDatePicker",
     "showDateRangePicker",
     "showModalBottomSheet",
+    "TextField",
+    "TextFormField",
+    "IconButton",
+    "CircularProgressIndicator",
+    "Scaffold",
+    "AppBar",
+    "SnackBar",
+    "LinearProgressIndicator",
 )
 BANNED = re.compile(r"\b(" + "|".join(BANNED_CONTROLS) + r")\b")
 SHOW_DIALOG = re.compile(r"\bshowDialog\b")
 ALERT_DIALOG = re.compile(r"\bAlertDialog\b")
-INPUT_IN_DIALOG = re.compile(r"\b(TextField|TextFormField|Form)\b")
+INPUT_IN_DIALOG = re.compile(r"\b(TextField|TextFormField|ZenTextField|Form)\b")
 
 
 class StaleScope(Exception):
@@ -246,7 +257,8 @@ def scan_file(rel: str, source: str) -> "list[Hit]":
         hits.append(Hit(rel, line, f"{why}  [{shown}]"))
 
     for m in BANNED.finditer(code):
-        add(m.start(), f"{m.group(1)} is a raw Material control")
+        name = m.group(1)
+        add(m.start(), f"{name} is a raw Material control")
 
     for m in SHOW_DIALOG.finditer(code):
         span = call_span(code, m.end())
@@ -295,7 +307,9 @@ def main(root: "Path | None" = None) -> int:
         print(f"       {h}")
     print()
     print("Use the zen_ui_widgets control instead (ZenButton, ZenSelect, ZenSegmentedControl,")
-    print("ZenSwitchRow, ZenDateField / ZenDateRangeField, showAdaptivePresentation). A control the")
+    print("ZenSwitchRow, ZenDateField / ZenDateRangeField, ZenTextField, ZenIconButton,")
+    print("ZenProgressIndicator, ZenProgressBar, ZenPageScaffold, showZenMessage,")
+    print("showAdaptivePresentation). A control the")
     print("package lacks is a framework gap to report upstream, not an exemption to add here.")
     print("See CLAUDE.md 'Client UI: the framework's controls first' and ADR-041.")
     return 1

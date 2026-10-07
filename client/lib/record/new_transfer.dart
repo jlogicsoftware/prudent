@@ -156,10 +156,10 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
           children: [
             Text(t.transfersNewTitle, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            TextField(
+            ZenTextField(
+              label: t.transfersTitleField,
               controller: _titleController,
               maxLength: 50,
-              decoration: InputDecoration(label: Text(t.transfersTitleField)),
             ),
             const SizedBox(height: 8),
             ZenDateField(

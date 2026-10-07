@@ -152,13 +152,10 @@ class _GoalAllocationFormState extends ConsumerState<GoalAllocationForm> {
               errorText: _amountError,
             ),
             const SizedBox(height: 16),
-            TextField(
+            ZenTextField(
+              label: t.goalNoteField,
               controller: _note,
               maxLength: 500,
-              decoration: InputDecoration(
-                labelText: t.goalNoteField,
-                border: const OutlineInputBorder(),
-              ),
             ),
             if (_failure != null) ...[
               const SizedBox(height: 8),

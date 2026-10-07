@@ -89,16 +89,16 @@ class _NewCategoryState extends State<NewCategory> {
       child: SingleChildScrollView(
         child: Column(
           children: [
-            TextField(
+            ZenTextField(
+              label: t.categoryTitleField,
               controller: _titleController,
               maxLength: 50,
-              decoration: InputDecoration(label: Text(t.categoryTitleField)),
             ),
             const SizedBox(height: 16),
-            TextField(
+            ZenTextField(
+              label: t.categoryDescriptionField,
               controller: _descriptionController,
               maxLength: 500,
-              decoration: InputDecoration(label: Text(t.categoryDescriptionField)),
               minLines: 3,
               maxLines: 5,
             ),

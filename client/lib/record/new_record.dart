@@ -150,10 +150,10 @@ class _NewRecordState extends ConsumerState<NewRecord> {
       child: SingleChildScrollView(
         child: Column(
         children: [
-          TextField(
+          ZenTextField(
+            label: t.recordsTitleField,
             controller: _titleController,
             maxLength: 50,
-            decoration: InputDecoration(label: Text(t.recordsTitleField)),
           ),
           const SizedBox(height: 8),
           ZenSegmentedControl<bool>(
@@ -215,17 +215,17 @@ class _NewRecordState extends ConsumerState<NewRecord> {
               onChanged: (value) => setState(() => _selectedCategoryId = value),
             ),
           const SizedBox(height: 8),
-          TextField(
+          ZenTextField(
+            label: t.recordsPayeeField,
             controller: _payeeController,
             maxLength: 100,
-            decoration: InputDecoration(label: Text(t.recordsPayeeField)),
           ),
           const SizedBox(height: 8),
-          TextField(
+          ZenTextField(
+            label: t.recordsNoteField,
             controller: _noteController,
             maxLength: 280,
             maxLines: 2,
-            decoration: InputDecoration(label: Text(t.recordsNoteField)),
           ),
           const SizedBox(height: 8),
           Row(

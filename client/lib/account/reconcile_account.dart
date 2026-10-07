@@ -140,10 +140,10 @@ class _ReconcileAccountState extends State<ReconcileAccount> {
             },
           ),
           const SizedBox(height: 8),
-          TextField(
+          ZenTextField(
+            label: t.correctionsNoteField,
             controller: _noteController,
             maxLength: 200,
-            decoration: InputDecoration(label: Text(t.correctionsNoteField)),
           ),
           const SizedBox(height: 16),
           Row(

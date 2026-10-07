@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 /// Shown while the stored identity session is still being read.
 class SplashScreen extends StatelessWidget {
@@ -6,5 +7,5 @@ class SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: CircularProgressIndicator()));
+      const ZenPageScaffold(body: Center(child: ZenProgressIndicator()));
 }

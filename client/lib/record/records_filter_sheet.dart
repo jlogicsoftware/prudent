@@ -118,10 +118,7 @@ class _RecordsFilterSheetState extends ConsumerState<RecordsFilterSheet> {
             children: [
               Text(t.recordsFilterTitle, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
-              TextField(
-                controller: _searchController,
-                decoration: InputDecoration(label: Text(t.recordsFilterSearchField)),
-              ),
+              ZenTextField(label: t.recordsFilterSearchField, controller: _searchController),
               const SizedBox(height: 16),
               ZenDateRangeField(
                 fromLabel: t.recordsFilterDateFrom,

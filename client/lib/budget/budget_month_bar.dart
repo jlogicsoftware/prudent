@@ -30,9 +30,9 @@ class BudgetMonthBar extends StatelessWidget {
 
     return Row(
       children: [
-        IconButton(
-          icon: const Icon(Icons.chevron_left),
-          tooltip: t.budgetPreviousMonth,
+        ZenIconButton(
+          icon: Icons.chevron_left,
+          label: t.budgetPreviousMonth,
           onPressed: onPrevious,
         ),
         Expanded(
@@ -52,11 +52,7 @@ class BudgetMonthBar extends StatelessWidget {
             ],
           ),
         ),
-        IconButton(
-          icon: const Icon(Icons.chevron_right),
-          tooltip: t.budgetNextMonth,
-          onPressed: onNext,
-        ),
+        ZenIconButton(icon: Icons.chevron_right, label: t.budgetNextMonth, onPressed: onNext),
       ],
     );
   }

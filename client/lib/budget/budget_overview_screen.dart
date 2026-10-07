@@ -34,8 +34,8 @@ class _BudgetOverviewScreenState extends ConsumerState<BudgetOverviewScreen> {
     final currencies = ref.watch(analyticsCurrenciesProvider);
 
     if (currencies.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: Text(t.budgetsTitle)),
+      return ZenPageScaffold(
+        title: t.budgetsTitle,
         body: Center(child: Text(t.budgetNoAccounts)),
       );
     }
@@ -49,8 +49,8 @@ class _BudgetOverviewScreenState extends ConsumerState<BudgetOverviewScreen> {
         category.id: category,
     };
 
-    return Scaffold(
-      appBar: AppBar(title: Text(t.budgetsTitle)),
+    return ZenPageScaffold(
+      title: t.budgetsTitle,
       body: Column(
         children: [
           Padding(
@@ -60,7 +60,8 @@ class _BudgetOverviewScreenState extends ConsumerState<BudgetOverviewScreen> {
               isCurrent: _month == BudgetMonth.of(DateTime.now()),
               onPrevious: () => setState(() => _month = _month.previous),
               onNext: () => setState(() => _month = _month.next),
-              onCurrent: () => setState(() => _month = BudgetMonth.of(DateTime.now())),
+              onCurrent:
+                  () => setState(() => _month = BudgetMonth.of(DateTime.now())),
             ),
           ),
           if (currencies.length > 1)
@@ -76,11 +77,16 @@ class _BudgetOverviewScreenState extends ConsumerState<BudgetOverviewScreen> {
             ),
           Expanded(
             child: summaryAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(child: Text(t.budgetLoadError(error.toString()))),
+              loading: () => const Center(child: ZenProgressIndicator()),
+              error:
+                  (error, _) =>
+                      Center(child: Text(t.budgetLoadError(error.toString()))),
               data:
-                  (summary) =>
-                      BudgetSummaryView(summary: summary, month: _month, categories: categories),
+                  (summary) => BudgetSummaryView(
+                    summary: summary,
+                    month: _month,
+                    categories: categories,
+                  ),
             ),
           ),
         ],

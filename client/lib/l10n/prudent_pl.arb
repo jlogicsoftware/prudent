@@ -280,5 +280,9 @@
   "settingsTitle": "Ustawienia",
   "settingsLanguage": "Język",
   "settingsProfile": "Profil",
-  "settingsLogOut": "Wyloguj się"
+  "settingsLogOut": "Wyloguj się",
+  "addRecordTooltip": "Dodaj wpis",
+  "addAccountTooltip": "Dodaj rachunek",
+  "addCategoryTooltip": "Dodaj kategorię",
+  "editCategoryTooltip": "Edytuj kategorię"
 }

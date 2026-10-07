@@ -10,6 +10,7 @@ import 'package:prudent/category/category_icons.dart';
 import 'package:prudent/category/new_category.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
+import 'zen_fields.dart';
 
 class _Saved {
   _Saved(this.title, this.iconKey, this.description, this.colorArgb);
@@ -76,7 +77,7 @@ void main() {
 
     testWidgets('Save hands back what was typed, the default colour and the first icon', (tester) async {
       await open(tester);
-      await tester.enterText(find.widgetWithText(TextField, 'Title'), '  Groceries ');
+      await tester.enterText(textInput('Title'), '  Groceries ');
       await tester.tap(find.widgetWithText(ZenButton, 'Save Category'));
       await tester.pumpAndSettle();
 
@@ -105,7 +106,7 @@ void main() {
   group('colour and icon grids', () {
     testWidgets('a tap still picks a colour and an icon', (tester) async {
       await open(tester);
-      await tester.enterText(find.widgetWithText(TextField, 'Title'), 'Rent');
+      await tester.enterText(textInput('Title'), 'Rent');
       await tester.tap(find.byType(CategoryColorSwatch).at(2));
       await tester.tap(find.byType(CategoryIconChoice).at(1));
       await tester.tap(find.widgetWithText(ZenButton, 'Save Category'));
@@ -119,7 +120,7 @@ void main() {
       tester,
     ) async {
       await open(tester);
-      await tester.enterText(find.widgetWithText(TextField, 'Title'), 'Rent');
+      await tester.enterText(textInput('Title'), 'Rent');
       final swatch = find.byType(CategoryColorSwatch).at(3);
       expect(ringWithin(swatch), findsNothing);
 
@@ -138,7 +139,7 @@ void main() {
       tester,
     ) async {
       await open(tester);
-      await tester.enterText(find.widgetWithText(TextField, 'Title'), 'Rent');
+      await tester.enterText(textInput('Title'), 'Rent');
       final choice = find.byType(CategoryIconChoice).at(2);
       expect(ringWithin(choice), findsNothing);
 

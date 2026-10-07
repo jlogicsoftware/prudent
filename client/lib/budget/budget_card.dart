@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
@@ -60,11 +61,7 @@ class BudgetCard extends StatelessWidget {
             ),
             if (percent != null) ...[
               const SizedBox(height: 8),
-              LinearProgressIndicator(
-                value: percent.clamp(0, 100) / 100,
-                color: accent,
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-              ),
+              ZenProgressBar(value: percent.clamp(0, 100) / 100, label: title, color: accent),
               const SizedBox(height: 4),
               Text(t.budgetPercentUsed(percent), style: theme.textTheme.bodySmall),
             ],

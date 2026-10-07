@@ -13,6 +13,52 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-060 — Prudent's screens are built on jZen's Apple-aware text field, icon button, spinner, bar, page and message; the gate bans their Material twins outright
+
+**Date:** 2026-10-07. **Status:** accepted. **Refines:** ADR-059, ADR-041. jlogicsoftware/prudent#116;
+jZenDev/jZen#119 (→ #120 text field, spinner, identity; #121 macOS sidebar; #122 icon button; #123
+page and message) and #127 (→ #128: the page's `ListTile` ink, multiline and counted text, a message
+action, an icon-button badge, a progress bar).
+
+### Decision
+
+- `JZEN_REF` moves from `6b017bb` to `351797a`. On iOS and macOS `ZenTextField`,
+  `ZenProgressIndicator`, `ZenProgressBar`, `ZenIconButton`, `ZenPageScaffold` and `showZenMessage`
+  render Cupertino, as does the identity flow and the `ZenNavigation` desktop shell (a sidebar);
+  elsewhere they render what the stock widgets did.
+- Every screen in `client/lib` uses them in place of `TextField` / `TextFormField`, `IconButton`,
+  `CircularProgressIndicator`, `LinearProgressIndicator`, `Scaffold` + `AppBar` and `SnackBar`.
+  `Popup` takes an `IconData` and a `label` instead of a widget, because `ZenIconButton` requires
+  the accessible name an icon cannot give itself; nine buttons that had no tooltip now have one
+  (new keys `addRecordTooltip`, `addAccountTooltip`, `addCategoryTooltip`, `editCategoryTooltip`;
+  existing ones reused).
+- `task verify:controls` bans those twins **with no carve-out**. A first version of this change
+  carved out the one capability each framework control then lacked (multiline text, a badge, a
+  message action, the `Scaffold` a snack bar needs); jZen#127 added all of them, so every carve-out
+  was deleted rather than kept. What has no counterpart and is used directly: `RefreshIndicator`,
+  `ListTile`, `Card`, `AlertDialog`, `PopupMenuButton`.
+
+### Behaviour that changed, stated rather than discovered
+
+- The records screen's undo message no longer times out after three seconds: `showZenMessage`
+  keeps a message that carries an action until it is acted on, dismissed or replaced (WCAG 2.2.1).
+- A goal's or budget's progress bar is named (`ZenProgressBar` requires a label) and reads its
+  percentage aloud; the loading state of the free-money card is a spinner, not an indeterminate bar.
+- `AccountNew` reads its name and currency from controllers at submit; `ZenTextField` has no
+  `initialValue` / `onSaved`, which jZen left to the application.
+- Prudent's own Polish for `zen_ui_navigation` gains the sidebar's `position` ("2 z 5"); the
+  `backButtonTooltip` override in the identity delegate is gone because jZen removed the string.
+- The client suite's finders no longer look for `TextField`, `IconButton`, a tooltip or
+  `pageBack()`: those are one idiom's types, and the host picks the idiom (`test/zen_fields.dart`).
+  `task zen:test:client` on a Mac exercises the Cupertino branch; CI's runners exercise Material.
+
+### Verified, and what is not
+
+- A debug macOS build with `ZEN_PLATFORM=macos` opens on a Cupertino login screen where it was
+  Material. The client suite passes in both idioms (`macos` and `linux`).
+- **No signed-in screen has been looked at on macOS**: that needs the local stack (`task run:dev`)
+  and was not run, so #116 stays open for that check.
+
 ## ADR-059 — Raw Material controls are gated out of `client/lib` by `task verify:controls`; `AlertDialog` and `PopupMenuButton` are the only carve-outs
 
 **Date:** 2026-10-07. **Status:** accepted. **Refines:** ADR-041. jlogicsoftware/prudent#105.

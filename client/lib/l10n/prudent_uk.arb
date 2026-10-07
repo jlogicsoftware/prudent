@@ -280,5 +280,9 @@
   "settingsTitle": "Налаштування",
   "settingsLanguage": "Мова",
   "settingsProfile": "Профіль",
-  "settingsLogOut": "Вийти"
+  "settingsLogOut": "Вийти",
+  "addRecordTooltip": "Додати запис",
+  "addAccountTooltip": "Додати рахунок",
+  "addCategoryTooltip": "Додати категорію",
+  "editCategoryTooltip": "Редагувати категорію"
 }
