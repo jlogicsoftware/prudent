@@ -156,9 +156,10 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
                 children: [
                   Text(t.recordsFilterEmpty),
                   const SizedBox(height: 8),
-                  TextButton(
+                  ZenButton(
+                    label: t.recordsFilterClearAll,
                     onPressed: () => ref.read(recordFilterProvider.notifier).clear(),
-                    child: Text(t.recordsFilterClearAll),
+                    variant: ZenButtonVariant.text,
                   ),
                 ],
               ),
