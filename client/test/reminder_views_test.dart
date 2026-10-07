@@ -382,20 +382,20 @@ void main() {
       await pump(tester, standard(), home: bell());
 
       expect(find.descendant(of: find.byType(Badge), matching: find.text('2')), findsOneWidget);
-      expect(find.byTooltip('Reminders, 2 unread'), findsOneWidget);
+      expect(iconButton('Reminders, 2 unread'), findsOneWidget);
     });
 
     testWidgets('shows no badge when everything is read, or when there is nothing', (tester) async {
       await pump(tester, _Server([_Entry('a', 'Rent', '2026-10-17', read: true)]), home: bell());
 
       expect(find.descendant(of: find.byType(Badge), matching: find.text('0')), findsNothing);
-      expect(find.byTooltip('Reminders'), findsOneWidget);
+      expect(iconButton('Reminders'), findsOneWidget);
     });
 
     testWidgets('opens the centre, and reading there updates the count', (tester) async {
       await pump(tester, standard(), home: bell());
 
-      await tester.tap(find.byTooltip('Reminders, 2 unread'));
+      await tester.tap(iconButton('Reminders, 2 unread'));
       await tester.pumpAndSettle();
       expect(find.text('Due soon'), findsOneWidget);
 
@@ -404,7 +404,7 @@ void main() {
       await tester.tap(iconButton('Back'));
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip('Reminders'), findsOneWidget);
+      expect(iconButton('Reminders'), findsOneWidget);
     });
   });
 }

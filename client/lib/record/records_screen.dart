@@ -96,29 +96,24 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
   void _removeRecord(Record record) {
     final t = PrudentLocalizations.of(context);
     ref.read(recordsProvider.notifier).removeRecord(record.id);
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 3),
-        content: Text(t.recordsDeleted),
-        action: SnackBarAction(
-          label: t.recordsUndo,
-          onPressed: () {
-            ref.read(recordsProvider.notifier).addRecord(
-              CreateRecordRequest(
-                title: record.title,
-                amountMinor: record.amountMinor,
-                date: record.date,
-                categoryId: record.categoryId,
-                accountId: record.accountId,
-                currency: record.currency,
-                payee: record.payee,
-                note: record.note,
-              ),
-            );
-          },
-        ),
-      ),
+    showZenMessage(
+      context,
+      t.recordsDeleted,
+      actionLabel: t.recordsUndo,
+      onAction: () {
+        ref.read(recordsProvider.notifier).addRecord(
+          CreateRecordRequest(
+            title: record.title,
+            amountMinor: record.amountMinor,
+            date: record.date,
+            categoryId: record.categoryId,
+            accountId: record.accountId,
+            currency: record.currency,
+            payee: record.payee,
+            note: record.note,
+          ),
+        );
+      },
     );
   }
 
@@ -128,30 +123,33 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
     final filterActive = !ref.watch(recordFilterProvider).isEmpty;
     final t = PrudentLocalizations.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(t.appTitle),
-        actions: [
-          ZenIconButton(
-            icon: filterActive ? Icons.filter_alt : Icons.filter_alt_outlined,
-            label: filterActive ? t.recordsFilterActiveTooltip : t.recordsFilterTooltip,
-            onPressed: _openFilterOverlay,
-          ),
-          ZenIconButton(
-            icon: Icons.swap_horiz,
-            label: t.transfersNewTitle,
-            onPressed: _openAddTransferOverlay,
-          ),
-          ZenIconButton(
-            icon: Icons.add,
-            label: t.addRecordTooltip,
-            onPressed: _openAddRecordOverlay,
-          ),
-        ],
-      ),
+    return ZenPageScaffold(
+      title: t.appTitle,
+      actions: [
+        ZenIconButton(
+          icon: filterActive ? Icons.filter_alt : Icons.filter_alt_outlined,
+          label:
+              filterActive
+                  ? t.recordsFilterActiveTooltip
+                  : t.recordsFilterTooltip,
+          onPressed: _openFilterOverlay,
+        ),
+        ZenIconButton(
+          icon: Icons.swap_horiz,
+          label: t.transfersNewTitle,
+          onPressed: _openAddTransferOverlay,
+        ),
+        ZenIconButton(
+          icon: Icons.add,
+          label: t.addRecordTooltip,
+          onPressed: _openAddRecordOverlay,
+        ),
+      ],
       body: recordsAsync.when(
         loading: () => const Center(child: ZenProgressIndicator()),
-        error: (error, _) => Center(child: Text(t.recordsLoadError(error.toString()))),
+        error:
+            (error, _) =>
+                Center(child: Text(t.recordsLoadError(error.toString()))),
         data: (records) {
           if (records.isEmpty && filterActive) {
             return Center(
@@ -162,7 +160,8 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
                   const SizedBox(height: 8),
                   ZenButton(
                     label: t.recordsFilterClearAll,
-                    onPressed: () => ref.read(recordFilterProvider.notifier).clear(),
+                    onPressed:
+                        () => ref.read(recordFilterProvider.notifier).clear(),
                     variant: ZenButtonVariant.text,
                   ),
                 ],

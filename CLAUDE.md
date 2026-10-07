@@ -270,7 +270,7 @@ consumer that bends them stops being a consumer:
   (never `showDialog` / `showModalBottomSheet` for a form or detail), `ZenButton`, `ZenSelect`,
   `ZenSegmentedControl`, `ZenSwitchRow`, `ZenDateField` / `ZenDateRangeField`, `ZenAmountField` /
   `ZenAmountRangeField` (+ `normalizeAmount`), `ZenTextField`, `ZenIconButton`, `ZenProgressIndicator`,
-  `ZenPageScaffold`, `showZenMessage`, and `FocusRing` for a bespoke control's focus. Never
+  `ZenProgressBar`, `ZenPageScaffold`, `showZenMessage`, and `FocusRing` for a bespoke control's focus. Never
   branch on the platform to pick Cupertino or Material — the package does it at compile time, on
   `zenIsApplePlatform` / `zenIsMobile`. A control the package lacks is a framework gap: report it and
   consume it (ADR-036, ADR-041), don't hand-roll it. What an amount *means* (minor units, currency,
@@ -291,8 +291,7 @@ consumer that bends them stops being a consumer:
   `OutlinedButton`, `TextButton`, `DropdownButton`, `DropdownButtonFormField`, `SegmentedButton`,
   `SwitchListTile`, `showDatePicker`, `showDateRangePicker`, `showModalBottomSheet`, and — so that
   iOS and macOS render Cupertino (ADR-060) — on `TextField`, `TextFormField`, `IconButton`,
-  `CircularProgressIndicator`, `Scaffold`, `AppBar` and `SnackBar`, except for the one capability each
-  counterpart lacks (multiline text, a badge, an action, a snack bar's `Scaffold`), and on a
+  `CircularProgressIndicator`, `LinearProgressIndicator`, `Scaffold`, `AppBar` and `SnackBar`, and on a
   `showDialog` that does not show an `AlertDialog` or whose `AlertDialog` holds an input. The only
   carve-outs are `AlertDialog` for acknowledgements and confirmations (its buttons are `ZenButton`s)
   and `PopupMenuButton`; there is no per-file allowlist — a control the package lacks is a framework

@@ -58,7 +58,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               freeMoneyAsync.when(
-                loading: () => const LinearProgressIndicator(),
+                loading: () => const Center(child: ZenProgressIndicator()),
                 error:
                     (error, _) =>
                         Text(t.goalFreeMoneyLoadError(error.toString())),

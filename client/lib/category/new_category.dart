@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/categories.pb.dart';
@@ -93,13 +92,13 @@ class _NewCategoryState extends State<NewCategory> {
             ZenTextField(
               label: t.categoryTitleField,
               controller: _titleController,
-              inputFormatters: [LengthLimitingTextInputFormatter(50)],
+              maxLength: 50,
             ),
             const SizedBox(height: 16),
-            TextField(
+            ZenTextField(
+              label: t.categoryDescriptionField,
               controller: _descriptionController,
               maxLength: 500,
-              decoration: InputDecoration(label: Text(t.categoryDescriptionField)),
               minLines: 3,
               maxLines: 5,
             ),

@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
-import '../upper_case_formatter.dart';
 
 /// Opens an account with a single starting currency and balance. An account can hold several
 /// currencies at once (docs/DECISIONS.md ADR-008); adding a second one is an edit, not part of
@@ -104,7 +102,8 @@ class _AccountNewState extends State<AccountNew> {
                   child: ZenTextField(
                     label: t.accountCurrencyField,
                     controller: _currencyController,
-                    inputFormatters: [const UpperCaseTextFormatter(), LengthLimitingTextInputFormatter(3)],
+                    maxLength: 3,
+                    textCapitalization: TextCapitalization.characters,
                   ),
                 ),
               ],

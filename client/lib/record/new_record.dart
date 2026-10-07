@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
@@ -154,7 +153,7 @@ class _NewRecordState extends ConsumerState<NewRecord> {
           ZenTextField(
             label: t.recordsTitleField,
             controller: _titleController,
-            inputFormatters: [LengthLimitingTextInputFormatter(50)],
+            maxLength: 50,
           ),
           const SizedBox(height: 8),
           ZenSegmentedControl<bool>(
@@ -219,14 +218,14 @@ class _NewRecordState extends ConsumerState<NewRecord> {
           ZenTextField(
             label: t.recordsPayeeField,
             controller: _payeeController,
-            inputFormatters: [LengthLimitingTextInputFormatter(100)],
+            maxLength: 100,
           ),
           const SizedBox(height: 8),
-          TextField(
+          ZenTextField(
+            label: t.recordsNoteField,
             controller: _noteController,
             maxLength: 280,
             maxLines: 2,
-            decoration: InputDecoration(label: Text(t.recordsNoteField)),
           ),
           const SizedBox(height: 8),
           Row(

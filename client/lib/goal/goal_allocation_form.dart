@@ -1,6 +1,5 @@
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
@@ -156,7 +155,7 @@ class _GoalAllocationFormState extends ConsumerState<GoalAllocationForm> {
             ZenTextField(
               label: t.goalNoteField,
               controller: _note,
-              inputFormatters: [LengthLimitingTextInputFormatter(500)],
+              maxLength: 500,
             ),
             if (_failure != null) ...[
               const SizedBox(height: 8),

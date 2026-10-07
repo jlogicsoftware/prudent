@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/goals.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
@@ -57,10 +58,10 @@ class GoalCard extends StatelessWidget {
                 Text(t.goalTargetDate(formatGoalDate(goal.targetDate, locale)), style: muted),
               if (progress != null) ...[
                 const SizedBox(height: 8),
-                LinearProgressIndicator(
+                ZenProgressBar(
                   value: progress.progressPercent / 100,
+                  label: goal.name,
                   color: theme.colorScheme.tertiary,
-                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
                 ),
                 const SizedBox(height: 4),
                 Text(

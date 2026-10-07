@@ -13,61 +13,51 @@ own — ADR-001 is the first instance.
 
 ---
 
-## ADR-060 — Prudent's screens are built on jZen's Apple-aware text field, icon button, spinner, page and message; the gate bans their Material twins
+## ADR-060 — Prudent's screens are built on jZen's Apple-aware text field, icon button, spinner, bar, page and message; the gate bans their Material twins outright
 
 **Date:** 2026-10-07. **Status:** accepted. **Refines:** ADR-059, ADR-041. jlogicsoftware/prudent#116;
-jZenDev/jZen#119, #120 (text field, spinner, identity), #121 (macOS sidebar), #122 (icon button),
-#123 (page and message).
+jZenDev/jZen#119 (→ #120 text field, spinner, identity; #121 macOS sidebar; #122 icon button; #123
+page and message) and #127 (→ #128: the page's `ListTile` ink, multiline and counted text, a message
+action, an icon-button badge, a progress bar).
 
 ### Decision
 
-- `JZEN_REF` moves from `6b017bb` to `b9369fb`, which carries `ZenTextField`, `ZenProgressIndicator`,
-  `ZenIconButton`, `ZenPageScaffold` and `showZenMessage`, the Cupertino identity screens, and the
-  sidebar `ZenNavigation` draws on macOS. On iOS and macOS each of these renders Cupertino; elsewhere
-  it renders what it rendered before.
+- `JZEN_REF` moves from `6b017bb` to `351797a`. On iOS and macOS `ZenTextField`,
+  `ZenProgressIndicator`, `ZenProgressBar`, `ZenIconButton`, `ZenPageScaffold` and `showZenMessage`
+  render Cupertino, as does the identity flow and the `ZenNavigation` desktop shell (a sidebar);
+  elsewhere they render what the stock widgets did.
 - Every screen in `client/lib` uses them in place of `TextField` / `TextFormField`, `IconButton`,
-  `CircularProgressIndicator`, `Scaffold` + `AppBar` and `SnackBar`. `Popup` takes an `IconData` and
-  a `label` instead of a widget, because `ZenIconButton` requires the accessible name an icon cannot
-  give itself; nine buttons that had no tooltip now have one (new keys `addRecordTooltip`,
-  `addAccountTooltip`, `addCategoryTooltip`, `editCategoryTooltip`, and existing ones reused).
-- `task verify:controls` bans the Material twins. Where the counterpart lacks **one capability**, the
-  carve-out is that capability and nothing wider, checked inside the call rather than assumed:
-  a `TextField` / `TextFormField` that passes `maxLines` / `minLines` (`ZenTextField` is single line),
-  an `IconButton` that carries a `Badge`, a `SnackBar` that carries an `action`, and `Scaffold` /
-  `AppBar` in a file that calls `showSnackBar` (a snack bar needs a `Scaffold`, and
-  `ZenPageScaffold` has none on Apple). `scripts/test_verify_controls.py` proves each carve-out
-  is exactly that wide: the same widget without the capability still fails.
-- What had no counterpart and is used directly: `LinearProgressIndicator` (goal and budget bars),
-  `RefreshIndicator`, `ListTile`, `Card`, `AlertDialog`, `PopupMenuButton`, `Badge`.
+  `CircularProgressIndicator`, `LinearProgressIndicator`, `Scaffold` + `AppBar` and `SnackBar`.
+  `Popup` takes an `IconData` and a `label` instead of a widget, because `ZenIconButton` requires
+  the accessible name an icon cannot give itself; nine buttons that had no tooltip now have one
+  (new keys `addRecordTooltip`, `addAccountTooltip`, `addCategoryTooltip`, `editCategoryTooltip`;
+  existing ones reused).
+- `task verify:controls` bans those twins **with no carve-out**. A first version of this change
+  carved out the one capability each framework control then lacked (multiline text, a badge, a
+  message action, the `Scaffold` a snack bar needs); jZen#127 added all of them, so every carve-out
+  was deleted rather than kept. What has no counterpart and is used directly: `RefreshIndicator`,
+  `ListTile`, `Card`, `AlertDialog`, `PopupMenuButton`.
 
 ### Behaviour that changed, stated rather than discovered
 
-- A field's `maxLength` is now a `LengthLimitingTextInputFormatter`: the limit is enforced, the
-  "12/50" counter is gone. The currency code is upper-cased by `UpperCaseTextFormatter` (the field
-  has no capitalization option, and a keyboard hint is ignored by a physical keyboard).
+- The records screen's undo message no longer times out after three seconds: `showZenMessage`
+  keeps a message that carries an action until it is acted on, dismissed or replaced (WCAG 2.2.1).
+- A goal's or budget's progress bar is named (`ZenProgressBar` requires a label) and reads its
+  percentage aloud; the loading state of the free-money card is a spinner, not an indeterminate bar.
 - `AccountNew` reads its name and currency from controllers at submit; `ZenTextField` has no
-  `initialValue` / `onSaved`.
+  `initialValue` / `onSaved`, which jZen left to the application.
 - Prudent's own Polish for `zen_ui_navigation` gains the sidebar's `position` ("2 z 5"); the
   `backButtonTooltip` override in the identity delegate is gone because jZen removed the string.
-- The client suite's finders no longer look for `TextField`, `IconButton` or a tooltip: those are
-  one idiom's types, and the host picks the idiom (`test/zen_fields.dart`). `task zen:test:client`
-  on a Mac exercises the Cupertino branch; CI's runners exercise Material.
+- The client suite's finders no longer look for `TextField`, `IconButton`, a tooltip or
+  `pageBack()`: those are one idiom's types, and the host picks the idiom (`test/zen_fields.dart`).
+  `task zen:test:client` on a Mac exercises the Cupertino branch; CI's runners exercise Material.
 
 ### Verified, and what is not
 
-- A debug macOS build with `ZEN_PLATFORM=macos` opens on a Cupertino login screen (rounded fields, a
-  Cupertino button), where before it was Material. The suite passes in the Material idiom
-  (`ZEN_PLATFORM=linux`, 342 tests) and, in the Cupertino idiom (`macos`), everything but thirteen
-  tests — all of them the defect below.
-- **A `ListTile` with an `onTap` inside `ZenPageScaffold` throws on Apple platforms.**
-  `CupertinoPageScaffold` puts a coloured `DecoratedBox` between the page's transparent `Material`
-  and its body, and Flutter asserts that a `ListTile` there "may have invisible background or ink
-  splashes". jZen's own page suite pumps a `ListTile` with no `onTap`, which does not trip it. The
-  reminder centre (`RemindersScreen`, `ReminderTile`) is the one Prudent screen with a tappable
-  `ListTile` in a page body; its thirteen tests are the ones that fail under `macos`. It is a
-  framework defect, reported rather than worked around by wrapping each tile in a `Material`.
+- A debug macOS build with `ZEN_PLATFORM=macos` opens on a Cupertino login screen where it was
+  Material. The client suite passes in both idioms (`macos` and `linux`).
 - **No signed-in screen has been looked at on macOS**: that needs the local stack (`task run:dev`)
-  and was not run.
+  and was not run, so #116 stays open for that check.
 
 ## ADR-059 — Raw Material controls are gated out of `client/lib` by `task verify:controls`; `AlertDialog` and `PopupMenuButton` are the only carve-outs
 

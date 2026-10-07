@@ -204,55 +204,39 @@ class Scope(unittest.TestCase):
         self.assertIn("stale", out)
 
 
-class CapabilityCarveOuts(unittest.TestCase):
-    """Each carve-out is the one capability a framework control lacks, and nothing wider."""
+class FrameworkCounterparts(unittest.TestCase):
+    """The Material twins of the controls jZen renders Cupertino are banned outright: there is no
+    capability left that a carve-out could stand on."""
 
-    def test_a_single_line_text_field_is_a_violation_but_a_multiline_one_is_not(self) -> None:
-        for name in ("TextField", "TextFormField"):
-            with self.subTest(control=name):
-                rc, out = run_gate(screen(f"{name}(controller: c)"))
+    def test_multiline_and_badged_and_actioned_forms_are_still_violations(self) -> None:
+        for body in (
+            "TextField(controller: c, maxLines: 3)",
+            "TextFormField(controller: c, minLines: 2)",
+            "IconButton(icon: Badge(child: Icon(Icons.add)), onPressed: null)",
+            "SnackBar(content: Text('x'), action: SnackBarAction(label: 'u', onPressed: f))",
+        ):
+            with self.subTest(body=body):
+                rc, out = run_gate(screen(body))
                 self.assertEqual(rc, 1, out)
-                for lines in ("maxLines: 3", "minLines: 2"):
-                    rc, out = run_gate(screen(f"{name}(controller: c, {lines})"))
-                    self.assertEqual(rc, 0, out)
 
-    def test_a_maxlines_elsewhere_does_not_exempt_a_single_line_field(self) -> None:
-        source = "final a = Text('x', maxLines: 2);\nfinal b = TextField(controller: c);\n"
+    def test_a_scaffold_is_a_violation_even_where_a_snack_bar_is_shown(self) -> None:
+        source = (
+            screen("Scaffold(appBar: AppBar(title: Text('x')), body: Text('y'))")["screen.dart"]
+            + "void f() { messenger.showSnackBar(s); }\n"
+        )
         rc, out = run_gate({"screen.dart": source})
-        self.assertEqual(rc, 1, out)
-        self.assertIn("screen.dart:2", out)
-
-    def test_an_icon_button_is_a_violation_unless_it_carries_a_badge(self) -> None:
-        rc, out = run_gate(screen("IconButton(icon: Icon(Icons.add), onPressed: null)"))
-        self.assertEqual(rc, 1, out)
-        rc, out = run_gate(
-            screen("IconButton(icon: Badge(child: Icon(Icons.add)), onPressed: null)")
-        )
-        self.assertEqual(rc, 0, out)
-
-    def test_a_snack_bar_is_a_violation_unless_it_carries_an_action(self) -> None:
-        rc, out = run_gate(screen("SnackBar(content: Text('x'))"))
-        self.assertEqual(rc, 1, out)
-        rc, out = run_gate(
-            screen("SnackBar(content: Text('x'), action: SnackBarAction(label: 'u', onPressed: f))")
-        )
-        self.assertEqual(rc, 0, out)
-
-    def test_a_scaffold_and_app_bar_are_violations_unless_the_file_shows_a_snack_bar(self) -> None:
-        page = "Scaffold(appBar: AppBar(title: Text('x')), body: Text('y'))"
-        rc, out = run_gate(screen(page))
         self.assertEqual(rc, 1, out)
         self.assertIn("Scaffold is a raw", out)
         self.assertIn("AppBar is a raw", out)
-        rc, out = run_gate(
-            {"screen.dart": screen(page)["screen.dart"] + "void f() { messenger.showSnackBar(s); }\n"}
-        )
-        self.assertEqual(rc, 0, out)
 
-    def test_the_page_and_message_are_the_framework_ones(self) -> None:
+    def test_the_framework_page_message_bar_and_inputs_are_allowed(self) -> None:
         rc, out = run_gate(
-            screen("ZenPageScaffold(title: 't', body: ZenProgressIndicator())")
-            | {"b.dart": "void f(c) { showZenMessage(c, 'x'); final i = ZenIconButton(icon: a, label: 'l', onPressed: null); }\n"}
+            screen("ZenPageScaffold(title: 't', body: ZenProgressBar(value: 0.5, label: 'l'))")
+            | {
+                "b.dart": "void f(c) { showZenMessage(c, 'x', actionLabel: 'u', onAction: g);"
+                " final i = ZenIconButton(icon: a, label: 'l', badge: 2, onPressed: null);"
+                " final t = ZenTextField(label: 'l', maxLines: 3); }\n"
+            }
         )
         self.assertEqual(rc, 0, out)
 

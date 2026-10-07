@@ -1,6 +1,5 @@
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
@@ -160,7 +159,7 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
             ZenTextField(
               label: t.transfersTitleField,
               controller: _titleController,
-              inputFormatters: [LengthLimitingTextInputFormatter(50)],
+              maxLength: 50,
             ),
             const SizedBox(height: 8),
             ZenDateField(

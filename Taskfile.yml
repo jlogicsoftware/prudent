@@ -201,8 +201,8 @@ tasks:
       ElevatedButton, FilledButton, OutlinedButton, TextButton, DropdownButton,
       DropdownButtonFormField, SegmentedButton, SwitchListTile, showDatePicker,
       showDateRangePicker, showModalBottomSheet, TextField, TextFormField, IconButton,
-      CircularProgressIndicator, Scaffold, AppBar, SnackBar (each with one narrow, tested carve-out for
-      the capability its zen_ui_widgets counterpart lacks — ADR-060), and on any showDialog that does not show an
+      CircularProgressIndicator, LinearProgressIndicator, Scaffold, AppBar, SnackBar (ADR-060),
+      and on any showDialog that does not show an
       AlertDialog (or whose AlertDialog carries an input — that is a form, and a form opens through
       showAdaptivePresentation).
 
