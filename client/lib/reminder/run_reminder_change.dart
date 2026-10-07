@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_core/zen_core.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../l10n/generated/prudent_localizations.dart';
 import '../providers.dart';
@@ -28,7 +29,13 @@ Future<bool> runReminderChange(
             (ctx) => AlertDialog(
               title: Text(t.remindersTitle),
               content: Text(error.message.isEmpty ? t.reminderActionFailed : error.message),
-              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t.okay))],
+              actions: [
+                ZenButton(
+                  label: t.okay,
+                  variant: ZenButtonVariant.text,
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
             ),
       );
     }

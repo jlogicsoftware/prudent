@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../l10n/generated/prudent_localizations.dart';
 import 'budget_month.dart';
@@ -42,7 +43,12 @@ class BudgetMonthBar extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
-              if (!isCurrent) TextButton(onPressed: onCurrent, child: Text(t.budgetThisMonth)),
+              if (!isCurrent)
+                ZenButton(
+                  label: t.budgetThisMonth,
+                  onPressed: onCurrent,
+                  variant: ZenButtonVariant.text,
+                ),
             ],
           ),
         ),

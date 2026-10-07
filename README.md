@@ -110,6 +110,7 @@ never replaces them**: `mvnw` owns Java, `flutter`/`dart pub` owns Dart, `pnpm` 
 | `task generate` | Regenerate every generated artifact (proto, OpenAPI, admin types, l10n); no gate |
 | `task verify:contracts` | `generate`, then fail if a tracked generated file drifted (the CI gate) |
 | `task verify:boundaries` | Fails if the client (or the admin panel) reaches past Prudent's own server |
+| `task verify:controls` | Fails if a client screen uses a raw Material control `zen_ui_widgets` replaces |
 | `task test:server` | The backend suites against a throwaway Postgres |
 | `task zen:test:client` | Every Dart/Flutter suite |
 | `task test:admin` | Typechecks the admin panel |

@@ -47,8 +47,9 @@ conversion existed to remove is gone.
 
 The client's overlays (add/edit account, correction, record, category, filter) all open through jZen's
 `zen_ui_widgets` `showAdaptivePresentation` (ADR-041) — a sheet on native mobile, a dialog on desktop
-and web — so no screen carries its own `showDialog`/`showModalBottomSheet` block. The rest of
-`zen_ui_widgets`' controls are **not yet adopted** (see "Client UI" below).
+and web — so no screen carries its own `showDialog`/`showModalBottomSheet` block. No screen
+carries a raw Material button, select, switch row, segmented control or date picker either, and
+`task verify:controls` (ADR-059) fails the build when one returns (see "Client UI" below).
 
 M2 (planned and recurring transactions) is under way: `PlanResource` over `PlanEntity` and
 `RecurrenceRule` (ADR-037) model plans and their recurrence, separately from records;
@@ -282,8 +283,14 @@ consumer that bends them stops being a consumer:
   `ZenButton`, their language and currency picks `ZenSelect` (the currency pick moved from the app
   bar into the body, where a labelled field fits). The category form's colour and icon grids stay
   Prudent's own domain controls (`CategoryColorSwatch`, `CategoryIconChoice`), reachable by keyboard
-  and ringed with `FocusRing`. Other screens may still carry stock Material controls, so the rule
-  binds new and touched screens — don't describe the rest as done. `minorUnitDigits` in `money.dart` is
+  and ringed with `FocusRing`. **The rule is a gate, not a sentence:** `task verify:controls`
+  (`scripts/verify_controls.py`, run in CI) fails on `ElevatedButton`, `FilledButton`,
+  `OutlinedButton`, `TextButton`, `DropdownButton`, `DropdownButtonFormField`, `SegmentedButton`,
+  `SwitchListTile`, `showDatePicker`, `showDateRangePicker`, `showModalBottomSheet`, and on a
+  `showDialog` that does not show an `AlertDialog` or whose `AlertDialog` holds an input. The only
+  carve-outs are `AlertDialog` for acknowledgements and confirmations (its buttons are `ZenButton`s)
+  and `PopupMenuButton`; there is no per-file allowlist — a control the package lacks is a framework
+  gap to report, not an entry to add. `minorUnitDigits` in `money.dart` is
   what an amount field's `maxFractionDigits` takes: the wire has one fixed scale, not one per
   currency.
   `docs/jzen/README.md` has the state of the upstream issues.

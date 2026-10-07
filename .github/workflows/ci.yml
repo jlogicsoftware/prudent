@@ -143,6 +143,13 @@ jobs:
         working-directory: prudent
         run: task verify:boundaries
 
+      # The same cheap-and-first reasoning: raw Material controls compile, render and pass every
+      # test, so only a gate notices a screen that has quietly stopped using zen_ui_widgets.
+      # CLAUDE.md "Client UI: the framework's controls first".
+      - name: Client controls gate
+        working-directory: prudent
+        run: task verify:controls
+
       # THE STEP THE SEAM DIAGRAM ABOVE IS ABOUT. server/pom.xml's parent has an empty
       # <relativePath/>, resolved from the local Maven repository — a fresh runner has none, so
       # this installs jZen's framework artifacts into it before anything below tries to resolve

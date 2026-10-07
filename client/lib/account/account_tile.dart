@@ -58,7 +58,13 @@ class AccountTile extends ConsumerWidget {
                   content: Text(
                     error.message.isEmpty ? t.correctionsAlreadyBalanced : error.message,
                   ),
-                  actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t.okay))],
+                  actions: [
+                    ZenButton(
+                      label: t.okay,
+                      variant: ZenButtonVariant.text,
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
                 ),
           );
         }
@@ -76,8 +82,16 @@ class AccountTile extends ConsumerWidget {
             title: Text(t.accountDeleteTitle),
             content: Text(t.accountDeleteConfirm(account.name)),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.cancel)),
-              TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t.accountDelete)),
+              ZenButton(
+                label: t.cancel,
+                variant: ZenButtonVariant.text,
+                onPressed: () => Navigator.pop(ctx, false),
+              ),
+              ZenButton(
+                label: t.accountDelete,
+                variant: ZenButtonVariant.text,
+                onPressed: () => Navigator.pop(ctx, true),
+              ),
             ],
           ),
     );
@@ -97,7 +111,13 @@ class AccountTile extends ConsumerWidget {
               // here carries the server's message the same way, decoded transport-side by
               // ZenTransportError, so there is one path rather than a type check per error kind.
               content: Text(error.message.isEmpty ? t.accountDeleteBlockedGeneric : error.message),
-              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t.okay))],
+              actions: [
+                ZenButton(
+                  label: t.okay,
+                  variant: ZenButtonVariant.text,
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
             ),
       );
     }

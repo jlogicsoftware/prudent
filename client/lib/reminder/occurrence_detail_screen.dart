@@ -49,7 +49,13 @@ class _OccurrenceDetailScreenState extends ConsumerState<OccurrenceDetailScreen>
             (ctx) => AlertDialog(
               title: Text(_occurrence.title),
               content: Text(error.message.isEmpty ? t.occurrenceActionFailed : error.message),
-              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t.okay))],
+              actions: [
+                ZenButton(
+                  label: t.okay,
+                  variant: ZenButtonVariant.text,
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
             ),
       );
     } finally {
