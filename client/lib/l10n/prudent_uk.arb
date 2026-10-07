@@ -266,6 +266,8 @@
     "placeholders": { "error": { "type": "String" } }
   },
 
+  "analyticsCurrencyField": "Валюта",
+
   "chartTitle": "Діаграма",
   "chartNoAccounts": "Додайте рахунок, щоб побачити діаграму.",
   "chartEmpty": "Немає витрат цього місяця.",
