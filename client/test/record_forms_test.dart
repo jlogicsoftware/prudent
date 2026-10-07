@@ -229,6 +229,19 @@ void main() {
       expect(saved!.categoryId, 'fun');
     });
 
+    testWidgets('the preselected account brings its first currency, with nothing else touched', (
+      tester,
+    ) async {
+      await open(tester);
+      await fill(tester);
+      await tester.tap(find.text('Save Expense'));
+      await tester.pumpAndSettle();
+
+      // Bank is preselected and holds EUR first: the form must not send its initial PLN.
+      expect(saved!.accountId, 'bank');
+      expect(saved!.currency, 'EUR');
+    });
+
     testWidgets('editing shows the stored magnitude, date and sign, and resends them', (
       tester,
     ) async {
