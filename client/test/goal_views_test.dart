@@ -19,6 +19,8 @@ import 'package:prudent/providers.dart';
 import 'package:zen_transport/zen_transport.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
+import 'zen_platform_skip.dart';
+
 const _headers = {'X-Zen-Transport': 'json'};
 
 Map<String, Object?> _goal(
@@ -350,6 +352,7 @@ void main() {
   testWidgets('an active goal offers add, withdraw and move; adding sends one allocation', (
     tester,
   ) async {
+    if (skipWithoutZenPlatform()) return;
     await pump(tester, standard());
     await tester.tap(find.text('Car'));
     await tester.pumpAndSettle();
@@ -381,6 +384,7 @@ void main() {
   });
 
   testWidgets('a refused allocation is explained in the form, which stays open', (tester) async {
+    if (skipWithoutZenPlatform()) return;
     await pump(tester, standard()..refuseAllocation = 'Only 5750.00 PLN is free.');
     await tester.tap(find.text('Car'));
     await tester.pumpAndSettle();
@@ -396,6 +400,7 @@ void main() {
   });
 
   testWidgets('a zero amount is refused before anything is sent', (tester) async {
+    if (skipWithoutZenPlatform()) return;
     await pump(tester, standard());
     await tester.tap(find.text('Car'));
     await tester.pumpAndSettle();
@@ -412,6 +417,7 @@ void main() {
   });
 
   testWidgets('a move offers only active goals in the same currency', (tester) async {
+    if (skipWithoutZenPlatform()) return;
     await pump(tester, standard());
     await tester.tap(find.text('Car'));
     await tester.pumpAndSettle();
