@@ -1,5 +1,10 @@
 import 'package:fixnum/fixnum.dart';
 
+/// How many fraction digits an amount carries: the wire counts every currency in hundredths
+/// (`amount_minor`, proto/prudent/v1/accounts.proto), so this is the one place an amount field's
+/// `maxFractionDigits` and [parseMinorUnits]'s fraction check agree.
+const minorUnitDigits = 2;
+
 /// Parses a user-entered decimal amount (e.g. `"12.34"` or `"12,34"`) into an exact `Int64` count
 /// of minor units (1234), the wire's money type (proto/prudent/v1/accounts.proto §2.1).
 ///
@@ -18,11 +23,11 @@ Int64? parseMinorUnits(String input) {
 
   final wholePart = parts[0];
   final fractionPart = parts.length == 2 ? parts[1] : '';
-  if (wholePart.isEmpty || fractionPart.length > 2) return null;
+  if (wholePart.isEmpty || fractionPart.length > minorUnitDigits) return null;
   if (!RegExp(r'^\d+$').hasMatch(wholePart)) return null;
   if (fractionPart.isNotEmpty && !RegExp(r'^\d+$').hasMatch(fractionPart)) return null;
 
-  final paddedFraction = fractionPart.padRight(2, '0');
+  final paddedFraction = fractionPart.padRight(minorUnitDigits, '0');
   final whole = Int64.parseInt(wholePart);
   final fraction = Int64.parseInt(paddedFraction);
   final minor = whole * 100 + fraction;

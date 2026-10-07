@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
@@ -32,7 +33,7 @@ class ReconcileAccount extends StatefulWidget {
 class _ReconcileAccountState extends State<ReconcileAccount> {
   final _balanceController = TextEditingController();
   final _noteController = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedDate = DateUtils.dateOnly(DateTime.now());
   String? _currency;
 
   List<String> get _currencies =>
@@ -43,18 +44,6 @@ class _ReconcileAccountState extends State<ReconcileAccount> {
       if (balance.currency == _currency) return balance;
     }
     return null;
-  }
-
-  void _presentDatePicker() async {
-    final now = DateTime.now();
-    final firstDate = DateTime(now.year - 1, now.month, now.day);
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: firstDate,
-      lastDate: now,
-    );
-    if (pickedDate != null) setState(() => _selectedDate = pickedDate);
   }
 
   void _invalid(String message) {
@@ -72,7 +61,8 @@ class _ReconcileAccountState extends State<ReconcileAccount> {
 
   void _submit() {
     final t = PrudentLocalizations.of(context);
-    final magnitude = parseMinorUnits(_balanceController.text.trim());
+    final canonical = normalizeAmount(_balanceController.text, maxFractionDigits: minorUnitDigits);
+    final magnitude = canonical == null ? null : parseMinorUnits(canonical);
     if (magnitude == null || _currency == null) {
       _invalid(t.correctionsInvalidInput);
       return;
@@ -99,6 +89,7 @@ class _ReconcileAccountState extends State<ReconcileAccount> {
     final t = PrudentLocalizations.of(context);
     _currency ??= _currencies.isNotEmpty ? _currencies.first : null;
     final currentBalance = _selectedBalance();
+    final today = DateUtils.dateOnly(DateTime.now());
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
@@ -110,14 +101,12 @@ class _ReconcileAccountState extends State<ReconcileAccount> {
           Text(t.correctionsExplanation, style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 16),
           if (_currencies.length > 1)
-            DropdownButtonFormField<String>(
-              initialValue: _currency,
-              items: [
-                for (final currency in _currencies)
-                  DropdownMenuItem(value: currency, child: Text(currency)),
-              ],
+            ZenSelect<String>(
+              label: t.correctionsCurrencyField,
+              items: _currencies,
+              itemLabel: (currency) => currency,
+              value: _currency,
               onChanged: (value) => setState(() => _currency = value),
-              decoration: InputDecoration(labelText: t.correctionsCurrencyField),
             ),
           if (currentBalance != null)
             Padding(
@@ -129,17 +118,20 @@ class _ReconcileAccountState extends State<ReconcileAccount> {
                 ),
               ),
             ),
-          TextField(
+          ZenAmountField(
+            label: t.correctionsTrueBalanceField,
             controller: _balanceController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(label: Text(t.correctionsTrueBalanceField)),
+            maxFractionDigits: minorUnitDigits,
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: Text(DateFormat.yMd().format(_selectedDate))),
-              IconButton(onPressed: _presentDatePicker, icon: const Icon(Icons.calendar_month)),
-            ],
+          ZenDateField(
+            label: t.correctionsDateField,
+            value: _selectedDate,
+            firstDate: DateTime(today.year - 1, today.month, today.day),
+            lastDate: today,
+            onChanged: (picked) {
+              if (picked != null) setState(() => _selectedDate = picked);
+            },
           ),
           const SizedBox(height: 8),
           TextField(
@@ -151,8 +143,12 @@ class _ReconcileAccountState extends State<ReconcileAccount> {
           Row(
             children: [
               const Spacer(),
-              TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
-              ElevatedButton(onPressed: _submit, child: Text(t.correctionsSave)),
+              ZenButton(
+                label: t.cancel,
+                onPressed: () => Navigator.pop(context),
+                variant: ZenButtonVariant.text,
+              ),
+              ZenButton(label: t.correctionsSave, onPressed: _submit),
             ],
           ),
         ],

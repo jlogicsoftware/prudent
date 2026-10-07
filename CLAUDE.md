@@ -274,9 +274,12 @@ consumer that bends them stops being a consumer:
   layout have no counterpart and are used directly. **Status:** overlays are migrated (ADR-041); the
   goal screens (ADR-053) are the first built wholly on the package's controls, and `app.dart` now
   registers `zenWidgetsLocaleDelegate` (with Prudent's Polish ahead of it) because the amount and
-  date fields read their own strings; the buttons, dropdowns, segmented control, switch rows and
-  date/amount fields are still stock Material in older screens, so the rule binds new and touched
-  screens — don't describe the rest as done.
+  date fields read their own strings; the account forms (`client/lib/account/`, #101) are migrated
+  too, while the buttons, dropdowns, segmented control, switch rows and date/amount fields are still
+  stock Material in older screens (`record/`, `category/`, settings, analytics), so the rule binds
+  new and touched screens — don't describe the rest as done. `minorUnitDigits` in `money.dart` is
+  what an amount field's `maxFractionDigits` takes: the wire has one fixed scale, not one per
+  currency.
   `docs/jzen/README.md` has the state of the upstream issues.
 - **Typed, generated i18n.** No hardcoded user-facing strings. Each package owns `lib/l10n/*.arb`
   + `l10n.yaml` and generates accessors with `flutter gen-l10n`; the generated output is built, not
