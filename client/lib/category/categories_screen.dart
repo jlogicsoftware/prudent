@@ -54,60 +54,68 @@ class CategoriesScreen extends ConsumerWidget {
           if (categories.isEmpty) {
             return Center(child: Text(t.categoriesEmpty));
           }
-          return GridView(
-            padding: const EdgeInsets.all(20),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: zenIsDesktop ? 3 : 2,
-              mainAxisExtent: zenIsDesktop ? 200 : 150,
-              childAspectRatio: zenIsDesktop ? 2 : 1.5,
-              crossAxisSpacing: 20,
-              mainAxisSpacing: 20,
-            ),
-            children: [
-              for (final category in categories)
-                Stack(
-                  children: [
-                    // A TAP OPENS THE CATEGORY'S RECORDS, not the edit form: CategoryRecords was
-                    // unreachable before this phase (docs/prudent-migration-plan.md), and giving
-                    // it the tile's main gesture is what makes it reachable rather than a second
-                    // stub nobody can get to.
-                    InkWell(
-                      borderRadius: BorderRadius.circular(15),
-                      onTap:
-                          () => Navigator.of(
-                            context,
-                          ).push(MaterialPageRoute(builder: (ctx) => CategoryRecords(category: category))),
-                      child: CategoryGridItem(category: category),
-                    ),
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: Popup(
-                        popupLeading: const Icon(Icons.edit_outlined, size: 18),
-                        popupBody: NewCategory(
-                          initialCategory: category,
-                          onSave:
-                              ({
-                                required title,
-                                required iconKey,
-                                required description,
-                                required colorArgb,
-                              }) => ref
-                                  .read(categoriesProvider.notifier)
-                                  .editCategory(
-                                    category.id,
-                                    UpdateCategoryRequest(
-                                      title: title,
-                                      iconKey: iconKey,
-                                      description: description,
-                                      colorArgb: colorArgb,
-                                    ),
-                                  ),
-                        ),
-                      ),
-                    ),
-                  ],
+          // The density follows the width this grid is given, not the platform: a wide browser
+          // window is still `web` and a desktop window can be dragged narrow, and only the
+          // constraints know either. zenNarrowWidth is the framework's own breakpoint (the nav
+          // shell switches on it), so the grid and the shell change layout at the same width.
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < zenNarrowWidth;
+              return GridView(
+                padding: const EdgeInsets.all(20),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: narrow ? 2 : 3,
+                  mainAxisExtent: narrow ? 150 : 200,
+                  crossAxisSpacing: 20,
+                  mainAxisSpacing: 20,
                 ),
-            ],
+                children: [
+                  for (final category in categories)
+                    Stack(
+                      children: [
+                        // A TAP OPENS THE CATEGORY'S RECORDS, not the edit form: CategoryRecords was
+                        // unreachable before this phase (docs/prudent-migration-plan.md), and giving
+                        // it the tile's main gesture is what makes it reachable rather than a second
+                        // stub nobody can get to.
+                        InkWell(
+                          borderRadius: BorderRadius.circular(15),
+                          onTap:
+                              () => Navigator.of(context).push(
+                                MaterialPageRoute(builder: (ctx) => CategoryRecords(category: category)),
+                              ),
+                          child: CategoryGridItem(category: category),
+                        ),
+                        Align(
+                          alignment: Alignment.topRight,
+                          child: Popup(
+                            popupLeading: const Icon(Icons.edit_outlined, size: 18),
+                            popupBody: NewCategory(
+                              initialCategory: category,
+                              onSave:
+                                  ({
+                                    required title,
+                                    required iconKey,
+                                    required description,
+                                    required colorArgb,
+                                  }) => ref
+                                      .read(categoriesProvider.notifier)
+                                      .editCategory(
+                                        category.id,
+                                        UpdateCategoryRequest(
+                                          title: title,
+                                          iconKey: iconKey,
+                                          description: description,
+                                          colorArgb: colorArgb,
+                                        ),
+                                      ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              );
+            },
           );
         },
       ),
