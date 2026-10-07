@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../l10n/generated/prudent_localizations.dart';
 import '../providers.dart';
@@ -39,25 +40,30 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(t.analyticsTitle),
-        actions: [
+      appBar: AppBar(title: Text(t.analyticsTitle)),
+      body: Column(
+        children: [
           if (currencies.length > 1)
             Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: DropdownButton<String>(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: ZenSelect<String>(
+                label: t.analyticsCurrencyField,
+                items: currencies,
+                itemLabel: (c) => c,
                 value: currency,
-                dropdownColor: Theme.of(context).colorScheme.surface,
-                items: [for (final c in currencies) DropdownMenuItem(value: c, child: Text(c))],
                 onChanged: (value) => setState(() => _currency = value),
               ),
             ),
+          Expanded(
+            child: periodAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => Center(child: Text(t.analyticsLoadError(error.toString()))),
+              data:
+                  (response) =>
+                      AnalyticsContent(response: response, currency: currency, months: _trailingMonths),
+            ),
+          ),
         ],
-      ),
-      body: periodAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(t.analyticsLoadError(error.toString()))),
-        data: (response) => AnalyticsContent(response: response, currency: currency, months: _trailingMonths),
       ),
     );
   }

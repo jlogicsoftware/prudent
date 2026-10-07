@@ -359,6 +359,8 @@
     "placeholders": { "error": { "type": "String" } }
   },
 
+  "analyticsCurrencyField": "Currency",
+
   "chartTitle": "Chart",
   "chartNoAccounts": "Add an account to see a chart.",
   "chartEmpty": "No spending this month.",

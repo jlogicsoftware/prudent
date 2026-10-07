@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/categories.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import 'category_color_swatch.dart';
+import 'category_icon_choice.dart';
 import 'category_icons.dart';
 
 /// Shared create/edit form. The caller decides whether the result becomes a
@@ -53,7 +56,9 @@ class _NewCategoryState extends State<NewCategory> {
             (ctx) => AlertDialog(
               title: Text(t.invalidInputTitle),
               content: Text(t.categoryInvalidInput),
-              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t.okay))],
+              actions: [
+                ZenButton(label: t.okay, variant: ZenButtonVariant.text, onPressed: () => Navigator.pop(ctx)),
+              ],
             ),
       );
       return;
@@ -106,70 +111,49 @@ class _NewCategoryState extends State<NewCategory> {
                 crossAxisSpacing: 8,
                 mainAxisSpacing: 8,
               ),
-              children:
-                  prudentCategoryColors
-                      .map(
-                        (c) => InkWell(
-                          onTap: () => setState(() => _selectedColorArgb = c.toARGB32()),
-                          child: Container(
-                            margin: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: c,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: c.toARGB32() == _selectedColorArgb ? Colors.black : Colors.transparent,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
+              children: [
+                for (final c in prudentCategoryColors)
+                  CategoryColorSwatch(
+                    color: c,
+                    selected: c.toARGB32() == _selectedColorArgb,
+                    onTap: () => setState(() => _selectedColorArgb = c.toARGB32()),
+                  ),
+              ],
             ),
             Container(
               height: 200,
               margin: const EdgeInsets.only(top: 16, bottom: 16),
               child: GridView(
                 shrinkWrap: true,
+                // The viewport clips what overflows it, and a FocusRing sits 4px outside its
+                // control; without room the first and last rows' rings would be cut off.
+                padding: const EdgeInsets.all(4),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 5,
                   mainAxisExtent: 50,
                   crossAxisSpacing: 8,
                   mainAxisSpacing: 8,
                 ),
-                children:
-                    prudentCategoryIcons.entries
-                        .map(
-                          (entry) => InkWell(
-                            onTap: () => setState(() => _selectedIconKey = entry.key),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: selectedColor,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color:
-                                      _selectedIconKey == entry.key
-                                          ? Theme.of(context).colorScheme.primary
-                                          : Colors.transparent,
-                                  width: 2,
-                                ),
-                              ),
-                              child: Icon(
-                                entry.value,
-                                size: 30,
-                                color: selectedColor.computeLuminance() > 0.5 ? Colors.black : Colors.white,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
+                children: [
+                  for (final entry in prudentCategoryIcons.entries)
+                    CategoryIconChoice(
+                      icon: entry.value,
+                      color: selectedColor,
+                      selected: _selectedIconKey == entry.key,
+                      onTap: () => setState(() => _selectedIconKey = entry.key),
+                    ),
+                ],
               ),
             ),
             Row(
               children: [
-                TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
+                ZenButton(
+                  label: t.cancel,
+                  variant: ZenButtonVariant.text,
+                  onPressed: () => Navigator.pop(context),
+                ),
                 const Spacer(),
-                ElevatedButton(onPressed: _submit, child: Text(t.categorySave)),
+                ZenButton(label: t.categorySave, onPressed: _submit),
               ],
             ),
           ],
