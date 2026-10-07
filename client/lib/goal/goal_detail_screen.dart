@@ -32,7 +32,7 @@ class GoalDetailScreen extends ConsumerWidget {
     final goals = ref.watch(goalsProvider).value ?? const <Goal>[];
     final goal = goals.where((g) => g.id == goalId).firstOrNull;
     if (goal == null) {
-      return Scaffold(appBar: AppBar(), body: Center(child: Text(t.goalNotFound)));
+      return ZenPageScaffold(body: Center(child: Text(t.goalNotFound)));
     }
 
     final progress = ref.watch(goalProgressProvider).value?[goalId];
@@ -47,42 +47,46 @@ class GoalDetailScreen extends ConsumerWidget {
       builder: (_) => GoalAllocationForm(goal: goal, kind: kind),
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(goal.name),
-        actions: [
-          PopupMenuButton<_LifecycleAction>(
-            onSelected: (action) => _onLifecycle(context, ref, goal, action),
-            itemBuilder:
-                (_) => [
-                  if (!archived)
-                    PopupMenuItem(value: _LifecycleAction.edit, child: Text(t.goalActionEdit)),
-                  if (active)
-                    PopupMenuItem(
-                      value: _LifecycleAction.complete,
-                      child: Text(t.goalActionComplete),
-                    ),
-                  if (!archived)
-                    PopupMenuItem(
-                      value: _LifecycleAction.archive,
-                      child: Text(t.goalActionArchive),
-                    ),
-                  if (!active)
-                    PopupMenuItem(
-                      value: _LifecycleAction.reactivate,
-                      child: Text(t.goalActionReactivate),
-                    ),
-                ],
-          ),
-        ],
-      ),
+    return ZenPageScaffold(
+      title: goal.name,
+      actions: [
+        PopupMenuButton<_LifecycleAction>(
+          onSelected: (action) => _onLifecycle(context, ref, goal, action),
+          itemBuilder:
+              (_) => [
+                if (!archived)
+                  PopupMenuItem(
+                    value: _LifecycleAction.edit,
+                    child: Text(t.goalActionEdit),
+                  ),
+                if (active)
+                  PopupMenuItem(
+                    value: _LifecycleAction.complete,
+                    child: Text(t.goalActionComplete),
+                  ),
+                if (!archived)
+                  PopupMenuItem(
+                    value: _LifecycleAction.archive,
+                    child: Text(t.goalActionArchive),
+                  ),
+                if (!active)
+                  PopupMenuItem(
+                    value: _LifecycleAction.reactivate,
+                    child: Text(t.goalActionReactivate),
+                  ),
+              ],
+        ),
+      ],
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           GoalCard(goal: goal, progress: progress),
           const SizedBox(height: 8),
           if (archived)
-            Text(t.goalArchivedReadOnly, style: Theme.of(context).textTheme.bodyMedium)
+            Text(
+              t.goalArchivedReadOnly,
+              style: Theme.of(context).textTheme.bodyMedium,
+            )
           else
             Wrap(
               spacing: 8,
@@ -93,19 +97,27 @@ class GoalDetailScreen extends ConsumerWidget {
                     label: t.goalActionAllocate,
                     icon: Icons.add,
                     onPressed:
-                        () => openAllocation(GoalAllocationKind.GOAL_ALLOCATION_KIND_ALLOCATE),
+                        () => openAllocation(
+                          GoalAllocationKind.GOAL_ALLOCATION_KIND_ALLOCATE,
+                        ),
                   ),
                 ZenButton(
                   label: t.goalActionWithdraw,
                   icon: Icons.remove,
                   variant: ZenButtonVariant.secondary,
-                  onPressed: () => openAllocation(GoalAllocationKind.GOAL_ALLOCATION_KIND_WITHDRAW),
+                  onPressed:
+                      () => openAllocation(
+                        GoalAllocationKind.GOAL_ALLOCATION_KIND_WITHDRAW,
+                      ),
                 ),
                 ZenButton(
                   label: t.goalActionMove,
                   icon: Icons.swap_horiz,
                   variant: ZenButtonVariant.secondary,
-                  onPressed: () => openAllocation(GoalAllocationKind.GOAL_ALLOCATION_KIND_MOVE),
+                  onPressed:
+                      () => openAllocation(
+                        GoalAllocationKind.GOAL_ALLOCATION_KIND_MOVE,
+                      ),
                 ),
               ],
             ),
@@ -115,7 +127,7 @@ class GoalDetailScreen extends ConsumerWidget {
             loading:
                 () => const Padding(
                   padding: EdgeInsets.all(16),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: ZenProgressIndicator()),
                 ),
             error: (error, _) => Text(t.goalHistoryLoadError(error.toString())),
             data:
@@ -128,7 +140,11 @@ class GoalDetailScreen extends ConsumerWidget {
                         : Column(
                           children: [
                             for (final entry in entries)
-                              GoalHistoryTile(entry: entry, goalId: goalId, goalNames: names),
+                              GoalHistoryTile(
+                                entry: entry,
+                                goalId: goalId,
+                                goalNames: names,
+                              ),
                           ],
                         ),
           ),

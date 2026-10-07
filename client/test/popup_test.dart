@@ -19,7 +19,8 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: Popup(
-            popupLeading: const Icon(Icons.add),
+            icon: Icons.add,
+            label: 'Add',
             popupBody: Builder(
               builder:
                   (context) => TextButton(

@@ -67,10 +67,7 @@ class _AccountEditState extends State<AccountEdit> {
       padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
       child: Column(
         children: [
-          TextField(
-            controller: _nameController,
-            decoration: InputDecoration(label: Text(t.accountNameField)),
-          ),
+          ZenTextField(label: t.accountNameField, controller: _nameController),
           const SizedBox(height: 16),
           ZenSelect<AccountType>(
             label: t.accountTypeField,

@@ -14,6 +14,7 @@ import 'package:prudent/generated/prudent/v1/categories.pb.dart';
 import 'package:prudent/generated/prudent/v1/settings.pb.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
 import 'package:prudent/providers.dart';
+import 'zen_fields.dart';
 
 Account _account(String id, String currency) => Account(
   id: id,
@@ -189,14 +190,14 @@ void main() {
     await pump(tester, summary: (params) async => _summary(params.month, params.currency, const []));
     expect(find.text('This month'), findsNothing);
 
-    await tester.tap(find.byTooltip('Previous month'));
+    await tester.tap(iconButton('Previous month'));
     await tester.pumpAndSettle();
     expect(requests.last.month, thisMonth.previous.wire);
     expect(find.text(label(thisMonth.previous)), findsOneWidget);
     expect(find.text('No budgets for ${label(thisMonth.previous)} in PLN.'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Next month'));
-    await tester.tap(find.byTooltip('Next month'));
+    await tester.tap(iconButton('Next month'));
+    await tester.tap(iconButton('Next month'));
     await tester.pumpAndSettle();
     expect(requests.last.month, thisMonth.next.wire);
     expect(find.text(label(thisMonth.next)), findsOneWidget);

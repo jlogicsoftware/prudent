@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../record/record_item.dart';
 import '../generated/prudent/v1/categories.pb.dart';
@@ -19,18 +20,24 @@ class CategoryRecords extends ConsumerWidget {
     final t = PrudentLocalizations.of(context);
     final recordsAsync = ref.watch(recordsProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: Text(category.title)),
+    return ZenPageScaffold(
+      title: category.title,
       body: recordsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(t.recordsLoadError(error.toString()))),
+        loading: () => const Center(child: ZenProgressIndicator()),
+        error:
+            (error, _) =>
+                Center(child: Text(t.recordsLoadError(error.toString()))),
         data: (records) {
-          final inCategory = records.where((r) => r.categoryId == category.id).toList();
+          final inCategory =
+              records.where((r) => r.categoryId == category.id).toList();
           if (inCategory.isEmpty) {
             return Center(child: Text(t.categoryRecordsEmpty));
           }
           return ListView(
-            children: [for (final record in inCategory) RecordItem(record, category: category)],
+            children: [
+              for (final record in inCategory)
+                RecordItem(record, category: category),
+            ],
           );
         },
       ),

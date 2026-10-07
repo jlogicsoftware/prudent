@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../l10n/generated/prudent_localizations.dart';
 import '../providers.dart';
@@ -14,18 +15,19 @@ class AccountScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(PrudentLocalizations.of(context).accountsTitle),
-        actions: [
-          Popup(
-            popupLeading: const Icon(Icons.add),
-            popupBody: AccountNew(
-              onAddAccount: (request) => ref.read(accountsProvider.notifier).addAccount(request),
-            ),
+    return ZenPageScaffold(
+      title: PrudentLocalizations.of(context).accountsTitle,
+      actions: [
+        Popup(
+          icon: Icons.add,
+          label: PrudentLocalizations.of(context).addAccountTooltip,
+          popupBody: AccountNew(
+            onAddAccount:
+                (request) =>
+                    ref.read(accountsProvider.notifier).addAccount(request),
           ),
-        ],
-      ),
+        ),
+      ],
       body: const AccountList(),
     );
   }

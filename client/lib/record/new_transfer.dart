@@ -1,5 +1,6 @@
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
@@ -156,10 +157,10 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
           children: [
             Text(t.transfersNewTitle, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            TextField(
+            ZenTextField(
+              label: t.transfersTitleField,
               controller: _titleController,
-              maxLength: 50,
-              decoration: InputDecoration(label: Text(t.transfersTitleField)),
+              inputFormatters: [LengthLimitingTextInputFormatter(50)],
             ),
             const SizedBox(height: 8),
             ZenDateField(

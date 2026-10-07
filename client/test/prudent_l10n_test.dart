@@ -157,7 +157,7 @@ void main() {
       // Renders AT ALL — no exception reached the test harness — and in Prudent's own Polish,
       // not the framework's English fallback.
       expect(tester.takeException(), isNull);
-      expect(find.widgetWithText(FilledButton, 'Zaloguj się'), findsOneWidget);
+      expect(find.widgetWithText(ZenButton, 'Zaloguj się'), findsOneWidget);
       expect(find.text('Log In'), findsNothing);
     },
   );
@@ -191,8 +191,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.widgetWithText(FilledButton, 'Log In'), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, 'Zaloguj się'), findsNothing);
+      expect(find.widgetWithText(ZenButton, 'Log In'), findsOneWidget);
+      expect(find.widgetWithText(ZenButton, 'Zaloguj się'), findsNothing);
     },
   );
 
@@ -218,7 +218,7 @@ void main() {
           ),
         ),
       );
-      await tester.enterText(find.byType(TextFormField), '1.2.3');
+      await tester.enterText(find.byType(ZenTextField), '1.2.3');
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       final context = tester.element(find.byType(ZenAmountField));

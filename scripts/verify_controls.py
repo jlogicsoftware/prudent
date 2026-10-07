@@ -9,10 +9,13 @@ treatment, silently became the one that does not have it.
 
 THE RULE, in two parts.
 
-1. **Banned outright** in `client/lib` (generated code and `l10n/` excluded): every name in
+1. **Banned** in `client/lib` (generated code and `l10n/` excluded): every name in
    `BANNED_CONTROLS`. Each has a `zen_ui_widgets` counterpart — `ZenButton` (all three variants),
-   `ZenSelect`, `ZenSegmentedControl`, `ZenSwitchRow`, `ZenDateField` / `ZenDateRangeField` — or,
-   for `showModalBottomSheet`, `showAdaptivePresentation`.
+   `ZenSelect`, `ZenSegmentedControl`, `ZenSwitchRow`, `ZenDateField` / `ZenDateRangeField`,
+   `ZenTextField`, `ZenIconButton`, `ZenProgressIndicator`, `ZenPageScaffold` (for `Scaffold` and
+   `AppBar`), `showZenMessage` (for `SnackBar`) — or, for `showModalBottomSheet`,
+   `showAdaptivePresentation`. These are the controls that render Cupertino on iOS and macOS
+   (jlogicsoftware/prudent#116): a raw Material one is Material on every platform.
 
 2. **`showDialog` is allowed only to show an `AlertDialog`.** An acknowledgement ("that input was
    invalid — Okay") or a confirmation ("delete this account? Cancel / Delete") is a message with a
@@ -24,6 +27,16 @@ THE RULE, in two parts.
    confirmation's name.
 
 THE EXPLICIT CARVE-OUTS, written down so none of them is implied:
+
+* **Where a counterpart exists but lacks one capability, the carve-out is that capability and
+  nothing else** (`CARVE_OUTS`). Each is the one thing the framework control cannot do today, each
+  is a gap reported upstream (docs/jzen/README.md), and each goes the day the control gains it:
+  a `TextField` / `TextFormField` that asks for `maxLines` / `minLines` (`ZenTextField` is single
+  line); an `IconButton` that carries a `Badge` (`ZenIconButton` takes an icon only); a `SnackBar`
+  that carries an `action` (`showZenMessage` has none — an undo is the only use); and `Scaffold` /
+  `AppBar` in a file that calls `showSnackBar`, because a snack bar needs a `Scaffold` to appear on
+  and `ZenPageScaffold` has none on Apple platforms. What an exemption carries is therefore
+  checked, not assumed: the same widget without that capability is still a violation.
 
 * `AlertDialog` itself, for the two uses above. What it carries: a title, a message and the verdict
   buttons. What would be lost by forcing it onto `showAdaptivePresentation`: a confirmation turned
@@ -68,11 +81,30 @@ BANNED_CONTROLS = (
     "showDatePicker",
     "showDateRangePicker",
     "showModalBottomSheet",
+    "TextField",
+    "TextFormField",
+    "IconButton",
+    "CircularProgressIndicator",
+    "Scaffold",
+    "AppBar",
+    "SnackBar",
 )
 BANNED = re.compile(r"\b(" + "|".join(BANNED_CONTROLS) + r")\b")
+
+_MULTILINE = re.compile(r"\b(maxLines|minLines)\s*:")
+# control -> ("call" | "file", pattern): the one capability its framework counterpart lacks. "call"
+# looks inside the control's own argument list, "file" anywhere in the masked file.
+CARVE_OUTS = {
+    "TextField": ("call", _MULTILINE),
+    "TextFormField": ("call", _MULTILINE),
+    "IconButton": ("call", re.compile(r"\bBadge\(")),
+    "SnackBar": ("call", re.compile(r"\baction\s*:")),
+    "Scaffold": ("file", re.compile(r"\bshowSnackBar\b")),
+    "AppBar": ("file", re.compile(r"\bshowSnackBar\b")),
+}
 SHOW_DIALOG = re.compile(r"\bshowDialog\b")
 ALERT_DIALOG = re.compile(r"\bAlertDialog\b")
-INPUT_IN_DIALOG = re.compile(r"\b(TextField|TextFormField|Form)\b")
+INPUT_IN_DIALOG = re.compile(r"\b(TextField|TextFormField|ZenTextField|Form)\b")
 
 
 class StaleScope(Exception):
@@ -246,7 +278,18 @@ def scan_file(rel: str, source: str) -> "list[Hit]":
         hits.append(Hit(rel, line, f"{why}  [{shown}]"))
 
     for m in BANNED.finditer(code):
-        add(m.start(), f"{m.group(1)} is a raw Material control")
+        name = m.group(1)
+        carve = CARVE_OUTS.get(name)
+        if carve:
+            kind, pattern = carve
+            if kind == "file":
+                scope = code
+            else:
+                span = call_span(code, m.end())
+                scope = code[span[0] : span[1] + 1] if span else ""
+            if pattern.search(scope):
+                continue
+        add(m.start(), f"{name} is a raw Material control")
 
     for m in SHOW_DIALOG.finditer(code):
         span = call_span(code, m.end())
@@ -295,7 +338,8 @@ def main(root: "Path | None" = None) -> int:
         print(f"       {h}")
     print()
     print("Use the zen_ui_widgets control instead (ZenButton, ZenSelect, ZenSegmentedControl,")
-    print("ZenSwitchRow, ZenDateField / ZenDateRangeField, showAdaptivePresentation). A control the")
+    print("ZenSwitchRow, ZenDateField / ZenDateRangeField, ZenTextField, ZenIconButton,")
+    print("ZenProgressIndicator, ZenPageScaffold, showZenMessage, showAdaptivePresentation). A control the")
     print("package lacks is a framework gap to report upstream, not an exemption to add here.")
     print("See CLAUDE.md 'Client UI: the framework's controls first' and ADR-041.")
     return 1

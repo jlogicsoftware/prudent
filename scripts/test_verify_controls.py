@@ -104,7 +104,7 @@ class ShowDialog(unittest.TestCase):
         self.assertEqual(rc, 1)
 
     def test_an_alert_dialog_with_an_input_is_a_form_and_fails(self) -> None:
-        for widget in ("TextField", "TextFormField", "Form"):
+        for widget in ("TextField", "TextFormField", "ZenTextField", "Form"):
             with self.subTest(widget=widget):
                 body = ALERT.replace("content: Text(t.message)", f"content: {widget}()")
                 rc, out = run_gate(screen(body))
@@ -112,7 +112,7 @@ class ShowDialog(unittest.TestCase):
                 self.assertIn(f"carries an input ({widget})", out)
 
     def test_an_input_outside_the_dialog_is_not_charged_to_it(self) -> None:
-        source = "final field = TextField();\n" + screen(ALERT)["screen.dart"]
+        source = "final field = ZenTextField(label: 'x');\n" + screen(ALERT)["screen.dart"]
         rc, out = run_gate({"screen.dart": source})
         self.assertEqual(rc, 0, out)
 
@@ -202,6 +202,59 @@ class Scope(unittest.TestCase):
         rc, out = run_gate({"generated/api.dart": "final ok = 1;\n"})
         self.assertEqual(rc, 1)
         self.assertIn("stale", out)
+
+
+class CapabilityCarveOuts(unittest.TestCase):
+    """Each carve-out is the one capability a framework control lacks, and nothing wider."""
+
+    def test_a_single_line_text_field_is_a_violation_but_a_multiline_one_is_not(self) -> None:
+        for name in ("TextField", "TextFormField"):
+            with self.subTest(control=name):
+                rc, out = run_gate(screen(f"{name}(controller: c)"))
+                self.assertEqual(rc, 1, out)
+                for lines in ("maxLines: 3", "minLines: 2"):
+                    rc, out = run_gate(screen(f"{name}(controller: c, {lines})"))
+                    self.assertEqual(rc, 0, out)
+
+    def test_a_maxlines_elsewhere_does_not_exempt_a_single_line_field(self) -> None:
+        source = "final a = Text('x', maxLines: 2);\nfinal b = TextField(controller: c);\n"
+        rc, out = run_gate({"screen.dart": source})
+        self.assertEqual(rc, 1, out)
+        self.assertIn("screen.dart:2", out)
+
+    def test_an_icon_button_is_a_violation_unless_it_carries_a_badge(self) -> None:
+        rc, out = run_gate(screen("IconButton(icon: Icon(Icons.add), onPressed: null)"))
+        self.assertEqual(rc, 1, out)
+        rc, out = run_gate(
+            screen("IconButton(icon: Badge(child: Icon(Icons.add)), onPressed: null)")
+        )
+        self.assertEqual(rc, 0, out)
+
+    def test_a_snack_bar_is_a_violation_unless_it_carries_an_action(self) -> None:
+        rc, out = run_gate(screen("SnackBar(content: Text('x'))"))
+        self.assertEqual(rc, 1, out)
+        rc, out = run_gate(
+            screen("SnackBar(content: Text('x'), action: SnackBarAction(label: 'u', onPressed: f))")
+        )
+        self.assertEqual(rc, 0, out)
+
+    def test_a_scaffold_and_app_bar_are_violations_unless_the_file_shows_a_snack_bar(self) -> None:
+        page = "Scaffold(appBar: AppBar(title: Text('x')), body: Text('y'))"
+        rc, out = run_gate(screen(page))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Scaffold is a raw", out)
+        self.assertIn("AppBar is a raw", out)
+        rc, out = run_gate(
+            {"screen.dart": screen(page)["screen.dart"] + "void f() { messenger.showSnackBar(s); }\n"}
+        )
+        self.assertEqual(rc, 0, out)
+
+    def test_the_page_and_message_are_the_framework_ones(self) -> None:
+        rc, out = run_gate(
+            screen("ZenPageScaffold(title: 't', body: ZenProgressIndicator())")
+            | {"b.dart": "void f(c) { showZenMessage(c, 'x'); final i = ZenIconButton(icon: a, label: 'l', onPressed: null); }\n"}
+        )
+        self.assertEqual(rc, 0, out)
 
 
 class RealTree(unittest.TestCase):

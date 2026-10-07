@@ -124,13 +124,11 @@ class _GoalFormState extends ConsumerState<GoalForm> {
             if (currency == null)
               Text(t.goalNoCurrency, style: Theme.of(context).textTheme.bodyLarge)
             else ...[
-              TextFormField(
+              ZenTextField(
+                label: t.goalNameField,
                 controller: _name,
-                decoration: InputDecoration(
-                  labelText: t.goalNameField,
-                  border: const OutlineInputBorder(),
-                ),
-                validator: (value) => (value ?? '').trim().isEmpty ? t.goalNameRequired : null,
+                validator:
+                    (value) => (value ?? '').trim().isEmpty ? t.goalNameRequired : null,
               ),
               const SizedBox(height: 16),
               if (!editing && currencies.length > 1) ...[

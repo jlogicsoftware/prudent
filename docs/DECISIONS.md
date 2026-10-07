@@ -13,6 +13,62 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-060 — Prudent's screens are built on jZen's Apple-aware text field, icon button, spinner, page and message; the gate bans their Material twins
+
+**Date:** 2026-10-07. **Status:** accepted. **Refines:** ADR-059, ADR-041. jlogicsoftware/prudent#116;
+jZenDev/jZen#119, #120 (text field, spinner, identity), #121 (macOS sidebar), #122 (icon button),
+#123 (page and message).
+
+### Decision
+
+- `JZEN_REF` moves from `6b017bb` to `b9369fb`, which carries `ZenTextField`, `ZenProgressIndicator`,
+  `ZenIconButton`, `ZenPageScaffold` and `showZenMessage`, the Cupertino identity screens, and the
+  sidebar `ZenNavigation` draws on macOS. On iOS and macOS each of these renders Cupertino; elsewhere
+  it renders what it rendered before.
+- Every screen in `client/lib` uses them in place of `TextField` / `TextFormField`, `IconButton`,
+  `CircularProgressIndicator`, `Scaffold` + `AppBar` and `SnackBar`. `Popup` takes an `IconData` and
+  a `label` instead of a widget, because `ZenIconButton` requires the accessible name an icon cannot
+  give itself; nine buttons that had no tooltip now have one (new keys `addRecordTooltip`,
+  `addAccountTooltip`, `addCategoryTooltip`, `editCategoryTooltip`, and existing ones reused).
+- `task verify:controls` bans the Material twins. Where the counterpart lacks **one capability**, the
+  carve-out is that capability and nothing wider, checked inside the call rather than assumed:
+  a `TextField` / `TextFormField` that passes `maxLines` / `minLines` (`ZenTextField` is single line),
+  an `IconButton` that carries a `Badge`, a `SnackBar` that carries an `action`, and `Scaffold` /
+  `AppBar` in a file that calls `showSnackBar` (a snack bar needs a `Scaffold`, and
+  `ZenPageScaffold` has none on Apple). `scripts/test_verify_controls.py` proves each carve-out
+  is exactly that wide: the same widget without the capability still fails.
+- What had no counterpart and is used directly: `LinearProgressIndicator` (goal and budget bars),
+  `RefreshIndicator`, `ListTile`, `Card`, `AlertDialog`, `PopupMenuButton`, `Badge`.
+
+### Behaviour that changed, stated rather than discovered
+
+- A field's `maxLength` is now a `LengthLimitingTextInputFormatter`: the limit is enforced, the
+  "12/50" counter is gone. The currency code is upper-cased by `UpperCaseTextFormatter` (the field
+  has no capitalization option, and a keyboard hint is ignored by a physical keyboard).
+- `AccountNew` reads its name and currency from controllers at submit; `ZenTextField` has no
+  `initialValue` / `onSaved`.
+- Prudent's own Polish for `zen_ui_navigation` gains the sidebar's `position` ("2 z 5"); the
+  `backButtonTooltip` override in the identity delegate is gone because jZen removed the string.
+- The client suite's finders no longer look for `TextField`, `IconButton` or a tooltip: those are
+  one idiom's types, and the host picks the idiom (`test/zen_fields.dart`). `task zen:test:client`
+  on a Mac exercises the Cupertino branch; CI's runners exercise Material.
+
+### Verified, and what is not
+
+- A debug macOS build with `ZEN_PLATFORM=macos` opens on a Cupertino login screen (rounded fields, a
+  Cupertino button), where before it was Material. The suite passes in the Material idiom
+  (`ZEN_PLATFORM=linux`, 342 tests) and, in the Cupertino idiom (`macos`), everything but thirteen
+  tests — all of them the defect below.
+- **A `ListTile` with an `onTap` inside `ZenPageScaffold` throws on Apple platforms.**
+  `CupertinoPageScaffold` puts a coloured `DecoratedBox` between the page's transparent `Material`
+  and its body, and Flutter asserts that a `ListTile` there "may have invisible background or ink
+  splashes". jZen's own page suite pumps a `ListTile` with no `onTap`, which does not trip it. The
+  reminder centre (`RemindersScreen`, `ReminderTile`) is the one Prudent screen with a tappable
+  `ListTile` in a page body; its thirteen tests are the ones that fail under `macos`. It is a
+  framework defect, reported rather than worked around by wrapping each tile in a `Material`.
+- **No signed-in screen has been looked at on macOS**: that needs the local stack (`task run:dev`)
+  and was not run.
+
 ## ADR-059 — Raw Material controls are gated out of `client/lib` by `task verify:controls`; `AlertDialog` and `PopupMenuButton` are the only carve-outs
 
 **Date:** 2026-10-07. **Status:** accepted. **Refines:** ADR-041. jlogicsoftware/prudent#105.

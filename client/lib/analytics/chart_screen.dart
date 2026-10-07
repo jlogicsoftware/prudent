@@ -33,8 +33,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen> {
     final t = PrudentLocalizations.of(context);
     final currencies = ref.watch(analyticsCurrenciesProvider);
     if (currencies.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: Text(t.chartTitle)),
+      return ZenPageScaffold(
+        title: t.chartTitle,
         body: Center(child: Text(t.chartNoAccounts)),
       );
     }
@@ -48,8 +48,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen> {
       ),
     );
 
-    return Scaffold(
-      appBar: AppBar(title: Text(t.chartTitle)),
+    return ZenPageScaffold(
+      title: t.chartTitle,
       body: Column(
         children: [
           if (currencies.length > 1)
@@ -68,27 +68,43 @@ class _ChartScreenState extends ConsumerState<ChartScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: () => setState(() => _month = DateTime(_month.year, _month.month - 1)),
+                ZenIconButton(
+                  icon: Icons.chevron_left,
+                  label: t.budgetPreviousMonth,
+                  onPressed:
+                      () => setState(
+                        () => _month = DateTime(_month.year, _month.month - 1),
+                      ),
                 ),
                 Text(
-                  DateFormat.yMMMM(Localizations.localeOf(context).toLanguageTag()).format(_month),
+                  DateFormat.yMMMM(
+                    Localizations.localeOf(context).toLanguageTag(),
+                  ).format(_month),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: () => setState(() => _month = DateTime(_month.year, _month.month + 1)),
+                ZenIconButton(
+                  icon: Icons.chevron_right,
+                  label: t.budgetNextMonth,
+                  onPressed:
+                      () => setState(
+                        () => _month = DateTime(_month.year, _month.month + 1),
+                      ),
                 ),
               ],
             ),
           ),
           Expanded(
             child: spendAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(child: Text(t.chartLoadError(error.toString()))),
+              loading: () => const Center(child: ZenProgressIndicator()),
+              error:
+                  (error, _) =>
+                      Center(child: Text(t.chartLoadError(error.toString()))),
               data:
-                  (response) => ChartContent(response: response, categories: categories, currency: currency),
+                  (response) => ChartContent(
+                    response: response,
+                    categories: categories,
+                    currency: currency,
+                  ),
             ),
           ),
         ],

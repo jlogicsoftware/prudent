@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
@@ -140,10 +141,10 @@ class _ReconcileAccountState extends State<ReconcileAccount> {
             },
           ),
           const SizedBox(height: 8),
-          TextField(
+          ZenTextField(
+            label: t.correctionsNoteField,
             controller: _noteController,
-            maxLength: 200,
-            decoration: InputDecoration(label: Text(t.correctionsNoteField)),
+            inputFormatters: [LengthLimitingTextInputFormatter(200)],
           ),
           const SizedBox(height: 16),
           Row(

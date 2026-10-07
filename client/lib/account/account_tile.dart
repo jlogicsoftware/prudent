@@ -143,13 +143,14 @@ class AccountTile extends ConsumerWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: const Icon(Icons.balance),
-            tooltip: t.accountReconcile,
+          ZenIconButton(
+            icon: Icons.balance,
+            label: t.accountReconcile,
             onPressed: () => _openReconcile(context, ref),
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
+          ZenIconButton(
+            icon: Icons.delete_outline,
+            label: t.accountDelete,
             onPressed: () => _confirmDelete(context, ref),
           ),
         ],

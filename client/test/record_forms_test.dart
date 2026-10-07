@@ -15,6 +15,7 @@ import 'package:prudent/record/new_transfer.dart';
 import 'package:prudent/record/record_filter.dart';
 import 'package:prudent/record/records_filter_sheet.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
+import 'zen_fields.dart';
 
 final _accounts = [
   Account(
@@ -74,7 +75,7 @@ Future<ProviderContainer> _pump(WidgetTester tester, Widget form, {RecordFilter?
   return container;
 }
 
-Finder _field(String label) => find.widgetWithText(TextField, label);
+Finder _field(String label) => textInput(label);
 
 /// Picks the first of the current month in the Material calendar the date field opens. Always a
 /// selectable day: the form's last date is today.
@@ -258,7 +259,7 @@ void main() {
         ),
       );
 
-      expect(tester.widget<TextField>(_field('Amount')).controller!.text, '1234.56');
+      expect(textOf(tester, _field('Amount')), '1234.56');
       await tester.tap(find.text('Save Expense'));
       await tester.pumpAndSettle();
 
@@ -519,7 +520,7 @@ void main() {
           type: RecordFilterType.income,
         ),
       );
-      expect(tester.widget<TextField>(_field('Min amount')).controller!.text, '2.50');
+      expect(textOf(tester, _field('Min amount')), '2.50');
       tester.widget<ZenSelect<String>>(find.byType(ZenSelect<String>).at(0)).onChanged!('');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Apply'));

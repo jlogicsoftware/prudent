@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
@@ -30,7 +31,7 @@ class PlannedCashFlowSection extends ConsumerWidget {
           Text(t.plannedCashFlowTitle, style: theme.textTheme.headlineSmall),
           const SizedBox(height: 8),
           planned.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: ZenProgressIndicator()),
             error: (error, _) => Text(t.plannedCashFlowLoadError(error.toString())),
             data: (occurrences) {
               final flows = plannedCashFlowByCurrency(occurrences, accounts, mainCurrency);

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
@@ -15,7 +16,7 @@ class AccountList extends ConsumerWidget {
     final t = PrudentLocalizations.of(context);
 
     return accountsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: ZenProgressIndicator()),
       error: (error, _) => Center(child: Text(t.accountsLoadError(error.toString()))),
       data: (accounts) {
         if (accounts.isEmpty) {

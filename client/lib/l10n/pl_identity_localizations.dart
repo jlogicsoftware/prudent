@@ -60,9 +60,6 @@ class PlIdentityLocalizations extends IdentityLocalizationsEn {
   String get profileAvatarLabel => 'Awatar profilu';
 
   @override
-  String get backButtonTooltip => 'Wstecz';
-
-  @override
   String get restorePasswordInfo =>
       'Podaj swój adres e-mail, a wyślemy Ci link do zresetowania hasła.';
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/reminders.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
@@ -26,24 +27,22 @@ class RemindersScreen extends ConsumerWidget {
     final remindersAsync = ref.watch(remindersProvider);
     final unread = ref.watch(unreadReminderCountProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(t.remindersTitle),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.done_all),
-            tooltip: t.remindersMarkAllRead,
-            onPressed:
-                unread == 0
-                    ? null
-                    : () => runReminderChange(
-                      context,
-                      ref,
-                      ref.read(remindersProvider.notifier).markAllRead,
-                    ),
-          ),
-        ],
-      ),
+    return ZenPageScaffold(
+      title: t.remindersTitle,
+      actions: [
+        ZenIconButton(
+          icon: Icons.done_all,
+          label: t.remindersMarkAllRead,
+          onPressed:
+              unread == 0
+                  ? null
+                  : () => runReminderChange(
+                    context,
+                    ref,
+                    ref.read(remindersProvider.notifier).markAllRead,
+                  ),
+        ),
+      ],
       body: Column(
         children: [
           const NotificationNotice(),
@@ -60,7 +59,7 @@ class RemindersScreen extends ConsumerWidget {
     AsyncValue<List<DueReminder>> remindersAsync,
   ) {
     return remindersAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: ZenProgressIndicator()),
       error: (error, _) => Center(child: Text(t.remindersLoadError(error.toString()))),
       data: (reminders) {
         if (reminders.isEmpty) {

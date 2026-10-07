@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/categories.pb.dart';
@@ -89,10 +90,10 @@ class _NewCategoryState extends State<NewCategory> {
       child: SingleChildScrollView(
         child: Column(
           children: [
-            TextField(
+            ZenTextField(
+              label: t.categoryTitleField,
               controller: _titleController,
-              maxLength: 50,
-              decoration: InputDecoration(label: Text(t.categoryTitleField)),
+              inputFormatters: [LengthLimitingTextInputFormatter(50)],
             ),
             const SizedBox(height: 16),
             TextField(

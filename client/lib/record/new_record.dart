@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
@@ -150,10 +151,10 @@ class _NewRecordState extends ConsumerState<NewRecord> {
       child: SingleChildScrollView(
         child: Column(
         children: [
-          TextField(
+          ZenTextField(
+            label: t.recordsTitleField,
             controller: _titleController,
-            maxLength: 50,
-            decoration: InputDecoration(label: Text(t.recordsTitleField)),
+            inputFormatters: [LengthLimitingTextInputFormatter(50)],
           ),
           const SizedBox(height: 8),
           ZenSegmentedControl<bool>(
@@ -215,10 +216,10 @@ class _NewRecordState extends ConsumerState<NewRecord> {
               onChanged: (value) => setState(() => _selectedCategoryId = value),
             ),
           const SizedBox(height: 8),
-          TextField(
+          ZenTextField(
+            label: t.recordsPayeeField,
             controller: _payeeController,
-            maxLength: 100,
-            decoration: InputDecoration(label: Text(t.recordsPayeeField)),
+            inputFormatters: [LengthLimitingTextInputFormatter(100)],
           ),
           const SizedBox(height: 8),
           TextField(

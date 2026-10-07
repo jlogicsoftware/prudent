@@ -25,8 +25,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final t = PrudentLocalizations.of(context);
     final currencies = ref.watch(analyticsCurrenciesProvider);
     if (currencies.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: Text(t.analyticsTitle)),
+      return ZenPageScaffold(
+        title: t.analyticsTitle,
         body: Center(child: Text(t.chartNoAccounts)),
       );
     }
@@ -39,8 +39,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       ),
     );
 
-    return Scaffold(
-      appBar: AppBar(title: Text(t.analyticsTitle)),
+    return ZenPageScaffold(
+      title: t.analyticsTitle,
       body: Column(
         children: [
           if (currencies.length > 1)
@@ -56,11 +56,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             ),
           Expanded(
             child: periodAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(child: Text(t.analyticsLoadError(error.toString()))),
+              loading: () => const Center(child: ZenProgressIndicator()),
+              error:
+                  (error, _) =>
+                      Center(child: Text(t.analyticsLoadError(error.toString()))),
               data:
-                  (response) =>
-                      AnalyticsContent(response: response, currency: currency, months: _trailingMonths),
+                  (response) => AnalyticsContent(
+                    response: response,
+                    currency: currency,
+                    months: _trailingMonths,
+                  ),
             ),
           ),
         ],

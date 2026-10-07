@@ -36,26 +36,32 @@ class OverviewScreen extends ConsumerWidget {
     final mainCurrency = ref.watch(settingsProvider).value?.mainCurrency;
     final showPlanned = ref.watch(plannedCashFlowVisibleProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(t.appTitle),
-        actions: [
-          const ReminderBell(),
-          IconButton(
-            icon: const Icon(Icons.pie_chart_outline),
-            onPressed:
-                () => Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const ChartScreen())),
-          ),
-          IconButton(
-            icon: const Icon(Icons.list),
-            onPressed:
-                () => Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const AccountScreen())),
-          ),
-        ],
-      ),
+    return ZenPageScaffold(
+      title: t.appTitle,
+      actions: [
+        const ReminderBell(),
+        ZenIconButton(
+          icon: Icons.pie_chart_outline,
+          label: t.chartTitle,
+          onPressed:
+              () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (ctx) => const ChartScreen())),
+        ),
+        ZenIconButton(
+          icon: Icons.list,
+          label: t.accountsTitle,
+          onPressed:
+              () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (ctx) => const AccountScreen())),
+        ),
+      ],
       body: accountsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(t.accountsLoadError(error.toString()))),
+        loading: () => const Center(child: ZenProgressIndicator()),
+        error:
+            (error, _) =>
+                Center(child: Text(t.accountsLoadError(error.toString()))),
         data: (accounts) {
           final overviewAccounts = accountsForOverview(accounts);
           final totals = totalsByCurrency(accounts, mainCurrency);
@@ -68,7 +74,10 @@ class OverviewScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             children: [
               if (totals.isNotEmpty) ...[
-                Text(t.overviewTotalsTitle, style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  t.overviewTotalsTitle,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
                 const SizedBox(height: 8),
                 for (final entry in totals.entries)
                   Card(
@@ -83,7 +92,10 @@ class OverviewScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
               ],
               if (overviewAccounts.isNotEmpty) ...[
-                Text(t.overviewAccountsTitle, style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  t.overviewAccountsTitle,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
                 const SizedBox(height: 8),
                 for (final account in overviewAccounts)
                   Card(
@@ -93,7 +105,10 @@ class OverviewScreen extends ConsumerWidget {
                         account.balances.isEmpty
                             ? t.accountsNoBalance
                             : account.balances
-                                .map((b) => '${formatMinorUnits(b.amountMinor)} ${b.currency}')
+                                .map(
+                                  (b) =>
+                                      '${formatMinorUnits(b.amountMinor)} ${b.currency}',
+                                )
                                 .join(', '),
                       ),
                     ),
@@ -106,7 +121,11 @@ class OverviewScreen extends ConsumerWidget {
                 value: showPlanned,
                 onChanged: ref.read(plannedCashFlowVisibleProvider.notifier).set,
               ),
-              if (showPlanned) PlannedCashFlowSection(accounts: accounts, mainCurrency: mainCurrency),
+              if (showPlanned)
+                PlannedCashFlowSection(
+                  accounts: accounts,
+                  mainCurrency: mainCurrency,
+                ),
             ],
           );
         },

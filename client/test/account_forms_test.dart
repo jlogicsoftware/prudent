@@ -10,6 +10,7 @@ import 'package:prudent/account/reconcile_account.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
+import 'zen_fields.dart';
 
 Future<void> _pump(WidgetTester tester, Widget form) async {
   tester.view.physicalSize = const Size(800, 2000);
@@ -28,7 +29,7 @@ Future<void> _pump(WidgetTester tester, Widget form) async {
   await tester.pumpAndSettle();
 }
 
-Finder _field(String label) => find.widgetWithText(TextField, label);
+Finder _field(String label) => textInput(label);
 
 Account _account() => Account(
   id: 'acc',

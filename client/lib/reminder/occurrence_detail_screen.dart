@@ -76,12 +76,15 @@ class _OccurrenceDetailScreenState extends ConsumerState<OccurrenceDetailScreen>
         _occurrence.status == OccurrenceStatus.OCCURRENCE_STATUS_OVERDUE;
     final skipped = _occurrence.status == OccurrenceStatus.OCCURRENCE_STATUS_SKIPPED;
 
-    return Scaffold(
-      appBar: AppBar(title: Text(t.occurrenceTitle)),
+    return ZenPageScaffold(
+      title: t.occurrenceTitle,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(_occurrence.title, style: Theme.of(context).textTheme.headlineSmall),
+          Text(
+            _occurrence.title,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
           const SizedBox(height: 16),
           OccurrenceFigureRow(
             t.occurrenceDate,
@@ -91,15 +94,24 @@ class _OccurrenceDetailScreenState extends ConsumerState<OccurrenceDetailScreen>
             t.occurrenceAmount,
             '${formatMinorUnits(_occurrence.amountMinor)} ${_occurrence.currency}',
           ),
-          OccurrenceFigureRow(t.occurrenceAccount, account?.name ?? t.occurrenceUnknownAccount),
+          OccurrenceFigureRow(
+            t.occurrenceAccount,
+            account?.name ?? t.occurrenceUnknownAccount,
+          ),
           OccurrenceFigureRow(
             t.occurrenceCategory,
             category?.title ?? t.occurrenceUnknownCategory,
           ),
-          OccurrenceFigureRow(t.occurrenceStatus, _statusLabel(t, _occurrence.status)),
+          OccurrenceFigureRow(
+            t.occurrenceStatus,
+            _statusLabel(t, _occurrence.status),
+          ),
           const SizedBox(height: 24),
           if (open) ...[
-            Text(t.occurrenceConfirmHint, style: Theme.of(context).textTheme.bodyMedium),
+            Text(
+              t.occurrenceConfirmHint,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -109,13 +121,17 @@ class _OccurrenceDetailScreenState extends ConsumerState<OccurrenceDetailScreen>
                   label: t.occurrenceConfirm,
                   icon: Icons.check,
                   isLoading: _busy,
-                  onPressed: () => _act((actions) => actions.confirm(_occurrence.id)),
+                  onPressed:
+                      () => _act((actions) => actions.confirm(_occurrence.id)),
                 ),
                 ZenButton(
                   label: t.occurrenceSkip,
                   icon: Icons.skip_next,
                   variant: ZenButtonVariant.secondary,
-                  onPressed: _busy ? null : () => _act((actions) => actions.skip(_occurrence.id)),
+                  onPressed:
+                      _busy
+                          ? null
+                          : () => _act((actions) => actions.skip(_occurrence.id)),
                 ),
               ],
             ),
@@ -128,7 +144,10 @@ class _OccurrenceDetailScreenState extends ConsumerState<OccurrenceDetailScreen>
               onPressed: () => _act((actions) => actions.restore(_occurrence.id)),
             )
           else
-            Text(t.occurrenceNotPlannedHint, style: Theme.of(context).textTheme.bodyMedium),
+            Text(
+              t.occurrenceNotPlannedHint,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
         ],
       ),
     );

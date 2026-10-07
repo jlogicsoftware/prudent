@@ -132,21 +132,25 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
       appBar: AppBar(
         title: Text(t.appTitle),
         actions: [
-          IconButton(
+          ZenIconButton(
+            icon: filterActive ? Icons.filter_alt : Icons.filter_alt_outlined,
+            label: filterActive ? t.recordsFilterActiveTooltip : t.recordsFilterTooltip,
             onPressed: _openFilterOverlay,
-            icon: Icon(filterActive ? Icons.filter_alt : Icons.filter_alt_outlined),
-            tooltip: filterActive ? t.recordsFilterActiveTooltip : t.recordsFilterTooltip,
           ),
-          IconButton(
+          ZenIconButton(
+            icon: Icons.swap_horiz,
+            label: t.transfersNewTitle,
             onPressed: _openAddTransferOverlay,
-            icon: const Icon(Icons.swap_horiz),
-            tooltip: t.transfersNewTitle,
           ),
-          IconButton(onPressed: _openAddRecordOverlay, icon: const Icon(Icons.add)),
+          ZenIconButton(
+            icon: Icons.add,
+            label: t.addRecordTooltip,
+            onPressed: _openAddRecordOverlay,
+          ),
         ],
       ),
       body: recordsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: ZenProgressIndicator()),
         error: (error, _) => Center(child: Text(t.recordsLoadError(error.toString()))),
         data: (records) {
           if (records.isEmpty && filterActive) {
