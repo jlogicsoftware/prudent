@@ -65,7 +65,13 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
           (ctx) => AlertDialog(
             title: Text(t.invalidInputTitle),
             content: Text(message),
-            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t.okay))],
+            actions: [
+              ZenButton(
+                label: t.okay,
+                variant: ZenButtonVariant.text,
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ],
           ),
     );
   }

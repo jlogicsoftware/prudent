@@ -13,6 +13,64 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-059 — Raw Material controls are gated out of `client/lib` by `task verify:controls`; `AlertDialog` and `PopupMenuButton` are the only carve-outs
+
+**Date:** 2026-10-07. **Status:** accepted. **Refines:** ADR-041. jlogicsoftware/prudent#105.
+
+### Decision
+
+- `task verify:controls` (`scripts/verify_controls.py`) scans `client/lib`, excluding `generated/` and
+  `l10n/`, and fails on `ElevatedButton`, `FilledButton`, `OutlinedButton`, `TextButton`,
+  `DropdownButton`, `DropdownButtonFormField`, `SegmentedButton`, `SwitchListTile`, `showDatePicker`,
+  `showDateRangePicker` and `showModalBottomSheet`. Each has a `zen_ui_widgets` counterpart
+  (`ZenButton`, `ZenSelect`, `ZenSegmentedControl`, `ZenSwitchRow`, `ZenDateField` /
+  `ZenDateRangeField`, `showAdaptivePresentation`).
+- `showDialog` is allowed only to show an `AlertDialog`, and that `AlertDialog` may not hold a
+  `TextField`, `TextFormField` or `Form`. "Used for a form or detail" is what the rule forbids, and
+  a regular expression cannot see intent, so the gate checks the structure that intent leaves behind:
+  a message-and-verdict dialog has an `AlertDialog` and no input; a form has an input or something else
+  entirely. A `showDialog` whose builder hands off to another widget fails — it cannot be shown to be
+  a confirmation, and the way to make it pass is to open it through `showAdaptivePresentation`.
+- Comments and string literals are masked before matching, so a doc comment explaining why `ZenButton`
+  replaces `TextButton` is not a violation; line numbers are unchanged.
+- It runs in CI beside `verify:boundaries`, ahead of the framework build, and its unit tests
+  (`scripts/test_verify_controls.py`) run first. They plant every banned control in a throwaway tree and
+  require the gate to fail, and require every carve-out and a stale scope to behave as written here.
+
+### The carve-outs, and what each carries
+
+The working agreement asks for an exemption to be argued by what the excluded content carries, not
+by what it saves.
+
+- **`AlertDialog` (acknowledgement or confirmation).** It carries a title, a sentence and the verdict
+  buttons — no input and no state. `zen_ui_widgets` has no counterpart, and forcing it through
+  `showAdaptivePresentation` would turn "delete this account?" into a bottom sheet on a phone, a worse
+  interaction for a question that wants a modal answer. The carve-out covers the dialog, **not a raw
+  button inside it**: its actions are `ZenButton(variant: text)`, so `TextButton` stays banned
+  everywhere and there is no second, narrower exemption to police.
+- **`PopupMenuButton`.** It carries a menu of verbs (the goal screen's lifecycle actions) and is not
+  banned; the package has no menu. If it grows one, this entry is superseded, not extended.
+
+There is **no per-file allowlist**. A control the package lacks is a framework gap to report upstream
+(CLAUDE.md, ADR-036, ADR-041), not an entry here.
+
+### What this supersedes, and why
+
+- **"Other screens may still carry stock Material controls, so the rule binds new and touched
+  screens"** (`CLAUDE.md`, Client UI) → **removed.** *Why:* after #101, #102 and #103 the only
+  remaining raw controls were a `TextButton` in the budget month bar and ten in `AlertDialog`
+  actions; all are `ZenButton` now, so the rule binds the whole tree and a gate keeps it that way.
+- **jZen #107 "Landed upstream; not yet consumed here"** (`docs/jzen/README.md`) → **Fixed and
+  consumed**, as that row said to do when the last raw control was gone.
+
+### Consequence
+
+Run against the tree before this change, the gate reports eleven `TextButton`s and nothing else; run
+after, it is green, and its 27 tests pass. `flutter analyze` reports nothing new. **Not covered, and
+stated rather than implied:** controls outside the list (`IconButton`, `TextField`, `ListTile`, `Card`
+have no counterpart and are used directly), and `showGeneralDialog` / `showCupertinoDialog`, which the
+rule does not name. A control gets in the list when the package gains its counterpart.
+
 ## ADR-058 — A refusal or an unsupported platform is explained where reminders are read, and a refusal is remembered across launches
 
 **Date:** 2026-10-06. **Status:** accepted. **Follows:** ADR-057 (the pass returns an outcome "for the next task"),

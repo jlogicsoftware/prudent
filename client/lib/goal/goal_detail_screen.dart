@@ -164,7 +164,13 @@ class GoalDetailScreen extends ConsumerWidget {
             (ctx) => AlertDialog(
               title: Text(goal.name),
               content: Text(error.message.isEmpty ? t.goalActionFailed : error.message),
-              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t.okay))],
+              actions: [
+                ZenButton(
+                  label: t.okay,
+                  variant: ZenButtonVariant.text,
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
             ),
       );
     }
