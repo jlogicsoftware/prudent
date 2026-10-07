@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../category/selectable_categories.dart';
@@ -52,25 +53,14 @@ class _NewRecordState extends ConsumerState<NewRecord> {
       final amount = initial.amountMinor;
       _isExpense = amount.isNegative;
       _amountController.text = formatMinorUnits(amount.isNegative ? -amount : amount);
-      _selectedDate = DateTime.tryParse(initial.date);
+      final date = DateTime.tryParse(initial.date);
+      _selectedDate = date == null ? null : DateUtils.dateOnly(date);
       _selectedCategoryId = initial.categoryId;
       _selectedAccountId = initial.accountId;
       _currency = initial.currency;
       _payeeController.text = initial.payee;
       _noteController.text = initial.note;
     }
-  }
-
-  void _presentDatePicker() async {
-    final now = DateTime.now();
-    final firstDate = DateTime(now.year - 1, now.month, now.day);
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? now,
-      firstDate: firstDate,
-      lastDate: now,
-    );
-    if (pickedDate != null) setState(() => _selectedDate = pickedDate);
   }
 
   void _invalid(String message) {
@@ -87,10 +77,14 @@ class _NewRecordState extends ConsumerState<NewRecord> {
   }
 
   void _submit() {
-    final raw = _amountController.text.trim();
-    // The field only ever holds a magnitude, regardless of what the user typed; the toggle is the
-    // sole source of the sign that goes on the wire.
-    final magnitude = parseMinorUnits(raw.startsWith('-') ? raw.substring(1) : raw);
+    // The field refuses a sign (allowNegative: false) and so only ever holds a magnitude; the
+    // toggle is the sole source of the sign that goes on the wire.
+    final canonical = normalizeAmount(
+      _amountController.text,
+      maxFractionDigits: minorUnitDigits,
+      allowNegative: false,
+    );
+    final magnitude = canonical == null ? null : parseMinorUnits(canonical);
     if (_titleController.text.trim().isEmpty ||
         magnitude == null ||
         magnitude <= 0 ||
@@ -127,7 +121,6 @@ class _NewRecordState extends ConsumerState<NewRecord> {
   @override
   Widget build(BuildContext context) {
     final t = PrudentLocalizations.of(context);
-    final locale = ref.watch(localeProvider);
     final categories = selectableCategories(
       ref.watch(categoriesProvider).value ?? const <Category>[],
       keep: widget.initialRecord?.categoryId,
@@ -135,6 +128,7 @@ class _NewRecordState extends ConsumerState<NewRecord> {
     final accounts = ref.watch(accountsProvider).value ?? const <Account>[];
     _selectedCategoryId ??= categories.isNotEmpty ? categories.first.id : null;
     _selectedAccountId ??= accounts.isNotEmpty ? accounts.first.id : null;
+    final today = DateUtils.dateOnly(DateTime.now());
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
@@ -147,50 +141,49 @@ class _NewRecordState extends ConsumerState<NewRecord> {
             decoration: InputDecoration(label: Text(t.recordsTitleField)),
           ),
           const SizedBox(height: 8),
-          SegmentedButton<bool>(
+          ZenSegmentedControl<bool>(
             segments: [
-              ButtonSegment(value: true, label: Text(t.recordsExpense)),
-              ButtonSegment(value: false, label: Text(t.recordsIncome)),
+              ZenSegment(value: true, label: t.recordsExpense),
+              ZenSegment(value: false, label: t.recordsIncome),
             ],
-            selected: {_isExpense},
-            onSelectionChanged: (selection) => setState(() => _isExpense = selection.first),
+            selected: _isExpense,
+            onChanged: (value) => setState(() => _isExpense = value),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: TextField(
+                child: ZenAmountField(
+                  label: t.recordsAmountField,
                   controller: _amountController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(suffix: Text(_currency), label: Text(t.recordsAmountField)),
+                  maxFractionDigits: minorUnitDigits,
+                  allowNegative: false,
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      _selectedDate == null
-                          ? t.recordsNoDateSelected
-                          : DateFormat.yMd(locale.toLanguageTag()).format(_selectedDate!),
-                    ),
-                    IconButton(onPressed: _presentDatePicker, icon: const Icon(Icons.calendar_month)),
-                  ],
-                ),
-              ),
+              const SizedBox(width: 12),
+              // The currency follows the chosen account; it is shown, not chosen, here.
+              Padding(padding: const EdgeInsets.only(top: 16), child: Text(_currency)),
             ],
           ),
           const SizedBox(height: 16),
+          ZenDateField(
+            label: t.recordsDateField,
+            value: _selectedDate,
+            firstDate: DateTime(today.year - 1, today.month, today.day),
+            lastDate: today,
+            onChanged: (picked) {
+              if (picked != null) setState(() => _selectedDate = picked);
+            },
+          ),
+          const SizedBox(height: 16),
           if (accounts.isNotEmpty)
-            DropdownButton<String>(
+            ZenSelect<String>(
+              label: t.recordsAccountField,
+              items: [for (final account in accounts) account.id],
+              itemLabel: (id) => accounts.firstWhere((a) => a.id == id).name,
               value: _selectedAccountId,
-              items: [
-                for (final account in accounts) DropdownMenuItem(value: account.id, child: Text(account.name)),
-              ],
               onChanged: (value) {
-                if (value == null) return;
                 setState(() {
                   _selectedAccountId = value;
                   final account = accounts.firstWhere((a) => a.id == value);
@@ -199,22 +192,14 @@ class _NewRecordState extends ConsumerState<NewRecord> {
               },
             ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              if (categories.isNotEmpty)
-                DropdownButton<String>(
-                  value: _selectedCategoryId,
-                  items: [
-                    for (final category in categories)
-                      DropdownMenuItem(value: category.id, child: Text(category.title.toUpperCase())),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _selectedCategoryId = value);
-                  },
-                ),
-            ],
-          ),
+          if (categories.isNotEmpty)
+            ZenSelect<String>(
+              label: t.recordsCategoryField,
+              items: [for (final category in categories) category.id],
+              itemLabel: (id) => categories.firstWhere((c) => c.id == id).title.toUpperCase(),
+              value: _selectedCategoryId,
+              onChanged: (value) => setState(() => _selectedCategoryId = value),
+            ),
           const SizedBox(height: 8),
           TextField(
             controller: _payeeController,
@@ -232,10 +217,14 @@ class _NewRecordState extends ConsumerState<NewRecord> {
           Row(
             children: [
               const Spacer(),
-              TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
-              ElevatedButton(
+              ZenButton(
+                label: t.cancel,
+                onPressed: () => Navigator.pop(context),
+                variant: ZenButtonVariant.text,
+              ),
+              ZenButton(
+                label: _isExpense ? t.recordsSaveExpense : t.recordsSaveIncome,
                 onPressed: _submit,
-                child: Text(_isExpense ? t.recordsSaveExpense : t.recordsSaveIncome),
               ),
             ],
           ),

@@ -1,6 +1,7 @@
+import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../generated/prudent/v1/categories.pb.dart';
@@ -21,9 +22,13 @@ class RecordsFilterSheet extends ConsumerStatefulWidget {
 }
 
 class _RecordsFilterSheetState extends ConsumerState<RecordsFilterSheet> {
+  static const _anyType = '';
+  static const _anyId = '';
+
   late final TextEditingController _searchController;
   late final TextEditingController _amountMinController;
   late final TextEditingController _amountMaxController;
+  final _formKey = GlobalKey<FormState>();
   DateTime? _dateFrom;
   DateTime? _dateTo;
   String? _accountId;
@@ -56,32 +61,23 @@ class _RecordsFilterSheetState extends ConsumerState<RecordsFilterSheet> {
     super.dispose();
   }
 
-  Future<void> _pickDate({required bool from}) async {
-    final now = DateTime.now();
-    final initial = (from ? _dateFrom : _dateTo) ?? now;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(now.year - 10),
-      lastDate: now,
+  /// What an amount field holds in minor units, or null when it is empty. Both ends are
+  /// magnitudes (the server matches the record's absolute amount), so the field refuses a sign.
+  Int64? _amount(TextEditingController controller) {
+    final canonical = normalizeAmount(
+      controller.text,
+      maxFractionDigits: minorUnitDigits,
+      allowNegative: false,
     );
-    if (picked == null) return;
-    setState(() {
-      if (from) {
-        _dateFrom = picked;
-      } else {
-        _dateTo = picked;
-      }
-    });
+    return canonical == null ? null : parseMinorUnits(canonical);
   }
 
   void _apply() {
-    final minAmount = _amountMinController.text.trim().isEmpty
-        ? null
-        : parseMinorUnits(_amountMinController.text)?.abs();
-    final maxAmount = _amountMaxController.text.trim().isEmpty
-        ? null
-        : parseMinorUnits(_amountMaxController.text)?.abs();
+    // The range fields call out min > max themselves and report it here; the date pickers cannot
+    // produce a bad pair. Nothing is applied until the form is valid.
+    if (!_formKey.currentState!.validate()) return;
+    final minAmount = _amount(_amountMinController);
+    final maxAmount = _amount(_amountMaxController);
 
     ref
         .read(recordFilterProvider.notifier)
@@ -108,105 +104,101 @@ class _RecordsFilterSheetState extends ConsumerState<RecordsFilterSheet> {
   @override
   Widget build(BuildContext context) {
     final t = PrudentLocalizations.of(context);
-    final locale = ref.watch(localeProvider);
     final accounts = ref.watch(accountsProvider).value ?? const <Account>[];
     final categories = ref.watch(categoriesProvider).value ?? const <Category>[];
-    final dateFormat = DateFormat.yMd(locale.toLanguageTag());
+    final today = DateUtils.dateOnly(DateTime.now());
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
       child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(t.recordsFilterTitle, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(label: Text(t.recordsFilterSearchField)),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _pickDate(from: true),
-                    child: Text(_dateFrom == null ? t.recordsFilterDateFrom : dateFormat.format(_dateFrom!)),
-                  ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(t.recordsFilterTitle, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(label: Text(t.recordsFilterSearchField)),
+              ),
+              const SizedBox(height: 16),
+              ZenDateRangeField(
+                fromLabel: t.recordsFilterDateFrom,
+                toLabel: t.recordsFilterDateTo,
+                from: _dateFrom,
+                to: _dateTo,
+                firstDate: DateTime(today.year - 10),
+                lastDate: today,
+                onChanged: (from, to) => setState(() {
+                  _dateFrom = from;
+                  _dateTo = to;
+                }),
+              ),
+              const SizedBox(height: 16),
+              // "Any type" is the empty string: the control has no null segment, and a wire value
+              // is never empty.
+              ZenSegmentedControl<String>(
+                segments: [
+                  ZenSegment(value: _anyType, label: t.recordsFilterAnyType),
+                  ZenSegment(value: RecordFilterType.expense.wireValue, label: t.recordsExpense),
+                  ZenSegment(value: RecordFilterType.income.wireValue, label: t.recordsIncome),
+                  ZenSegment(value: RecordFilterType.transfer.wireValue, label: t.recordsTransfer),
+                ],
+                selected: _type?.wireValue ?? _anyType,
+                onChanged: (value) => setState(
+                  () => _type = RecordFilterType.values.where((type) => type.wireValue == value).firstOrNull,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _pickDate(from: false),
-                    child: Text(_dateTo == null ? t.recordsFilterDateTo : dateFormat.format(_dateTo!)),
+              ),
+              const SizedBox(height: 16),
+              // "Any" is the empty id for the same reason: a select with a null value draws its
+              // label over the chosen item's text.
+              ZenSelect<String>(
+                label: t.recordsAccountField,
+                items: [_anyId, for (final account in accounts) account.id],
+                itemLabel: (id) =>
+                    id == _anyId ? t.recordsFilterAnyAccount : accounts.firstWhere((a) => a.id == id).name,
+                value: _accountId ?? _anyId,
+                onChanged: (value) => setState(() => _accountId = value == _anyId ? null : value),
+              ),
+              const SizedBox(height: 16),
+              ZenSelect<String>(
+                label: t.recordsCategoryField,
+                items: [_anyId, for (final category in categories) category.id],
+                itemLabel: (id) => id == _anyId
+                    ? t.recordsFilterAnyCategory
+                    : categories.firstWhere((c) => c.id == id).title.toUpperCase(),
+                value: _categoryId ?? _anyId,
+                onChanged: (value) => setState(() => _categoryId = value == _anyId ? null : value),
+              ),
+              const SizedBox(height: 16),
+              ZenAmountRangeField(
+                minLabel: t.recordsFilterAmountMinField,
+                maxLabel: t.recordsFilterAmountMaxField,
+                minController: _amountMinController,
+                maxController: _amountMaxController,
+                maxFractionDigits: minorUnitDigits,
+                allowNegative: false,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  ZenButton(
+                    label: t.recordsFilterClearAll,
+                    onPressed: _clearAll,
+                    variant: ZenButtonVariant.text,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SegmentedButton<RecordFilterType?>(
-              segments: [
-                ButtonSegment(value: null, label: Text(t.recordsFilterAnyType)),
-                ButtonSegment(value: RecordFilterType.expense, label: Text(t.recordsExpense)),
-                ButtonSegment(value: RecordFilterType.income, label: Text(t.recordsIncome)),
-                ButtonSegment(value: RecordFilterType.transfer, label: Text(t.recordsTransfer)),
-              ],
-              selected: {_type},
-              onSelectionChanged: (selection) => setState(() => _type = selection.first),
-            ),
-            const SizedBox(height: 16),
-            DropdownButton<String?>(
-              isExpanded: true,
-              value: _accountId,
-              hint: Text(t.recordsFilterAnyAccount),
-              items: [
-                DropdownMenuItem(value: null, child: Text(t.recordsFilterAnyAccount)),
-                for (final account in accounts) DropdownMenuItem(value: account.id, child: Text(account.name)),
-              ],
-              onChanged: (value) => setState(() => _accountId = value),
-            ),
-            const SizedBox(height: 16),
-            DropdownButton<String?>(
-              isExpanded: true,
-              value: _categoryId,
-              hint: Text(t.recordsFilterAnyCategory),
-              items: [
-                DropdownMenuItem(value: null, child: Text(t.recordsFilterAnyCategory)),
-                for (final category in categories)
-                  DropdownMenuItem(value: category.id, child: Text(category.title.toUpperCase())),
-              ],
-              onChanged: (value) => setState(() => _categoryId = value),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _amountMinController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(label: Text(t.recordsFilterAmountMinField)),
+                  const Spacer(),
+                  ZenButton(
+                    label: t.cancel,
+                    onPressed: () => Navigator.pop(context),
+                    variant: ZenButtonVariant.text,
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextField(
-                    controller: _amountMaxController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(label: Text(t.recordsFilterAmountMaxField)),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                TextButton(onPressed: _clearAll, child: Text(t.recordsFilterClearAll)),
-                const Spacer(),
-                TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
-                ElevatedButton(onPressed: _apply, child: Text(t.recordsFilterApply)),
-              ],
-            ),
-          ],
+                  ZenButton(label: t.recordsFilterApply, onPressed: _apply),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

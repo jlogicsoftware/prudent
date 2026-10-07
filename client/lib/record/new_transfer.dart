@@ -1,11 +1,14 @@
+import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
 import '../providers.dart';
+import 'transfer_leg.dart';
 
 /// A transfer between two of the user's own accounts, cross-currency included
 /// (jlogicsoftware/prudent#32, jlogicsoftware/prudent#50). Each side carries its own amount and
@@ -54,18 +57,6 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
     return currencies;
   }
 
-  void _presentDatePicker() async {
-    final now = DateTime.now();
-    final firstDate = DateTime(now.year - 1, now.month, now.day);
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? now,
-      firstDate: firstDate,
-      lastDate: now,
-    );
-    if (pickedDate != null) setState(() => _selectedDate = pickedDate);
-  }
-
   void _invalid(String message) {
     final t = PrudentLocalizations.of(context);
     showDialog(
@@ -79,10 +70,21 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
     );
   }
 
+  /// What a leg's field holds in minor units, or null if it is empty or not an amount. Both legs
+  /// are magnitudes: a transfer's direction is its from/to accounts, never a sign.
+  static Int64? _magnitude(TextEditingController controller) {
+    final canonical = normalizeAmount(
+      controller.text,
+      maxFractionDigits: minorUnitDigits,
+      allowNegative: false,
+    );
+    return canonical == null ? null : parseMinorUnits(canonical);
+  }
+
   void _submit() {
     final t = PrudentLocalizations.of(context);
-    final fromMagnitude = parseMinorUnits(_fromAmountController.text.trim());
-    final toMagnitude = parseMinorUnits(_toAmountController.text.trim());
+    final fromMagnitude = _magnitude(_fromAmountController);
+    final toMagnitude = _magnitude(_toAmountController);
     if (fromMagnitude == null ||
         fromMagnitude <= 0 ||
         toMagnitude == null ||
@@ -121,13 +123,17 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
   @override
   Widget build(BuildContext context) {
     final t = PrudentLocalizations.of(context);
-    final locale = ref.watch(localeProvider);
     final accounts = ref.watch(accountsProvider).value ?? const <Account>[];
+    final today = DateUtils.dateOnly(DateTime.now());
     _fromAccountId ??= accounts.isNotEmpty ? accounts.first.id : null;
     _toAccountId ??= accounts.length > 1 ? accounts[1].id : null;
 
     final fromAccount = _findAccount(accounts, _fromAccountId);
-    final toAccount = _findAccount(accounts, _toAccountId);
+    // The to list leaves the from account out, so a to account that has become the from account is
+    // unchosen: a select whose value is not an item fails to build, and the to leg must not keep
+    // offering that hidden account's currencies. Submitting it is refused.
+    final toAccountId = _toAccountId == _fromAccountId ? null : _toAccountId;
+    final toAccount = _findAccount(accounts, toAccountId);
     final fromCurrencies = _currenciesOf(fromAccount);
     final toCurrencies = _currenciesOf(toAccount);
     if (_fromCurrency == null || !fromCurrencies.contains(_fromCurrency)) {
@@ -150,94 +156,64 @@ class _NewTransferState extends ConsumerState<NewTransfer> {
               decoration: InputDecoration(label: Text(t.transfersTitleField)),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _selectedDate == null
-                        ? t.recordsNoDateSelected
-                        : DateFormat.yMd(locale.toLanguageTag()).format(_selectedDate!),
-                  ),
-                ),
-                IconButton(onPressed: _presentDatePicker, icon: const Icon(Icons.calendar_month)),
-              ],
+            ZenDateField(
+              label: t.recordsDateField,
+              value: _selectedDate,
+              firstDate: DateTime(today.year - 1, today.month, today.day),
+              lastDate: today,
+              onChanged: (picked) {
+                if (picked != null) setState(() => _selectedDate = picked);
+              },
             ),
             const SizedBox(height: 16),
             if (accounts.isNotEmpty) ...[
-              DropdownButton<String>(
+              ZenSelect<String>(
+                label: t.transfersFromAccount,
+                items: [for (final account in accounts) account.id],
+                itemLabel: (id) => _findAccount(accounts, id)!.name,
                 value: _fromAccountId,
-                hint: Text(t.transfersFromAccount),
-                items: [
-                  for (final account in accounts) DropdownMenuItem(value: account.id, child: Text(account.name)),
-                ],
                 onChanged: (value) => setState(() => _fromAccountId = value),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _fromAmountController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(label: Text(t.transfersFromAmountField)),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  if (fromCurrencies.length > 1)
-                    DropdownButton<String>(
-                      value: _fromCurrency,
-                      items: [
-                        for (final currency in fromCurrencies)
-                          DropdownMenuItem(value: currency, child: Text(currency)),
-                      ],
-                      onChanged: (value) => setState(() => _fromCurrency = value),
-                    )
-                  else
-                    Text(_fromCurrency ?? ''),
-                ],
+              const SizedBox(height: 16),
+              TransferLeg(
+                amountLabel: t.transfersFromAmountField,
+                amountController: _fromAmountController,
+                currencyLabel: t.transfersFromCurrency,
+                currencies: fromCurrencies,
+                currency: _fromCurrency,
+                onCurrencyChanged: (value) => setState(() => _fromCurrency = value),
               ),
               const SizedBox(height: 16),
-              DropdownButton<String>(
-                value: _toAccountId,
-                hint: Text(t.transfersToAccount),
+              ZenSelect<String>(
+                label: t.transfersToAccount,
                 items: [
                   for (final account in accounts)
-                    if (account.id != _fromAccountId)
-                      DropdownMenuItem(value: account.id, child: Text(account.name)),
+                    if (account.id != _fromAccountId) account.id,
                 ],
+                itemLabel: (id) => _findAccount(accounts, id)!.name,
+                value: toAccountId,
                 onChanged: (value) => setState(() => _toAccountId = value),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _toAmountController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(label: Text(t.transfersToAmountField)),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  if (toCurrencies.length > 1)
-                    DropdownButton<String>(
-                      value: _toCurrency,
-                      items: [
-                        for (final currency in toCurrencies)
-                          DropdownMenuItem(value: currency, child: Text(currency)),
-                      ],
-                      onChanged: (value) => setState(() => _toCurrency = value),
-                    )
-                  else
-                    Text(_toCurrency ?? ''),
-                ],
+              const SizedBox(height: 16),
+              TransferLeg(
+                amountLabel: t.transfersToAmountField,
+                amountController: _toAmountController,
+                currencyLabel: t.transfersToCurrency,
+                currencies: toCurrencies,
+                currency: _toCurrency,
+                onCurrencyChanged: (value) => setState(() => _toCurrency = value),
               ),
             ],
             const SizedBox(height: 16),
             Row(
               children: [
                 const Spacer(),
-                TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
-                ElevatedButton(onPressed: _submit, child: Text(t.transfersSave)),
+                ZenButton(
+                  label: t.cancel,
+                  onPressed: () => Navigator.pop(context),
+                  variant: ZenButtonVariant.text,
+                ),
+                ZenButton(label: t.transfersSave, onPressed: _submit),
               ],
             ),
           ],
