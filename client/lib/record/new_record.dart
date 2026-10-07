@@ -63,6 +63,11 @@ class _NewRecordState extends ConsumerState<NewRecord> {
     }
   }
 
+  /// An account with no balances has no currency to offer, so the current one stands.
+  void _adoptCurrencyOf(Account account) {
+    if (account.balances.isNotEmpty) _currency = account.balances.first.currency;
+  }
+
   void _invalid(String message) {
     final t = PrudentLocalizations.of(context);
     showDialog(
@@ -133,7 +138,11 @@ class _NewRecordState extends ConsumerState<NewRecord> {
     );
     final accounts = ref.watch(accountsProvider).value ?? const <Account>[];
     _selectedCategoryId ??= categories.isNotEmpty ? categories.first.id : null;
-    _selectedAccountId ??= accounts.isNotEmpty ? accounts.first.id : null;
+    if (_selectedAccountId == null && accounts.isNotEmpty) {
+      // The currency is the account's, so preselecting an account takes its currency with it.
+      _selectedAccountId = accounts.first.id;
+      _adoptCurrencyOf(accounts.first);
+    }
     final today = DateUtils.dateOnly(DateTime.now());
 
     return Padding(
@@ -192,8 +201,7 @@ class _NewRecordState extends ConsumerState<NewRecord> {
               onChanged: (value) {
                 setState(() {
                   _selectedAccountId = value;
-                  final account = accounts.firstWhere((a) => a.id == value);
-                  if (account.balances.isNotEmpty) _currency = account.balances.first.currency;
+                  _adoptCurrencyOf(accounts.firstWhere((a) => a.id == value));
                 });
               },
             ),
