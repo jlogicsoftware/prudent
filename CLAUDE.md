@@ -34,7 +34,9 @@ Flutter app), `server/` (a Quarkus backend), `admin/` (the react-admin panel),
 `proto/prudent/v1/` (the wire contract), and a `Taskfile.yml` that includes jZen's. The contract,
 its generate/verify loop and the round-trip suite that proves it are in place —
 `task verify:contracts` (the drift gate; `task generate` regenerates without it) and
-`task zen:test:client` are the commands that check them. The whole loop is consumed from jZen's
+`task zen:test:client` are the commands that check them. Run the client suite through that task (or
+with `--dart-define=ZEN_ENV=local --dart-define=ZEN_PLATFORM=<platform>`): a bare `flutter test` has no
+`ZEN_PLATFORM`, so `popup_test.dart` skips itself and names this command instead of failing. The whole loop is consumed from jZen's
 `Taskfile.app.yml`, not hand-rolled: ADR-027 (jZen #74) finished the migration ADR-007 began, and
 `server/openapi.json` is no longer tracked — the admin panel's `schema.generated.ts` is the
 tracked artifact the gate watches.
