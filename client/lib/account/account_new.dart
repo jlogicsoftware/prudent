@@ -20,7 +20,8 @@ class AccountNew extends StatefulWidget {
 class _AccountNewState extends State<AccountNew> {
   final _formKey = GlobalKey<FormState>();
   var _name = '';
-  var _balanceInput = '0';
+  final _balance = TextEditingController(text: '0');
+  var _balanceInvalid = false;
   var _currency = 'PLN';
   var _selectedType = AccountType.ACCOUNT_TYPE_CARD;
   var _isDefault = false;
@@ -29,12 +30,21 @@ class _AccountNewState extends State<AccountNew> {
   var _includeInOverview = true;
   var _eligibleForGoals = false;
 
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    _formKey.currentState!.save();
+  @override
+  void dispose() {
+    _balance.dispose();
+    super.dispose();
+  }
 
-    final minor = parseMinorUnits(_balanceInput);
-    if (minor == null) return;
+  void _submit() {
+    final formValid = _formKey.currentState!.validate();
+    // The field's canonical text is read through normalizeAmount; what it means in minor units is
+    // money.dart's. An empty or malformed amount is refused here, not left to parse as zero.
+    final canonical = normalizeAmount(_balance.text, maxFractionDigits: minorUnitDigits);
+    final minor = canonical == null ? null : parseMinorUnits(canonical);
+    setState(() => _balanceInvalid = minor == null);
+    if (!formValid || minor == null) return;
+    _formKey.currentState!.save();
 
     widget.onAddAccount(
       CreateAccountRequest(
@@ -76,12 +86,14 @@ class _AccountNewState extends State<AccountNew> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    initialValue: _balanceInput,
-                    decoration: InputDecoration(labelText: t.accountOpeningBalanceField),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    validator: (value) => parseMinorUnits(value ?? '') == null ? t.accountAmountInvalid : null,
-                    onSaved: (newValue) => _balanceInput = newValue ?? '0',
+                  child: ZenAmountField(
+                    label: t.accountOpeningBalanceField,
+                    controller: _balance,
+                    maxFractionDigits: minorUnitDigits,
+                    errorText: _balanceInvalid ? t.accountAmountInvalid : null,
+                    onChanged: (_) {
+                      if (_balanceInvalid) setState(() => _balanceInvalid = false);
+                    },
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -97,17 +109,19 @@ class _AccountNewState extends State<AccountNew> {
                 ),
               ],
             ),
-            DropdownButtonFormField<AccountType>(
+            // Room for the balance field's error line and the select's floating label.
+            const SizedBox(height: 16),
+            ZenSelect<AccountType>(
+              label: t.accountTypeField,
               items: [
-                for (final type in AccountType.values.where((v) => v != AccountType.ACCOUNT_TYPE_UNSPECIFIED))
-                  DropdownMenuItem(value: type, child: Text(_typeLabel(t, type))),
+                for (final type in AccountType.values.where(
+                  (v) => v != AccountType.ACCOUNT_TYPE_UNSPECIFIED,
+                ))
+                  type,
               ],
-              initialValue: _selectedType,
-              onChanged: (value) {
-                if (value != null) setState(() => _selectedType = value);
-              },
-              decoration: InputDecoration(labelText: t.accountTypeField),
-              validator: (value) => value == null ? t.accountTypeRequired : null,
+              itemLabel: (type) => _typeLabel(t, type),
+              value: _selectedType,
+              onChanged: (value) => setState(() => _selectedType = value),
             ),
             ZenSwitchRow(
               label: t.accountIsDefault,
@@ -139,8 +153,12 @@ class _AccountNewState extends State<AccountNew> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                ElevatedButton(onPressed: _submit, child: Text(t.accountAdd)),
-                TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
+                ZenButton(label: t.accountAdd, onPressed: _submit),
+                ZenButton(
+                  label: t.cancel,
+                  onPressed: () => Navigator.pop(context),
+                  variant: ZenButtonVariant.text,
+                ),
               ],
             ),
           ],

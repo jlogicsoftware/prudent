@@ -65,6 +65,7 @@
     "placeholders": { "amount": { "type": "String" }, "currency": { "type": "String" } }
   },
   "correctionsTrueBalanceField": "True balance",
+  "correctionsDateField": "Date",
   "correctionsNoteField": "Note (optional)",
   "correctionsSave": "Reconcile",
   "correctionsInvalidInput": "Please enter a valid balance and choose a currency.",
@@ -98,7 +99,6 @@
   "accountAdd": "Add Account",
   "accountNameRequired": "Please enter a name",
   "accountAmountInvalid": "Enter a valid amount",
-  "accountTypeRequired": "Please select a type",
   "accountTypeCash": "Cash",
   "accountTypeCard": "Card",
   "accountTypeChecking": "Checking",

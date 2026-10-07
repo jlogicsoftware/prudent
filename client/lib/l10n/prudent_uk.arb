@@ -65,6 +65,7 @@
     "placeholders": { "amount": { "type": "String" }, "currency": { "type": "String" } }
   },
   "correctionsTrueBalanceField": "Фактичний баланс",
+  "correctionsDateField": "Дата",
   "correctionsNoteField": "Примітка (необов'язково)",
   "correctionsSave": "Звірити",
   "correctionsInvalidInput": "Будь ласка, введіть коректний баланс і оберіть валюту.",
@@ -98,7 +99,6 @@
   "accountAdd": "Додати рахунок",
   "accountNameRequired": "Будь ласка, введіть назву",
   "accountAmountInvalid": "Введіть коректну суму",
-  "accountTypeRequired": "Будь ласка, оберіть тип",
   "accountTypeCash": "Готівка",
   "accountTypeCard": "Картка",
   "accountTypeChecking": "Поточний рахунок",

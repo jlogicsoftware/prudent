@@ -65,6 +65,7 @@
     "placeholders": { "amount": { "type": "String" }, "currency": { "type": "String" } }
   },
   "correctionsTrueBalanceField": "Rzeczywiste saldo",
+  "correctionsDateField": "Data",
   "correctionsNoteField": "Notatka (opcjonalnie)",
   "correctionsSave": "Uzgodnij",
   "correctionsInvalidInput": "Podaj prawidłowe saldo i wybierz walutę.",
@@ -98,7 +99,6 @@
   "accountAdd": "Dodaj rachunek",
   "accountNameRequired": "Podaj nazwę",
   "accountAmountInvalid": "Podaj prawidłową kwotę",
-  "accountTypeRequired": "Wybierz typ",
   "accountTypeCash": "Gotówka",
   "accountTypeCard": "Karta",
   "accountTypeChecking": "Rachunek bieżący",

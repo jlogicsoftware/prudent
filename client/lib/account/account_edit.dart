@@ -72,16 +72,17 @@ class _AccountEditState extends State<AccountEdit> {
             decoration: InputDecoration(label: Text(t.accountNameField)),
           ),
           const SizedBox(height: 16),
-          DropdownButtonFormField<AccountType>(
+          ZenSelect<AccountType>(
+            label: t.accountTypeField,
             items: [
-              for (final type in AccountType.values.where((v) => v != AccountType.ACCOUNT_TYPE_UNSPECIFIED))
-                DropdownMenuItem(value: type, child: Text(_typeLabel(t, type))),
+              for (final type in AccountType.values.where(
+                (v) => v != AccountType.ACCOUNT_TYPE_UNSPECIFIED,
+              ))
+                type,
             ],
-            initialValue: _type,
-            onChanged: (value) {
-              if (value != null) setState(() => _type = value);
-            },
-            decoration: InputDecoration(labelText: t.accountTypeField),
+            itemLabel: (type) => _typeLabel(t, type),
+            value: _type,
+            onChanged: (value) => setState(() => _type = value),
           ),
           ZenSwitchRow(
             label: t.accountIsDefault,
@@ -113,8 +114,12 @@ class _AccountEditState extends State<AccountEdit> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              ElevatedButton(onPressed: _submit, child: Text(t.accountSave)),
-              TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
+              ZenButton(label: t.accountSave, onPressed: _submit),
+              ZenButton(
+                label: t.cancel,
+                onPressed: () => Navigator.pop(context),
+                variant: ZenButtonVariant.text,
+              ),
             ],
           ),
         ],
