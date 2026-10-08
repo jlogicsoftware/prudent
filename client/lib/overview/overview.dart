@@ -46,7 +46,7 @@ class OverviewScreen extends ConsumerWidget {
           onPressed:
               () => Navigator.of(
                 context,
-              ).push(MaterialPageRoute(builder: (ctx) => const ChartScreen())),
+              ).push(ZenPageRoute(builder: (ctx) => const ChartScreen())),
         ),
         ZenIconButton(
           icon: Icons.list,
@@ -54,7 +54,7 @@ class OverviewScreen extends ConsumerWidget {
           onPressed:
               () => Navigator.of(
                 context,
-              ).push(MaterialPageRoute(builder: (ctx) => const AccountScreen())),
+              ).push(ZenPageRoute(builder: (ctx) => const AccountScreen())),
         ),
       ],
       body: accountsAsync.when(

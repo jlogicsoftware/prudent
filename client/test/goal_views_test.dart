@@ -2,6 +2,7 @@
 // goal's history and the actions its state allows; and envelope amounts drawn apart from account
 // balances. Driven through the real PrudentRepository over a mock HTTP server, so the requests the
 // screens send are the ones asserted, not a fake's idea of them.
+import 'zen_fields.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -206,9 +207,9 @@ void main() {
     },
   );
 
-  Future<void> pump(WidgetTester tester, _Server s) async {
+  Future<void> pump(WidgetTester tester, _Server s, {double width = 800}) async {
     server = s;
-    tester.view.physicalSize = const Size(800, 2000);
+    tester.view.physicalSize = Size(width, 2000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
@@ -418,7 +419,7 @@ void main() {
 
   testWidgets('a move offers only active goals in the same currency', (tester) async {
     if (skipWithoutZenPlatform()) return;
-    await pump(tester, standard());
+    await pump(tester, standard(), width: 600);
     await tester.tap(find.text('Car'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Move'));
@@ -442,6 +443,26 @@ void main() {
     expect(body['sourceGoalId'], 'car');
     expect(body['targetGoalId'], 'trip');
     expect(body['amountMinor'], '2500');
+  });
+
+  testWidgets('a wide window opens a goal beside the list; a narrow one pushes it', (tester) async {
+    await pump(tester, standard());
+    await tester.tap(find.text('Car'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Move'), findsOneWidget);
+    expect(find.text('Trip'), findsWidgets, reason: 'the list stays beside the detail');
+    await tester.tap(iconButton('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('Move'), findsNothing);
+
+    await pump(tester, standard(), width: 600);
+    await tester.tap(find.text('Car'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Move'), findsOneWidget);
+    expect(find.text('Trip'), findsNothing, reason: 'a full-screen page replaces the list');
+    expect(iconButton('Back'), findsOneWidget);
   });
 
   testWidgets('a completed goal can give money out but not take it in', (tester) async {

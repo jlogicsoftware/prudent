@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/reminders.pb.dart';
 import '../providers.dart';
@@ -50,10 +51,9 @@ class ReminderSection extends ConsumerWidget {
                 if (!marked) return;
               }
               if (!context.mounted) return;
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => OccurrenceDetailScreen(occurrence: reminder.occurrence),
-                ),
+              await showZenDetail<void>(
+                context,
+                builder: (_) => OccurrenceDetailScreen(occurrence: reminder.occurrence),
               );
             },
           ),

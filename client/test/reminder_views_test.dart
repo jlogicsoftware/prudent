@@ -145,9 +145,14 @@ void main() {
     _Entry('gym', 'Gym', '2026-10-17', amount: -12000),
   ]);
 
-  Future<void> pump(WidgetTester tester, _Server s, {Widget home = const RemindersScreen()}) async {
+  Future<void> pump(
+    WidgetTester tester,
+    _Server s, {
+    Widget home = const RemindersScreen(),
+    double width = 800,
+  }) async {
     server = s;
-    tester.view.physicalSize = const Size(800, 2000);
+    tester.view.physicalSize = Size(width, 2000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
@@ -295,7 +300,7 @@ void main() {
 
   group('opening a reminder', () {
     testWidgets('marks it read and shows the occurrence with its plan fields', (tester) async {
-      await pump(tester, standard());
+      await pump(tester, standard(), width: 600);
 
       await tester.tap(find.text('Internet'));
       await tester.pumpAndSettle();
@@ -310,6 +315,25 @@ void main() {
       expect(find.text('Overdue'), findsOneWidget);
       expect(find.text('Confirm as planned'), findsOneWidget);
       expect(find.text('Skip'), findsOneWidget);
+    });
+
+    testWidgets('a wide window opens the occurrence beside the list and Close returns to it', (
+      tester,
+    ) async {
+      await pump(tester, standard());
+
+      await tester.tap(find.text('Internet'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Planned transaction'), findsOneWidget);
+      expect(find.text('Gym'), findsOneWidget, reason: 'the list stays beside the detail');
+      expect(iconButton('Back'), findsNothing);
+
+      await tester.tap(iconButton('Close'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Planned transaction'), findsNothing);
+      expect(find.text('Internet'), findsOneWidget);
     });
 
     testWidgets('an already read reminder opens without marking it again', (tester) async {
@@ -334,7 +358,7 @@ void main() {
     });
 
     testWidgets('confirming posts exactly as planned and ends the reminder', (tester) async {
-      await pump(tester, standard());
+      await pump(tester, standard(), width: 600);
       await tester.tap(find.text('Internet'));
       await tester.pumpAndSettle();
 

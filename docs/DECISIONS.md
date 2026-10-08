@@ -13,6 +13,45 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-061 — Details open beside their list through `showZenDetail`, and every other pushed screen is a `ZenPageRoute`
+
+**Date:** 2026-10-08. **Status:** accepted. **Refines:** ADR-041, ADR-060. jlogicsoftware/prudent#142;
+jZenDev/jZen#129 (→ #130, jZen ADR-061).
+
+### Decision
+
+- `JZEN_REF` moves from `351797a` to `0fdcd05` (`ci.yml`, `audit.yml`).
+- `ThemeData.pageTransitionsTheme` is `ZenPageTransitions.theme` (`app.dart`): iOS keeps the slide,
+  macOS fades, the rest keep Flutter's default.
+- A goal's detail (`GoalsScreen`), an occurrence's detail (the reminder centre) and a category's
+  records (`CategoriesScreen`) open with `showZenDetail`, and those three list screens are wrapped in
+  a `ZenDetailHost`. From 720 px of the *host's* width the detail sits beside the list (an in-layout
+  pane on iOS/macOS, a side sheet elsewhere); narrower, it is a full-screen push with Back. Prudent
+  has no platform or width branch of its own for this.
+- Every other pushed screen (Accounts, Categories, Profile, Chart, Reminders) stays a push and uses
+  `ZenPageRoute` in place of `MaterialPageRoute`, so a Mac does not slide it in.
+
+### What this leaves open
+
+- Whether Reminders, Chart, Accounts, Categories and Profile should be `ZenNavigation` items or
+  in-place sections instead of pushes (step 4 of #142) is a product decision and was **not** made
+  here; they are pushes as before, only with the framework's transition.
+
+### Behaviour that changed, stated rather than discovered
+
+- On a wide window the list stays on screen while a detail is open, so a test that asserted a
+  full-screen replacement now pins its window to 600 px (`goal_views_test`, `reminder_views_test`),
+  and each file has a wide-window test showing the pane, Close, and the list beside it.
+
+### Verified, and what is not
+
+- `task zen:test:client` (macOS idiom) and the suite under `ZEN_PLATFORM=web` pass, `flutter analyze`
+  reports only the two warnings it reported before, and `task verify:controls` passes.
+- **Not looked at in a running app**: no window has been resized through the 900 px range, so the
+  pane/push switch beside the macOS sidebar is covered by widget tests only.
+
+---
+
 ## ADR-060 — Prudent's screens are built on jZen's Apple-aware text field, icon button, spinner, bar, page and message; the gate bans their Material twins outright
 
 **Date:** 2026-10-07. **Status:** accepted. **Refines:** ADR-059, ADR-041. jlogicsoftware/prudent#116;

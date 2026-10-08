@@ -34,7 +34,7 @@ class SettingsScreen extends ConsumerWidget {
               variant: ZenButtonVariant.text,
               onPressed:
                   () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (ctx) => const AccountScreen()),
+                    ZenPageRoute(builder: (ctx) => const AccountScreen()),
                   ),
             ),
             ZenButton(
@@ -42,7 +42,7 @@ class SettingsScreen extends ConsumerWidget {
               variant: ZenButtonVariant.text,
               onPressed:
                   () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (ctx) => const CategoriesScreen()),
+                    ZenPageRoute(builder: (ctx) => const CategoriesScreen()),
                   ),
             ),
             Padding(
@@ -66,7 +66,7 @@ class SettingsScreen extends ConsumerWidget {
               variant: ZenButtonVariant.text,
               onPressed:
                   () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (ctx) => const ProfileScreen()),
+                    ZenPageRoute(builder: (ctx) => const ProfileScreen()),
                   ),
             ),
             const Spacer(),
