@@ -27,27 +27,29 @@ class RemindersScreen extends ConsumerWidget {
     final remindersAsync = ref.watch(remindersProvider);
     final unread = ref.watch(unreadReminderCountProvider);
 
-    return ZenPageScaffold(
-      title: t.remindersTitle,
-      actions: [
-        ZenIconButton(
-          icon: Icons.done_all,
-          label: t.remindersMarkAllRead,
-          onPressed:
-              unread == 0
-                  ? null
-                  : () => runReminderChange(
-                    context,
-                    ref,
-                    ref.read(remindersProvider.notifier).markAllRead,
-                  ),
-        ),
-      ],
-      body: Column(
-        children: [
-          const NotificationNotice(),
-          Expanded(child: _reminders(context, ref, t, remindersAsync)),
+    return ZenDetailHost(
+      child: ZenPageScaffold(
+        title: t.remindersTitle,
+        actions: [
+          ZenIconButton(
+            icon: Icons.done_all,
+            label: t.remindersMarkAllRead,
+            onPressed:
+                unread == 0
+                    ? null
+                    : () => runReminderChange(
+                      context,
+                      ref,
+                      ref.read(remindersProvider.notifier).markAllRead,
+                    ),
+          ),
         ],
+        body: Column(
+          children: [
+            const NotificationNotice(),
+            Expanded(child: _reminders(context, ref, t, remindersAsync)),
+          ],
+        ),
       ),
     );
   }
@@ -60,7 +62,9 @@ class RemindersScreen extends ConsumerWidget {
   ) {
     return remindersAsync.when(
       loading: () => const Center(child: ZenProgressIndicator()),
-      error: (error, _) => Center(child: Text(t.remindersLoadError(error.toString()))),
+      error:
+          (error, _) =>
+              Center(child: Text(t.remindersLoadError(error.toString()))),
       data: (reminders) {
         if (reminders.isEmpty) {
           return Center(
@@ -81,7 +85,10 @@ class RemindersScreen extends ConsumerWidget {
           child: ListView(
             children: [
               if (overdue.isNotEmpty)
-                ReminderSection(title: t.remindersSectionOverdue, reminders: overdue),
+                ReminderSection(
+                  title: t.remindersSectionOverdue,
+                  reminders: overdue,
+                ),
               if (due.isNotEmpty)
                 ReminderSection(title: t.remindersSectionDue, reminders: due),
             ],

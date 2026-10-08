@@ -52,6 +52,10 @@ The client's overlays (add/edit account, correction, record, category, filter) a
 and web — so no screen carries its own `showDialog`/`showModalBottomSheet` block. No screen
 carries a raw Material button, select, switch row, segmented control or date picker either, and
 `task verify:controls` (ADR-059) fails the build when one returns (see "Client UI" below).
+A goal's detail, an occurrence's detail and a category's records open beside their list from 720 px of the
+host's width and as a full-screen push below it (`showZenDetail`, ADR-061); every other pushed screen is a
+`ZenPageRoute`, so macOS fades rather than slides. Whether Reminders, Chart, Accounts, Categories and Profile
+become navigation destinations instead of pushes is an open product decision (jlogicsoftware/prudent#142).
 
 M2 (planned and recurring transactions) is under way: `PlanResource` over `PlanEntity` and
 `RecurrenceRule` (ADR-037) model plans and their recurrence, separately from records;

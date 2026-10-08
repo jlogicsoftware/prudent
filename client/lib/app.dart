@@ -53,6 +53,7 @@ class PrudentApp extends ConsumerWidget {
     return ThemeData(
       colorScheme: scheme,
       useMaterial3: true,
+      pageTransitionsTheme: ZenPageTransitions.theme,
       extensions: [
         IdentityThemeExtension(
           successColor: Colors.green,

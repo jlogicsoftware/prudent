@@ -22,7 +22,7 @@ class ReminderBell extends ConsumerWidget {
       badge: unread,
       label: t.remindersOpen(unread),
       onPressed:
-          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RemindersScreen())),
+          () => Navigator.of(context).push(ZenPageRoute(builder: (_) => const RemindersScreen())),
     );
   }
 }
