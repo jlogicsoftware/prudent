@@ -53,9 +53,13 @@ and web — so no screen carries its own `showDialog`/`showModalBottomSheet` blo
 carries a raw Material button, select, switch row, segmented control or date picker either, and
 `task verify:controls` (ADR-059) fails the build when one returns (see "Client UI" below).
 A goal's detail, an occurrence's detail and a category's records open beside their list from 720 px of the
-host's width and as a full-screen push below it (`showZenDetail`, ADR-061); every other pushed screen is a
-`ZenPageRoute`, so macOS fades rather than slides. Whether Reminders, Chart, Accounts, Categories and Profile
-become navigation destinations instead of pushes is an open product decision (jlogicsoftware/prudent#142).
+host's width and as a full-screen push below it (`showZenDetail`, ADR-061); so, since ADR-062
+(jlogicsoftware/prudent#144), do Accounts, Categories and Profile (from Settings; Accounts also from Overview)
+and the reminder centre (from the bell on Overview), so the navigation sidebar stays while the pane fits (on
+macOS a window narrower than about 935 pt gets the full-screen push, which covers it). The chart by category is
+a second view of Analytics, not a screen of its own. There are still six tabs, and no screen is pushed other
+than the narrow-width fallback of `showZenDetail`; any other push is a `ZenPageRoute`, so macOS fades rather
+than slides.
 
 M2 (planned and recurring transactions) is under way: `PlanResource` over `PlanEntity` and
 `RecurrenceRule` (ADR-037) model plans and their recurrence, separately from records;

@@ -1,11 +1,11 @@
-// The currency pick on the analytics and chart screens (jlogicsoftware/prudent#103), now a
+// The currency pick on the analytics screen and its by-category view (jlogicsoftware/prudent#103), now a
 // ZenSelect in the body rather than a DropdownButton in the app bar: it is offered only when more
 // than one currency is held, and choosing one re-queries for that currency — never a blend.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/analytics/analytics.dart';
-import 'package:prudent/analytics/chart_screen.dart';
+import 'package:prudent/analytics/analytics_view.dart';
 import 'package:prudent/generated/prudent/v1/analytics.pb.dart';
 import 'package:prudent/generated/prudent/v1/categories.pb.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
@@ -45,7 +45,10 @@ void main() {
           }),
         ],
         child: MaterialApp(
-          localizationsDelegates: [...PrudentLocalizations.localizationsDelegates, zenWidgetsLocaleDelegate],
+          localizationsDelegates: [
+            ...PrudentLocalizations.localizationsDelegates,
+            zenWidgetsLocaleDelegate,
+          ],
           supportedLocales: PrudentLocalizations.supportedLocales,
           home: screen,
         ),
@@ -55,7 +58,9 @@ void main() {
   }
 
   group('AnalyticsScreen', () {
-    testWidgets('offers a labelled currency select, starting on the first currency', (tester) async {
+    testWidgets('offers a labelled currency select, starting on the first currency', (
+      tester,
+    ) async {
       await pump(tester, const AnalyticsScreen(), ['PLN', 'EUR']);
 
       final select = tester.widget<ZenSelect<String>>(find.byType(ZenSelect<String>));
@@ -88,9 +93,33 @@ void main() {
     });
   });
 
-  group('ChartScreen', () {
-    testWidgets('offers a labelled currency select and choosing one loads that currency', (tester) async {
-      await pump(tester, const ChartScreen(), ['PLN', 'EUR']);
+  group('the by-category view', () {
+    Future<void> openByCategory(WidgetTester tester, List<String> currencies) async {
+      await pump(tester, const AnalyticsScreen(), currencies);
+      await tester.tap(find.text('Spend by category'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+      'is a segment of the analytics screen, and the by-month view is the one first shown',
+      (tester) async {
+        await pump(tester, const AnalyticsScreen(), ['PLN']);
+
+        expect(find.byType(ZenSegmentedControl<AnalyticsView>), findsOneWidget);
+        expect(byPeriod, ['PLN']);
+        expect(byCategory, isEmpty);
+
+        await tester.tap(find.text('Spend by category'));
+        await tester.pumpAndSettle();
+
+        expect(byCategory, ['PLN']);
+      },
+    );
+
+    testWidgets('shares the currency select, and choosing a currency loads that currency', (
+      tester,
+    ) async {
+      await openByCategory(tester, ['PLN', 'EUR']);
 
       final select = tester.widget<ZenSelect<String>>(find.byType(ZenSelect<String>));
       expect(select.label, 'Currency');
@@ -103,8 +132,19 @@ void main() {
       expect(byCategory, ['PLN', 'EUR']);
     });
 
+    testWidgets('keeps the currency when switching between the views', (tester) async {
+      await pump(tester, const AnalyticsScreen(), ['PLN', 'EUR']);
+      tester.widget<ZenSelect<String>>(find.byType(ZenSelect<String>)).onChanged!('EUR');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Spend by category'));
+      await tester.pumpAndSettle();
+
+      expect(byCategory, ['EUR']);
+    });
+
     testWidgets('offers no select when only one currency is held', (tester) async {
-      await pump(tester, const ChartScreen(), ['PLN']);
+      await openByCategory(tester, ['PLN']);
 
       expect(find.byType(ZenSelect<String>), findsNothing);
     });

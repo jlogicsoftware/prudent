@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../account/account_screen.dart';
-import '../analytics/chart_screen.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
 import '../reminder/reminder_bell.dart';
@@ -36,99 +35,106 @@ class OverviewScreen extends ConsumerWidget {
     final mainCurrency = ref.watch(settingsProvider).value?.mainCurrency;
     final showPlanned = ref.watch(plannedCashFlowVisibleProvider);
 
-    return ZenPageScaffold(
-      title: t.appTitle,
-      actions: [
-        const ReminderBell(),
-        ZenIconButton(
-          icon: Icons.pie_chart_outline,
-          label: t.chartTitle,
-          onPressed:
-              () => Navigator.of(
-                context,
-              ).push(ZenPageRoute(builder: (ctx) => const ChartScreen())),
-        ),
-        ZenIconButton(
-          icon: Icons.list,
-          label: t.accountsTitle,
-          onPressed:
-              () => Navigator.of(
-                context,
-              ).push(ZenPageRoute(builder: (ctx) => const AccountScreen())),
-        ),
-      ],
-      body: accountsAsync.when(
-        loading: () => const Center(child: ZenProgressIndicator()),
-        error:
-            (error, _) =>
-                Center(child: Text(t.accountsLoadError(error.toString()))),
-        data: (accounts) {
-          final overviewAccounts = accountsForOverview(accounts);
-          final totals = totalsByCurrency(accounts, mainCurrency);
-
-          if (overviewAccounts.isEmpty && totals.isEmpty) {
-            return Center(child: Text(t.overviewEmpty));
-          }
-
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              if (totals.isNotEmpty) ...[
-                Text(
-                  t.overviewTotalsTitle,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                for (final entry in totals.entries)
-                  Card(
-                    child: ListTile(
-                      title: Text(entry.key),
-                      trailing: Text(
-                        '${formatMinorUnits(entry.value)} ${entry.key}',
-                        style: Theme.of(context).textTheme.titleLarge,
+    // Accounts and the reminder centre open as this screen's detail (ADR-062): beside it on a wide
+    // host, so the navigation sidebar stays, and a full-screen push on a narrow one.
+    return ZenDetailHost(
+      // The Builder's context sits under the host, which is where showZenDetail looks for it.
+      child: Builder(
+        builder:
+            (context) => ZenPageScaffold(
+              title: t.appTitle,
+              actions: [
+                const ReminderBell(),
+                ZenIconButton(
+                  icon: Icons.list,
+                  label: t.accountsTitle,
+                  onPressed:
+                      () => showZenDetail<void>(
+                        context,
+                        builder: (_) => const AccountScreen(),
                       ),
-                    ),
-                  ),
-                const SizedBox(height: 24),
-              ],
-              if (overviewAccounts.isNotEmpty) ...[
-                Text(
-                  t.overviewAccountsTitle,
-                  style: Theme.of(context).textTheme.headlineSmall,
                 ),
-                const SizedBox(height: 8),
-                for (final account in overviewAccounts)
-                  Card(
-                    child: ListTile(
-                      title: Text(account.name),
-                      subtitle: Text(
-                        account.balances.isEmpty
-                            ? t.accountsNoBalance
-                            : account.balances
-                                .map(
-                                  (b) =>
-                                      '${formatMinorUnits(b.amountMinor)} ${b.currency}',
-                                )
-                                .join(', '),
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 24),
               ],
-              ZenSwitchRow(
-                label: t.plannedCashFlowToggle,
-                subtitle: t.plannedCashFlowToggleHint(plannedCashFlowDays),
-                value: showPlanned,
-                onChanged: ref.read(plannedCashFlowVisibleProvider.notifier).set,
+              body: accountsAsync.when(
+                loading: () => const Center(child: ZenProgressIndicator()),
+                error:
+                    (error, _) => Center(
+                      child: Text(t.accountsLoadError(error.toString())),
+                    ),
+                data: (accounts) {
+                  final overviewAccounts = accountsForOverview(accounts);
+                  final totals = totalsByCurrency(accounts, mainCurrency);
+
+                  if (overviewAccounts.isEmpty && totals.isEmpty) {
+                    return Center(child: Text(t.overviewEmpty));
+                  }
+
+                  return ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      if (totals.isNotEmpty) ...[
+                        Text(
+                          t.overviewTotalsTitle,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        for (final entry in totals.entries)
+                          Card(
+                            child: ListTile(
+                              title: Text(entry.key),
+                              trailing: Text(
+                                '${formatMinorUnits(entry.value)} ${entry.key}',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 24),
+                      ],
+                      if (overviewAccounts.isNotEmpty) ...[
+                        Text(
+                          t.overviewAccountsTitle,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        for (final account in overviewAccounts)
+                          Card(
+                            child: ListTile(
+                              title: Text(account.name),
+                              subtitle: Text(
+                                account.balances.isEmpty
+                                    ? t.accountsNoBalance
+                                    : account.balances
+                                        .map(
+                                          (b) =>
+                                              '${formatMinorUnits(b.amountMinor)} ${b.currency}',
+                                        )
+                                        .join(', '),
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 24),
+                      ],
+                      ZenSwitchRow(
+                        label: t.plannedCashFlowToggle,
+                        subtitle: t.plannedCashFlowToggleHint(
+                          plannedCashFlowDays,
+                        ),
+                        value: showPlanned,
+                        onChanged:
+                            ref
+                                .read(plannedCashFlowVisibleProvider.notifier)
+                                .set,
+                      ),
+                      if (showPlanned)
+                        PlannedCashFlowSection(
+                          accounts: accounts,
+                          mainCurrency: mainCurrency,
+                        ),
+                    ],
+                  );
+                },
               ),
-              if (showPlanned)
-                PlannedCashFlowSection(
-                  accounts: accounts,
-                  mainCurrency: mainCurrency,
-                ),
-            ],
-          );
-        },
+            ),
       ),
     );
   }

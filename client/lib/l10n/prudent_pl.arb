@@ -260,6 +260,7 @@
 
   "analyticsTitle": "Analityka",
   "analyticsSpendByMonth": "Wydatki wg miesiąca",
+  "analyticsSpendByCategory": "Wydatki wg kategorii",
   "analyticsEmpty": "Brak wydatków w ostatnich 12 miesiącach.",
   "analyticsLoadError": "Nie udało się wczytać analityki: {error}",
   "@analyticsLoadError": {
@@ -268,7 +269,6 @@
 
   "analyticsCurrencyField": "Waluta",
 
-  "chartTitle": "Wykres",
   "chartNoAccounts": "Dodaj rachunek, aby zobaczyć wykres.",
   "chartEmpty": "Brak wydatków w tym miesiącu.",
   "chartUnknownCategory": "Nieznana kategoria",

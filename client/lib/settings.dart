@@ -21,63 +21,80 @@ class SettingsScreen extends ConsumerWidget {
     final locale = ref.watch(localeProvider);
     final t = PrudentLocalizations.of(context);
 
-    return ZenPageScaffold(
-      title:
-          t.settingsTitle, // Full width, so the actions stay centred: a Column is only as wide as its widest child, and
-      // the language select no longer stretches to the edge the way its ListTile did.
-      body: SizedBox(
-        width: double.infinity,
-        child: Column(
-          children: [
-            ZenButton(
-              label: t.accountsTitle,
-              variant: ZenButtonVariant.text,
-              onPressed:
-                  () => Navigator.of(context).push(
-                    ZenPageRoute(builder: (ctx) => const AccountScreen()),
-                  ),
-            ),
-            ZenButton(
-              label: t.categoriesTitle,
-              variant: ZenButtonVariant.text,
-              onPressed:
-                  () => Navigator.of(context).push(
-                    ZenPageRoute(builder: (ctx) => const CategoriesScreen()),
-                  ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 360),
-                child: ZenSelect<String>(
-                  label: t.settingsLanguage,
-                  items: _languageNames.keys.toList(),
-                  itemLabel: (code) => _languageNames[code]!,
-                  value: locale.languageCode,
-                  onChanged:
-                      (code) => ref
-                          .read(localeProvider.notifier)
-                          .setLocale(Locale(code)),
+    // Accounts, Categories and Profile open as the detail of this screen (ADR-062): beside it on a
+    // wide host, so the navigation sidebar stays, and a full-screen push on a narrow one.
+    return ZenDetailHost(
+      // The Builder's context sits under the host, which is where showZenDetail looks for it.
+      child: Builder(
+        builder:
+            (context) => ZenPageScaffold(
+              title:
+                  t.settingsTitle, // Full width, so the actions stay centred: a Column is only as wide as its widest child, and
+              // the language select no longer stretches to the edge the way its ListTile did.
+              body: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  children: [
+                    ZenButton(
+                      label: t.accountsTitle,
+                      variant: ZenButtonVariant.text,
+                      onPressed:
+                          () => showZenDetail<void>(
+                            context,
+                            builder: (_) => const AccountScreen(),
+                          ),
+                    ),
+                    ZenButton(
+                      label: t.categoriesTitle,
+                      variant: ZenButtonVariant.text,
+                      onPressed:
+                          () => showZenDetail<void>(
+                            context,
+                            builder: (_) => const CategoriesScreen(),
+                          ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 360),
+                        child: ZenSelect<String>(
+                          label: t.settingsLanguage,
+                          items: _languageNames.keys.toList(),
+                          itemLabel: (code) => _languageNames[code]!,
+                          value: locale.languageCode,
+                          onChanged:
+                              (code) => ref
+                                  .read(localeProvider.notifier)
+                                  .setLocale(Locale(code)),
+                        ),
+                      ),
+                    ),
+                    ZenButton(
+                      label: t.settingsProfile,
+                      variant: ZenButtonVariant.text,
+                      onPressed:
+                          () => showZenDetail<void>(
+                            context,
+                            builder: (_) => const ProfileScreen(),
+                          ),
+                    ),
+                    const Spacer(),
+                    ZenButton(
+                      label: t.settingsLogOut,
+                      variant: ZenButtonVariant.text,
+                      onPressed:
+                          () =>
+                              ref
+                                  .read(identitySessionStoreProvider.notifier)
+                                  .logout(),
+                    ),
+                  ],
                 ),
               ),
             ),
-            ZenButton(
-              label: t.settingsProfile,
-              variant: ZenButtonVariant.text,
-              onPressed:
-                  () => Navigator.of(context).push(
-                    ZenPageRoute(builder: (ctx) => const ProfileScreen()),
-                  ),
-            ),
-            const Spacer(),
-            ZenButton(
-              label: t.settingsLogOut,
-              variant: ZenButtonVariant.text,
-              onPressed:
-                  () => ref.read(identitySessionStoreProvider.notifier).logout(),
-            ),
-          ],
-        ),
       ),
     );
   }
