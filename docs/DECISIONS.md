@@ -13,6 +13,54 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-064 — On native macOS a pushed page fades in place: seen in slow motion at `b67a549`; the Chrome-on-a-Mac half of #145 is not yet looked at
+
+**Date:** 2026-10-09. **Status:** accepted. **Refines:** ADR-061, ADR-063. jlogicsoftware/prudent#145;
+jZenDev/jZen#131 (→ #132, jZen ADR-062).
+
+### Decision
+
+- No code change. ADR-063 moved `JZEN_REF` to a jZen revision that includes #132, which is step 1 of
+  #145; this records step 2, what was seen, and what was not.
+- Native macOS is accepted as meeting #142's first line, "on macOS no pushed screen slides in from
+  the right", on the evidence below.
+- The Chrome-on-a-Mac line ("the default push transition, no fade") is **not** accepted here. It rests
+  on jZen's own test (a web build reporting `TargetPlatform.macOS` keeps the travelling title) and has
+  not been seen in Prudent. #145 stays open for it.
+
+### What was seen
+
+Native macOS debug build (`task run:dev DEVICE=macos CLIENT_PLATFORM=macos`) with `timeDilation = 6`
+set locally in `main()` and not committed, against a local backend. A series of frames was taken
+after each tap, looking at the title and the back button, not only the body:
+
+- *Window 820 pt (the page fallback):* Reminders from the bell, and back; Accounts from Settings. The
+  outgoing and incoming titles ("Prudent" and "Reminders"; "Settings" and "Accounts") cross-fade in
+  the same place, the back button does not move, and the body fades. Nothing moves horizontally, in
+  either direction, and the sidebar stays on screen throughout.
+- *Window 1100 pt (the pane):* Categories opens beside Settings; a category's records stack in that
+  pane as a cross-fade in place; Back inside the pane and Close both work and fade the same way. This
+  is the case jZen#132 listed as not looked at.
+
+### Not looked at
+
+- **Chrome on a Mac** (the web build). The embedded browser reports `MacIntel`, so it is the right
+  case, but the browser pane was hidden and the page ran at about 2 frames a second, so no frames of
+  a transition could be taken; only the end state was seen (the reminder centre as a page under the
+  shell's own header, Back working). The slow-motion check of #145 step 2 still has to be done there.
+- **Real speed.** Every screen was operated at real speed in the sessions behind ADR-062 and ADR-063
+  without anything visibly wrong, but a transition lasting a third of a second was not measured.
+- Windows, Linux, iOS and a real Android device.
+
+### Consequence
+
+- `timeDilation` is a local debugging aid only. Nothing in `client/lib` carries it; after this entry
+  `main.dart` is unchanged.
+- #145 is not closed by this entry. What is left for it is the web check above, in a visible browser.
+- `task zen:test:client` passed under the macOS idiom with the temporary edit in place (351 tests).
+
+---
+
 ## ADR-063 — `JZEN_REF` moves to `b67a549`: a page pushed from a destination now stays inside the navigation shell
 
 **Date:** 2026-10-09. **Status:** accepted. **Refines:** ADR-062. jZenDev/jZen#133 (→ #134, jZen

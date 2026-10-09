@@ -59,7 +59,8 @@ and the reminder centre (from the bell on Overview). Since ADR-063 (jZen at `b67
 `Navigator` of its own, so that page stays inside the content area and the navigation sidebar stays at every width;
 a page that must cover the shell asks for `rootNavigator: true`, and switching tab discards the stack of the one left.
 The chart by category is a second view of Analytics, not a screen of its own. There are still six tabs; any push
-is a `ZenPageRoute`, so macOS fades rather than slides.
+is a `ZenPageRoute`, so macOS fades rather than slides (seen in slow motion on the native macOS app, ADR-064; Chrome
+on a Mac is not yet looked at, jlogicsoftware/prudent#145).
 
 M2 (planned and recurring transactions) is under way: `PlanResource` over `PlanEntity` and
 `RecurrenceRule` (ADR-037) model plans and their recurrence, separately from records;
