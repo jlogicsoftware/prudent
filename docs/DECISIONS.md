@@ -13,6 +13,82 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-062 — Reminders, Accounts, Categories and Profile are details of the screen they are opened from, and Chart is a view of Analytics; the six tabs stay six
+
+**Date:** 2026-10-09. **Status:** accepted. **Refines:** ADR-061. jlogicsoftware/prudent#144 (split
+from #142, step 4).
+
+### Context
+
+Five screens were pushed over the whole window with `ZenPageRoute`, so each one covered the macOS
+sidebar. `ZenNavigation` cannot prevent that: it has no nested `Navigator`, a destination is only a
+`builder`, and a `Navigator.push` always goes to the root navigator. Three things keep the sidebar:
+a destination of its own, a view inside an existing destination, or `showZenDetail` (ADR-061),
+whose pane lives inside the destination's content area. On mobile `ZenNavigation` shows three tabs
+and puts the rest under "More", whose page draws no badge; Prudent already has six.
+
+### Decision
+
+| Screen | Where it lives now | Why |
+|---|---|---|
+| **Chart** | A second view of Analytics, a `ZenSegmentedControl` beside "Spend by month" (`SpendByCategoryView`). The pie-chart button on Overview and `ChartScreen` are gone. | Same question (where did the money go), same currency pick. It is one task, so it is one screen. The currency is kept when the view changes. |
+| **Accounts** | The detail of Settings and of Overview (`showZenDetail`). | Accounts are set up and corrected rarely; Overview already shows their balances. A seventh tab would only land under "More" on a phone. |
+| **Categories** | The detail of Settings. | Set-up, as above. |
+| **Profile** | The detail of Settings. | It is the framework's `ProfileScreen`; only the way into it changes. |
+| **Reminders** | The detail of Overview, opened from the bell. | An inbox entered when the badge says so. The bell keeps its count in view on every width; a tab under "More" would lose it. |
+
+`SettingsScreen` and `OverviewScreen` are `ZenDetailHost`s. The detail opens beside the screen from
+720 px of the host's width and as a full-screen push below it, so no pushed screen is left except
+that narrow fallback, which is the framework's. Prudent has no platform or width branch for any of it.
+
+**The sidebar stays only while the pane fits.** The width that counts is the host's, measured after
+the sidebar has taken its share, so on macOS a window narrower than about 935 pt (720 pt plus the
+sidebar) gets the full-screen push, and that push covers the sidebar as every push does. On a phone
+there is no sidebar to lose. This is a limit of `showZenDetail`, not of Prudent's screens, and it is
+left as it is rather than worked around here.
+
+A page opened from inside a pane stacks in that pane (`ZenDetailScope`), so `CategoriesScreen` and
+`RemindersScreen`, which are hosts themselves, can be details without a second pane appearing.
+
+### What this supersedes, and why
+
+- **"Every other pushed screen (Accounts, Categories, Profile, Chart, Reminders) stays a push"**
+  (ADR-061, Decision) → **changed.** *Why:* that was kept only because the placement was a product
+  decision not yet made; it is made here, and a push is what hid the sidebar.
+- **"Whether Reminders, Chart, Accounts, Categories and Profile should be `ZenNavigation` items or
+  in-place sections instead of pushes … was not made here"** (ADR-061, What this leaves open) →
+  **closed.** *Why:* each has an answer in the table above.
+
+### Considered and rejected
+
+- **Accounts as a destination.** Right if accounts were visited daily; nothing says they are, and
+  the cost is a seventh tab on every width. Revisit if reconciliation turns out to be a habit.
+- **Reminders as a destination with `badgeCount`.** The badge is drawn on a wide sidebar and a
+  bottom bar, not inside "More", where this tab would be on a phone.
+- **A nested `Navigator` per destination in `ZenNavigation`.** Would let any push keep the sidebar,
+  including the narrow macOS window above. It is a framework change, so it is a request to make in
+  jZen, not something to build here; nothing else in this decision depends on it.
+
+### Consequence
+
+- `chartTitle` is removed from the three `.arb` files and `analyticsSpendByCategory` added.
+- Tests: the by-category view is covered inside `AnalyticsScreen`; Settings and the bell have a
+  wide-window test (the screen stays, no Back) and a narrow one (full-screen, Back); an occurrence
+  opened from the bell stacks in the reminders pane.
+- **Verified:** the client suite under the macOS idiom, the touched files under `ZEN_PLATFORM=web`,
+  `task verify:controls` and `dart analyze` (the two warnings it reported before).
+- **Looked at in a running app, 2026-10-09**, against a local backend:
+  - *Web, 1024 px wide:* the bell, Accounts, Categories (with a category's records stacked in the same
+    pane) and the Analytics segment open as designed, with the top navigation staying put; at 375 px
+    Accounts is a full-screen push with Back. Accounts' add form opens as a dialog over the pane.
+  - *macOS, 1100 pt wide:* the same screens, plus Profile, open as an in-layout pane beside the real
+    sidebar, which stays; Analytics shows the Cupertino segmented control. Resized to 820 pt, Accounts
+    is a full-screen push that covers the sidebar (see above).
+- **Not looked at:** a native phone or tablet, Windows and Linux, and a window dragged through the
+  720 px point while a detail is open (the narrow and the wide cases were each opened fresh).
+
+---
+
 ## ADR-061 — Details open beside their list through `showZenDetail`, and every other pushed screen is a `ZenPageRoute`
 
 **Date:** 2026-10-08. **Status:** accepted. **Refines:** ADR-041, ADR-060. jlogicsoftware/prudent#142;

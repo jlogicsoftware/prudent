@@ -260,6 +260,7 @@
 
   "analyticsTitle": "Аналітика",
   "analyticsSpendByMonth": "Витрати за місяцями",
+  "analyticsSpendByCategory": "Витрати за категоріями",
   "analyticsEmpty": "Немає витрат за останні 12 місяців.",
   "analyticsLoadError": "Не вдалося завантажити аналітику: {error}",
   "@analyticsLoadError": {
@@ -268,7 +269,6 @@
 
   "analyticsCurrencyField": "Валюта",
 
-  "chartTitle": "Діаграма",
   "chartNoAccounts": "Додайте рахунок, щоб побачити діаграму.",
   "chartEmpty": "Немає витрат цього місяця.",
   "chartUnknownCategory": "Невідома категорія",

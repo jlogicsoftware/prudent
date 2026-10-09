@@ -353,6 +353,7 @@
 
   "analyticsTitle": "Analytics",
   "analyticsSpendByMonth": "Spend by month",
+  "analyticsSpendByCategory": "Spend by category",
   "analyticsEmpty": "No spending in the last 12 months.",
   "analyticsLoadError": "Could not load analytics: {error}",
   "@analyticsLoadError": {
@@ -361,7 +362,6 @@
 
   "analyticsCurrencyField": "Currency",
 
-  "chartTitle": "Chart",
   "chartNoAccounts": "Add an account to see a chart.",
   "chartEmpty": "No spending this month.",
   "chartUnknownCategory": "Unknown category",

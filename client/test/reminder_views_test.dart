@@ -87,7 +87,9 @@ class _Server {
     final path = request.url.path;
     calls.add('${request.method} $path');
     if (request.method == 'GET' && path == '/api/v1/reminders') {
-      return _json({'reminders': [for (final e in _current) e.reminder()]});
+      return _json({
+        'reminders': [for (final e in _current) e.reminder()],
+      });
     }
     if (request.method == 'POST') {
       posted[path] = request.body;
@@ -95,7 +97,9 @@ class _Server {
         for (final e in _current) {
           e.read = true;
         }
-        return _json({'reminders': [for (final e in _current) e.reminder()]});
+        return _json({
+          'reminders': [for (final e in _current) e.reminder()],
+        });
       }
       final reminder = RegExp(r'^/api/v1/reminders/([^/]+)/(read|unread)$').firstMatch(path);
       if (reminder != null) {
@@ -108,7 +112,9 @@ class _Server {
         entry.read = reminder.group(2) == 'read';
         return _json(entry.reminder());
       }
-      final action = RegExp(r'^/api/v1/occurrences/([^/]+)/(skip|restore|confirm)$').firstMatch(path);
+      final action = RegExp(
+        r'^/api/v1/occurrences/([^/]+)/(skip|restore|confirm)$',
+      ).firstMatch(path);
       if (action != null) {
         final entry = entries.firstWhere((e) => e.id == action.group(1));
         entry.status = switch (action.group(2)) {
@@ -117,7 +123,10 @@ class _Server {
           _ => 'OCCURRENCE_STATUS_COMPLETED',
         };
         if (action.group(2) == 'confirm') {
-          return _json({'occurrence': entry.occurrence(), 'record': {'id': 'rec-1'}}, 201);
+          return _json({
+            'occurrence': entry.occurrence(),
+            'record': {'id': 'rec-1'},
+          }, 201);
         }
         return _json(entry.occurrence());
       }
@@ -235,7 +244,9 @@ void main() {
       );
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client))],
+          overrides: [
+            prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
+          ],
           child: MaterialApp(
             localizationsDelegates: PrudentLocalizations.localizationsDelegates,
             supportedLocales: PrudentLocalizations.supportedLocales,
@@ -276,7 +287,9 @@ void main() {
 
       expect(server.count('POST /api/v1/reminders/read-all'), 1);
       expect(unreadMarks(), findsNothing);
-      final button = tester.widget<ZenIconButton>(find.widgetWithIcon(ZenIconButton, Icons.done_all));
+      final button = tester.widget<ZenIconButton>(
+        find.widgetWithIcon(ZenIconButton, Icons.done_all),
+      );
       expect(button.onPressed, isNull, reason: 'nothing left to mark');
     });
 
@@ -429,6 +442,56 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(iconButton('Reminders'), findsOneWidget);
+    });
+
+    // The screen the bell sits on is a ZenDetailHost (ADR-062), as the overview is.
+    Widget hostedBell() => ZenDetailHost(
+      child: Builder(
+        builder:
+            (context) => Scaffold(
+              appBar: AppBar(title: const Text('Home'), actions: const [ReminderBell()]),
+            ),
+      ),
+    );
+
+    testWidgets('on a wide window the centre opens beside the screen, which stays', (tester) async {
+      await pump(tester, standard(), home: hostedBell());
+
+      await tester.tap(iconButton('Reminders, 2 unread'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Due soon'), findsOneWidget);
+      expect(
+        find.text('Home'),
+        findsOneWidget,
+        reason: 'the screen, and its sidebar, stay beside the centre',
+      );
+      expect(iconButton('Back'), findsNothing);
+    });
+
+    testWidgets('an occurrence opened from the centre stacks in the centre\'s pane', (
+      tester,
+    ) async {
+      await pump(tester, standard(), home: hostedBell());
+
+      await tester.tap(iconButton('Reminders, 2 unread'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Internet'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Planned transaction'), findsOneWidget);
+      expect(find.text('Home'), findsOneWidget, reason: 'the screen stays under both');
+    });
+
+    testWidgets('on a narrow window the centre is a full-screen push', (tester) async {
+      await pump(tester, standard(), home: hostedBell(), width: 600);
+
+      await tester.tap(iconButton('Reminders, 2 unread'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Due soon'), findsOneWidget);
+      expect(find.text('Home'), findsNothing);
+      expect(iconButton('Back'), findsOneWidget);
     });
   });
 }
