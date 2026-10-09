@@ -13,6 +13,49 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-063 — `JZEN_REF` moves to `b67a549`: a page pushed from a destination now stays inside the navigation shell
+
+**Date:** 2026-10-09. **Status:** accepted. **Refines:** ADR-062. jZenDev/jZen#133 (→ #134, jZen
+ADR-063) and #131 (→ #132).
+
+### Decision
+
+- `JZEN_REF` moves from `0fdcd05` to `b67a54924de2c744a05b077f5c18ac546ffcdcd3` (`ci.yml`,
+  `audit.yml`). It brings two jZen commits: #134 (each `ZenNavigation` destination sits in a
+  `Navigator` of its own, so a push, `showZenDetail`'s narrow fallback included, lands beside the
+  sidebar, rail or web menu) and #132 (the macOS page transition and bar hero, #131). Both touch only
+  client packages; no server, contract or migration change.
+- Prudent changes no code for it. Its screens do not push pages themselves: every `Navigator.pop`
+  sits inside a form or dialog that `showAdaptivePresentation` or `showDialog` opened, and those
+  still go through the root navigator.
+
+### What this supersedes, and why
+
+- **"The sidebar stays only while the pane fits … a macOS window narrower than about 935 pt gets the
+  full-screen push, and that push covers the sidebar"** (ADR-062, Decision) → **no longer holds.**
+  *Why:* below 720 px of the host's width `showZenDetail` still pushes, but into the destination's own
+  `Navigator`, so the shell stays. ADR-062's text is left as the record of what was true at `0fdcd05`.
+
+### Consequence
+
+- **What a pushed page now means.** `Navigator.of(context)` inside a destination is that destination's
+  navigator; a page that has to cover the shell asks for `rootNavigator: true`. Prudent has none.
+  Switching destination discards the stack of the one left (jZen only builds the selected one, as
+  before), so a page opened from Settings is gone when the user comes back from another tab.
+  Narrowing the window under a pane still turns it into a push, and widening it leaves a pushed page
+  where it is (jZen ADR-061).
+- **Verified:** `task zen:test:client` (macOS idiom) and the suite under `ZEN_PLATFORM=web`, 351
+  tests each, `task verify:controls`, and `dart analyze` (the two warnings it reported before).
+  Run against a local backend on the macOS debug build: at 820 pt Accounts (from Settings) and the
+  reminder centre (from the bell) open as a page inside the content area with the sidebar visible and
+  Back returning; at 1100 pt the bell, Accounts and Categories (with a category's records stacked in
+  the same pane) open beside the screen as in ADR-062; the add-account form is still a dialog over
+  the whole window.
+- **Not looked at:** the web build and Windows and Linux in a running app, and a window dragged
+  through the threshold with a page open.
+
+---
+
 ## ADR-062 — Reminders, Accounts, Categories and Profile are details of the screen they are opened from, and Chart is a view of Analytics; the six tabs stay six
 
 **Date:** 2026-10-09. **Status:** accepted. **Refines:** ADR-061. jlogicsoftware/prudent#144 (split
