@@ -45,7 +45,9 @@ that narrow fallback, which is the framework's. Prudent has no platform or width
 the sidebar has taken its share, so on macOS a window narrower than about 935 pt (720 pt plus the
 sidebar) gets the full-screen push, and that push covers the sidebar as every push does. On a phone
 there is no sidebar to lose. This is a limit of `showZenDetail`, not of Prudent's screens, and it is
-left as it is rather than worked around here.
+left as it is rather than worked around here. It was raised upstream as jZenDev/jZen#133 and fixed by
+jZenDev/jZen#134 (jZen ADR-063); Prudent takes the fix when `JZEN_REF` moves past it, which is a
+separate, deliberate step. Until then CI pins `0fdcd05` and the limit above stands.
 
 A page opened from inside a pane stacks in that pane (`ZenDetailScope`), so `CategoriesScreen` and
 `RemindersScreen`, which are hosts themselves, can be details without a second pane appearing.
@@ -67,7 +69,8 @@ A page opened from inside a pane stacks in that pane (`ZenDetailScope`), so `Cat
   bottom bar, not inside "More", where this tab would be on a phone.
 - **A nested `Navigator` per destination in `ZenNavigation`.** Would let any push keep the sidebar,
   including the narrow macOS window above. It is a framework change, so it is a request to make in
-  jZen, not something to build here; nothing else in this decision depends on it.
+  jZen, not something to build here; nothing else in this decision depends on it. Made as
+  jZenDev/jZen#133 and taken up there (#134) as this option.
 
 ### Consequence
 
