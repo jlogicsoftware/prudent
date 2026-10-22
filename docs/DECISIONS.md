@@ -13,6 +13,112 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-067 — The deploy checks the origin the web bundle was built for before the build and after the service, and verifies it instead of Cloud Run's `status.url`
+
+**Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-065, ADR-020. **Closes:** jlogicsoftware/prudent#151.
+
+### Decision
+
+The web bundle is compiled against `WEB_API_URL` and calls it for every API request. Cloud Run also
+answers the service on `status.url`, a different host. The deploy now treats the bundle's origin as
+a fact to check, at three points:
+
+- **Before the build, in seconds** — `deploy:check-origin-config`, run by `deploy:cloudrun` right
+  after its preflight. `WEB_API_URL` must be Cloud Run's deterministic host for the service,
+  `https://SERVICE-PROJECT_NUMBER.REGION.run.app` (project number from `gcloud projects describe`),
+  and must equal the `SITE_URL` secret. A typo or a wrong project number stops here and not after ten
+  minutes of native build and a live revision. A deliberate other origin (a custom domain) needs
+  `WEB_API_URL_ALLOW_OTHER=1`; the `SITE_URL` equality has no override.
+- **After the service** — `deploy:accept-origin`, run last by `deploy:cloudrun`. It runs
+  `scripts/check_origin_serves.sh` on `WEB_API_URL`: `/api/v1/health` must answer HTTP 200 **and** a
+  body naming `prudent-server` (a bare 200 also comes from a reused host or a placeholder page), with
+  retries for a cold start, no redirects followed. If it fails the task **exits non-zero** and the
+  message gives two ways forward in order: re-run the same probe in seconds with
+  `SERVICE_URL=$WEB_API_URL task verify:deploy` (the host may only be slow or not yet resolving), and
+  rebuild with a different `WEB_API_URL` only if that keeps failing. On success it names `WEB_API_URL`
+  as the origin to open and prints `status.url` as the alias it is; failing to read `status.url` is
+  said and does not fail a deploy whose real check passed.
+- **When verifying** — `verify:deploy` takes `SERVICE_URL`, else `WEB_API_URL`, else (with
+  `GCP_PROJECT`) the `SITE_URL` secret, else stops; it never resolves `status.url`. The bundle's
+  origin is always checked when known: when it is the URL under test the checks include that the
+  health body names `prudent-server`; when `SERVICE_URL` names another host it is probed on its own;
+  when it is not known it prints `SKIP`, never silence.
+
+`task test:deploy-origin` runs two suites and CI runs it: `test_check_origin_serves.py` (the probe
+script alone, 12 cases) and `test_deploy_origin_tasks.py` (22 cases), which run the real
+`verify:deploy`, `deploy:accept-origin` and `deploy:check-origin-config` through `task` against
+local servers playing a Prudent and a stub `gcloud`, and require the failing cases to fail.
+
+### What this supersedes, and why
+
+- **"BUT the 'Deployed:' line at the end of this task prints `status.url` … DIFFERENT form … Open
+  that one, and pass it as SERVICE_URL to verify:deploy."** (the `deploy:cloudrun` summary, written
+  in ADR-065) → **reversed.** *Why:* it told the operator to open the origin the task did not
+  print, and the task printed the one the bundle does not call. A runbook that documents a defect
+  in its own output is a defect.
+- **"Pass SERVICE_URL, or GCP_PROJECT + GCP_REGION + SERVICE_NAME to resolve it."** (the
+  `verify:deploy` summary) → **changed** to `SERVICE_URL`, `WEB_API_URL`, or `GCP_PROJECT` (read from
+  the `SITE_URL` secret). *Why:* the resolved value was `status.url`, and every status-code assertion
+  passes on either host, so the check was green for the wrong origin. The bundle's own
+  `WEB_API_URL` is a compile-time fact that survives nowhere in the cloud; `SITE_URL` is the one
+  place the same origin is recorded there.
+- **ADR-066's "#151 … is still open" and ADR-065's "documented rather than fixed"** → **superseded in
+  the code**, not edited: the log is append-only.
+
+### Consequence
+
+Verified, without the cloud:
+
+- **The probe script alone**, 12 cases against local servers: serving host (exit 0), trailing slash,
+  200 from something else (1), 404 (1), 500 (1), nothing listening (1), cold for two tries then
+  serving (0), cold throughout (1, exactly the configured number of requests), redirect (1),
+  malformed origin (1), no argument (1), and that the JSON transport header is sent.
+- **The Taskfile glue through `task`**, 22 cases, including: `verify:deploy` with each of
+  `WEB_API_URL` alone, nothing, `SERVICE_URL` alone (`SKIP`), a good alias with a bundle origin that
+  never serves (fails), with one that answers 200 as something else (fails), the same origin given
+  twice (checked once, not probed twice), and the origin read from the `SITE_URL` secret;
+  `deploy:accept-origin` serving, with an unreadable `status.url`, never serving, and something
+  else; `deploy:check-origin-config` for the deterministic host, a wrong host (naming the right one),
+  the override, a `SITE_URL` that disagrees (with and without the override), an unreadable secret
+  and project number, and a missing variable.
+- **That these tests can fail.** Four deliberate breakages of the Taskfile were made and each made the
+  suite go red: `deploy:accept-origin` swallowing the probe's exit code; `verify:deploy` dropping
+  `fail=1` on the bundle probe; the `SITE_URL` comparison never failing; the wrong-host check no
+  longer exiting. The fourth first survived — its test was rescued by the `SITE_URL` check — and the
+  test was fixed so the first check stands alone.
+
+- **A real, fresh environment** (a new GCP and Supabase project, torn down afterwards), by the
+  tasks themselves:
+  - `deploy:check-origin-config` against real `gcloud` and real secrets: a `WEB_API_URL` with a wrong
+    project number fails in 0-2 s naming the host Cloud Run really serves; a custom origin without
+    the override fails; with the override but a `SITE_URL` that differs it still fails (each exit
+    201, go-task's wrapping of 1); the true deterministic host with a matching `SITE_URL` passes.
+  - `task deploy:cloudrun`, **once**: exit 0 in 11 min 13 s, one revision serving 100%. The
+    pre-build check passed, `>> runtime login` ran (ADR-066), and `>> origin check` saw
+    `prudent-server` in the body from real Cloud Run — the one thing the script's tests could not
+    show. Cloud Run's `status.url` was, as ADR-065 recorded, a different, hashed host, and the task
+    named `WEB_API_URL` as the one to open and the alias as the alias.
+  - `verify:deploy` three ways, all passing: from `WEB_API_URL` with the scheduler check; with
+    `SERVICE_URL` set to the `status.url` alias (it printed the `NOTE`, probed the bundle's origin
+    on its own, and passed); and with only `GCP_PROJECT`/`GCP_REGION`, the origin read from the
+    `SITE_URL` secret.
+  - `deploy:accept-origin` pointed at a `*.run.app` host that is not this service: Cloud Run
+    answered 404, the probe failed, the task exited non-zero with "DEPLOY NOT ACCEPTED" and both
+    ways forward, in 3 s with two attempts. Pointed at the alias it passed, which is the limit
+    stated below.
+  - Torn down and verified as in ADR-065, which also ran the corrected image-removal line for real.
+
+**Not proven:** whether the probe needed a retry on the real cold start was not recorded, so the
+30 s window is not measured against a slow one. That a cross-origin bundle loses its session cookie
+is ADR-020's reasoning and has not been observed in a browser. The probe shows that the host serves
+Prudent, not that it is the host the operator **meant**: the alias passes it, as does any other
+live Prudent. The pre-build check narrows that to the one deterministic host, `WEB_API_URL_ALLOW_OTHER`
+widens it again, and the deterministic form itself has now held on three projects of one account,
+not on every kind of project. `SITE_URL` is compared; `AUTH_REDIRECT_URI` and `CORS_ORIGINS`, which
+also carry the service host, are not.
+
+---
+
 ## ADR-066 — The deploy gives `zen_runtime` its login, and `test:native` serves as that role
 
 **Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-065. **Closes:** jlogicsoftware/prudent#150.
