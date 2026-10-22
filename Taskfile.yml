@@ -953,7 +953,15 @@ tasks:
                   --secret=ZEN_JOBS_TRIGGER_TOKEN --project=PROJECT)"
 
         4. TEARDOWN of a throwaway environment removes EVERYTHING it created, and finishes by
-           proving it. Delete the project as a whole rather than resource by resource (an emptied
+           proving it.
+
+           THIS STEP IS ONLY FOR AN ENVIRONMENT MADE TO BE THROWN AWAY. A persistent one
+           (docs/persistent-environment.md) is not one: deleting its Supabase project deletes the
+           project and any backups with it, and if it carries a project lien the lien is never
+           removed to make this step pass. Check `gcloud projects describe PROJECT` before running
+           anything below.
+
+           Delete the project as a whole rather than resource by resource (an emptied
            project is a leftover), and the Supabase project, which lives outside GCP and which
            deleting the GCP project does not touch:
 

@@ -159,7 +159,8 @@ purpose: `deploy:cloudrun` passed end to end, `verify:deploy` passed nine of nin
 was then deleted** (the exact end state is in ADR-065).
 That run found and fixed two defects no local check reaches. `task test:native` still proves the
 exact artifact a deploy ships, in Docker, against a throwaway Postgres. No persistent environment
-has ever been created — that is #46, and nothing is running now. Don't describe a standing
+has ever been created — that is #46, a proof of concept decided in ADR-068 and prepared in
+`docs/persistent-environment.md`, and nothing is running now. Don't describe a standing
 deployment as existing, and never invent a committed project/region/service name: no environment
 fact is ever written into this repository (ADR-021) — the tasks themselves are real; use them
 rather than treating deployment as unstarted. Run them from the main checkout: `task` does not
