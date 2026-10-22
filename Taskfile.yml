@@ -217,6 +217,23 @@ tasks:
       - python3 -m unittest discover -s scripts -p 'test_verify_controls.py'
       - python3 scripts/verify_controls.py
 
+  verify:reflection:
+    desc: Fail if a proto message is not registered for native-image reflection
+    summary: |
+      THE GATE BEHIND server/src/main/java/prudent/proto/PrudentProtoReflection.java. Canonical
+      proto3 JSON reads message accessors by reflection and a native image strips them, so a message
+      missing from that class serialises fine on the JVM and returns 500 in the deployed binary
+      (#158, found on the first persistent deploy). Runs scripts/verify_proto_reflection.py, which
+      compares every `message` in proto/prudent/v1/*.proto with the class's targets and fails on a
+      missing or a stale one; an empty scope is a failure, not a pass.
+
+      scripts/test_verify_proto_reflection.py runs first and is what proves the gate can fail.
+      It does NOT prove a native binary serialises a message: that needs an authenticated read
+      against the native image, which no check does yet (#159).
+    cmds:
+      - python3 -m unittest discover -s scripts -p 'test_verify_proto_reflection.py'
+      - python3 scripts/verify_proto_reflection.py
+
   test:deploy-origin:
     desc: Prove the deploy's origin checks can fail (probe script and the tasks that use it)
     summary: |

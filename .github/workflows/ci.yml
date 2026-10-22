@@ -150,6 +150,12 @@ jobs:
         working-directory: prudent
         run: task verify:controls
 
+      # A proto message missing from the native-image reflection list serialises on the JVM and
+      # returns 500 in the deployed binary, so no JVM test sees it (#158).
+      - name: Native reflection gate
+        working-directory: prudent
+        run: task verify:reflection
+
       # The deploy ends by probing the origin the web bundle calls, and nothing runs a deploy in
       # CI. This is what proves that probe can fail, so a bundle built for a host that never
       # serves keeps being caught by the deploy and not by a user (#151).
