@@ -13,6 +13,70 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-068 — The persistent environment is a proof of concept: Free Supabase with no backups, one Owner, the web app first, and a custom subdomain tried before falling back to `*.run.app`
+
+**Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-020, ADR-021, ADR-065. **Addresses:** jlogicsoftware/prudent#46 — the decisions and the preparation; the environment itself is not created.
+
+### Decision
+
+The owner decided what #46 builds. As ADR-021 requires, no region, domain, project id or reference is
+recorded here; they live in the owner's password manager and the cloud.
+
+- **Purpose and condition.** A proof of concept the owner uses from a phone's browser. It holds test
+  data. **Real finances are not entered** until a backup mechanism exists and a restore has been done
+  once; `docs/persistent-environment.md` states this at the top.
+- **Supabase: Free, no backups, the risk accepted.** Free has none, a pause is possible, and deleting
+  the project deletes everything. The persistent project takes the account's second active Free slot,
+  so the older paused project must stay paused. This does **not** satisfy #47 and does not close it.
+- **One Owner.** No second Owner and no project lien are required. A lost or locked account is a lost
+  environment; accepted.
+- **Region.** One European region near the owner, the same continent for GCP and Supabase, chosen once
+  at creation (the service host contains it, so changing it later changes the origin).
+- **Address.** A subdomain of a domain the owner already holds, with DNS at Cloudflare, is **tried**
+  through a Cloud Run domain mapping with the record set to DNS only; if it does not work within a
+  reasonable wait the deterministic `*.run.app` host, which is proven, is the fallback. The first deploy
+  on the custom origin is expected to end "DEPLOY NOT ACCEPTED" because the name does not resolve yet;
+  the cheap re-probe `SERVICE_URL=<origin> task verify:deploy` then shows whether it works, with no
+  rebuild.
+- **Project id.** The bare name is almost certainly taken; the id carries an owner-specific suffix.
+- **Sign-in mail.** Supabase's default sender (the owner, a member of the Supabase organisation, is the
+  one user); the Site URL and Redirect URLs are set before the first registration.
+- **Management token.** Minted per provisioning session, revoked afterwards.
+- **Recovery copies.** None; consistent with no backups.
+- **Native iPhone build.** A separate issue (jlogicsoftware/prudent#155); the phone uses the web app first.
+
+### What this supersedes, and why
+
+- **The recommendations of `docs/persistent-environment.md` section 9** (written in the preparation
+  of #46): Supabase Pro, a second Owner with a lien and a budget alert, custom SMTP, recovery dumps in a
+  separate project, "stay on `*.run.app`" → **changed**, each to the owner's choice above. *Why:* the
+  recommendations were for an environment that holds the owner's real finances; the owner decided this
+  one does not, and a POC does not justify their cost. The document was rewritten to match.
+- **"No persistent environment ... that is #46, and nothing is running now"** (CLAUDE.md) → **kept**,
+  with a pointer to this entry: nothing is created.
+
+### Consequence
+
+Verified in this change, without the cloud: the preparation was code-reviewed, its eight findings were
+fixed in the document (the deployer role list now names the five secrets the tasks read and
+`resourcemanager.projects.get`; the Free-slot claim is corrected; the document no longer restates the
+runbook's commands or secret table; the alpha component and the budget API are named), and the
+provider facts below were read on 2026-10-22: Cloud Run domain mappings are **Preview**, "not
+recommended for production services", and list a European region matching the decision; the base domain
+must be verified for the Google account through Search Console; the certificate takes about 15 minutes
+and up to 24 hours; Google warns that a CDN may intercept validation requests; Cloudflare documents
+that a DNS-only record is not routed through its network.
+
+**Not proven:** the domain mapping itself, that Cloudflare DNS-only is what makes it work, and the
+single-native-build order (a first deploy that ends not accepted, then a mapping, then a re-probe); the
+Supabase redirect list and the default sender, so **no real sign-in link has ever been followed**; the
+pause behaviour of a Free project under the hourly scheduler call; and everything in the document's
+"never done" list. Two things are deliberately left open: the running service is handed the DDL
+credentials because `%prod.quarkus.flyway.username/password` have no default (to be settled before real
+data), and a native iPhone build has no task (jlogicsoftware/prudent#156 and #155).
+
+---
+
 ## ADR-067 — The deploy checks the origin the web bundle was built for before the build and after the service, and verifies it instead of Cloud Run's `status.url`
 
 **Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-065, ADR-020. **Closes:** jlogicsoftware/prudent#151.
