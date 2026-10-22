@@ -13,6 +13,68 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-069 — The persistent environment exists on `*.run.app`; its first sign-in found that no Prudent message was registered for the native image
+
+**Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-068. **Addresses:** jlogicsoftware/prudent#46 (the environment exists as a proof of concept; #47, #155 and #156 stay open); **closes** jlogicsoftware/prudent#158.
+
+### Decision
+
+- **The environment was created**, by the runbook (`task deploy:cloudrun`) on the owner's go, with no domain: the owner chose
+  the proven deterministic `*.run.app` host, "we are only testing". The custom-subdomain attempt in ADR-068 is therefore **not
+  tried**; a later move to a domain is a new origin, a rebuild and a new ADR. As ADR-021 requires, no project id, number, host,
+  reference or credential is recorded here or anywhere in the repository; they live in the owner's password manager and the cloud.
+- **Every Prudent proto message is registered for native-image reflection**, in `PrudentProtoReflection` (55 messages from
+  `proto/prudent/v1`), with `task verify:reflection` as a gate in CI that fails on a message that is declared but not registered, or
+  registered but no longer declared (`scripts/verify_proto_reflection.py`, tests that plant each failure and an empty scope).
+- **Four follow-ups were filed rather than fixed in this change:** #159 (prove an authenticated JSON read in the native build and
+  after a deploy), #160 (a screen that cannot load prints the raw exception, English only, no retry), #161 (the e-mail field of
+  jZen's `zen_ui_identity` validates the untrimmed text although the submit trims it, so a leading space reads as invalid; the code
+  is jZen's) and, from before, #155 and #156.
+
+### What happened, in order
+
+1. Provisioning followed `docs/persistent-environment.md` section 8: a GCP project with billing and the four APIs, an Artifact
+   Registry repository, the runtime service account, the Supabase Free project in a European region, twelve secrets with the database
+   password stored first, `deploy:cloudrun` (exit 0, origin answers as `prudent-server`), the Scheduler job, and `verify:deploy` (10
+   of 10). The Supabase project was created through the Management API with the password read from Secret Manager, not through the
+   CLI, so it never appeared on a command line; the Site URL and Redirect URLs were set through its `config/auth` endpoint.
+2. The owner registered from a phone, the confirmation mail arrived (Supabase's default sender, to the organisation member), and the
+   link was confirmed from a desktop. **That is the first real sign-in link ever followed**, and it worked.
+3. Every screen after sign-in returned HTTP 500. The service log: `NoSuchMethodException: prudent.proto.v1.Settings.getMainCurrency()`
+   and the same for `ListRemindersResponse.getRemindersList`. Canonical proto3 JSON reads accessors by reflection and a native image
+   strips them. jZen registers its own messages (`zen.transport.ZenProtoReflection`); nothing registered Prudent's.
+4. After the fix and a redeploy (`deploy:cloudrun` exit 0, `verify:deploy` 10 of 10, no new errors in the service log), the owner
+   signed in from a phone browser and a desktop browser and the screens loaded.
+
+### What this supersedes, and why
+
+- **"A subdomain of a domain the owner already holds ... is tried through a Cloud Run domain mapping; if it does not work ... the
+  deterministic `*.run.app` host ... is the fallback"** (ADR-068, Address) → **refined.** *Why:* the owner decided not to use a domain
+  for now; the fallback is the route taken and the subdomain is untried, not failed.
+- **"No persistent environment has ever been created ... nothing is running now"** (CLAUDE.md, current state and working agreement)
+  → **changed.** *Why:* one is running. The two paragraphs were rewritten in this change, and still record that it is a proof of
+  concept with no backups.
+- **`task verify:endpoints` and `verify:deploy` as the proof a native build serves the product** (the Taskfile summaries) → **reframed.**
+  *Why:* they read `/health` and the 401 paths, which are jZen's own messages, so they stayed green on a build that served no signed-in
+  screen. They prove the process, the routes' guards and the bundle; they do not prove Prudent's messages serialise (#159).
+
+### Consequence
+
+**Verified:** `task verify:reflection` and its five tests pass; the server compiles; the redeploy and `verify:deploy` above; the
+owner's sign-in and screen loading, **in a browser only**.
+
+**Learned while provisioning, and recorded in the document rather than re-discovered:** a GCP project display name must not contain
+parentheses; the registry answers `PERMISSION_DENIED` for about a minute on a new project (two tries) and the new runtime service
+account was not yet visible to IAM on the first binding (one retry); the Management API reports only the transaction pooler (6543) for
+the project, and the session pooler on 5432 of the same host is what the migration and the runtime login used, as the runbook says.
+
+**Not proven:** the native iPhone build and `prudent://auth-callback` (#155); that a record created in the browser is read back on
+another device (the owner reported the screens load, not that data round-trips); whether the hourly Scheduler call keeps the Free
+Supabase project from pausing; a custom domain; any backup or restore (#47); that a native binary serialises a message, other than by
+this one use (#159). The service is still handed the DDL credentials (#156). **Do not enter real finances.**
+
+---
+
 ## ADR-068 — The persistent environment is a proof of concept: Free Supabase with no backups, one Owner, the web app first, and a custom subdomain tried before falling back to `*.run.app`
 
 **Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-020, ADR-021, ADR-065. **Addresses:** jlogicsoftware/prudent#46 — the decisions and the preparation; the environment itself is not created.

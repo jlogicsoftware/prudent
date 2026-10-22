@@ -152,18 +152,19 @@ is remembered across launches (`shared_preferences`) so the prompt is not repeat
 has been seen to fire on a device. With no plan screen
 yet nothing in the UI switches a reminder on.
 
-**Run once against a disposable environment, never against a standing one: the deploy path.**
+**The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
 (ADR-065, #45) they were run against a real GCP project and a real Supabase project made for the
 purpose: `deploy:cloudrun` passed end to end, `verify:deploy` passed nine of nine, and **everything
 was then deleted** (the exact end state is in ADR-065).
 That run found and fixed two defects no local check reaches. `task test:native` still proves the
-exact artifact a deploy ships, in Docker, against a throwaway Postgres. No persistent environment
-has ever been created — that is #46, a proof of concept decided in ADR-068 and prepared in
-`docs/persistent-environment.md`, and nothing is running now. Don't describe a standing
-deployment as existing, and never invent a committed project/region/service name: no environment
-fact is ever written into this repository (ADR-021) — the tasks themselves are real; use them
-rather than treating deployment as unstarted. Run them from the main checkout: `task` does not
+exact artifact a deploy ships, in Docker, against a throwaway Postgres. A persistent environment was created on 2026-10-22 (#46): a
+proof of concept on `*.run.app`, Supabase Free with **no backups** (ADR-068, ADR-069,
+`docs/persistent-environment.md`), signed in to from a browser. It holds test data only; real finances
+wait for #47. Its first sign-in found that no Prudent message was registered for the native image
+(#158, fixed; `task verify:reflection` guards the list). Never invent or commit a project, region,
+service name or URL: no environment fact is ever written into this repository (ADR-021) — the tasks
+themselves are real; use them rather than treating deployment as unstarted. Run them from the main checkout: `task` does not
 load from a git worktree (ADR-065).
 
 **Done: the structural flattening (ADR-026).** Client code is now flat under `client/lib/` on a
@@ -383,11 +384,11 @@ under the wrong account more than once.
 exact command for the user to run with the `!` prefix. Interactive authentication is never a
 retry problem.
 
-**The deploy path has run once, against a disposable environment that was torn down (ADR-065).**
-`task deploy:cloudrun` and `task verify:deploy` (ADR-020, ADR-021, ADR-023) have a real run behind
-them, but no persistent GCP project, Cloud Run service or Supabase project exists. Do not write
-skills, plans or docs that describe a standing deployment as existing, or that invent a
-project/region/service name; do use the tasks themselves, which are real.
+**The deploy path has run three times against disposable environments that were torn down
+(ADR-065 to ADR-067), and once against the persistent proof of concept, which was not (ADR-069).**
+`task deploy:cloudrun` and `task verify:deploy` (ADR-020, ADR-021, ADR-023) have real runs behind
+them. Do not write skills, plans or docs that invent a project/region/service name or URL, and never
+run the runbook's teardown (step 4) against the persistent environment; do use the tasks themselves.
 
 ### What is in `.claude/`
 
