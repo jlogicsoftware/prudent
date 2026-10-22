@@ -4,6 +4,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/records.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../load_error_view.dart';
 import '../money.dart';
 import '../providers.dart';
 import 'new_record.dart';
@@ -147,9 +148,12 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
       ],
       body: recordsAsync.when(
         loading: () => const Center(child: ZenProgressIndicator()),
-        error:
-            (error, _) =>
-                Center(child: Text(t.recordsLoadError(error.toString()))),
+        error: (error, stack) => LoadErrorView(
+          message: t.recordsLoadError,
+          error: error,
+          stackTrace: stack,
+          onRetry: () => ref.invalidate(recordsProvider),
+        ),
         data: (records) {
           if (records.isEmpty && filterActive) {
             return Center(

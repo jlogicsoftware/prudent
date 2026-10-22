@@ -4,6 +4,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../load_error_view.dart';
 import '../providers.dart';
 import 'planned_cash_flow.dart';
 import 'planned_cash_flow_row.dart';
@@ -32,7 +33,13 @@ class PlannedCashFlowSection extends ConsumerWidget {
           const SizedBox(height: 8),
           planned.when(
             loading: () => const Center(child: ZenProgressIndicator()),
-            error: (error, _) => Text(t.plannedCashFlowLoadError(error.toString())),
+            error: (error, stack) => LoadErrorView(
+              message: t.plannedCashFlowLoadError,
+              error: error,
+              stackTrace: stack,
+              onRetry: () => ref.invalidate(plannedOccurrencesProvider),
+              compact: true,
+            ),
             data: (occurrences) {
               final flows = plannedCashFlowByCurrency(occurrences, accounts, mainCurrency);
               if (flows.isEmpty) return Text(t.plannedCashFlowEmpty(plannedCashFlowDays));

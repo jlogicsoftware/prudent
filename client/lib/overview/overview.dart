@@ -4,6 +4,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../account/account_screen.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../load_error_view.dart';
 import '../money.dart';
 import '../reminder/reminder_bell.dart';
 import 'overview_totals.dart';
@@ -57,10 +58,12 @@ class OverviewScreen extends ConsumerWidget {
               ],
               body: accountsAsync.when(
                 loading: () => const Center(child: ZenProgressIndicator()),
-                error:
-                    (error, _) => Center(
-                      child: Text(t.accountsLoadError(error.toString())),
-                    ),
+                error: (error, stack) => LoadErrorView(
+                  message: t.accountsLoadError,
+                  error: error,
+                  stackTrace: stack,
+                  onRetry: () => ref.invalidate(accountsProvider),
+                ),
                 data: (accounts) {
                   final overviewAccounts = accountsForOverview(accounts);
                   final totals = totalsByCurrency(accounts, mainCurrency);

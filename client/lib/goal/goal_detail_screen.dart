@@ -6,6 +6,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 import '../generated/prudent/v1/goal_allocations.pb.dart';
 import '../generated/prudent/v1/goals.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../load_error_view.dart';
 import '../providers.dart';
 import 'goal_allocation_form.dart';
 import 'goal_card.dart';
@@ -129,7 +130,13 @@ class GoalDetailScreen extends ConsumerWidget {
                   padding: EdgeInsets.all(16),
                   child: Center(child: ZenProgressIndicator()),
                 ),
-            error: (error, _) => Text(t.goalHistoryLoadError(error.toString())),
+            error: (error, stack) => LoadErrorView(
+              message: t.goalHistoryLoadError,
+              error: error,
+              stackTrace: stack,
+              onRetry: () => ref.invalidate(goalHistoryProvider(goalId)),
+              compact: true,
+            ),
             data:
                 (entries) =>
                     entries.isEmpty

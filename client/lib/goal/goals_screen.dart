@@ -4,6 +4,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/goals.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../load_error_view.dart';
 import '../providers.dart';
 import 'free_money_card.dart';
 import 'goal_card.dart';
@@ -53,9 +54,12 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
             ],
             body: goalsAsync.when(
               loading: () => const Center(child: ZenProgressIndicator()),
-              error:
-                  (error, _) =>
-                      Center(child: Text(t.goalsLoadError(error.toString()))),
+              error: (error, stack) => LoadErrorView(
+                message: t.goalsLoadError,
+                error: error,
+                stackTrace: stack,
+                onRetry: () => ref.invalidate(goalsProvider),
+              ),
               data: (goals) {
                 final shown = goalsWithStatus(goals, _status);
                 return ListView(
@@ -64,9 +68,13 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                     freeMoneyAsync.when(
                       loading:
                           () => const Center(child: ZenProgressIndicator()),
-                      error:
-                          (error, _) =>
-                              Text(t.goalFreeMoneyLoadError(error.toString())),
+                      error: (error, stack) => LoadErrorView(
+                        message: t.goalFreeMoneyLoadError,
+                        error: error,
+                        stackTrace: stack,
+                        onRetry: () => ref.invalidate(goalFreeMoneyProvider),
+                        compact: true,
+                      ),
                       data:
                           (currencies) => FreeMoneyCard(currencies: currencies),
                     ),

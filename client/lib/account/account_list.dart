@@ -4,6 +4,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../load_error_view.dart';
 import '../providers.dart';
 import 'account_tile.dart';
 
@@ -17,7 +18,12 @@ class AccountList extends ConsumerWidget {
 
     return accountsAsync.when(
       loading: () => const Center(child: ZenProgressIndicator()),
-      error: (error, _) => Center(child: Text(t.accountsLoadError(error.toString()))),
+      error: (error, stack) => LoadErrorView(
+        message: t.accountsLoadError,
+        error: error,
+        stackTrace: stack,
+        onRetry: () => ref.invalidate(accountsProvider),
+      ),
       data: (accounts) {
         if (accounts.isEmpty) {
           return Center(child: Text(t.accountsEmpty));

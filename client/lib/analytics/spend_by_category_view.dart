@@ -5,6 +5,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/categories.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../load_error_view.dart';
 import '../providers.dart';
 import 'chart_content.dart';
 
@@ -30,11 +31,12 @@ class _SpendByCategoryViewState extends ConsumerState<SpendByCategoryView> {
   Widget build(BuildContext context) {
     final t = PrudentLocalizations.of(context);
     final categories = ref.watch(categoriesProvider).value ?? const <Category>[];
-    final spendAsync = ref.watch(
-      spendByCategoryProvider(
-        SpendByCategoryParams(currency: widget.currency, year: _month.year, month: _month.month),
-      ),
+    final params = SpendByCategoryParams(
+      currency: widget.currency,
+      year: _month.year,
+      month: _month.month,
     );
+    final spendAsync = ref.watch(spendByCategoryProvider(params));
 
     return Column(
       children: [
@@ -63,7 +65,12 @@ class _SpendByCategoryViewState extends ConsumerState<SpendByCategoryView> {
         Expanded(
           child: spendAsync.when(
             loading: () => const Center(child: ZenProgressIndicator()),
-            error: (error, _) => Center(child: Text(t.chartLoadError(error.toString()))),
+            error: (error, stack) => LoadErrorView(
+              message: t.chartLoadError,
+              error: error,
+              stackTrace: stack,
+              onRetry: () => ref.invalidate(spendByCategoryProvider(params)),
+            ),
             data:
                 (response) => ChartContent(
                   response: response,

@@ -30,10 +30,7 @@
   "recordsDeleted": "Wpis usunięty.",
   "recordsUndo": "Cofnij",
   "recordsEmpty": "Nie znaleziono wpisów. Dodaj pierwszy!",
-  "recordsLoadError": "Nie udało się wczytać wpisów: {error}",
-  "@recordsLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "recordsLoadError": "Nie udało się wczytać wpisów.",
 
   "recordsFilterTooltip": "Filtr",
   "recordsFilterActiveTooltip": "Filtr (aktywny)",
@@ -77,10 +74,7 @@
 
   "categoriesTitle": "Kategorie",
   "categoriesEmpty": "Nie dodano jeszcze żadnej kategorii.",
-  "categoriesLoadError": "Nie udało się wczytać kategorii: {error}",
-  "@categoriesLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "categoriesLoadError": "Nie udało się wczytać kategorii.",
   "categoryTitleField": "Tytuł",
   "categoryDescriptionField": "Opis",
   "categorySave": "Zapisz kategorię",
@@ -92,10 +86,7 @@
   "accountsOther": "Inne rachunki",
   "accountsEmpty": "Nie dodano jeszcze żadnego rachunku.",
   "accountsNoBalance": "Brak salda",
-  "accountsLoadError": "Nie udało się wczytać rachunków: {error}",
-  "@accountsLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "accountsLoadError": "Nie udało się wczytać rachunków.",
   "accountNameField": "Nazwa rachunku",
   "accountOpeningBalanceField": "Saldo początkowe",
   "accountCurrencyField": "Waluta",
@@ -133,7 +124,7 @@
   "plannedCashFlowSpending": "Oczekiwane wydatki",
   "plannedCashFlowNet": "Planowany wynik",
   "plannedCashFlowEmpty": "Nic nie zaplanowano na następne {days} dni.",
-  "plannedCashFlowLoadError": "Nie udało się wczytać planowanych przepływów: {error}",
+  "plannedCashFlowLoadError": "Nie udało się wczytać planowanych przepływów.",
 
   "budgetsTitle": "Budżety",
   "budgetNoAccounts": "Dodaj konto, aby zacząć planować budżet.",
@@ -151,7 +142,7 @@
   "budgetCarryOverReset": "Przeniesienie wyzerowano od {month}",
   "budgetCategoryArchived": "Zarchiwizowana",
   "budgetEmpty": "Brak budżetów na {month} w walucie {currency}.",
-  "budgetLoadError": "Nie udało się wczytać budżetów: {error}",
+  "budgetLoadError": "Nie udało się wczytać budżetów.",
 
   "goalsTitle": "Cele",
   "goalNew": "Nowy cel",
@@ -161,7 +152,7 @@
   "goalsEmptyActive": "Brak aktywnych celów. Dodaj cel, aby odkładać pieniądze.",
   "goalsEmptyCompleted": "Nie ma jeszcze osiągniętych celów.",
   "goalsEmptyArchived": "Brak celów w archiwum.",
-  "goalsLoadError": "Nie udało się wczytać celów: {error}",
+  "goalsLoadError": "Nie udało się wczytać celów.",
   "goalStatusCompleted": "Osiągnięty",
   "goalStatusArchived": "W archiwum",
   "goalSetAside": "Odłożono",
@@ -182,10 +173,10 @@
   "goalFree": "Można odłożyć",
   "goalOverAllocated": "Koperty zawierają o {amount} więcej niż dostępne konta",
   "goalFreeMoneyEmpty": "Oznacz konto jako dostępne dla celów, aby zacząć odkładać pieniądze.",
-  "goalFreeMoneyLoadError": "Nie udało się wczytać pieniędzy na cele: {error}",
+  "goalFreeMoneyLoadError": "Nie udało się wczytać pieniędzy na cele.",
   "goalHistory": "Historia",
   "goalHistoryEmpty": "Na ten cel nic jeszcze nie odłożono.",
-  "goalHistoryLoadError": "Nie udało się wczytać historii: {error}",
+  "goalHistoryLoadError": "Nie udało się wczytać historii.",
   "goalEntryAllocate": "Odłożono",
   "goalEntryWithdraw": "Wypłacono",
   "goalEntryMoveIn": "Przeniesiono z „{goal}”",
@@ -227,7 +218,7 @@
   "remindersNoticeUnsupported": "To urządzenie nie może pokazywać przypomnień jako powiadomień. Pojawiają się tutaj, w Prudent.",
   "remindersNoticeDenied": "Powiadomienia są wyłączone dla Prudent, więc przypomnienia pojawiają się tylko tutaj. Aby otrzymywać je także jako powiadomienia, zezwól na nie w ustawieniach urządzenia.",
   "remindersEmpty": "Brak przypomnień. Włącz przypomnienie w planie, aby dowiedzieć się o nim przed terminem.",
-  "remindersLoadError": "Nie udało się wczytać przypomnień: {error}",
+  "remindersLoadError": "Nie udało się wczytać przypomnień.",
   "remindersMarkAllRead": "Oznacz wszystkie jako przeczytane",
   "reminderMarkRead": "Oznacz jako przeczytane",
   "reminderMarkUnread": "Oznacz jako nieprzeczytane",
@@ -262,20 +253,14 @@
   "analyticsSpendByMonth": "Wydatki wg miesiąca",
   "analyticsSpendByCategory": "Wydatki wg kategorii",
   "analyticsEmpty": "Brak wydatków w ostatnich 12 miesiącach.",
-  "analyticsLoadError": "Nie udało się wczytać analityki: {error}",
-  "@analyticsLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "analyticsLoadError": "Nie udało się wczytać analityki.",
 
   "analyticsCurrencyField": "Waluta",
 
   "chartNoAccounts": "Dodaj rachunek, aby zobaczyć wykres.",
   "chartEmpty": "Brak wydatków w tym miesiącu.",
   "chartUnknownCategory": "Nieznana kategoria",
-  "chartLoadError": "Nie udało się wczytać wykresu: {error}",
-  "@chartLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "chartLoadError": "Nie udało się wczytać wykresu.",
 
   "settingsTitle": "Ustawienia",
   "settingsLanguage": "Język",
@@ -284,5 +269,7 @@
   "addRecordTooltip": "Dodaj wpis",
   "addAccountTooltip": "Dodaj rachunek",
   "addCategoryTooltip": "Dodaj kategorię",
-  "editCategoryTooltip": "Edytuj kategorię"
+  "editCategoryTooltip": "Edytuj kategorię",
+  "loadErrorHint": "Coś poszło nie tak. Sprawdź połączenie i spróbuj ponownie.",
+  "loadErrorRetry": "Spróbuj ponownie"
 }

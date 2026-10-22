@@ -312,6 +312,10 @@ consumer that bends them stops being a consumer:
   gap to report, not an entry to add. `minorUnitDigits` in `money.dart` is
   what an amount field's `maxFractionDigits` takes: the wire has one fixed scale, not one per
   currency.
+  **A screen that cannot load its data shows `LoadErrorView`** (`client/lib/load_error_view.dart`) — a
+  localized sentence, a hint and Try again — and never the exception's text, which is logged instead
+  (#160). `client/test/load_error_view_test.dart` fails when a `*LoadError` string takes `{error}` or a
+  screen passes `error.toString()` on.
   `docs/jzen/README.md` has the state of the upstream issues.
 - **Typed, generated i18n.** No hardcoded user-facing strings. Each package owns `lib/l10n/*.arb`
   + `l10n.yaml` and generates accessors with `flutter gen-l10n`; the generated output is built, not
