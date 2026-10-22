@@ -924,7 +924,8 @@ tasks:
              supabase projects delete REF --yes
              # restore ~/.docker/config.json from the copy taken in step 1e if it changed
              # every deploy run tags the image with the commit, so a retry leaves more than one tag:
-             docker images | grep PROJECT | awk '{print $1":"$2}' | xargs docker rmi
+             docker images --filter "reference=REGION-docker.pkg.dev/PROJECT/*/*" -q | sort -u | xargs docker rmi --force
+             # the `*/*` is needed: a `*` in a reference filter does not cross a `/`
              docker images; docker ps -a        # nothing of this environment may remain
              gcloud projects describe PROJECT   # DELETE_REQUESTED, then gone after 30 days
 

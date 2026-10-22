@@ -13,6 +13,70 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-066 — The deploy gives `zen_runtime` its login, and `test:native` serves as that role
+
+**Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-065. **Closes:** jlogicsoftware/prudent#150.
+
+### Decision
+
+- `scripts/ensure_runtime_login.sh` runs `ALTER ROLE zen_runtime WITH LOGIN PASSWORD …` as the DDL
+  role, taking every input from the environment so no password reaches a process list. It uses a
+  throwaway `psql` container (`postgres:17-alpine`, needs psql 15+) because a deploy already needs
+  Docker and a laptop does not reliably have `psql`.
+- `task deploy:cloudrun` runs it **between the migration Job and the service, on every deploy**,
+  reading `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` and `APP_DB_PASSWORD` from Secret Manager. Because it
+  runs every time, rotating `APP_DB_PASSWORD` is a new secret version plus a deploy, and the role and
+  the secret cannot quietly disagree.
+- `task test:native` runs the same script and now starts the serving container with
+  `APP_DB_USERNAME=zen_runtime`. Until now it served as the DDL role, because `%prod` falls back to
+  `DB_USERNAME` when `APP_DB_USERNAME` is absent — so no local gate could see a runtime role that
+  cannot log in.
+
+### What this supersedes, and why
+
+- **"the first deploy of a new environment fails at its service step until `zen_runtime` is given a
+  login"** (ADR-065, "Two defects only a real run could find", and the runbook's old step 2b) →
+  **reversed.** *Why:* it was documented as a limitation in ADR-065 and is now fixed; the runbook's
+  step 2b describes what the task does instead of a step the operator performs.
+- **jZen treats the login as operator work outside the repository** (jZen ADR-031, whose reason is
+  that a credential in a migration is plaintext in git) → **kept in its reason, changed in who does
+  it.** *Why:* the reason still holds — the password is never in git, it is in Secret Manager — but
+  the step is part of Prudent's own deploy task, which Prudent owns, and leaving it manual cost every
+  fresh environment a failed revision and a second ten-minute native build.
+
+### Consequence
+
+Verified, in layers:
+
+- **The script alone**, against a throwaway Postgres, six cases: role missing (fails, with a message
+  that names both causes), role `NOLOGIN` (succeeds), a password containing `'` and `"`, a second run
+  with a new password (the old one stops working, the new one works), a wrong DDL password (fails),
+  a missing input (fails).
+- **`task test:native`** green in 9 min 19 s with the new `runtime-login` assertion and the service
+  serving as `zen_runtime`; registration with `pl` and every endpoint check still pass under the
+  least-privilege role.
+- **The gate bites.** The same image, same environment, but without the login step: the serving
+  container exits 1 with `password authentication failed for user "zen_runtime"`. A gate that
+  passes whether or not the step exists would have been decoration.
+- **A real, fresh environment, on the first run.** A new GCP project and Supabase project, then
+  `task deploy:cloudrun` **once**, with no manual role step: exit 0 in 10 min 32 s, one revision
+  (the first), serving 100%; the log shows `>> runtime login` between the migration and the service.
+  `verify:deploy` passed nine of nine; the database itself reports a live connection by
+  `zen_runtime`; a Cloud Scheduler run reached `/api/v1/jobs/trigger` and got HTTP 200; the service
+  log holds no authentication error. Torn down completely and verified, as in ADR-065.
+- That run exercised the runbook's teardown step for the first time and found it wrong: its image
+  removal built `repo:tag` from `docker images` columns that this Docker prints differently, and
+  then a `*` that does not cross a `/`. It is now `docker images --filter
+  "reference=REGION-docker.pkg.dev/PROJECT/*/*" -q`, verified to remove the image.
+
+**Not proven:** the password-rotation path was exercised only against a throwaway Postgres (case 4
+above), not against a live service on Cloud Run. The script pulls `postgres:17-alpine` from Docker Hub
+on a machine that lacks it, so a deploy now depends on that registry being reachable. A transaction-mode
+pooler was not tried. #151 (the task prints `status.url`, not the origin the bundle was built for)
+is still open.
+
+---
+
 ## ADR-065 — The deploy path has run once against a real, disposable environment and was torn down; a persistent one still does not exist
 
 **Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-020, ADR-021. **Closes:** jlogicsoftware/prudent#45.
