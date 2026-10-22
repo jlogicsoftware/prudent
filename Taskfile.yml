@@ -217,6 +217,27 @@ tasks:
       - python3 -m unittest discover -s scripts -p 'test_verify_controls.py'
       - python3 scripts/verify_controls.py
 
+  test:deploy-origin:
+    desc: Prove the deploy's origin checks can fail (probe script and the tasks that use it)
+    summary: |
+      deploy:cloudrun checks the origin the web bundle was compiled to call before the build
+      (deploy:check-origin-config) and after the service (deploy:accept-origin), and verify:deploy
+      checks it too. Two suites, both against throwaway local servers and a stub gcloud, requiring
+      the failing cases to fail — so a check that silently stopped failing goes red here and not
+      in a user's browser:
+
+        test_check_origin_serves.py   the probe script alone: a host that serves, a different
+                                      service answering 200, a 404, a 500, a host that never
+                                      answers, a cold host that recovers, a redirect.
+        test_deploy_origin_tasks.py   the Taskfile glue through `task` itself: which URL
+                                      verify:deploy checks, the exit codes of deploy:accept-origin
+                                      and deploy:check-origin-config, and the messages they give.
+
+      It needs python3, curl and go-task; it starts no container and touches no cloud.
+    cmds:
+      - python3 -m unittest discover -s scripts -p 'test_check_origin_serves.py'
+      - python3 -m unittest discover -s scripts -p 'test_deploy_origin_tasks.py'
+
   test:admin:
     desc: Typecheck the admin panel (also typechecks the @jzen/admin-core scaffold it imports)
     dir: "{{.ADMIN_DIR}}"
@@ -816,10 +837,26 @@ tasks:
         gcloud projects describe PROJECT --format='value(projectNumber)'
       Measured ONCE, against one real deploy: `gcloud run deploy` printed exactly that host as
       "Service URL". Confirm it the same way before trusting it for a new project — a bundle built
-      for a host that never serves is only discovered after the whole native build. BUT the "Deployed:" line at the end of this task prints `status.url`, which Cloud Run answers
-      with a DIFFERENT form (https://SERVICE_NAME-<hash>-<region code>.a.run.app). Both reach the
-      service; only the first is the origin the bundle was compiled to call. Open that one, and pass
-      it as SERVICE_URL to verify:deploy.
+      for a host that never serves is only discovered after the whole native build.
+
+      TWO HOSTS REACH THE SERVICE, AND ONLY ONE IS THE BUNDLE'S. Cloud Run's `status.url` is a
+      DIFFERENT form (https://SERVICE_NAME-<hash>-<region code>.a.run.app). Opened from there, the
+      bundle's API calls go cross-origin, and by ADR-020's reasoning the SameSite=Lax session cookie
+      is not sent (expected, not yet observed in a browser). So this task checks the origin twice:
+        - BEFORE THE BUILD (deploy:check-origin-config), in seconds: WEB_API_URL must be the
+          deterministic host above, read from `gcloud projects describe`, and must equal the
+          SITE_URL secret. A typo or a wrong project number stops here and not after ten minutes
+          of native build. A deliberate other origin (a custom domain) needs
+          WEB_API_URL_ALLOW_OTHER=1; SITE_URL must still equal it.
+        - AFTER THE SERVICE (deploy:accept-origin): /api/v1/health on WEB_API_URL must answer 200
+          and name prudent-server (scripts/check_origin_serves.sh, with retries for a cold start).
+          If it does not, the task EXITS NON-ZERO. The service is deployed by then and the message
+          says which of two things to do: re-run the probe alone with
+          `SERVICE_URL=$WEB_API_URL task verify:deploy` if the host may merely be slow or not yet
+          resolving, and rebuild with a different WEB_API_URL only if the probe keeps failing.
+          Success names WEB_API_URL as the origin to open and prints status.url as the alias it is.
+      The probe checks that the host serves; it cannot tell you that a host which serves is the
+      one you MEANT. That is still your WEB_API_URL to get right, so confirm it as above.
 
       ORDER, AND WHY THE MIGRATION COMES FIRST (jZen ADR-038). In %prod the application neither
       migrates nor validates at boot. The image just pushed is run as a one-shot Cloud Run Job with
@@ -970,6 +1007,10 @@ tasks:
         IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/${ARTIFACT_REPO}/prudent-server:{{.IMAGE_TAG}}"
         echo ">> image: ${IMAGE}"
 
+      # Before ten minutes of build, not after: the origin the bundle will call must be the host
+      # Cloud Run will actually serve it on, and the service must be configured for the same one.
+      - task: deploy:check-origin-config
+
       # The bundles must be staged BEFORE the native build bakes them in. build:web reads the
       # produced artifact back to prove WEB_API_URL actually applied (a --dart-define change does
       # not invalidate Flutter's web build cache — jZen ADR-037).
@@ -1057,13 +1098,127 @@ tasks:
           --set-secrets="${SECRETS},${APP_DB}" \
           --quiet
 
-        URL=$(gcloud run services describe "${SERVICE_NAME}" --region="${GCP_REGION}" \
-                --project="${GCP_PROJECT}" --format='value(status.url)')
+      # The deploy is not finished until the origin the bundle calls answers as Prudent.
+      - task: deploy:accept-origin
+
+  deploy:check-origin-config:
+    desc: Before the build — WEB_API_URL must be the host Cloud Run will serve, and SITE_URL the same
+    silent: true
+    summary: |
+      Run first by deploy:cloudrun, and runnable alone. Needs WEB_API_URL, GCP_PROJECT, GCP_REGION
+      and SERVICE_NAME, and gcloud authenticated.
+
+      The web bundle is compiled against WEB_API_URL and then baked into a ten-minute native build.
+      A wrong origin is otherwise found only after the service is live, so this fails in seconds
+      instead. Two checks:
+
+        1. WEB_API_URL is Cloud Run's deterministic host for this service,
+           https://SERVICE_NAME-PROJECT_NUMBER.REGION.run.app (PROJECT_NUMBER from
+           `gcloud projects describe`). That form was measured once; if a project ever answers
+           otherwise, or a custom domain is meant, set WEB_API_URL_ALLOW_OTHER=1 — the probe after
+           the deploy (deploy:accept-origin) is then the check that decides.
+        2. The SITE_URL secret is the same origin as WEB_API_URL. The runbook sets them equal
+           because the web bundle is served same-origin by the service; a disagreement means the
+           server believes it is somewhere the bundle does not call. This one has no override.
+    cmds:
+      - |
+        set -eu
+        missing=0
+        for v in WEB_API_URL GCP_PROJECT GCP_REGION SERVICE_NAME; do
+          eval "val=\${$v:-}"
+          if [ -z "$val" ]; then echo "MISSING: $v"; missing=1; fi
+        done
+        [ "$missing" -eq 0 ] || exit 1
+
+        origin="${WEB_API_URL%/}"
+        if ! number=$(gcloud projects describe "${GCP_PROJECT}" --format='value(projectNumber)'); then
+          echo "Could not read the project number of ${GCP_PROJECT}; it is needed to know the host"
+          echo "Cloud Run will serve the service on."
+          exit 1
+        fi
+        expected="https://${SERVICE_NAME}-${number}.${GCP_REGION}.run.app"
+        if [ "${origin}" = "${expected}" ]; then
+          printf '  ok    WEB_API_URL is the deterministic Cloud Run host for this service\n'
+        elif [ -n "${WEB_API_URL_ALLOW_OTHER:-}" ]; then
+          printf '  NOTE  WEB_API_URL is not the deterministic Cloud Run host (%s); continuing because\n' "${expected}"
+          printf '        WEB_API_URL_ALLOW_OTHER is set. The probe after the deploy decides.\n'
+        else
+          echo "  FAIL  WEB_API_URL is ${origin}"
+          echo "        Cloud Run serves this service on ${expected}"
+          echo "        A bundle built for any other host is only found broken after the build and the"
+          echo "        deploy. Fix WEB_API_URL, or set WEB_API_URL_ALLOW_OTHER=1 if another origin"
+          echo "        (a custom domain) is meant."
+          exit 1
+        fi
+
+        if ! site=$(gcloud secrets versions access latest --secret=SITE_URL --project="${GCP_PROJECT}"); then
+          echo "  FAIL  Could not read the SITE_URL secret in ${GCP_PROJECT}; the secrets are created"
+          echo "        before the first deploy (see 'task deploy:cloudrun --summary', step 2)."
+          exit 1
+        fi
+        if [ "${site%/}" != "${origin}" ]; then
+          echo "  FAIL  The SITE_URL secret is ${site%/}, but WEB_API_URL is ${origin}."
+          echo "        The bundle is served same-origin by the service, so they must be the same."
+          exit 1
+        fi
+        printf '  ok    the SITE_URL secret is the same origin as WEB_API_URL\n'
+
+  deploy:accept-origin:
+    desc: After the service — fail the deploy unless WEB_API_URL answers as Prudent, and name it
+    silent: true
+    summary: |
+      Run last by deploy:cloudrun, and runnable alone. Needs WEB_API_URL; GCP_PROJECT, GCP_REGION
+      and SERVICE_NAME are used only to show Cloud Run's own status.url as the alias it is.
+
+      The web bundle baked into the image calls WEB_API_URL for every API request. This proves the
+      service answers THERE (scripts/check_origin_serves.sh), not merely at status.url — a different
+      host that always works — so a bundle built for a host that never serves is found by the deploy
+      and not by a user. A failure exits non-zero and is never softened.
+
+      A failure is not necessarily a wrong host: a service that is slow to take traffic, or a name
+      that has not resolved yet, fails the same way. The message therefore sends you first to
+      `SERVICE_URL=$WEB_API_URL task verify:deploy`, which runs the same probe in seconds, and to a
+      rebuild only if that keeps failing.
+    cmds:
+      - |
+        set -eu
+        : "${WEB_API_URL:?WEB_API_URL is required: the origin the web bundle was compiled to call}"
+        origin="${WEB_API_URL%/}"
         echo
-        echo "Deployed: ${URL}"
-        echo "Now run:  SERVICE_URL=${URL} task verify:deploy"
+        echo ">> origin check"
+        if ! sh scripts/check_origin_serves.sh "${origin}"; then
+          echo
+          echo "DEPLOY NOT ACCEPTED: the web bundle was compiled to call ${origin}, and that origin"
+          echo "does not answer as Prudent. The service itself is deployed."
+          echo
+          echo "  1. If the host may just be slow to take traffic, or its name has not resolved yet,"
+          echo "     re-run the same probe on its own in seconds:"
+          echo "       SERVICE_URL=${origin} task verify:deploy"
+          echo "  2. If it keeps failing, WEB_API_URL is not a host this service answers on: rebuild"
+          echo "     with the right one (see 'task deploy:cloudrun --summary') and deploy again."
+          echo "A bundle calling a host that does not serve it is broken for every user."
+          exit 1
+        fi
+
         echo
-        echo "This URL is deliberately not written anywhere in this repository."
+        echo "Deployed. The web bundle was compiled to call, and the service answers on:"
+        echo "  ${origin}"
+        echo "OPEN THAT ONE."
+        # status.url is only the alias here, so failing to read it must not fail a deploy whose
+        # real check just passed — but it is said, not swallowed.
+        if alias=$(gcloud run services describe "${SERVICE_NAME:-}" --region="${GCP_REGION:-}" \
+                     --project="${GCP_PROJECT:-}" --format='value(status.url)' 2>/dev/null) && [ -n "${alias}" ]; then
+          if [ "${alias%/}" != "${origin}" ]; then
+            echo "Cloud Run's own status.url, ${alias}, also reaches the service, but a page opened"
+            echo "from it calls the API cross-origin and, by ADR-020's reasoning, loses its session cookie."
+          fi
+        else
+          echo "(Cloud Run's status.url could not be read; the check above did not need it.)"
+        fi
+        echo
+        echo "Now run:  SERVICE_URL=${origin} task verify:deploy"
+        echo
+        echo "These URLs are deliberately not written anywhere in this repository."
 
   verify:deploy:
     desc: Assert a deployed Prudent is actually correct — configuration included, not just code
@@ -1077,7 +1232,23 @@ tasks:
       assertion passed green, the image was byte-identical to a working one, and no native client
       could authenticate at all.
 
-      Pass SERVICE_URL, or GCP_PROJECT + GCP_REGION + SERVICE_NAME to resolve it.
+      WHICH ORIGIN IS VERIFIED. Pass SERVICE_URL, or WEB_API_URL — the origin the web bundle was
+      compiled to call, which is what deploy:cloudrun ends by naming. With neither, and GCP_PROJECT
+      set, it is read from the SITE_URL secret: the runbook makes that the same origin, and it is
+      the one fact about the bundle's origin that survives in the cloud (the bundle's own
+      WEB_API_URL does not). It is deliberately NOT resolved from the service's `status.url`:
+      Cloud Run answers that with a different host
+      (https://SERVICE_NAME-<hash>-<region code>.a.run.app) from the one the bundle calls, and every
+      status-code check below passes on either, so verifying the wrong one reads green while, by
+      ADR-020's reasoning, the bundle's API calls go cross-origin and lose the session cookie
+      (#151). With none of these the task stops and says so.
+
+      THE BUNDLE'S ORIGIN IS ALWAYS CHECKED WHEN IT IS KNOWN: WEB_API_URL, else the SITE_URL secret
+      when GCP_PROJECT is set. When it is the URL under test, the checks below include that /api/v1/health
+      names prudent-server; when SERVICE_URL names another host, it is probed on its own
+      (scripts/check_origin_serves.sh), so passing the alias cannot hide a bundle built for a host
+      that never serves. When it is not known at all that is announced as SKIP, never silently
+      omitted.
 
       NOT ASSERTED HERE, and deliberately: that `pl` formats as Polish in the native image. That
       check registers a user and reads users.language back from the database, which is a thing to
@@ -1087,14 +1258,26 @@ tasks:
       - |
         set -eu
         URL="${SERVICE_URL:-}"
-        if [ -z "${URL}" ]; then
-          for v in GCP_PROJECT GCP_REGION SERVICE_NAME; do
-            eval "val=\${$v:-}"
-            [ -n "$val" ] || { echo "Set SERVICE_URL, or GCP_PROJECT + GCP_REGION + SERVICE_NAME."; exit 1; }
-          done
-          URL=$(gcloud run services describe "${SERVICE_NAME}" --region="${GCP_REGION}" \
-                  --project="${GCP_PROJECT}" --format='value(status.url)')
+        # The origin the bundle calls. Never `status.url` (see the summary): that is a different
+        # host, and verifying it proves nothing about the one the bundle calls.
+        BUNDLE="${WEB_API_URL:-}"
+        if [ -z "${BUNDLE}" ] && [ -n "${GCP_PROJECT:-}" ]; then
+          if ! BUNDLE=$(gcloud secrets versions access latest --secret=SITE_URL --project="${GCP_PROJECT}"); then
+            echo "Could not read the SITE_URL secret in ${GCP_PROJECT} to learn the bundle's origin."
+            echo "Set WEB_API_URL (the origin the web bundle was compiled to call) instead."
+            exit 1
+          fi
+          echo "  NOTE  bundle origin taken from the SITE_URL secret (WEB_API_URL is not set)"
         fi
+        BUNDLE="${BUNDLE%/}"
+        [ -n "${URL}" ] || URL="${BUNDLE}"
+        if [ -z "${URL}" ]; then
+          echo "Set SERVICE_URL, or WEB_API_URL (the origin the web bundle was compiled to call),"
+          echo "or GCP_PROJECT to read it from the SITE_URL secret."
+          echo "The service's own status.url is deliberately not used: it is a different host."
+          exit 1
+        fi
+        URL="${URL%/}"
         echo ">> verifying ${URL}"
         fail=0
         check() { # name expected actual
@@ -1103,6 +1286,22 @@ tasks:
         }
         code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 
+        # The origin the bundle calls, always checked when it is known. When it is not the URL under
+        # test (SERVICE_URL names another host) it gets the retrying probe on its own, which is what
+        # stops that choice from hiding a bundle built for a host that does not serve. When it IS
+        # the URL under test, the checks below already cover it and one more is added — that the
+        # body names prudent-server — so the same endpoint is not probed twice with two retry rules.
+        if [ -z "${BUNDLE}" ]; then
+          printf '  SKIP  bundle origin: set WEB_API_URL (or GCP_PROJECT) to confirm the host the bundle calls serves\n'
+        elif [ "${BUNDLE}" != "${URL}" ]; then
+          printf '  NOTE  verifying %s, not the bundle origin %s\n' "${URL}" "${BUNDLE}"
+          if ! sh scripts/check_origin_serves.sh "${BUNDLE}"; then fail=1; fi
+        fi
+
+        named=no
+        if health=$(curl -s -H 'X-Zen-Transport: json' "${URL}/api/v1/health") \
+           && printf '%s' "${health}" | grep -q 'prudent-server'; then named=yes; fi
+        check "health names prudent-server" yes "${named}"
         check "health (json)"     200 "$(code -H 'X-Zen-Transport: json'     "${URL}/api/v1/health")"
         check "health (protobuf)" 200 "$(code -H 'X-Zen-Transport: protobuf' "${URL}/api/v1/health")"
         check "records are guarded" 401 "$(code "${URL}/api/v1/records")"
