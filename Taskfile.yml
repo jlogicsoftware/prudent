@@ -650,9 +650,19 @@ tasks:
         psql_smoke "delete from flyway_schema_history where installed_rank = 9001" >/dev/null
         docker rm -f prudent-smoke-migrate >/dev/null 2>&1 || true
 
+        # ── Between the halves, exactly as deploy:cloudrun does it: the runtime role gets its login,
+        # by the same script. The serving container below then connects AS zen_runtime, the way
+        # %prod does when APP_DB_USERNAME is set. Without this the smoke served as the DDL role (the
+        # fallback when APP_DB_* is absent), so a role that could not log in — the first real
+        # deploy's failure, #45 — was invisible to every local gate. ──
+        DB_URL=jdbc:postgresql://prudent-smoke-db:5432/postgres DB_USERNAME=postgres DB_PASSWORD=smoke \
+          APP_DB_PASSWORD=smoke-runtime PSQL_DOCKER_ARGS="--network $NET" \
+          sh scripts/ensure_runtime_login.sh
+        printf '  \033[32mok\033[0m   %-24s %-9s %s\n' runtime-login zen_runtime "has a login, set by the deploy's own script"
+
         # ── The deploy's second half: the same image, serving, against the migrated schema. ──
         docker run -d --name prudent-smoke-app --network "$NET" -p 18085:8085 --platform=linux/amd64 \
-          $(smoke_env) "$IMG" >/dev/null
+          $(smoke_env) -e APP_DB_USERNAME=zen_runtime -e APP_DB_PASSWORD=smoke-runtime "$IMG" >/dev/null
 
         up=0
         for _ in $(seq 1 60); do
@@ -859,7 +869,7 @@ tasks:
              mk DB_USERNAME             postgres.REF         # DDL role: migrations run as this
              mk DB_PASSWORD             <the database password chosen above>
              mk APP_DB_USERNAME         zen_runtime.REF      # least privilege at runtime
-             mk APP_DB_PASSWORD         <a new password; applied in step 2b>
+             mk APP_DB_PASSWORD         <a new password; deploy:cloudrun applies it, see 2b>
              mk SITE_URL                https://<service host>
              mk AUTH_REDIRECT_URI       https://<service host>/auth/callback
              mk AUTH_REDIRECT_URIS      prudent://auth-callback
@@ -882,18 +892,18 @@ tasks:
            GoTrue drops an unlisted target and falls back to the Site URL, so the email arrives and
            opens the wrong application.
 
-        2b. GIVE zen_runtime A LOGIN — after the migration job has run, before the service starts.
-           The migration creates the role NOLOGIN and without a password on purpose (a credential in
-           a migration is plaintext in git). Nothing else in this runbook sets one, and without it the
-           service dies at startup with `FATAL: (EAUTHQUERY) user not found in the database`, which
-           reads like a bad APP_DB_USERNAME and is not. As the DDL role, once:
-
-             ALTER ROLE zen_runtime WITH LOGIN PASSWORD '<the APP_DB_PASSWORD secret>'
-
-           So the first deploy of a new environment fails at its service step (the migration job,
-           which is what creates the role, has by then succeeded); run this, then deploy again — the
-           migration job is idempotent. Reading the password out of Secret Manager for this, rather
-           than retyping it, keeps the two from drifting.
+        2b. THE RUNTIME LOGIN IS NOT A STEP YOU DO — `deploy:cloudrun` does it, between the migration
+           job and the service (scripts/ensure_runtime_login.sh). The migration creates zen_runtime
+           NOLOGIN and without a password on purpose (a credential in a migration is plaintext in
+           git), and a service started before it has a login dies on its first connection with
+           `FATAL: (EAUTHQUERY) user not found in the database`, which reads like a bad
+           APP_DB_USERNAME and is not. The task reads DB_URL, DB_USERNAME, DB_PASSWORD and
+           APP_DB_PASSWORD out of Secret Manager and runs, as the DDL role,
+           `ALTER ROLE zen_runtime WITH LOGIN PASSWORD …`, so the role and the secret cannot
+           disagree. It runs on EVERY deploy, which makes rotating APP_DB_PASSWORD a new secret
+           version plus a deploy. It needs Docker (a throwaway psql container; the image is a
+           shared public one, postgres:17-alpine, and is left behind) and the deployer's own
+           permission to read those four secrets.
 
         3. The scheduler entry that drives zen-jobs, INCLUDING Prudent's GDPR sweep (ADR-019).
            Without it the retention cascade never runs in production, and nothing reports that:
@@ -914,7 +924,8 @@ tasks:
              supabase projects delete REF --yes
              # restore ~/.docker/config.json from the copy taken in step 1e if it changed
              # every deploy run tags the image with the commit, so a retry leaves more than one tag:
-             docker images | grep PROJECT | awk '{print $1":"$2}' | xargs docker rmi
+             docker images --filter "reference=REGION-docker.pkg.dev/PROJECT/*/*" -q | sort -u | xargs docker rmi --force
+             # the `*/*` is needed: a `*` in a reference filter does not cross a `/`
              docker images; docker ps -a        # nothing of this environment may remain
              gcloud projects describe PROJECT   # DELETE_REQUESTED, then gone after 30 days
 
@@ -1018,6 +1029,20 @@ tasks:
           echo "  gcloud logging read 'resource.type=cloud_run_job' --project=${GCP_PROJECT} --limit=50"
           exit 1
         fi
+
+        # ── Between the halves: the runtime role gets its login. The migration (above) is what
+        # creates zen_runtime, NOLOGIN and passwordless on purpose; the service connects as it, so
+        # a revision started before this step dies on its first connection (#45, ADR-065). The
+        # values are read from Secret Manager rather than from the shell, so the role and the
+        # secret the service is given cannot disagree. Plain assignments, not `VAR=$(…) cmd`:
+        # under `set -e` only a standalone assignment stops the task when the read fails.
+        echo ">> runtime login"
+        db_url=$(gcloud secrets versions access latest --secret=DB_URL --project="${GCP_PROJECT}")
+        db_user=$(gcloud secrets versions access latest --secret=DB_USERNAME --project="${GCP_PROJECT}")
+        db_pass=$(gcloud secrets versions access latest --secret=DB_PASSWORD --project="${GCP_PROJECT}")
+        app_pass=$(gcloud secrets versions access latest --secret=APP_DB_PASSWORD --project="${GCP_PROJECT}")
+        DB_URL="${db_url}" DB_USERNAME="${db_user}" DB_PASSWORD="${db_pass}" \
+          APP_DB_PASSWORD="${app_pass}" sh scripts/ensure_runtime_login.sh
 
         # ── The deploy's second half: the same image, serving, against the migrated schema. ──
         echo ">> service"
