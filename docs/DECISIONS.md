@@ -15,7 +15,7 @@ own — ADR-001 is the first instance.
 
 ## ADR-067 — The deploy checks the origin the web bundle was built for before the build and after the service, and verifies it instead of Cloud Run's `status.url`
 
-**Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-065, ADR-020. **Addresses:** jlogicsoftware/prudent#151 — the code; the real-run proof it asks for is still owed (see "Not proven").
+**Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-065, ADR-020. **Closes:** jlogicsoftware/prudent#151.
 
 ### Decision
 
@@ -87,15 +87,35 @@ Verified, without the cloud:
   longer exiting. The fourth first survived — its test was rescued by the `SITE_URL` check — and the
   test was fixed so the first check stands alone.
 
-**Not proven:** a real run. `status.url`'s form, the retry window being enough for a real cold
-start, Cloud Run answering `/api/v1/health` with the body the script requires, and the deterministic
-host being right for a project other than the one it was measured on are all unmeasured against
-Cloud Run in this change — the issue asks for a real run with a complete teardown, and that is still
-owed. That a cross-origin bundle loses its session cookie is ADR-020's reasoning and has not been
-observed in a browser. The probe shows that the host serves Prudent, not that it is the host the
-operator **meant**: a `WEB_API_URL` of some other live Prudent would pass the probe (the
-deterministic-host check narrows that, and `WEB_API_URL_ALLOW_OTHER` widens it again). `SITE_URL` is
-compared; `AUTH_REDIRECT_URI` and `CORS_ORIGINS`, which also carry the service host, are not.
+- **A real, fresh environment** (a new GCP and Supabase project, torn down afterwards), by the
+  tasks themselves:
+  - `deploy:check-origin-config` against real `gcloud` and real secrets: a `WEB_API_URL` with a wrong
+    project number fails in 0-2 s naming the host Cloud Run really serves; a custom origin without
+    the override fails; with the override but a `SITE_URL` that differs it still fails (each exit
+    201, go-task's wrapping of 1); the true deterministic host with a matching `SITE_URL` passes.
+  - `task deploy:cloudrun`, **once**: exit 0 in 11 min 13 s, one revision serving 100%. The
+    pre-build check passed, `>> runtime login` ran (ADR-066), and `>> origin check` saw
+    `prudent-server` in the body from real Cloud Run — the one thing the script's tests could not
+    show. Cloud Run's `status.url` was, as ADR-065 recorded, a different, hashed host, and the task
+    named `WEB_API_URL` as the one to open and the alias as the alias.
+  - `verify:deploy` three ways, all passing: from `WEB_API_URL` with the scheduler check; with
+    `SERVICE_URL` set to the `status.url` alias (it printed the `NOTE`, probed the bundle's origin
+    on its own, and passed); and with only `GCP_PROJECT`/`GCP_REGION`, the origin read from the
+    `SITE_URL` secret.
+  - `deploy:accept-origin` pointed at a `*.run.app` host that is not this service: Cloud Run
+    answered 404, the probe failed, the task exited non-zero with "DEPLOY NOT ACCEPTED" and both
+    ways forward, in 3 s with two attempts. Pointed at the alias it passed, which is the limit
+    stated below.
+  - Torn down and verified as in ADR-065, which also ran the corrected image-removal line for real.
+
+**Not proven:** whether the probe needed a retry on the real cold start was not recorded, so the
+30 s window is not measured against a slow one. That a cross-origin bundle loses its session cookie
+is ADR-020's reasoning and has not been observed in a browser. The probe shows that the host serves
+Prudent, not that it is the host the operator **meant**: the alias passes it, as does any other
+live Prudent. The pre-build check narrows that to the one deterministic host, `WEB_API_URL_ALLOW_OTHER`
+widens it again, and the deterministic form itself has now held on three projects of one account,
+not on every kind of project. `SITE_URL` is compared; `AUTH_REDIRECT_URI` and `CORS_ORIGINS`, which
+also carry the service host, are not.
 
 ---
 
