@@ -9,11 +9,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Optional
 
 SCRIPT = Path(__file__).resolve().parent / "verify_proto_reflection.py"
 
 
-def run(proto: str, java: str | None) -> subprocess.CompletedProcess:
+def run(proto: str, java: Optional[str]) -> subprocess.CompletedProcess:
     with tempfile.TemporaryDirectory() as d:
         root = Path(d)
         (root / "proto/prudent/v1").mkdir(parents=True)
