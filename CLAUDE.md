@@ -152,15 +152,18 @@ is remembered across launches (`shared_preferences`) so the prompt is not repeat
 has been seen to fire on a device. With no plan screen
 yet nothing in the UI switches a reminder on.
 
-**Built, but never run for real: the deploy path.** `task deploy:cloudrun` and `task verify:deploy`
-exist (ADR-020, ADR-021, ADR-023) and are proven only locally and against throwaway checks: the
-Taskfile parses with both discoverable in `task --list`, the preflight fails loudly naming every
-missing variable, and `task test:native` proves the exact artifact a deploy would ship, in Docker,
-against a throwaway Postgres. No GCP project, Cloud Run service, or persistent Supabase project has
-ever been created — that is deliberate (ADR-020), not missing. Don't describe an actual deployment
-as having happened, and never invent a committed project/region/service name: no environment fact
-is ever written into this repository (ADR-021) — the tasks themselves are real; use them rather
-than treating deployment as unstarted.
+**Run once against a disposable environment, never against a standing one: the deploy path.**
+`task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
+(ADR-065, #45) they were run against a real GCP project and a real Supabase project made for the
+purpose: `deploy:cloudrun` passed end to end, `verify:deploy` passed nine of nine, and **everything
+was then deleted** (the exact end state is in ADR-065).
+That run found and fixed two defects no local check reaches. `task test:native` still proves the
+exact artifact a deploy ships, in Docker, against a throwaway Postgres. No persistent environment
+has ever been created — that is #46, and nothing is running now. Don't describe a standing
+deployment as existing, and never invent a committed project/region/service name: no environment
+fact is ever written into this repository (ADR-021) — the tasks themselves are real; use them
+rather than treating deployment as unstarted. Run them from the main checkout: `task` does not
+load from a git worktree (ADR-065).
 
 **Done: the structural flattening (ADR-026).** Client code is now flat under `client/lib/` on a
 capability-folder layout (`account/ analytics/ auth/ category/ generated/ l10n/ overview/ record/`
@@ -379,11 +382,11 @@ under the wrong account more than once.
 exact command for the user to run with the `!` prefix. Interactive authentication is never a
 retry problem.
 
-**The deploy path exists as code but has never targeted a real environment.** `task deploy:cloudrun`
-and `task verify:deploy` (ADR-020, ADR-021, ADR-023) are proven only against local/throwaway
-checks — no GCP project, Cloud Run service or persistent Supabase project has ever been created.
-Do not write skills, plans or docs that describe an actual deployment as having happened, or that
-invent a project/region/service name; do use the tasks themselves, which are real.
+**The deploy path has run once, against a disposable environment that was torn down (ADR-065).**
+`task deploy:cloudrun` and `task verify:deploy` (ADR-020, ADR-021, ADR-023) have a real run behind
+them, but no persistent GCP project, Cloud Run service or Supabase project exists. Do not write
+skills, plans or docs that describe a standing deployment as existing, or that invent a
+project/region/service name; do use the tasks themselves, which are real.
 
 ### What is in `.claude/`
 

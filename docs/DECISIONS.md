@@ -13,6 +13,98 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-065 — The deploy path has run once against a real, disposable environment and was torn down; a persistent one still does not exist
+
+**Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-020, ADR-021. **Closes:** jlogicsoftware/prudent#45.
+
+### Decision
+
+`task deploy:cloudrun` and `task verify:deploy` were run against a real GCP project and a real
+Supabase project created for the purpose, and **everything created was then deleted**. This is the
+"throwaway" proof ADR-020 deferred, not a deployment: nothing is left running, and the persistent
+environment (#46) is not created. As ADR-021 requires, no project, reference, region, service name
+or URL is recorded here.
+
+What ran, in order:
+
+- A new GCP project billed to the account's open billing account, the four APIs, an Artifact
+  Registry repository, a dedicated runtime service account holding only
+  `roles/secretmanager.secretAccessor`, and twelve secrets.
+- A new Supabase project on the Free plan. An older test project of the account had just been paused
+  and was still `PAUSING` when this one was created, and creation succeeded; whether the pause is
+  what made room was not established.
+- `task deploy:cloudrun`: **the first run failed** at its service step (below); after the two fixes,
+  **the second run passed end to end, exit 0, in 9 min 47 s** — web and admin bundles, the native
+  `linux/amd64` build, push, the migration Job (exit 0), the service.
+- `task verify:deploy` against both forms of the service's URL: **nine of nine checks passed**,
+  including the redirect allowlist and the scheduled-work check.
+- A Cloud Scheduler run reached `/api/v1/jobs/trigger` with the real trigger token and got
+  **HTTP 200** from the service — the control was exercised, not just configured.
+
+### Two defects only a real run could find
+
+- **`--set-env-vars="ZEN_I18N_SUPPORTED=en,uk,pl"` was refused by gcloud** (`Bad syntax for dict arg`):
+  gcloud splits that flag on commas and the locale set is a comma list. The value now uses gcloud's
+  alternate delimiter (`^@^`). Every earlier check passed, because none of them reaches gcloud.
+- **`zen_runtime` could not log in.** The identity migration creates it `NOLOGIN` with no password,
+  deliberately, and nothing in the runbook gave it one. The service died at startup with
+  `FATAL: (EAUTHQUERY) user not found in the database`, which reads like a wrong username. The
+  runbook now has the `ALTER ROLE zen_runtime WITH LOGIN PASSWORD …` step and says that a new
+  environment's first deploy fails at its service step until it is done.
+
+The first is fixed in `deploy:cloudrun`'s command, the second in its runbook text; both are in
+`Taskfile.yml`.
+
+### Runbook gaps closed in the same change
+
+Twelve secrets, not eleven; how to create the Supabase project (its password must be stored in
+Secret Manager *before* the create call, because the CLI never returns it — one project had to be
+deleted and recreated for exactly this); the session pooler on 5432; the user suffix
+(`postgres.<ref>`, `zen_runtime.<ref>`); the deterministic Cloud Run host
+(`SERVICE-PROJECT_NUMBER.REGION.run.app`), which makes the first deploy one build rather than two,
+versus the different form `status.url` returns and the task prints; a brand-new project answering
+`PERMISSION_DENIED` to its owner for a few minutes; the global `~/.docker/config.json`; and a
+teardown step that ends by proving itself.
+
+### What this supersedes, and why
+
+- **"No GCP project, Cloud Run service, or persistent Supabase project has ever been created."**
+  (`CLAUDE.md`, "Built, but never run for real" and "Working agreement") → **refined.** *Why:* a
+  disposable GCP project, Cloud Run service and Supabase project were created and deleted on
+  2026-10-22. The claim about a *persistent* environment stays true.
+- **"proven only locally and against throwaway checks"** (same places) → **reframed.** *Why:* the
+  deploy tasks now have one real run behind them; they are still not a record of any standing
+  deployment.
+
+`CLAUDE.md`'s two paragraphs were rewritten to match in the same change.
+
+### Consequence
+
+Teardown was verified rather than assumed: the GCP project is in `DELETE_REQUESTED` (Google keeps it
+restorable for 30 days; that is a holding state, not a live resource) and no longer appears under the
+billing account's projects; the Supabase project is absent from the account's list and the account's
+other projects are untouched; both locally tagged images of the run were removed, no dangling image
+or container from it remains, and `~/.docker/config.json` is byte-identical to its state before the
+run. The public base images the native build uses (Mandrel builder, UBI) are shared and were left.
+
+**Not proven, and stated rather than implied:**
+
+- Anything past the endpoints. No account was registered, no sign-in made, no mail link followed, and
+  the Supabase project's own Redirect URLs list was not set to match `AUTH_REDIRECT_URIS` — the runbook
+  says it must be. The native `pl` locale check stays in `task test:native` and was not repeated.
+- The pooler's transaction mode (6543) was not tried; 5432 is the one measured.
+- That a service survives a day: backups, a persistent database and its recovery are #46 and #47.
+- Two things documented here rather than fixed, each with its own issue: the first deploy of any new
+  environment fails at its service step until `zen_runtime` is given a login (jlogicsoftware/prudent#150),
+  and the task prints `status.url`, not the origin the bundle was built for (jlogicsoftware/prudent#151).
+- The Scheduler header still carries the trigger token on the `gcloud` command line, visible in the
+  process list while the command runs. Unchanged and undocumented as a trade-off.
+- **`task` does not run from a git worktree under `.claude/worktrees/`:** `Taskfile.yml` includes
+  `../jZen/Taskfile.app.yml` relative to itself, which does not exist from there. Found when a
+  delegated run was started in a worktree; deploys must run from the main checkout. Not fixed here.
+
+---
+
 ## ADR-064 — On native macOS a pushed page fades in place: seen in slow motion at `b67a549`; the Chrome-on-a-Mac half of #145 is not yet looked at
 
 **Date:** 2026-10-09. **Status:** accepted. **Refines:** ADR-061, ADR-063. jlogicsoftware/prudent#145;
