@@ -796,11 +796,19 @@ tasks:
         WEB_API_URL              the origin the web bundle is compiled to call
 
       WEB_API_URL IS A CHICKEN AND EGG, AND IT IS DELIBERATELY NOT RESOLVED FOR YOU. The bundle is
-      compiled before the service exists, and client config is compile-time, so the first deploy of
-      a new service is two: deploy once to learn the URL, then re-run with WEB_API_URL set to it.
-      Looking it up automatically would require this task to know the service name it is forbidden
-      to commit, and would silently produce a bundle calling the wrong origin on the run where the
-      lookup failed.
+      compiled before the service exists, and client config is compile-time. Looking it up
+      automatically would require this task to know the service name it is forbidden to commit, and
+      would silently produce a bundle calling the wrong origin on the run where the lookup failed.
+
+      YOU CAN KNOW THE URL BEFORE THE FIRST DEPLOY, so it is one deploy and not two. Cloud Run
+      serves every service at a deterministic host, https://SERVICE_NAME-PROJECT_NUMBER.REGION.run.app,
+      and PROJECT_NUMBER exists as soon as step 1a has run:
+        gcloud projects describe PROJECT --format='value(projectNumber)'
+      Measured against a real deploy: `gcloud run deploy` printed exactly that host as "Service URL".
+      BUT the "Deployed:" line at the end of this task prints `status.url`, which Cloud Run answers
+      with a DIFFERENT form (https://SERVICE_NAME-<hash>-<region code>.a.run.app). Both reach the
+      service; only the first is the origin the bundle was compiled to call. Open that one, and pass
+      it as SERVICE_URL to verify:deploy.
 
       ORDER, AND WHY THE MIGRATION COMES FIRST (jZen ADR-038). In %prod the application neither
       migrates nor validates at boot. The image just pushed is run as a one-shot Cloud Run Job with
@@ -819,7 +827,12 @@ tasks:
               secretmanager.googleapis.com cloudscheduler.googleapis.com --project=PROJECT
         1d. gcloud artifacts repositories create prudent --repository-format=docker \
               --location=REGION --project=PROJECT
+            A brand-new project answers this with PERMISSION_DENIED for a few minutes, even to its
+            owner, while the grant propagates. It is not a real refusal; wait, then repeat.
         1e. gcloud auth configure-docker REGION-docker.pkg.dev
+            This writes ~/.docker/config.json, which is GLOBAL to the machine, not to this project.
+            Copy the file aside first and restore it at teardown (step 4); gcloud leaves the file
+            unchanged when the registry host is already registered.
         1f. A dedicated runtime service account, because omitting it does NOT fail: gcloud
             silently assigns the project's default Compute service account, which is an editor on
             everything in the project.
@@ -828,23 +841,47 @@ tasks:
                 --member=serviceAccount:prudent-runtime@PROJECT.iam.gserviceaccount.com \
                 --role=roles/secretmanager.secretAccessor
 
-        2. THE ELEVEN CONFIGURATION SECRETS. --set-secrets below fails the deploy if any is
+        2. THE TWELVE CONFIGURATION SECRETS. --set-secrets below fails the deploy if any is
            missing, which is the point: a service that boots without one is a service whose
            security control is absent rather than failing.
 
+           The database is a Supabase project, which this runbook does not otherwise create. Make
+           one in the same region family as REGION, and generate its database password BEFORE you
+           create the project and store it in Secret Manager first: `supabase projects create`
+           prints no password back, so a password held only in a shell variable is lost the moment
+           the command's output cannot be parsed. With REF the project's reference:
+
              mk() { printf '%s' "$2" | gcloud secrets create "$1" --data-file=- --project=PROJECT; }
-             mk SUPABASE_URL            https://PROJECT.supabase.co
+             mk SUPABASE_URL            https://REF.supabase.co
              mk SUPABASE_KEY            <the service_role key — server-side only, NEVER a client>
-             mk DB_URL                  jdbc:postgresql://…pooler.supabase.com:5432/postgres
-             mk DB_USERNAME             <DDL role: migrations run as this>
-             mk DB_PASSWORD             <DDL role password>
-             mk APP_DB_USERNAME         zen_runtime          # least privilege at runtime
-             mk APP_DB_PASSWORD         <zen_runtime password>
+             mk DB_URL                  jdbc:postgresql://aws-0-<region>.pooler.supabase.com:5432/postgres
+             mk DB_USERNAME             postgres.REF         # DDL role: migrations run as this
+             mk DB_PASSWORD             <the database password chosen above>
+             mk APP_DB_USERNAME         zen_runtime.REF      # least privilege at runtime
+             mk APP_DB_PASSWORD         <a new password; applied in step 2b>
              mk SITE_URL                https://<service host>
              mk AUTH_REDIRECT_URI       https://<service host>/auth/callback
              mk AUTH_REDIRECT_URIS      prudent://auth-callback
              mk CORS_ORIGINS            https://<service host>
              mk ZEN_JOBS_TRIGGER_TOKEN  "$(openssl rand -base64 32)"
+
+           DB_URL IS THE SESSION POOLER, PORT 5432 — the mode this deploy was measured against. The
+           Management API reports the pooler on 6543, which is TRANSACTION mode and was not tried.
+           The direct host db.REF.supabase.co is not used here. The username carries the project suffix (`postgres.REF`, `zen_runtime.REF`) because the
+           pooler multiplexes projects by it.
+
+        2b. GIVE zen_runtime A LOGIN — after the migration job has run, before the service starts.
+           The migration creates the role NOLOGIN and without a password on purpose (a credential in
+           a migration is plaintext in git). Nothing else in this runbook sets one, and without it the
+           service dies at startup with `FATAL: (EAUTHQUERY) user not found in the database`, which
+           reads like a bad APP_DB_USERNAME and is not. As the DDL role, once:
+
+             ALTER ROLE zen_runtime WITH LOGIN PASSWORD '<the APP_DB_PASSWORD secret>'
+
+           So the first deploy of a new environment fails at its service step (the migration job,
+           which is what creates the role, has by then succeeded); run this, then deploy again — the
+           migration job is idempotent. Reading the password out of Secret Manager for this, rather
+           than retyping it, keeps the two from drifting.
 
            AUTH_REDIRECT_URIS IS PART OF THE CONTRACT, not an extra. Empty means the native app's
            return address is refused with 400 invalid_redirect, and nothing in any suite can see
@@ -862,6 +899,22 @@ tasks:
                --uri="https://<service host>/api/v1/jobs/trigger" --http-method=POST \
                --headers="X-Zen-Job-Token=$(gcloud secrets versions access latest \
                   --secret=ZEN_JOBS_TRIGGER_TOKEN --project=PROJECT)"
+
+        4. TEARDOWN of a throwaway environment removes EVERYTHING it created, and finishes by
+           proving it. Delete the project as a whole rather than resource by resource (an emptied
+           project is a leftover), and the Supabase project, which lives outside GCP and which
+           deleting the GCP project does not touch:
+
+             gcloud projects delete PROJECT --quiet
+             supabase projects delete REF --yes
+             # restore ~/.docker/config.json from the copy taken in step 1e if it changed
+             docker rmi REGION-docker.pkg.dev/PROJECT/prudent/prudent-server:<tag>
+             docker images; docker ps -a        # nothing of this environment may remain
+             gcloud projects describe PROJECT   # DELETE_REQUESTED, then gone after 30 days
+
+           A deleted GCP project sits in DELETE_REQUESTED for 30 days and can be restored in that
+           window; that is Google's holding state, not a leftover resource, and it is billable
+           for nothing. Say so in the record rather than reporting "gone".
 
       This task never touches your global gcloud config, so it cannot leave your shell pointed at
       a project you did not choose. Every call passes --project explicitly.
@@ -928,6 +981,11 @@ tasks:
           echo "ZEN_I18N_SUPPORTED is blank. Blank is unconfigured, not an empty set."
           exit 1
         fi
+        # The `^@^` prefix below is not decoration. gcloud splits --set-env-vars on commas, and the
+        # locale set IS a comma list, so without a different delimiter `en,uk,pl` becomes the pair
+        # `ZEN_I18N_SUPPORTED=en` plus two bare words and gcloud refuses the whole flag ("Bad
+        # syntax for dict arg: [uk]"). Found the first time this task ran against a real project;
+        # no local check reaches this line.
 
         # ── The deploy's first half: migrate, with the image just built, before anything serves.
         # Runs on the DDL credentials, so APP_DB_* is deliberately absent from its secret list.
@@ -963,7 +1021,7 @@ tasks:
           --max-instances=1 --min-instances=0 --concurrency=200 \
           --memory=256Mi --cpu=1 \
           --allow-unauthenticated \
-          --set-env-vars="ZEN_I18N_SUPPORTED=${LOCALES}" \
+          --set-env-vars="^@^ZEN_I18N_SUPPORTED=${LOCALES}" \
           --set-secrets="${SECRETS},${APP_DB}" \
           --quiet
 
