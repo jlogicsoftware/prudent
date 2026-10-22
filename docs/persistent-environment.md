@@ -1,8 +1,9 @@
 # The persistent environment — a proof of concept, and what is different about it
 
-**Status (2026-10-22): decided, prepared, not created.** No persistent GCP project, Cloud Run
-service or Supabase project exists. The owner's decisions are recorded in ADR-068; this document is
-what to do with them and what to watch for. It keeps **what is proven, what is only documented by
+**Status (2026-10-22): created on `*.run.app`, signed in from a browser.** The owner's decisions are
+recorded in ADR-068; what the first provisioning and sign-in found is ADR-069. This document is what
+to do with them and what to watch for; where it still reads as a plan, section 9 says what has since
+been done. It keeps **what is proven, what is only documented by
 the provider, and what nobody has tried** apart.
 
 It holds **no environment fact** — no project id or number, region, service name, URL, domain or
@@ -98,11 +99,14 @@ blocker; a real-data blocker, tracked as #156.
 **Sign-in.** Registering is how a user gets in, and Supabase sends the confirmation mail. Its
 default sender delivers **only to members of the Supabase organisation, 2 messages an hour**, and is
 not meant for production (Supabase's documentation). For one user who is the organisation's member
-that works: register with that address. Before registering, in the Supabase dashboard set the **Site
-URL** and the **Redirect URLs** to `SITE_URL`, `AUTH_REDIRECT_URI` and `AUTH_REDIRECT_URIS`: a
-missing entry fails silently (GoTrue falls back to the Site URL and the mail opens the wrong
-application), and **this list was never set in any run**, so no real sign-in link has ever been
-followed. That is the first thing to try, and it is unproven.
+that works: register with that address. Before registering, set the **Site URL** and the **Redirect URLs** to
+`SITE_URL`, `AUTH_REDIRECT_URI` and `AUTH_REDIRECT_URIS`, in the dashboard or with `PATCH` on the
+project's `config/auth` Management API endpoint (`site_url` and a comma-separated `uri_allow_list`):
+a missing entry fails silently (GoTrue falls back to the Site URL and the mail opens the wrong
+application). Done this way on 2026-10-22; the owner then registered from a phone, received the
+mail and confirmed the link from a desktop (ADR-069). The native return address
+`prudent://auth-callback` is in the list but **has not been followed**, because no native build
+exists (#155).
 
 ## 4. Free plan: what it means in practice
 
@@ -121,6 +125,10 @@ followed. That is the first thing to try, and it is unproven.
   (section 7) and is **not required** for the POC.
 
 ## 5. The address: a subdomain, tried; `*.run.app`, as the fallback
+
+**Taken: `*.run.app`.** The owner chose no domain for now (ADR-069), so the subdomain below was not
+tried and nothing in this section has been exercised. It stays as the plan for a later move, which
+is a new origin, a rebuild and a new ADR.
 
 The deterministic `*.run.app` host is proven and needs nothing. A subdomain of a domain the owner
 already holds is **not proven**, so this section is a plan to try and a fallback to return to.
@@ -210,7 +218,7 @@ does not load from a git worktree, ADR-065). Stop on the first failure.
 1. **Before anything:** the decisions are in ADR-068; the Supabase token is minted for this session;
    `~/.docker/config.json` is copied aside.
 2. **Runbook 1a-1f**, with the project id carrying the owner's suffix, the display name saying it is
-   persistent, and the label above. A new project answers `PERMISSION_DENIED` on the registry for a
+   persistent (letters, digits, spaces and a few symbols only: GCP refuses parentheses), and the label above. A new project answers `PERMISSION_DENIED` on the registry for a
    few minutes: wait, repeat.
 3. **Generate the database password into Secret Manager first**, then create the Supabase project in
    `SUPABASE_REGION`, take the pooler `db_host` from the Management API, create the other eleven
@@ -227,15 +235,19 @@ does not load from a git worktree, ADR-065). Stop on the first failure.
 
 **Proven**, by three real disposable runs (ADR-065, ADR-066, ADR-067): the deploy end to end; the
 runtime login; the origin checks; `verify:deploy`; a Scheduler trigger answered with HTTP 200; the
-corrected teardown.
+corrected teardown. **And, on the persistent environment (ADR-069):** the same deploy a second time
+and a redeploy over a running service; the Supabase Site URL and Redirect URLs set through the
+Management API; a registration, the confirmation mail and a sign-in from a phone browser and a
+desktop browser, after which the screens load.
 
 **Documented by the provider, not tried here:** domain mappings and their region list; the
 verification flow; Cloudflare's DNS-only meaning; liens; Supabase's backup policy and default mail
 sender; `--version-destroy-ttl`.
 
-**Never done:** any registration or sign-in against a deployed service from any device; a phone
-reaching the service; the Supabase redirect list; a custom domain; a rotation on a live service; a
-restore of anything; a lien; an undelete; a deployer without Owner.
+**Never done:** a sign-in from a native app and the `prudent://auth-callback` return; reading back,
+on a second device, a record written on the first; whether the hourly Scheduler call keeps the Free
+Supabase project awake; a custom domain; a rotation on a live service; a restore of anything; a lien;
+an undelete; a deployer without Owner.
 
 ## 10. Still open
 
