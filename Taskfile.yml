@@ -804,8 +804,9 @@ tasks:
       serves every service at a deterministic host, https://SERVICE_NAME-PROJECT_NUMBER.REGION.run.app,
       and PROJECT_NUMBER exists as soon as step 1a has run:
         gcloud projects describe PROJECT --format='value(projectNumber)'
-      Measured against a real deploy: `gcloud run deploy` printed exactly that host as "Service URL".
-      BUT the "Deployed:" line at the end of this task prints `status.url`, which Cloud Run answers
+      Measured ONCE, against one real deploy: `gcloud run deploy` printed exactly that host as
+      "Service URL". Confirm it the same way before trusting it for a new project — a bundle built
+      for a host that never serves is only discovered after the whole native build. BUT the "Deployed:" line at the end of this task prints `status.url`, which Cloud Run answers
       with a DIFFERENT form (https://SERVICE_NAME-<hash>-<region code>.a.run.app). Both reach the
       service; only the first is the origin the bundle was compiled to call. Open that one, and pass
       it as SERVICE_URL to verify:deploy.
@@ -854,7 +855,7 @@ tasks:
              mk() { printf '%s' "$2" | gcloud secrets create "$1" --data-file=- --project=PROJECT; }
              mk SUPABASE_URL            https://REF.supabase.co
              mk SUPABASE_KEY            <the service_role key — server-side only, NEVER a client>
-             mk DB_URL                  jdbc:postgresql://aws-0-<region>.pooler.supabase.com:5432/postgres
+             mk DB_URL                  jdbc:postgresql://<pooler db_host>:5432/postgres
              mk DB_USERNAME             postgres.REF         # DDL role: migrations run as this
              mk DB_PASSWORD             <the database password chosen above>
              mk APP_DB_USERNAME         zen_runtime.REF      # least privilege at runtime
@@ -867,8 +868,19 @@ tasks:
 
            DB_URL IS THE SESSION POOLER, PORT 5432 — the mode this deploy was measured against. The
            Management API reports the pooler on 6543, which is TRANSACTION mode and was not tried.
-           The direct host db.REF.supabase.co is not used here. The username carries the project suffix (`postgres.REF`, `zen_runtime.REF`) because the
-           pooler multiplexes projects by it.
+           The direct host db.REF.supabase.co is not used here. TAKE THE HOST FROM THE PROJECT, do
+           not assemble it: it is the `db_host` of
+             GET https://api.supabase.com/v1/projects/REF/config/database/pooler
+           (the `aws-0-<region>` shape seen so far is not a promise). The username carries the
+           project suffix (`postgres.REF`, `zen_runtime.REF`) because the pooler multiplexes
+           projects by it.
+
+           AUTH_REDIRECT_URIS IS PART OF THE CONTRACT, not an extra. Empty means the native app's
+           return address is refused with 400 invalid_redirect, and nothing in any suite can see
+           the difference — the image is byte-identical either way. The Supabase dashboard's own
+           Redirect URLs list must carry the same values, and it fails DIFFERENTLY and silently:
+           GoTrue drops an unlisted target and falls back to the Site URL, so the email arrives and
+           opens the wrong application.
 
         2b. GIVE zen_runtime A LOGIN — after the migration job has run, before the service starts.
            The migration creates the role NOLOGIN and without a password on purpose (a credential in
@@ -882,13 +894,6 @@ tasks:
            which is what creates the role, has by then succeeded); run this, then deploy again — the
            migration job is idempotent. Reading the password out of Secret Manager for this, rather
            than retyping it, keeps the two from drifting.
-
-           AUTH_REDIRECT_URIS IS PART OF THE CONTRACT, not an extra. Empty means the native app's
-           return address is refused with 400 invalid_redirect, and nothing in any suite can see
-           the difference — the image is byte-identical either way. The Supabase dashboard's own
-           Redirect URLs list must carry the same values, and it fails DIFFERENTLY and silently:
-           GoTrue drops an unlisted target and falls back to the Site URL, so the email arrives and
-           opens the wrong application.
 
         3. The scheduler entry that drives zen-jobs, INCLUDING Prudent's GDPR sweep (ADR-019).
            Without it the retention cascade never runs in production, and nothing reports that:
@@ -908,13 +913,15 @@ tasks:
              gcloud projects delete PROJECT --quiet
              supabase projects delete REF --yes
              # restore ~/.docker/config.json from the copy taken in step 1e if it changed
-             docker rmi REGION-docker.pkg.dev/PROJECT/prudent/prudent-server:<tag>
+             # every deploy run tags the image with the commit, so a retry leaves more than one tag:
+             docker images | grep PROJECT | awk '{print $1":"$2}' | xargs docker rmi
              docker images; docker ps -a        # nothing of this environment may remain
              gcloud projects describe PROJECT   # DELETE_REQUESTED, then gone after 30 days
 
            A deleted GCP project sits in DELETE_REQUESTED for 30 days and can be restored in that
-           window; that is Google's holding state, not a leftover resource, and it is billable
-           for nothing. Say so in the record rather than reporting "gone".
+           window. That is Google's holding state, not a leftover resource; in the one run done it
+           had also stopped appearing under the billing account's projects. Say that in the record
+           rather than reporting "gone".
 
       This task never touches your global gcloud config, so it cannot leave your shell pointed at
       a project you did not choose. Every call passes --project explicitly.

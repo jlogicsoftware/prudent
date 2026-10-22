@@ -156,7 +156,7 @@ yet nothing in the UI switches a reminder on.
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
 (ADR-065, #45) they were run against a real GCP project and a real Supabase project made for the
 purpose: `deploy:cloudrun` passed end to end, `verify:deploy` passed nine of nine, and **everything
-was then deleted** (the GCP project sits in Google's 30-day `DELETE_REQUESTED` holding state).
+was then deleted** (the exact end state is in ADR-065).
 That run found and fixed two defects no local check reaches. `task test:native` still proves the
 exact artifact a deploy ships, in Docker, against a throwaway Postgres. No persistent environment
 has ever been created — that is #46, and nothing is running now. Don't describe a standing

@@ -30,7 +30,9 @@ What ran, in order:
 - A new GCP project billed to the account's open billing account, the four APIs, an Artifact
   Registry repository, a dedicated runtime service account holding only
   `roles/secretmanager.secretAccessor`, and twelve secrets.
-- A new Supabase project on the Free plan (a paused older test project freed the slot).
+- A new Supabase project on the Free plan. An older test project of the account had just been paused
+  and was still `PAUSING` when this one was created, and creation succeeded; whether the pause is
+  what made room was not established.
 - `task deploy:cloudrun`: **the first run failed** at its service step (below); after the two fixes,
   **the second run passed end to end, exit 0, in 9 min 47 s** — web and admin bundles, the native
   `linux/amd64` build, push, the migration Job (exit 0), the service.
@@ -92,6 +94,9 @@ run. The public base images the native build uses (Mandrel builder, UBI) are sha
   says it must be. The native `pl` locale check stays in `task test:native` and was not repeated.
 - The pooler's transaction mode (6543) was not tried; 5432 is the one measured.
 - That a service survives a day: backups, a persistent database and its recovery are #46 and #47.
+- Two things documented here rather than fixed, each with its own issue: the first deploy of any new
+  environment fails at its service step until `zen_runtime` is given a login (jlogicsoftware/prudent#150),
+  and the task prints `status.url`, not the origin the bundle was built for (jlogicsoftware/prudent#151).
 - The Scheduler header still carries the trigger token on the `gcloud` command line, visible in the
   process list while the command runs. Unchanged and undocumented as a trade-off.
 - **`task` does not run from a git worktree under `.claude/worktrees/`:** `Taskfile.yml` includes
