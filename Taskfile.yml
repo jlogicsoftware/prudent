@@ -1400,6 +1400,9 @@ tasks:
         check "health names prudent-server" yes "${named}"
         check "health (json)"     200 "$(code -H 'X-Zen-Transport: json'     "${URL}/api/v1/health")"
         check "health (protobuf)" 200 "$(code -H 'X-Zen-Transport: protobuf' "${URL}/api/v1/health")"
+        # Liveness above says the process is up; this says it can reach its database. A service whose
+        # DB_URL or credentials are wrong still answers /health 200 and fails every real request.
+        check "ready (database)"  200 "$(code -H 'X-Zen-Transport: json'     "${URL}/api/v1/health/ready")"
         check "records are guarded" 401 "$(code "${URL}/api/v1/records")"
         check "web shell"         200 "$(code "${URL}/")"
         check "wasm bundle"       200 "$(code "${URL}/main.dart.wasm")"

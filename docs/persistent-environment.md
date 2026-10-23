@@ -230,6 +230,16 @@ worth a week on DNS.
 | The origin has to change | New `WEB_API_URL`, new `SITE_URL`/`AUTH_REDIRECT_URI`/`CORS_ORIGINS`, Supabase Site URL and Redirect URLs, **a rebuilt bundle** | `deploy:check-origin-config` and `deploy:accept-origin` catch a wrong host; a live migration of an origin was never done |
 | Supabase project paused or deleted | Resume (paused); not recoverable (deleted) | Section 4 |
 
+### Diagnosing a failure (ADR-071)
+
+- **Is it up?** `GET /api/v1/health` answers 200 if the process is. `GET /api/v1/health/ready` answers 200 only if the service can also
+  reach its database, and 503 (`ZenError`, code `unavailable`) otherwise. `task verify:deploy` checks both.
+- **Why did a request fail?** Every response carries `X-Request-ID` (`curl -i`, or the browser's network panel). A server failure writes
+  one log line, `request=<id> method=… handler=… status=… failure=<exception classes> sqlstate=… at=<line in Prudent's code>`. Search the
+  service's logs for `request=<id>`, e.g. `gcloud logging read 'resource.type="cloud_run_revision" AND textPayload:"request=<id>"'
+  --project=PROJECT`. The line holds no exception message, path, query string or user, so it is safe to paste into an issue.
+- **What is not there:** the id is not shown in the app, and nothing is sent to an error-tracking service.
+
 ## 7. Protecting it from the throwaway teardown (optional for the POC)
 
 Runbook step 4 (`gcloud projects delete`, `supabase projects delete`) is for an environment made to

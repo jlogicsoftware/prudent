@@ -152,6 +152,12 @@ is remembered across launches (`shared_preferences`) so the prompt is not repeat
 has been seen to fire on a device. With no plan screen
 yet nothing in the UI switches a reminder on.
 
+M0's health and error reporting (ADR-071, jlogicsoftware/prudent#49): `GET /api/v1/health/ready` is a readiness probe that runs
+`SELECT 1` and answers 503 (`ZenError`, `unavailable`) when the database is away, beside the liveness `/api/v1/health`, which touches
+nothing; `verify:deploy` checks both. Every response carries `X-Request-ID` (`RequestIdFilter`), and an unhandled server failure is
+logged by `UnhandledExceptionMapper` as one line — request id, handler, exception classes, SQLSTATE, first `prudent.*` frame — never as
+the exception, whose message can quote a database row. Nothing is sent to an error-tracking service and the client does not show the id.
+
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
 (ADR-065, #45) they were run against a real GCP project and a real Supabase project made for the
