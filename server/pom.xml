@@ -174,7 +174,7 @@
 
     <!--
       ASSEMBLED FOR ONE MESSAGE: the warning a dormant account's owner must receive before the
-      framework will anonymise it (prudent.retention.DormancyWarningMailer, ADR-072). zen-identity
+      framework will anonymise it (prudent.retention.DormancyWarningMailer, ADR-073). zen-identity
       advances an account toward erasure only after an observer of AccountDeletionWarning confirms
       the mail was delivered, so with no mail sender no warning was ever confirmed and the retention
       cycle (ADR-019) could never anonymise anyone. Prudent sends nothing else: Supabase sends the

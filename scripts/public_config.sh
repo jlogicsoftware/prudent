@@ -15,7 +15,7 @@
 #   AUTH_REDIRECT_URIS   comma-separated native return addresses, e.g. the app's custom scheme.
 #                        Empty means no native client can sign in and nothing else notices, so
 #                        it is required rather than defaulted.
-#   SMTP_HOST            the mail relay's host name, for the dormancy warnings (ADR-072). Required:
+#   SMTP_HOST            the mail relay's host name, for the dormancy warnings (ADR-073). Required:
 #                        a service without a sender boots, looks healthy, and can never warn anyone,
 #                        so no dormant account is ever erased.
 #   SMTP_FROM            the sender address those warnings come from. Required, for the same reason.
@@ -42,7 +42,7 @@ done
 if [ "${_pc_missing}" -ne 0 ]; then
   echo >&2
   echo "These are public configuration: exported and passed to Cloud Run as plain values," >&2
-  echo "not created in Secret Manager (#166, ADR-072). See 'task deploy:cloudrun --summary'." >&2
+  echo "not created in Secret Manager (#166, ADR-073). See 'task deploy:cloudrun --summary'." >&2
   exit 1
 fi
 

@@ -192,7 +192,7 @@ class TaskfileShape(unittest.TestCase):
         self.assertIn('--set-secrets="${SECRETS},${APP_DB}"', self.gcloud_call("deploy"))
 
     def test_the_job_and_the_service_both_get_all_the_public_values_as_literals(self):
-        # The five of #166 and the three mail values of ADR-072: the packaged image fails config
+        # The five of #166 and the three mail values of ADR-073: the packaged image fails config
         # validation without any of them, on the job as on the service.
         for where, call in (("migration job", self.gcloud_call("jobs deploy")), ("service", self.gcloud_call("deploy"))):
             for name in PUBLIC + MAIL:

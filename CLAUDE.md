@@ -152,6 +152,12 @@ is remembered across launches (`shared_preferences`) so the prompt is not repeat
 has been seen to fire on a device. With no plan screen
 yet nothing in the UI switches a reminder on.
 
+M0's health and error reporting (ADR-072, jlogicsoftware/prudent#49): `GET /api/v1/health/ready` is a readiness probe that runs
+`SELECT 1` and answers 503 (`ZenError`, `unavailable`) when the database is away, beside the liveness `/api/v1/health`, which touches
+nothing; `verify:deploy` checks both. Every response carries `X-Request-ID` (`RequestIdFilter`), and an unhandled server failure is
+logged by `UnhandledExceptionMapper` as one line — request id, handler, exception classes, SQLSTATE, first `prudent.*` frame — never as
+the exception, whose message can quote a database row. Nothing is sent to an error-tracking service and the client does not show the id.
+
 M0's privacy task (ADR-071, jlogicsoftware/prudent#48) is built: `GET /api/v1/privacy/export` answers one `DataExport` with
 every row a user owns in any lifecycle state (readable JSON, never cached), and `POST /api/v1/privacy/erase` deletes them all and
 anonymises the profile in one transaction, refused unless the body repeats the account's address. The deletion is
@@ -159,7 +165,7 @@ anonymises the profile in one transaction, refused unless the body repeats the a
 a table with a `user_id` that the exporter and eraser do not know fails the suite. Settings has a "Privacy and data" detail (copy to
 the clipboard, delete). `docs/privacy-policy.md` is the published policy. **Two things it states plainly and does not fix:** erasure
 does not reach Supabase's `auth.users` (the server holds no service-role key — the operator deletes that user). Dormancy erasure
-(ADR-072) runs: `DormancyWarningMailer` observes the framework's `AccountDeletionWarning`, sends the first and final warning
+(ADR-073) runs: `DormancyWarningMailer` observes the framework's `AccountDeletionWarning`, sends the first and final warning
 through `zen-email` (en/uk/pl, no ledger data, the recipient logged by id only) and confirms the receipt only when the relay
 accepted the message, so an unwarned account never advances; `PrivacyDormancyErasureTest` drives warnings then anonymisation and
 checks nothing of Prudent's remains. It needs a mail relay in every deployment (`SMTP_HOST`, `SMTP_FROM`, `SMTP_PORT` public;
@@ -176,10 +182,10 @@ exact artifact a deploy ships, in Docker, against a throwaway Postgres. A persis
 proof of concept on `*.run.app`, Supabase Free with **no backups** (ADR-068, ADR-069,
 `docs/persistent-environment.md`), signed in to from a browser. It holds test data only; real finances
 wait for #47. Its first sign-in found that no Prudent message was registered for the native image
-(#158, fixed; `task verify:reflection` guards the list). Nine genuine secrets are in Secret Manager (the seven of ADR-070 and the relay's `SMTP_USERNAME` and `SMTP_PASSWORD`, ADR-072);
+(#158, fixed; `task verify:reflection` guards the list). Nine genuine secrets are in Secret Manager (the seven of ADR-070 and the relay's `SMTP_USERNAME` and `SMTP_PASSWORD`, ADR-073);
 the five public configuration values (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`, `AUTH_REDIRECT_URIS`) and the
 three mail values (`SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`) are plain environment variables on the service and the migration job
-(ADR-070, #166, ADR-072), and `verify:deploy` fails when one is not. The persistent environment predates the mail values and has
+(ADR-070, #166, ADR-073), and `verify:deploy` fails when one is not. The persistent environment predates the mail values and has
 no relay yet: its next deploy needs one (`docs/persistent-environment.md`, section 3). Never invent or commit a project, region,
 service name or URL: no environment fact is ever written into this repository (ADR-021) — the tasks
 themselves are real; use them rather than treating deployment as unstarted. Run them from the main checkout: `task` does not

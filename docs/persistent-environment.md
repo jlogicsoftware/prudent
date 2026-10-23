@@ -73,7 +73,7 @@ because the project holds nothing but this application's secrets. Keep it that w
 
 Nine secrets and eight public values: the secrets and how each is created are runbook step 2, and
 the eight public values are the five below plus the three mail values (`SMTP_HOST`, `SMTP_PORT`,
-`SMTP_FROM`, ADR-072). The five (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`,
+`SMTP_FROM`, ADR-073). The five (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`,
 `AUTH_REDIRECT_URIS`) are not in Secret Manager at all (#166, ADR-070). They are plain environment
 variables on the migration job and the service: `SUPABASE_URL` and `AUTH_REDIRECT_URIS` are exported
 in the shell that runs `deploy:cloudrun`, and the other three are derived from `WEB_API_URL`, so they
@@ -116,7 +116,7 @@ mail and confirmed the link from a desktop (ADR-069). The native return address
 `prudent://auth-callback` is in the list but **has not been followed**, because no native build
 exists (#155).
 
-**The mail relay (ADR-072).** The environment made before this change has no relay, and `deploy:cloudrun`
+**The mail relay (ADR-073).** The environment made before this change has no relay, and `deploy:cloudrun`
 now refuses to run without one: `SMTP_HOST` and `SMTP_FROM` exported, `SMTP_PORT` optional (587),
 and the secrets `SMTP_USERNAME` and `SMTP_PASSWORD` created (runbook step 2). It exists for one
 message, the warning a dormant account must be sent before it can be erased (`docs/privacy-policy.md`,
@@ -250,6 +250,16 @@ and data → Delete my data (ADR-071); that does **not** remove their sign-in. D
 Supabase dashboard (Authentication → Users) as well — it is the half the server cannot do, because it
 holds no service-role key. There are no backups on this environment (section 4), so nothing else
 retains the data. `docs/privacy-policy.md` is what the person has been told.
+
+### Diagnosing a failure (ADR-072)
+
+- **Is it up?** `GET /api/v1/health` answers 200 if the process is. `GET /api/v1/health/ready` answers 200 only if the service can also
+  reach its database, and 503 (`ZenError`, code `unavailable`) otherwise. `task verify:deploy` checks both.
+- **Why did a request fail?** Every response carries `X-Request-ID` (`curl -i`, or the browser's network panel). A server failure writes
+  one log line, `request=<id> method=… handler=… status=… failure=<exception classes> sqlstate=… at=<line in Prudent's code>`. Search the
+  service's logs for `request=<id>`, e.g. `gcloud logging read 'resource.type="cloud_run_revision" AND textPayload:"request=<id>"'
+  --project=PROJECT`. The line holds no exception message, path, query string or user, so it is safe to paste into an issue.
+- **What is not there:** the id is not shown in the app, and nothing is sent to an error-tracking service.
 
 ## 7. Protecting it from the throwaway teardown (optional for the POC)
 

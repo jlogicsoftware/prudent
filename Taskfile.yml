@@ -853,12 +853,12 @@ tasks:
         WEB_API_URL              the origin the web bundle is compiled to call
         SUPABASE_URL             https://REF.supabase.co
         AUTH_REDIRECT_URIS       the native return addresses, comma-separated (the app's scheme)
-        SMTP_HOST                the mail relay's host name, for the dormancy warnings (ADR-072)
+        SMTP_HOST                the mail relay's host name, for the dormancy warnings (ADR-073)
         SMTP_FROM                the sender address of those warnings
         SMTP_PORT                optional; 587 (STARTTLS) when unset
 
       SUPABASE_URL, AUTH_REDIRECT_URIS and the three mail values are PUBLIC CONFIGURATION, not
-      secrets (#166, ADR-072): they, and the three values derived
+      secrets (#166, ADR-073): they, and the three values derived
       from WEB_API_URL (SITE_URL and CORS_ORIGINS equal it, AUTH_REDIRECT_URI is it plus
       /auth/callback), are passed to the migration job and the service as plain environment
       variables (scripts/public_config.sh checks and derives them, before the build). Secret
@@ -939,7 +939,7 @@ tasks:
            rather than failing. The five public values (SUPABASE_URL, SITE_URL, CORS_ORIGINS,
            AUTH_REDIRECT_URI, AUTH_REDIRECT_URIS), and the mail relay's SMTP_HOST, SMTP_PORT and
            SMTP_FROM, are NOT here: they are exported in the shell that runs this task, as above
-           (#166, ADR-072).
+           (#166, ADR-073).
 
            The database is a Supabase project, which this runbook does not otherwise create. Make
            one in the same region family as REGION, and generate its database password BEFORE you
@@ -958,7 +958,7 @@ tasks:
              mk SMTP_USERNAME           <the mail relay's login>
              mk SMTP_PASSWORD           <the relay's password or API key>
 
-           THE TWO SMTP SECRETS ARE WHAT LETS A DORMANT ACCOUNT BE ERASED AT ALL (ADR-072).
+           THE TWO SMTP SECRETS ARE WHAT LETS A DORMANT ACCOUNT BE ERASED AT ALL (ADR-073).
            zen-identity anonymises an account only after a warning mail was confirmed delivered, so
            a service that cannot send one never erases anyone. They are required for that reason,
            the service refuses to start without them, and so does this deploy: --set-secrets fails
@@ -1094,7 +1094,7 @@ tasks:
           -t "${IMAGE}" {{.SERVER_DIR}}
         docker push "${IMAGE}"
 
-        # Nine genuine secrets (#166, ADR-072): these seven and the APP_DB_* pair below. The five
+        # Nine genuine secrets (#166, ADR-073): these seven and the APP_DB_* pair below. The five
         # public values and the three mail values (SMTP_HOST, SMTP_PORT, SMTP_FROM) are literals,
         # passed as --set-env-vars on the job AND the service, because the packaged image fails
         # config validation without them on either — and so does it without the SMTP_* secrets,
@@ -1437,6 +1437,9 @@ tasks:
         check "health names prudent-server" yes "${named}"
         check "health (json)"     200 "$(code -H 'X-Zen-Transport: json'     "${URL}/api/v1/health")"
         check "health (protobuf)" 200 "$(code -H 'X-Zen-Transport: protobuf' "${URL}/api/v1/health")"
+        # Liveness above says the process is up; this says it can reach its database. A service whose
+        # DB_URL or credentials are wrong still answers /health 200 and fails every real request.
+        check "ready (database)"  200 "$(code -H 'X-Zen-Transport: json'     "${URL}/api/v1/health/ready")"
         check "records are guarded" 401 "$(code "${URL}/api/v1/records")"
         check "web shell"         200 "$(code "${URL}/")"
         check "wasm bundle"       200 "$(code "${URL}/main.dart.wasm")"
@@ -1499,7 +1502,7 @@ tasks:
             check "SITE_URL of the running service is the bundle origin" "${BUNDLE}" "$(svc_value SITE_URL)"
           fi
           # The relay's login is the opposite: a secret, bound as a reference. Without both the
-          # service cannot send a dormancy warning, so no dormant account can ever be erased (ADR-072),
+          # service cannot send a dormancy warning, so no dormant account can ever be erased (ADR-073),
           # and a login held as a plain value sits in the service's readable configuration.
           for n in SMTP_USERNAME SMTP_PASSWORD; do
             if [ -n "$(svc_secret "$n")" ]; then printf '  ok    %s is a Secret Manager reference\n' "$n"
