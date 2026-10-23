@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package prudent.v1;
+
+// What Prudent holds about a person, handed back to them, and the request that makes it all go
+// away. CANONICAL SOURCE OF TRUTH for the model: the Java DTOs and the Dart messages are GENERATED
+// from this file and are never hand-edited. Change this file and run `task generate`.
+//
+// Two routes, both on the authenticated user and neither naming one:
+//   GET  /api/v1/privacy/export   one DataExport — every row the user owns, in the wire shapes the
+//                                 rest of the API already speaks.
+//   POST /api/v1/privacy/erase    EraseAccountRequest — erases the user's Prudent data.
+//
+// NO user_id FIELD, in either direction, for the reason every other Prudent message gives: the
+// owner is the JWT `sub`, resolved server-side.
+//
+// Errors are a zen.v1.ZenError body from the framework's proto/zen/v1/common.proto; that message
+// is not imported here (proto/README.md records why).
+
+import "prudent/v1/accounts.proto";
+import "prudent/v1/budgets.proto";
+import "prudent/v1/categories.proto";
+import "prudent/v1/goal_allocations.proto";
+import "prudent/v1/goals.proto";
+import "prudent/v1/plans.proto";
+import "prudent/v1/records.proto";
+import "prudent/v1/settings.proto";
+
+option java_package = "prudent.proto.v1";
+option java_multiple_files = true;
+// Named explicitly rather than defaulted from the filename, matching the framework's convention,
+// so the descriptor holder can never collide with a message name added later.
+option java_outer_classname = "PrivacyProto";
+
+// The person's identity record as Prudent's server holds it — the one personal-data row that is not
+// a financial one. It comes from the framework's `users` table, so its fields are the framework's:
+// the sign-in address, the optional names, and the language.
+message ExportProfile {
+  // The address the person signs in with.
+  string email = 1;
+  // Free-form names, empty when never set.
+  string display_name = 2;
+  string nickname = 3;
+  // A language tag the application supports, e.g. "pl". Empty when never chosen.
+  string language = 4;
+  // When the profile was first created, Unix epoch milliseconds.
+  int64 created_at_ms = 5;
+}
+
+// EVERYTHING Prudent stores for the authenticated user, as one document.
+//
+// READABLE ON PURPOSE: with `X-Zen-Transport: json` (the default) this is canonical proto3 JSON, so
+// a person can open the file in any editor. Money stays an integer count of minor units under its
+// existing field names — `amount_minor`, `balance_minor` — exactly as the rest of the API says it,
+// because a second spelling of a figure in an export is a second figure someone has to reconcile.
+//
+// COMPLETE, NOT VIEW-SHAPED. Each list is every row the user owns, whatever its lifecycle state: an
+// archived category, an archived goal, a skipped occurrence and a revoked carry-over reset are all
+// here, because "my data" is not "my data minus what the screens hide". A list is empty rather than
+// absent when the user has none.
+//
+// What is NOT here, and why: balances, budgets' calculated plan/actual/remaining, goal progress and
+// envelopes' sums, analytics — all are calculated from these rows on every read (ADR-044, ADR-050,
+// ADR-052), so exporting them would be exporting the same facts twice.
+message DataExport {
+  // Names the layout of this document, so a person (or a future importer) can tell which one they
+  // hold. Bumped only when a field is removed or changes meaning; adding one does not.
+  int32 format_version = 1;
+  // When the export was produced, Unix epoch milliseconds.
+  int64 exported_at_ms = 2;
+  ExportProfile profile = 3;
+  Settings settings = 4;
+  repeated Account accounts = 5;
+  repeated Category categories = 6;
+  // Every record — income, expense, transfer legs and corrections alike, each exactly as stored.
+  repeated Record records = 7;
+  repeated Plan plans = 8;
+  // Every occurrence of every plan, in any state.
+  repeated PlanOccurrence occurrences = 9;
+  repeated Budget budgets = 10;
+  // Including revoked ones: the history is never deleted, only marked.
+  repeated BudgetCarryOverReset carry_over_resets = 11;
+  repeated Goal goals = 12;
+  // The append-only envelope history; a goal's envelope is the sum of these.
+  repeated GoalAllocation goal_allocations = 13;
+}
+
+// POST /api/v1/privacy/erase.
+//
+// IRREVERSIBLE, and refused unless the person says whose data it is. A route that deletes every
+// financial record a person has must not be one stray request away, so the body has to repeat the
+// address the account signs in with.
+message EraseAccountRequest {
+  // The sign-in address of the account being erased, compared case-insensitively. A mismatch is a
+  // 400 and nothing is deleted.
+  string confirm_email = 1;
+}

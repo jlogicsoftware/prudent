@@ -3734,6 +3734,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/privacy/erase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Erase the authenticated user's data
+         * @description IRREVERSIBLE. Deletes every Prudent row the caller owns and anonymises their profile, in one transaction. Refused unless confirmEmail matches the account's sign-in address. The sign-in credential held by the identity provider is not removed.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EraseAccountRequest"];
+                    "application/x-protobuf": components["schemas"]["EraseAccountRequest"];
+                };
+            };
+            responses: {
+                /** @description Erased */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description confirmEmail is missing or is not this account's address; nothing is deleted */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/privacy/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export everything stored for the authenticated user
+         * @description One document holding every account, category, record, plan, occurrence, budget, carry-over reset, goal and envelope entry the caller owns, in any lifecycle state, plus their settings and profile. With the default JSON transport it is readable in any text editor.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DataExport"];
+                        "application/x-protobuf": components["schemas"]["DataExport"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/records": {
         parameters: {
             query?: never;
@@ -5457,6 +5577,51 @@ export interface components {
         UpdateSettingsRequest: {
             /** @description AN EMPTY VALUE MEANS "RESET TO THE DEFAULT", not "leave unchanged". proto3 has no presence for a string, so "" and unset are the same bytes; one reading had to be chosen, and there is nothing else in this message that "leave unchanged" could preserve. When a second field lands here, that sentence stops being true. */
             mainCurrency?: string;
+        };
+        /** @description The person's identity record as the server holds it — the one personal-data row that is not a financial one. Its fields are the framework's `users` table's. */
+        ExportProfile: {
+            /** @description The address the person signs in with. */
+            email?: string;
+            /** @description Empty when never set. */
+            displayName?: string;
+            /** @description Empty when never set. */
+            nickname?: string;
+            /** @description A language tag the application supports, e.g. "pl"; empty when never chosen. */
+            language?: string;
+            /**
+             * Format: int64
+             * @description When the profile was first created, ms since the Unix epoch.
+             */
+            createdAtMs?: number;
+        };
+        /** @description GET /api/v1/privacy/export response — EVERYTHING Prudent stores for the authenticated user, as one document, in the wire shapes the rest of the API already speaks. Complete rather than view-shaped: each list is every row the user owns, in any lifecycle state, and is empty rather than absent when there are none. Calculated figures (balances, budget summaries, goal progress, envelope sums, analytics) are not included — they are computed from these rows on every read. */
+        DataExport: {
+            /**
+             * Format: int32
+             * @description Names the layout of this document. Bumped only when a field is removed or changes meaning.
+             */
+            formatVersion?: number;
+            /**
+             * Format: int64
+             * @description When the export was produced, ms since the Unix epoch.
+             */
+            exportedAtMs?: number;
+            profile?: components["schemas"]["ExportProfile"];
+            settings?: components["schemas"]["Settings"];
+            accounts?: components["schemas"]["Account"][];
+            categories?: components["schemas"]["Category"][];
+            records?: components["schemas"]["Record"][];
+            plans?: components["schemas"]["Plan"][];
+            occurrences?: components["schemas"]["PlanOccurrence"][];
+            budgets?: components["schemas"]["Budget"][];
+            carryOverResets?: components["schemas"]["BudgetCarryOverReset"][];
+            goals?: components["schemas"]["Goal"][];
+            goalAllocations?: components["schemas"]["GoalAllocation"][];
+        };
+        /** @description Body for POST /api/v1/privacy/erase. IRREVERSIBLE: it deletes every record, account, category, plan, budget and goal the caller owns. Refused unless the caller repeats the address the account signs in with. */
+        EraseAccountRequest: {
+            /** @description The sign-in address of the account being erased, compared case-insensitively. A mismatch is a 400 and nothing is deleted. */
+            confirmEmail?: string;
         };
     };
     responses: never;
