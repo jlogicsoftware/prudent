@@ -235,7 +235,7 @@ tasks:
       - python3 scripts/verify_proto_reflection.py
 
   test:deploy-origin:
-    desc: Prove the deploy's origin checks can fail (probe script and the tasks that use it)
+    desc: Prove the deploy's origin checks and its public-configuration wiring can fail
     summary: |
       deploy:cloudrun checks the origin the web bundle was compiled to call before the build
       (deploy:check-origin-config) and after the service (deploy:accept-origin), and verify:deploy
@@ -248,12 +248,19 @@ tasks:
                                       answers, a cold host that recovers, a redirect.
         test_deploy_origin_tasks.py   the Taskfile glue through `task` itself: which URL
                                       verify:deploy checks, the exit codes of deploy:accept-origin
-                                      and deploy:check-origin-config, and the messages they give.
+                                      and deploy:check-origin-config, and the messages they give;
+                                      and that verify:deploy fails when the running service holds
+                                      a public value as a secret or for another origin (#166).
+        test_public_config.py         scripts/public_config.sh (what it accepts, refuses by name and
+                                      derives) and the shape of deploy:cloudrun's gcloud calls: only
+                                      the seven genuine secrets, the five public values as literals
+                                      on the job AND the service.
 
       It needs python3, curl and go-task; it starts no container and touches no cloud.
     cmds:
       - python3 -m unittest discover -s scripts -p 'test_check_origin_serves.py'
       - python3 -m unittest discover -s scripts -p 'test_deploy_origin_tasks.py'
+      - python3 -m unittest discover -s scripts -p 'test_public_config.py'
 
   test:admin:
     desc: Typecheck the admin panel (also typechecks the @jzen/admin-core scaffold it imports)
@@ -842,6 +849,21 @@ tasks:
         ARTIFACT_REPO            the Artifact Registry docker repository
         RUNTIME_SERVICE_ACCOUNT  the runtime identity (NOT the default Compute SA — see 1f)
         WEB_API_URL              the origin the web bundle is compiled to call
+        SUPABASE_URL             https://REF.supabase.co
+        AUTH_REDIRECT_URIS       the native return addresses, comma-separated (the app's scheme)
+
+      The last two are PUBLIC CONFIGURATION, not secrets (#166): they, and the three values derived
+      from WEB_API_URL (SITE_URL and CORS_ORIGINS equal it, AUTH_REDIRECT_URI is it plus
+      /auth/callback), are passed to the migration job and the service as plain environment
+      variables (scripts/public_config.sh checks and derives them, before the build). Secret
+      Manager bills every version of every secret, and these have no confidentiality to protect.
+      A SERVICE THAT STILL HOLDS THEM AS SECRETS must be rebound once before this task can deploy
+      over it: Cloud Run refuses to retype a variable from secret to literal in one call, so the
+      deploy fails with "Cannot update environment variable [SITE_URL] to string literal because it
+      has already been set with a different type". Rehearsed on 2026-10-23: one `deploy`, and one
+      `--remove-secrets` combined with `--update-env-vars`, both fail; removing the secret
+      references first (job, then service) and then running this task works.
+      docs/persistent-environment.md, section 3, has the commands.
 
       WEB_API_URL IS A CHICKEN AND EGG, AND IT IS DELIBERATELY NOT RESOLVED FOR YOU. The bundle is
       compiled before the service exists, and client config is compile-time. Looking it up
@@ -861,10 +883,10 @@ tasks:
       bundle's API calls go cross-origin, and by ADR-020's reasoning the SameSite=Lax session cookie
       is not sent (expected, not yet observed in a browser). So this task checks the origin twice:
         - BEFORE THE BUILD (deploy:check-origin-config), in seconds: WEB_API_URL must be the
-          deterministic host above, read from `gcloud projects describe`, and must equal the
-          SITE_URL secret. A typo or a wrong project number stops here and not after ten minutes
-          of native build. A deliberate other origin (a custom domain) needs
-          WEB_API_URL_ALLOW_OTHER=1; SITE_URL must still equal it.
+          deterministic host above, read from `gcloud projects describe`. A typo or a wrong project
+          number stops here and not after ten minutes of native build. A deliberate other origin (a
+          custom domain) needs WEB_API_URL_ALLOW_OTHER=1. SITE_URL is no longer compared with it:
+          it is DERIVED from it (scripts/public_config.sh), so the two cannot disagree.
         - AFTER THE SERVICE (deploy:accept-origin): /api/v1/health on WEB_API_URL must answer 200
           and name prudent-server (scripts/check_origin_serves.sh, with retries for a cold start).
           If it does not, the task EXITS NON-ZERO. The service is deployed by then and the message
@@ -906,9 +928,11 @@ tasks:
                 --member=serviceAccount:prudent-runtime@PROJECT.iam.gserviceaccount.com \
                 --role=roles/secretmanager.secretAccessor
 
-        2. THE TWELVE CONFIGURATION SECRETS. --set-secrets below fails the deploy if any is
-           missing, which is the point: a service that boots without one is a service whose
-           security control is absent rather than failing.
+        2. THE SEVEN SECRETS. --set-secrets below fails the deploy if any is missing, which is the
+           point: a service that boots without one is a service whose security control is absent
+           rather than failing. The five public values (SUPABASE_URL, SITE_URL, CORS_ORIGINS,
+           AUTH_REDIRECT_URI, AUTH_REDIRECT_URIS) are NOT here: they are exported in the shell that
+           runs this task, as above (#166).
 
            The database is a Supabase project, which this runbook does not otherwise create. Make
            one in the same region family as REGION, and generate its database password BEFORE you
@@ -917,17 +941,12 @@ tasks:
            the command's output cannot be parsed. With REF the project's reference:
 
              mk() { printf '%s' "$2" | gcloud secrets create "$1" --data-file=- --project=PROJECT; }
-             mk SUPABASE_URL            https://REF.supabase.co
              mk SUPABASE_KEY            <the service_role key — server-side only, NEVER a client>
              mk DB_URL                  jdbc:postgresql://<pooler db_host>:5432/postgres
              mk DB_USERNAME             postgres.REF         # DDL role: migrations run as this
              mk DB_PASSWORD             <the database password chosen above>
              mk APP_DB_USERNAME         zen_runtime.REF      # least privilege at runtime
              mk APP_DB_PASSWORD         <a new password; deploy:cloudrun applies it, see 2b>
-             mk SITE_URL                https://<service host>
-             mk AUTH_REDIRECT_URI       https://<service host>/auth/callback
-             mk AUTH_REDIRECT_URIS      prudent://auth-callback
-             mk CORS_ORIGINS            https://<service host>
              mk ZEN_JOBS_TRIGGER_TOKEN  "$(openssl rand -base64 32)"
 
            DB_URL IS THE SESSION POOLER, PORT 5432 — the mode this deploy was measured against. The
@@ -1020,6 +1039,10 @@ tasks:
           echo "See 'task deploy:cloudrun --summary' for what each one is and how to create it."
           exit 1
         fi
+        # The public configuration, checked now: a missing or malformed value is found in seconds
+        # and not after ten minutes of native build. Sourced, so it also exports the three values
+        # derived from WEB_API_URL; the deploy step below sources it again in its own shell.
+        . scripts/public_config.sh
         command -v gcloud >/dev/null || { echo "gcloud not found."; exit 1; }
         gcloud auth print-access-token >/dev/null 2>&1 || { echo "Not authenticated: gcloud auth login"; exit 1; }
 
@@ -1053,7 +1076,12 @@ tasks:
           -t "${IMAGE}" {{.SERVER_DIR}}
         docker push "${IMAGE}"
 
-        SECRETS="SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_KEY=SUPABASE_KEY:latest,DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,SITE_URL=SITE_URL:latest,AUTH_REDIRECT_URI=AUTH_REDIRECT_URI:latest,AUTH_REDIRECT_URIS=AUTH_REDIRECT_URIS:latest,CORS_ORIGINS=CORS_ORIGINS:latest,ZEN_JOBS_TRIGGER_TOKEN=ZEN_JOBS_TRIGGER_TOKEN:latest"
+        # Seven genuine secrets (#166): these five and the APP_DB_* pair below. The five public
+        # values are literals, passed as --set-env-vars on the job AND the service, because the
+        # packaged image fails config validation without them on either. SITE_URL, CORS_ORIGINS and
+        # AUTH_REDIRECT_URI come out of public_config.sh, derived from WEB_API_URL.
+        . scripts/public_config.sh
+        SECRETS="SUPABASE_KEY=SUPABASE_KEY:latest,DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,ZEN_JOBS_TRIGGER_TOKEN=ZEN_JOBS_TRIGGER_TOKEN:latest"
         APP_DB="APP_DB_USERNAME=APP_DB_USERNAME:latest,APP_DB_PASSWORD=APP_DB_PASSWORD:latest"
 
         # ZEN_I18N_SUPPORTED is carried EXPLICITLY on every deploy. --set-env-vars replaces the
@@ -1070,6 +1098,11 @@ tasks:
         # `ZEN_I18N_SUPPORTED=en` plus two bare words and gcloud refuses the whole flag ("Bad
         # syntax for dict arg: [uk]"). Found the first time this task ran against a real project;
         # no local check reaches this line.
+        #
+        # The same reasoning is why each value below has its own --set-env-vars flag and
+        # AUTH_REDIRECT_URIS the `^@^` delimiter: it is a comma list whose entries carry a `:` of
+        # their own (`prudent://auth-callback`), so neither the default `,` nor `^:^` splits it
+        # right (`Bad syntax for dict arg: [//auth-callback]`, jZen #90).
 
         # ── The deploy's first half: migrate, with the image just built, before anything serves.
         # Runs on the DDL credentials, so APP_DB_* is deliberately absent from its secret list.
@@ -1079,6 +1112,11 @@ tasks:
           --service-account="${RUNTIME_SERVICE_ACCOUNT}" \
           --memory=512Mi --cpu=1 --max-retries=0 --task-timeout=10m \
           --set-env-vars="ZEN_MIGRATE_ONLY=true,QUARKUS_HTTP_HOST_ENABLED=false,ZEN_ALLOW_SCHEMA_ROLLBACK={{.ROLLBACK}}" \
+          --set-env-vars="SUPABASE_URL=${SUPABASE_URL}" \
+          --set-env-vars="SITE_URL=${SITE_URL}" \
+          --set-env-vars="CORS_ORIGINS=${CORS_ORIGINS}" \
+          --set-env-vars="AUTH_REDIRECT_URI=${AUTH_REDIRECT_URI}" \
+          --set-env-vars="^@^AUTH_REDIRECT_URIS=${AUTH_REDIRECT_URIS}" \
           --set-secrets="${SECRETS}" \
           --quiet
 
@@ -1120,6 +1158,11 @@ tasks:
           --memory=256Mi --cpu=1 \
           --allow-unauthenticated \
           --set-env-vars="^@^ZEN_I18N_SUPPORTED=${LOCALES}" \
+          --set-env-vars="SUPABASE_URL=${SUPABASE_URL}" \
+          --set-env-vars="SITE_URL=${SITE_URL}" \
+          --set-env-vars="CORS_ORIGINS=${CORS_ORIGINS}" \
+          --set-env-vars="AUTH_REDIRECT_URI=${AUTH_REDIRECT_URI}" \
+          --set-env-vars="^@^AUTH_REDIRECT_URIS=${AUTH_REDIRECT_URIS}" \
           --set-secrets="${SECRETS},${APP_DB}" \
           --quiet
 
@@ -1127,7 +1170,7 @@ tasks:
       - task: deploy:accept-origin
 
   deploy:check-origin-config:
-    desc: Before the build — WEB_API_URL must be the host Cloud Run will serve, and SITE_URL the same
+    desc: Before the build — WEB_API_URL must be the host Cloud Run will serve
     silent: true
     summary: |
       Run first by deploy:cloudrun, and runnable alone. Needs WEB_API_URL, GCP_PROJECT, GCP_REGION
@@ -1135,16 +1178,17 @@ tasks:
 
       The web bundle is compiled against WEB_API_URL and then baked into a ten-minute native build.
       A wrong origin is otherwise found only after the service is live, so this fails in seconds
-      instead. Two checks:
+      instead. One check:
 
-        1. WEB_API_URL is Cloud Run's deterministic host for this service,
-           https://SERVICE_NAME-PROJECT_NUMBER.REGION.run.app (PROJECT_NUMBER from
-           `gcloud projects describe`). That form was measured once; if a project ever answers
-           otherwise, or a custom domain is meant, set WEB_API_URL_ALLOW_OTHER=1 — the probe after
-           the deploy (deploy:accept-origin) is then the check that decides.
-        2. The SITE_URL secret is the same origin as WEB_API_URL. The runbook sets them equal
-           because the web bundle is served same-origin by the service; a disagreement means the
-           server believes it is somewhere the bundle does not call. This one has no override.
+        WEB_API_URL is Cloud Run's deterministic host for this service,
+        https://SERVICE_NAME-PROJECT_NUMBER.REGION.run.app (PROJECT_NUMBER from
+        `gcloud projects describe`). That form was measured once; if a project ever answers
+        otherwise, or a custom domain is meant, set WEB_API_URL_ALLOW_OTHER=1 — the probe after
+        the deploy (deploy:accept-origin) is then the check that decides.
+
+      SITE_URL is not compared with WEB_API_URL here: it is a plain value DERIVED from WEB_API_URL
+      at deploy time (scripts/public_config.sh, #166), so the two cannot disagree. Whether the
+      RUNNING service carries that origin is what verify:deploy reads.
     cmds:
       - |
         set -eu
@@ -1175,18 +1219,6 @@ tasks:
           echo "        (a custom domain) is meant."
           exit 1
         fi
-
-        if ! site=$(gcloud secrets versions access latest --secret=SITE_URL --project="${GCP_PROJECT}"); then
-          echo "  FAIL  Could not read the SITE_URL secret in ${GCP_PROJECT}; the secrets are created"
-          echo "        before the first deploy (see 'task deploy:cloudrun --summary', step 2)."
-          exit 1
-        fi
-        if [ "${site%/}" != "${origin}" ]; then
-          echo "  FAIL  The SITE_URL secret is ${site%/}, but WEB_API_URL is ${origin}."
-          echo "        The bundle is served same-origin by the service, so they must be the same."
-          exit 1
-        fi
-        printf '  ok    the SITE_URL secret is the same origin as WEB_API_URL\n'
 
   deploy:accept-origin:
     desc: After the service — fail the deploy unless WEB_API_URL answers as Prudent, and name it
@@ -1258,18 +1290,21 @@ tasks:
       could authenticate at all.
 
       WHICH ORIGIN IS VERIFIED. Pass SERVICE_URL, or WEB_API_URL — the origin the web bundle was
-      compiled to call, which is what deploy:cloudrun ends by naming. With neither, and GCP_PROJECT
-      set, it is read from the SITE_URL secret: the runbook makes that the same origin, and it is
-      the one fact about the bundle's origin that survives in the cloud (the bundle's own
-      WEB_API_URL does not). It is deliberately NOT resolved from the service's `status.url`:
+      compiled to call, which is what deploy:cloudrun ends by naming. With neither, and GCP_PROJECT,
+      GCP_REGION and SERVICE_NAME set, it is read from the SITE_URL variable of the RUNNING service:
+      deploy:cloudrun derives that from WEB_API_URL, and it is the one fact about the bundle's
+      origin that survives in the cloud (the bundle's own WEB_API_URL does not). It must be a plain
+      value; a variable that is still a Secret Manager reference reads as empty and fails, saying
+      the service has not been rebound (#166). It is deliberately NOT resolved from the service's
+      `status.url`:
       Cloud Run answers that with a different host
       (https://SERVICE_NAME-<hash>-<region code>.a.run.app) from the one the bundle calls, and every
       status-code check below passes on either, so verifying the wrong one reads green while, by
       ADR-020's reasoning, the bundle's API calls go cross-origin and lose the session cookie
       (#151). With none of these the task stops and says so.
 
-      THE BUNDLE'S ORIGIN IS ALWAYS CHECKED WHEN IT IS KNOWN: WEB_API_URL, else the SITE_URL secret
-      when GCP_PROJECT is set. When it is the URL under test, the checks below include that /api/v1/health
+      THE BUNDLE'S ORIGIN IS ALWAYS CHECKED WHEN IT IS KNOWN: WEB_API_URL, else the running
+      service's SITE_URL when GCP_PROJECT, GCP_REGION and SERVICE_NAME are set. When it is the URL under test, the checks below include that /api/v1/health
       names prudent-server; when SERVICE_URL names another host, it is probed on its own
       (scripts/check_origin_serves.sh), so passing the alias cannot hide a bundle built for a host
       that never serves. When it is not known at all that is announced as SKIP, never silently
@@ -1286,19 +1321,55 @@ tasks:
         # The origin the bundle calls. Never `status.url` (see the summary): that is a different
         # host, and verifying it proves nothing about the one the bundle calls.
         BUNDLE="${WEB_API_URL:-}"
+
+        # The running service's variables, one `NAME,VALUE` line each, when the service is named.
+        # A variable that is a Secret Manager reference has no value of its own, so it prints as
+        # `NAME,` — the same as an empty literal, and both are "not a plain value".
+        SVC=unnamed
+        if [ -n "${GCP_PROJECT:-}" ] && [ -n "${GCP_REGION:-}" ] && [ -n "${SERVICE_NAME:-}" ]; then
+          if VARS=$(gcloud run services describe "${SERVICE_NAME}" --region="${GCP_REGION}" \
+                      --project="${GCP_PROJECT}" \
+                      --flatten='spec.template.spec.containers[0].env[]' \
+                      --format='csv[no-heading](spec.template.spec.containers[0].env.name,spec.template.spec.containers[0].env.value)'); then
+            SVC=read
+          else
+            SVC=unreadable
+          fi
+        fi
+        # The plain value of one variable of the running service; empty when it is absent or a
+        # secret reference. csv quotes a value that has a comma in it.
+        svc_value() {
+          v=$(printf '%s\n' "${VARS}" | grep "^$1," | head -n 1) || return 0
+          v="${v#"$1",}"; v="${v%\"}"; v="${v#\"}"
+          printf '%s' "${v}"
+        }
+
         if [ -z "${BUNDLE}" ] && [ -n "${GCP_PROJECT:-}" ]; then
-          if ! BUNDLE=$(gcloud secrets versions access latest --secret=SITE_URL --project="${GCP_PROJECT}"); then
-            echo "Could not read the SITE_URL secret in ${GCP_PROJECT} to learn the bundle's origin."
-            echo "Set WEB_API_URL (the origin the web bundle was compiled to call) instead."
+          if [ "${SVC}" = unnamed ]; then
+            echo "GCP_REGION and SERVICE_NAME are needed with GCP_PROJECT to read the running"
+            echo "service's SITE_URL. Set them, or set WEB_API_URL (the origin the web bundle was"
+            echo "compiled to call) instead."
             exit 1
           fi
-          echo "  NOTE  bundle origin taken from the SITE_URL secret (WEB_API_URL is not set)"
+          if [ "${SVC}" = unreadable ]; then
+            echo "Could not read the configuration of ${SERVICE_NAME} in ${GCP_PROJECT} to learn the"
+            echo "bundle's origin. Set WEB_API_URL (the origin the web bundle was compiled to call) instead."
+            exit 1
+          fi
+          BUNDLE=$(svc_value SITE_URL)
+          if [ -z "${BUNDLE}" ]; then
+            echo "The running service's SITE_URL has no plain value: it is absent, or still a Secret"
+            echo "Manager reference. Rebind it once, then deploy (docs/persistent-environment.md,"
+            echo "section 3)."
+            exit 1
+          fi
+          echo "  NOTE  bundle origin taken from the running service's SITE_URL (WEB_API_URL is not set)"
         fi
         BUNDLE="${BUNDLE%/}"
         [ -n "${URL}" ] || URL="${BUNDLE}"
         if [ -z "${URL}" ]; then
           echo "Set SERVICE_URL, or WEB_API_URL (the origin the web bundle was compiled to call),"
-          echo "or GCP_PROJECT to read it from the SITE_URL secret."
+          echo "or GCP_PROJECT, GCP_REGION and SERVICE_NAME to read it from the running service."
           echo "The service's own status.url is deliberately not used: it is a different host."
           exit 1
         fi
@@ -1372,6 +1443,29 @@ tasks:
         else
           # Announced, never silent: "not checked here" and "passed" must not look alike.
           printf '  SKIP  scheduled work: needs GCP_PROJECT + GCP_REGION to inspect the scheduler\n'
+        fi
+
+        # ── Is the public configuration plain values? ──
+        #
+        # SUPABASE_URL, SITE_URL, CORS_ORIGINS, AUTH_REDIRECT_URI and AUTH_REDIRECT_URIS are public
+        # and are passed as plain environment variables (#166). A service that still holds one as
+        # a Secret Manager reference works, and keeps billing a secret version for it, so nothing
+        # but this notices. SITE_URL must also be the origin the bundle calls: it is derived from
+        # WEB_API_URL at deploy time, and a service built for another origin is the one failure
+        # every status-code check above passes through.
+        if [ "${SVC}" = read ]; then
+          for n in SUPABASE_URL SITE_URL CORS_ORIGINS AUTH_REDIRECT_URI AUTH_REDIRECT_URIS; do
+            if [ -n "$(svc_value "$n")" ]; then printf '  ok    %s is a plain value\n' "$n"
+            else printf '  FAIL  %s is absent or still a Secret Manager reference (see docs/persistent-environment.md, section 3)\n' "$n"; fail=1; fi
+          done
+          if [ -n "${BUNDLE}" ]; then
+            check "SITE_URL of the running service is the bundle origin" "${BUNDLE}" "$(svc_value SITE_URL)"
+          fi
+        elif [ "${SVC}" = unreadable ]; then
+          printf '  FAIL  could not read the configuration of %s to check its public values\n' "${SERVICE_NAME}"
+          fail=1
+        else
+          printf '  SKIP  public configuration: needs GCP_PROJECT, GCP_REGION and SERVICE_NAME to read the service\n'
         fi
 
         echo
