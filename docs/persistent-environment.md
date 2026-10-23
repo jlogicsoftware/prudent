@@ -59,9 +59,10 @@ relying on it.
 are *derived by reading what the tasks call, not proven*): Cloud Run Admin, Service Account User on
 the runtime service account, Artifact Registry Writer, Cloud Scheduler Admin, Service Usage Admin for
 the one-time API enablement, Secret Manager Admin for the one-time creation, **Secret Accessor on the
-five secrets the tasks read** (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `APP_DB_PASSWORD` in
-`deploy:cloudrun`; `SITE_URL` in `deploy:check-origin-config` and `verify:deploy`), and a role with
-`resourcemanager.projects.get` (the pre-build check runs `gcloud projects describe`). To find out
+four secrets the tasks read** (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `APP_DB_PASSWORD`, all in
+`deploy:cloudrun`), a role that reads a Cloud Run service (`verify:deploy` describes it to check its
+public values), and a role with `resourcemanager.projects.get` (the pre-build check runs
+`gcloud projects describe`). To find out
 which is wrong, re-run `task deploy:cloudrun` under that account.
 
 The **runtime** service account holds `roles/secretmanager.secretAccessor` and nothing else (runbook
@@ -70,8 +71,13 @@ because the project holds nothing but this application's secrets. Keep it that w
 
 ## 3. Secrets and sign-in
 
-The twelve secrets and how each is created are runbook step 2. What follows is only what the runbook
-does not say.
+Seven secrets and five public values: the secrets and how each is created are runbook step 2, and
+the public values (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`,
+`AUTH_REDIRECT_URIS`) are not in Secret Manager at all (#166, ADR-070). They are plain environment
+variables on the migration job and the service: `SUPABASE_URL` and `AUTH_REDIRECT_URIS` are exported
+in the shell that runs `deploy:cloudrun`, and the other three are derived from `WEB_API_URL`, so they
+cannot disagree with the origin the bundle calls. What follows is only what the runbook does not
+say.
 
 | Secret | Rotation | Status |
 |---|---|---|
@@ -79,7 +85,7 @@ does not say.
 | `APP_DB_PASSWORD` | A new secret version plus `task deploy:cloudrun`; the deploy applies it to the role (ADR-066) | Proven on a throwaway Postgres, **not** against a live service |
 | `ZEN_JOBS_TRIGGER_TOKEN` | New version, deploy, **then** update the scheduler header: `gcloud scheduler jobs update http prudent-jobs-tick --update-headers=...` | Flag exists in gcloud 587; never run |
 | `SUPABASE_KEY` | Read again from the dashboard or Management API. How Supabase rotates it, and what that invalidates, was not tried | Unknown |
-| The rest | Derived from `REF`, the host or fixed text; recreate rather than rotate | — |
+| `DB_URL`, `DB_USERNAME`, `APP_DB_USERNAME` | Derived from `REF` and the pooler host; recreate rather than rotate | — |
 
 `gcloud secrets create` accepts `--version-destroy-ttl="86400s"` (the format is in `--help`): a
 destroyed version is then recoverable for a day. Cheap; not used by the proven runs.
@@ -107,6 +113,41 @@ application). Done this way on 2026-10-22; the owner then registered from a phon
 mail and confirmed the link from a desktop (ADR-069). The native return address
 `prudent://auth-callback` is in the list but **has not been followed**, because no native build
 exists (#155).
+
+**Rebinding a service that still holds the five public values as secrets (#166).** It is needed
+once, by an environment made before the change, and never by a new one. Cloud Run will not retype a
+variable from secret to literal in one call, and this was rehearsed on a scratch service rather than
+trusted: the `deploy:cloudrun` flag shape, and one `--remove-secrets` combined with
+`--update-env-vars`, both fail with `Cannot update environment variable [SITE_URL] to string literal
+because it has already been set with a different type`; removing the secret references in one call and
+adding the literals in the next works. (BugEater's notes say the combined call works; jZen's later
+correction, and the rehearsal, say it does not.) So the order is: take the values from the secrets,
+remove the references from the job and the service, then run `deploy:cloudrun`, which adds the
+literals. **There is a window** between the second command and the end of the deploy, about eleven
+minutes (the native build is most of it), in which the service is up and misconfigured. jZen's note
+says the revision does not start; here it did, so that is not a protection to count on. That is
+acceptable for this environment's test data. For a service with real users, `--no-traffic` on the
+removal would keep the old revision serving; it was not tried. In a shell with the environment's `GCP_PROJECT`, `GCP_REGION` and `SERVICE_NAME`:
+
+```sh
+SUPABASE_URL=$(gcloud secrets versions access latest --secret=SUPABASE_URL --project="$GCP_PROJECT")
+AUTH_REDIRECT_URIS=$(gcloud secrets versions access latest --secret=AUTH_REDIRECT_URIS --project="$GCP_PROJECT")
+export SUPABASE_URL AUTH_REDIRECT_URIS
+PUBLIC=SUPABASE_URL,SITE_URL,CORS_ORIGINS,AUTH_REDIRECT_URI,AUTH_REDIRECT_URIS
+
+# The job never runs its container on an update, so this just succeeds.
+gcloud run jobs update "$SERVICE_NAME-migrate" --region="$GCP_REGION" --project="$GCP_PROJECT" --remove-secrets=$PUBLIC
+# The revision this creates lacks the five values and STILL STARTS: on 2026-10-23 it took all the
+# traffic and /health answered 200. The service runs without them until the deploy below finishes.
+gcloud run services update "$SERVICE_NAME" --region="$GCP_REGION" --project="$GCP_PROJECT" --remove-secrets=$PUBLIC
+
+task deploy:cloudrun          # with the environment's other variables; adds the five as literals
+```
+
+Then `task verify:deploy` (it fails if any of the five is still a secret reference, or if the
+service's `SITE_URL` is not the origin the bundle calls), a sign-in, and only then the five secrets
+are deleted (`gcloud secrets delete NAME --project="$GCP_PROJECT"`): the secrets are the only record
+of the values until the service holds them. Check `gcloud secrets list` before and after.
 
 ## 4. Free plan: what it means in practice
 
@@ -221,8 +262,10 @@ does not load from a git worktree, ADR-065). Stop on the first failure.
    persistent (letters, digits, spaces and a few symbols only: GCP refuses parentheses), and the label above. A new project answers `PERMISSION_DENIED` on the registry for a
    few minutes: wait, repeat.
 3. **Generate the database password into Secret Manager first**, then create the Supabase project in
-   `SUPABASE_REGION`, take the pooler `db_host` from the Management API, create the other eleven
-   secrets (runbook step 2) with `SITE_URL` etc. set to the origin you will build against (section 5).
+   `SUPABASE_REGION`, take the pooler `db_host` from the Management API, create the other six
+   secrets (runbook step 2). The public values are not secrets: export `SUPABASE_URL` and
+   `AUTH_REDIRECT_URIS` for the deploy, and `WEB_API_URL` is the origin you will build against
+   (section 5), from which `SITE_URL`, `CORS_ORIGINS` and `AUTH_REDIRECT_URI` are derived.
 4. **Build and deploy** (section 5, steps 2-5, or the plain `run.app` route).
 5. **Scheduler** (runbook step 3), then `task verify:deploy`.
 6. **Supabase Site URL and Redirect URLs** (section 3), then **register one user from the phone's
@@ -238,7 +281,9 @@ runtime login; the origin checks; `verify:deploy`; a Scheduler trigger answered 
 corrected teardown. **And, on the persistent environment (ADR-069):** the same deploy a second time
 and a redeploy over a running service; the Supabase Site URL and Redirect URLs set through the
 Management API; a registration, the confirmation mail and a sign-in from a phone browser and a
-desktop browser, after which the screens load.
+desktop browser, after which the screens load. **And (ADR-070):** the rebind of the five public values from secrets to plain
+variables on a running service and job, the deletion of the five secrets (12 before, 7 after), and
+the sign-in from a phone afterwards.
 
 **Documented by the provider, not tried here:** domain mappings and their region list; the
 verification flow; Cloudflare's DNS-only meaning; liens; Supabase's backup policy and default mail

@@ -13,6 +13,81 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-070 — The five public configuration values are plain environment variables, not secrets; a service made before the change is rebound once
+
+**Date:** 2026-10-23. **Status:** accepted. **Refines:** ADR-021, ADR-067. **Closes:** jlogicsoftware/prudent#166. **Addresses:** jlogicsoftware/prudent#46.
+
+### Decision
+
+- **`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI` and `AUTH_REDIRECT_URIS` leave Secret Manager.** They are public by
+  construction (the origin is in the bundle, the redirect addresses are in the app and in the identity provider's allowlist), so a
+  secret implied a confidentiality they do not have and was billed per version per month. `deploy:cloudrun` passes them to **both** the
+  migration job and the service as `--set-env-vars` literals. **Seven genuine secrets remain:** `SUPABASE_KEY`, `DB_URL`,
+  `DB_USERNAME`, `DB_PASSWORD`, `ZEN_JOBS_TRIGGER_TOKEN`, and, for the service only, `APP_DB_USERNAME` and `APP_DB_PASSWORD`.
+- **Three of the five are derived, two are supplied.** `SITE_URL` and `CORS_ORIGINS` are `WEB_API_URL`, and `AUTH_REDIRECT_URI` is
+  `WEB_API_URL/auth/callback`; `SUPABASE_URL` and `AUTH_REDIRECT_URIS` are exported in the operator's shell like `WEB_API_URL` and are
+  refused when missing, naming which. `scripts/public_config.sh` does this and checks the shapes (an https `SUPABASE_URL`, no comma,
+  `@` or whitespace where it would split a value, a scheme on every redirect entry, no empty list entry). It runs in the preflight,
+  before ten minutes of build, and again where the values are used. A derived value exported as something else is refused rather than
+  silently overridden. `AUTH_REDIRECT_URIS` has its own flag with the `^@^` delimiter: a comma list whose entries contain `:`.
+- **The origin checks no longer read a secret.** `deploy:check-origin-config` keeps only the deterministic-host check; there is nothing
+  left to compare because `SITE_URL` cannot disagree with `WEB_API_URL`. `verify:deploy`, with no URL given, reads `SITE_URL` from the
+  **running service's configuration** (it now needs `GCP_REGION` and `SERVICE_NAME` with `GCP_PROJECT`), and when it can read the
+  service it **fails** if any of the five is absent or still a Secret Manager reference, or if the service's `SITE_URL` is not the
+  bundle's origin. Without a service name that part is announced as SKIP.
+- **The rebind of an environment made before this change is a documented procedure, not a task:** remove the five secret references
+  from the job, then from the service, then run `deploy:cloudrun`; the secrets are deleted afterwards. It is in
+  `docs/persistent-environment.md` section 3. Nothing else needs it, because a new environment never holds the secrets.
+
+### What this supersedes, and why
+
+- **"The twelve secrets"** / **"Eleven secrets ... `SUPABASE_URL`, ..., `SITE_URL`, `AUTH_REDIRECT_URI`, `AUTH_REDIRECT_URIS`,
+  `CORS_ORIGINS`"** (ADR-021, ADR-065; the runbook in `deploy:cloudrun --summary` step 2; `docs/persistent-environment.md` section 3)
+  → **changed.** *Why:* seven are secrets; the rest are configuration. The runbook, the document and the deployer-roles paragraph
+  (Secret Accessor on four secrets now, and a role that reads a Cloud Run service) were rewritten in this change.
+- **"`WEB_API_URL` ... must equal the `SITE_URL` secret" and "`verify:deploy` ... reads the `SITE_URL` secret"** (ADR-067) →
+  **replaced.** *Why:* the first became true by construction; the second is now the running service's variable, which is a
+  stronger fact (it is what the process was started with) and needs no secret read.
+- **jZen's "the packaged image fails config validation without them, on the job as much as on the service, so the intermediate revision
+  never serves"** (jZen `Taskfile.yml` comment; jZen #90's later comment) → **not borne out here.** *Why:* see the rehearsal below.
+- **BugEater's "one call with `--remove-secrets` plus `--update-env-vars` works"** (the perf audit, section 5.32) → **wrong for this
+  gcloud and Cloud Run**, as jZen #90 had already corrected.
+
+### Consequence
+
+**Rehearsed before touching the live service**, on a scratch Cloud Run service in the same project, with the existing secrets and a
+sample image (deleted afterwards; `gcloud run services list` shows only `prudent`): `gcloud run deploy --set-env-vars ... --set-secrets`
+without the names fails with `Cannot update environment variable [SITE_URL] to string literal because it has already been set with a
+different type`; so does `services update --remove-secrets=... --update-env-vars=...` in one call; `--remove-secrets` in one call and
+`--update-env-vars` in the next succeeds. This confirms jZen #90 and refutes BugEater's note.
+
+**Done on the persistent environment, 2026-10-23:** the five references removed from the job and the service, then
+`deploy:cloudrun` (exit 0; repeated `--set-env-vars` flags in one call accumulate, as jZen's deploy assumes), then `verify:deploy`
+(16 of 16, including the five plain values and `SITE_URL` equal to the bundle's origin). `gcloud run services describe` and
+`jobs describe` show the five as plain values and the remaining secrets as references. The owner signed in from a phone and the screens
+loaded. Only then were the five secrets deleted: **`gcloud secrets list` showed 12 before and 7 after**, exactly the five names gone,
+and `verify:deploy` stayed green.
+
+**A finding that contradicts the plan.** The revision created by removing the secret references **started and took all the traffic**
+(`/health` answered 200) although it lacked the five values; the service ran in that state until the deploy replaced it, about eleven
+minutes. So the intermediate step is not protected by a failing startup, and a sign-in during that window was not tried, so what it
+would have done is unknown. For this environment's test data that was acceptable and was accepted. For a service with users,
+`--no-traffic` on the removal would keep the old revision serving; **that was not tried.** `docs/persistent-environment.md` says so.
+
+**Verified:** `scripts/test_public_config.py` (20 tests: what the script accepts, refuses and derives, and the shape of
+`deploy:cloudrun`'s two `gcloud run` calls — seven secrets, five literals on the job and the service) and the rewritten
+`scripts/test_deploy_origin_tasks.py` (29 tests, including `verify:deploy` failing on a public value that is a secret reference, absent,
+or for another origin; the stub `gcloud` has no `secrets` case, so a call to one fails a test), both through `task test:deploy-origin`
+and on Python 3.9. Six mutations were planted — `SITE_URL` back in the secret list, a literal dropped from the job, the https check
+removed, the derived-value comparison removed, a public-value failure not counted, the `SITE_URL`-equals-origin check removed — and
+each turns a test red.
+
+**Not claimed:** a saving. Secret Manager bills per version, the account's older projects had already used the free versions, and the
+estimate of about $0.30 a month for the five came from BugEater's reading of the price catalogue, not from this account's invoice.
+It stays an estimate until an invoice shows it. **Not proven:** the `--no-traffic` variant; a sign-in during the window above; the
+native iPhone build and `prudent://auth-callback` (#155); any backup or restore (#47). The service is still handed the DDL
+credentials (#156).
+
 ## ADR-069 — The persistent environment exists on `*.run.app`; its first sign-in found that no Prudent message was registered for the native image
 
 **Date:** 2026-10-22. **Status:** accepted. **Refines:** ADR-068. **Addresses:** jlogicsoftware/prudent#46 (the environment exists as a proof of concept; #47, #155 and #156 stay open); **closes** jlogicsoftware/prudent#158.

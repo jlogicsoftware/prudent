@@ -29,22 +29,49 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HEALTH = b'{"status":"ok","service":"prudent-server","timestampMs":"1"}'
 
-# What `gcloud` is made to say. Each is read from the environment of the task under test.
+# What `gcloud` is made to say. Each is read from the environment of the task under test. There is
+# deliberately no `secrets` case: the origin checks no longer read a secret (#166), so a call to one
+# reaches the catch-all and fails the task, which is how these tests would notice it coming back.
 GCLOUD_STUB = """#!/bin/sh
 case "$1 $2" in
   "auth print-access-token") echo token ;;
   "projects describe")
     [ -z "${STUB_FAIL_DESCRIBE:-}" ] || { echo "stub: describe failed" >&2; exit 1; }
     echo "${STUB_PROJECT_NUMBER:-}" ;;
-  "secrets versions")
-    [ -n "${STUB_SITE_URL:-}" ] || { echo "stub: no SITE_URL secret" >&2; exit 1; }
-    echo "${STUB_SITE_URL}" ;;
+  "scheduler jobs")
+    [ -z "${STUB_NO_SCHEDULER:-}" ] || exit 1 ;;
   "run services")
     [ -z "${STUB_FAIL_RUN:-}" ] || { echo "stub: run describe failed" >&2; exit 1; }
-    echo "${STUB_STATUS_URL:-}" ;;
+    case "$*" in
+      *--flatten*) printf '%s\n' "${STUB_SERVICE_ENV:-}" ;;  # the NAME,VALUE lines of the env
+      *) echo "${STUB_STATUS_URL:-}" ;;
+    esac ;;
   *) echo "stub gcloud: unexpected call: $*" >&2; exit 99 ;;
 esac
 """
+
+
+PUBLIC = ("SUPABASE_URL", "SITE_URL", "CORS_ORIGINS", "AUTH_REDIRECT_URI", "AUTH_REDIRECT_URIS")
+
+
+def service_env(site_url, secret=(), absent=()):
+    """What `gcloud run services describe --flatten=...env[] --format=csv` prints for the service.
+
+    A variable that is a Secret Manager reference has no value of its own and prints as `NAME,`;
+    one in `absent` is not there at all."""
+    values = {
+        "SUPABASE_URL": "https://ref.supabase.co",
+        "SITE_URL": site_url,
+        "CORS_ORIGINS": site_url,
+        "AUTH_REDIRECT_URI": site_url + "/auth/callback",
+        "AUTH_REDIRECT_URIS": '"prudent://auth-callback,other://x"',  # csv quotes a comma
+    }
+    lines = ["ZEN_I18N_SUPPORTED," + '"en,uk,pl"', "SUPABASE_KEY,"]
+    for name in PUBLIC:
+        if name in absent:
+            continue
+        lines.append(name + "," + ("" if name in secret else values[name]))
+    return "\n".join(lines)
 
 
 class Prudent(BaseHTTPRequestHandler):
@@ -180,16 +207,86 @@ class VerifyDeployOrigin(TaskCase):
         self.assertNotEqual(rc, 0, out)
         self.assertIn("FAIL  health names prudent-server", out)
 
-    def test_the_bundle_origin_is_read_from_the_site_url_secret_when_only_the_project_is_known(self):
-        with Server(Prudent) as s:
-            rc, out = self.run_task("verify:deploy", GCP_PROJECT="p", STUB_SITE_URL=s.origin)
-        self.assertEqual(rc, 0, out)
-        self.assertIn("taken from the SITE_URL secret", out)
+    SERVICE = dict(GCP_PROJECT="p", GCP_REGION="r", SERVICE_NAME="svc")
 
-    def test_an_unreadable_site_url_secret_stops_rather_than_guessing(self):
+    def test_the_bundle_origin_is_read_from_the_running_service_when_it_is_named(self):
+        with Server(Prudent) as s:
+            rc, out = self.run_task("verify:deploy", STUB_SERVICE_ENV=service_env(s.origin), **self.SERVICE)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("taken from the running service's SITE_URL", out)
+        self.assertIn("ok    SITE_URL of the running service is the bundle origin", out)
+
+    def test_only_a_project_cannot_say_which_service_to_read(self):
         rc, out = self.run_task("verify:deploy", GCP_PROJECT="p")
         self.assertNotEqual(rc, 0, out)
-        self.assertIn("Could not read the SITE_URL secret", out)
+        self.assertIn("GCP_REGION and SERVICE_NAME are needed", out)
+
+    def test_an_unreadable_service_stops_rather_than_guessing_the_origin(self):
+        rc, out = self.run_task("verify:deploy", STUB_FAIL_RUN="1", **self.SERVICE)
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("Could not read the configuration of svc", out)
+
+    def test_a_site_url_that_is_still_a_secret_reference_stops_and_names_the_rebind(self):
+        with Server(Prudent) as s:
+            rc, out = self.run_task("verify:deploy", STUB_SERVICE_ENV=service_env(s.origin, secret=("SITE_URL",)),
+                                    **self.SERVICE)
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("no plain value", out)
+        self.assertIn("persistent-environment.md", out)
+
+    def test_a_service_without_a_site_url_stops(self):
+        with Server(Prudent) as s:
+            rc, out = self.run_task("verify:deploy", STUB_SERVICE_ENV=service_env(s.origin, absent=("SITE_URL",)),
+                                    **self.SERVICE)
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("no plain value", out)
+
+
+class PublicConfigOnTheService(TaskCase):
+    """verify:deploy asserts the five public values of the RUNNING service are plain values."""
+
+    SERVICE = dict(GCP_PROJECT="p", GCP_REGION="r", SERVICE_NAME="svc")
+
+    def run_verify(self, origin, **kw):
+        return self.run_task("verify:deploy", WEB_API_URL=origin, SERVICE_URL=origin, **self.SERVICE, **kw)
+
+    def test_five_plain_values_pass(self):
+        with Server(Prudent) as s:
+            rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin))
+        self.assertEqual(rc, 0, out)
+        for name in PUBLIC:
+            self.assertIn(f"ok    {name} is a plain value", out)
+
+    def test_each_value_that_is_still_a_secret_reference_fails_by_name(self):
+        for name in PUBLIC:
+            with self.subTest(name=name), Server(Prudent) as s:
+                rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin, secret=(name,)))
+                self.assertNotEqual(rc, 0, out)
+                self.assertIn(f"FAIL  {name} is absent or still a Secret Manager reference", out)
+
+    def test_a_value_that_is_absent_fails(self):
+        with Server(Prudent) as s:
+            rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin, absent=("CORS_ORIGINS",)))
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("FAIL  CORS_ORIGINS is absent", out)
+
+    def test_a_service_built_for_another_origin_fails_even_though_it_answers(self):
+        with Server(Prudent) as s:
+            rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env("https://elsewhere.example.org"))
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("FAIL  SITE_URL of the running service is the bundle origin", out)
+
+    def test_an_unreadable_service_fails_when_the_origin_was_given(self):
+        with Server(Prudent) as s:
+            rc, out = self.run_verify(s.origin, STUB_FAIL_RUN="1")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("could not read the configuration of svc", out)
+
+    def test_without_a_service_name_it_is_announced_as_skipped_never_silent(self):
+        with Server(Prudent) as s:
+            rc, out = self.run_task("verify:deploy", WEB_API_URL=s.origin, GCP_PROJECT="p", GCP_REGION="r")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("SKIP  public configuration", out)
 
 
 class AcceptOrigin(TaskCase):
@@ -235,48 +332,34 @@ class CheckOriginConfig(TaskCase):
     COMMON = dict(GCP_PROJECT="p", GCP_REGION="europe-west1", SERVICE_NAME="svc",
                   STUB_PROJECT_NUMBER="123")
 
-    def test_the_deterministic_host_with_a_matching_site_url_passes(self):
-        rc, out = self.run_task("deploy:check-origin-config", WEB_API_URL=self.HOST,
-                                STUB_SITE_URL=self.HOST + "/", **self.COMMON)
+    def test_the_deterministic_host_passes(self):
+        rc, out = self.run_task("deploy:check-origin-config", WEB_API_URL=self.HOST, **self.COMMON)
         self.assertEqual(rc, 0, out)
         self.assertIn("deterministic Cloud Run host", out)
 
+    def test_it_reads_no_secret(self):
+        # The stub has no `secrets` case: a call to one exits 99 and fails the task. Passing here is
+        # what proves SITE_URL is no longer read from Secret Manager (#166).
+        rc, out = self.run_task("deploy:check-origin-config", WEB_API_URL=self.HOST + "/", **self.COMMON)
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("unexpected call", out)
+
     def test_any_other_host_fails_before_the_build_and_says_which_one_is_right(self):
-        # SITE_URL equals the WRONG host on purpose: if the deterministic-host check stopped
-        # failing, the SITE_URL check must not be what rescues this test.
         wrong = "https://svc-999.europe-west1.run.app"
-        rc, out = self.run_task("deploy:check-origin-config", WEB_API_URL=wrong, STUB_SITE_URL=wrong,
-                                **self.COMMON)
+        rc, out = self.run_task("deploy:check-origin-config", WEB_API_URL=wrong, **self.COMMON)
         self.assertNotEqual(rc, 0, out)
         self.assertIn(f"Cloud Run serves this service on {self.HOST}", out)
 
     def test_another_origin_needs_an_explicit_override(self):
         other = "https://prudent.example.org"
-        rc, out = self.run_task("deploy:check-origin-config", WEB_API_URL=other, STUB_SITE_URL=other,
+        rc, out = self.run_task("deploy:check-origin-config", WEB_API_URL=other,
                                 WEB_API_URL_ALLOW_OTHER="1", **self.COMMON)
         self.assertEqual(rc, 0, out)
         self.assertIn("NOTE  WEB_API_URL is not the deterministic Cloud Run host", out)
 
-    def test_the_override_does_not_excuse_a_site_url_that_disagrees(self):
-        rc, out = self.run_task("deploy:check-origin-config", WEB_API_URL="https://prudent.example.org",
-                                STUB_SITE_URL=self.HOST, WEB_API_URL_ALLOW_OTHER="1", **self.COMMON)
-        self.assertNotEqual(rc, 0, out)
-        self.assertIn("The SITE_URL secret is", out)
-
-    def test_a_site_url_that_disagrees_fails(self):
-        rc, out = self.run_task("deploy:check-origin-config", WEB_API_URL=self.HOST,
-                                STUB_SITE_URL="https://elsewhere.example.org", **self.COMMON)
-        self.assertNotEqual(rc, 0, out)
-        self.assertIn("The SITE_URL secret is", out)
-
-    def test_an_unreadable_site_url_secret_fails(self):
-        rc, out = self.run_task("deploy:check-origin-config", WEB_API_URL=self.HOST, **self.COMMON)
-        self.assertNotEqual(rc, 0, out)
-        self.assertIn("Could not read the SITE_URL secret", out)
-
     def test_an_unreadable_project_number_fails(self):
         rc, out = self.run_task("deploy:check-origin-config", WEB_API_URL=self.HOST,
-                                STUB_FAIL_DESCRIBE="1", STUB_SITE_URL=self.HOST, **self.COMMON)
+                                STUB_FAIL_DESCRIBE="1", **self.COMMON)
         self.assertNotEqual(rc, 0, out)
         self.assertIn("Could not read the project number", out)
 
