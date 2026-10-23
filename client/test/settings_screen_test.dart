@@ -47,13 +47,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('offers its four actions as framework buttons', (tester) async {
+  testWidgets('offers its five actions as framework buttons', (tester) async {
     await pump(tester);
 
-    for (final label in ['Accounts', 'Categories', 'Profile', 'Log Out']) {
+    for (final label in ['Accounts', 'Categories', 'Profile', 'Privacy and data', 'Log Out']) {
       expect(find.widgetWithText(ZenButton, label), findsOneWidget, reason: label);
     }
-    expect(find.byType(ZenButton), findsNWidgets(4));
+    expect(find.byType(ZenButton), findsNWidgets(5));
   });
 
   testWidgets('the language select names each language in itself and shows the current one', (

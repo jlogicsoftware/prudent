@@ -20,7 +20,10 @@ import prudent.proto.v1.CreateRecordRequest;
 import prudent.proto.v1.CreateTransferRequest;
 import prudent.proto.v1.CurrencyBalance;
 import prudent.proto.v1.CurrencyFreeMoney;
+import prudent.proto.v1.DataExport;
 import prudent.proto.v1.DueReminder;
+import prudent.proto.v1.EraseAccountRequest;
+import prudent.proto.v1.ExportProfile;
 import prudent.proto.v1.GetFreeMoneyResponse;
 import prudent.proto.v1.Goal;
 import prudent.proto.v1.GoalAllocation;
@@ -102,7 +105,10 @@ import prudent.proto.v1.UpdateSettingsRequest;
       CreateTransferRequest.class,
       CurrencyBalance.class,
       CurrencyFreeMoney.class,
+      DataExport.class,
       DueReminder.class,
+      EraseAccountRequest.class,
+      ExportProfile.class,
       GetFreeMoneyResponse.class,
       Goal.class,
       GoalAllocation.class,

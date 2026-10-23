@@ -1649,3 +1649,103 @@ components:
             presence for a string, so "" and unset are the same bytes; one reading had to be
             chosen, and there is nothing else in this message that "leave unchanged" could
             preserve. When a second field lands here, that sentence stops being true.
+
+    # -----------------------------------------------------------------------------------------
+    # Privacy — the export of everything a user owns, and the request that erases it
+    # -----------------------------------------------------------------------------------------
+    ExportProfile:
+      type: object
+      description: >-
+        The person's identity record as the server holds it — the one personal-data row that is not
+        a financial one. Its fields are the framework's `users` table's.
+      properties:
+        email:
+          type: string
+          description: The address the person signs in with.
+        displayName:
+          type: string
+          description: Empty when never set.
+        nickname:
+          type: string
+          description: Empty when never set.
+        language:
+          type: string
+          description: A language tag the application supports, e.g. "pl"; empty when never chosen.
+        createdAtMs:
+          type: integer
+          format: int64
+          description: When the profile was first created, ms since the Unix epoch.
+
+    DataExport:
+      type: object
+      description: >-
+        GET /api/v1/privacy/export response — EVERYTHING Prudent stores for the authenticated
+        user, as one document, in the wire shapes the rest of the API already speaks. Complete
+        rather than view-shaped: each list is every row the user owns, in any lifecycle state, and
+        is empty rather than absent when there are none. Calculated figures (balances, budget
+        summaries, goal progress, envelope sums, analytics) are not included — they are computed
+        from these rows on every read.
+      properties:
+        formatVersion:
+          type: integer
+          format: int32
+          description: >-
+            Names the layout of this document. Bumped only when a field is removed or changes
+            meaning.
+        exportedAtMs:
+          type: integer
+          format: int64
+          description: When the export was produced, ms since the Unix epoch.
+        profile:
+          $ref: '#/components/schemas/ExportProfile'
+        settings:
+          $ref: '#/components/schemas/Settings'
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Account'
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/Record'
+        plans:
+          type: array
+          items:
+            $ref: '#/components/schemas/Plan'
+        occurrences:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanOccurrence'
+        budgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Budget'
+        carryOverResets:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetCarryOverReset'
+        goals:
+          type: array
+          items:
+            $ref: '#/components/schemas/Goal'
+        goalAllocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/GoalAllocation'
+
+    EraseAccountRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/privacy/erase. IRREVERSIBLE: it deletes every record, account,
+        category, plan, budget and goal the caller owns. Refused unless the caller repeats the
+        address the account signs in with.
+      properties:
+        confirmEmail:
+          type: string
+          description: >-
+            The sign-in address of the account being erased, compared case-insensitively. A
+            mismatch is a 400 and nothing is deleted.

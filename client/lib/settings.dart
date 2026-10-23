@@ -6,6 +6,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 import 'account/account_screen.dart';
 import 'category/categories_screen.dart';
 import 'l10n/generated/prudent_localizations.dart';
+import 'privacy/privacy_screen.dart';
 import 'providers.dart';
 
 /// Each language's own name (autonym), not translated per-locale — a language picker
@@ -79,6 +80,15 @@ class SettingsScreen extends ConsumerWidget {
                           () => showZenDetail<void>(
                             context,
                             builder: (_) => const ProfileScreen(),
+                          ),
+                    ),
+                    ZenButton(
+                      label: t.settingsPrivacy,
+                      variant: ZenButtonVariant.text,
+                      onPressed:
+                          () => showZenDetail<void>(
+                            context,
+                            builder: (_) => const PrivacyScreen(),
                           ),
                     ),
                     const Spacer(),
