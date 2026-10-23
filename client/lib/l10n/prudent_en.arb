@@ -30,10 +30,7 @@
   "recordsDeleted": "Record deleted.",
   "recordsUndo": "Undo",
   "recordsEmpty": "No records found. Start adding some!",
-  "recordsLoadError": "Could not load records: {error}",
-  "@recordsLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "recordsLoadError": "Could not load records.",
 
   "recordsFilterTooltip": "Filter",
   "recordsFilterActiveTooltip": "Filter (active)",
@@ -77,10 +74,7 @@
 
   "categoriesTitle": "Categories",
   "categoriesEmpty": "No categories added yet.",
-  "categoriesLoadError": "Could not load categories: {error}",
-  "@categoriesLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "categoriesLoadError": "Could not load categories.",
   "categoryTitleField": "Title",
   "categoryDescriptionField": "Description",
   "categorySave": "Save Category",
@@ -92,10 +86,7 @@
   "accountsOther": "Other Accounts",
   "accountsEmpty": "No accounts added yet.",
   "accountsNoBalance": "No balance",
-  "accountsLoadError": "Could not load accounts: {error}",
-  "@accountsLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "accountsLoadError": "Could not load accounts.",
   "accountNameField": "Account Name",
   "accountOpeningBalanceField": "Opening balance",
   "accountCurrencyField": "Currency",
@@ -139,10 +130,7 @@
   "@plannedCashFlowEmpty": {
     "placeholders": { "days": { "type": "int" } }
   },
-  "plannedCashFlowLoadError": "Could not load planned cash flow: {error}",
-  "@plannedCashFlowLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "plannedCashFlowLoadError": "Could not load planned cash flow.",
 
   "budgetsTitle": "Budgets",
   "budgetNoAccounts": "Add an account to start budgeting.",
@@ -172,10 +160,7 @@
   "@budgetEmpty": {
     "placeholders": { "month": { "type": "String" }, "currency": { "type": "String" } }
   },
-  "budgetLoadError": "Could not load budgets: {error}",
-  "@budgetLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "budgetLoadError": "Could not load budgets.",
 
   "goalsTitle": "Goals",
   "goalNew": "New goal",
@@ -185,10 +170,7 @@
   "goalsEmptyActive": "No active goals. Add one to start setting money aside.",
   "goalsEmptyCompleted": "No completed goals yet.",
   "goalsEmptyArchived": "No archived goals.",
-  "goalsLoadError": "Could not load goals: {error}",
-  "@goalsLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "goalsLoadError": "Could not load goals.",
   "goalStatusCompleted": "Completed",
   "goalStatusArchived": "Archived",
   "goalSetAside": "Set aside",
@@ -227,16 +209,10 @@
     "placeholders": { "amount": { "type": "String" } }
   },
   "goalFreeMoneyEmpty": "Mark an account as available for goals to start setting money aside.",
-  "goalFreeMoneyLoadError": "Could not load money for goals: {error}",
-  "@goalFreeMoneyLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "goalFreeMoneyLoadError": "Could not load money for goals.",
   "goalHistory": "History",
   "goalHistoryEmpty": "Nothing has been set aside for this goal yet.",
-  "goalHistoryLoadError": "Could not load the history: {error}",
-  "@goalHistoryLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "goalHistoryLoadError": "Could not load the history.",
   "goalEntryAllocate": "Set aside",
   "goalEntryWithdraw": "Withdrawn",
   "goalEntryMoveIn": "Moved from {goal}",
@@ -305,10 +281,7 @@
   "remindersNoticeUnsupported": "This device can't show reminders as notifications. They appear here, in Prudent.",
   "remindersNoticeDenied": "Notifications are turned off for Prudent, so reminders appear only here. To get them as notifications too, allow them in your device's settings.",
   "remindersEmpty": "No reminders. Switch on a plan's reminder to hear about it before it falls due.",
-  "remindersLoadError": "Could not load reminders: {error}",
-  "@remindersLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "remindersLoadError": "Could not load reminders.",
   "remindersMarkAllRead": "Mark all as read",
   "reminderMarkRead": "Mark as read",
   "reminderMarkUnread": "Mark as unread",
@@ -355,20 +328,14 @@
   "analyticsSpendByMonth": "Spend by month",
   "analyticsSpendByCategory": "Spend by category",
   "analyticsEmpty": "No spending in the last 12 months.",
-  "analyticsLoadError": "Could not load analytics: {error}",
-  "@analyticsLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "analyticsLoadError": "Could not load analytics.",
 
   "analyticsCurrencyField": "Currency",
 
   "chartNoAccounts": "Add an account to see a chart.",
   "chartEmpty": "No spending this month.",
   "chartUnknownCategory": "Unknown category",
-  "chartLoadError": "Could not load the chart: {error}",
-  "@chartLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "chartLoadError": "Could not load the chart.",
 
   "settingsTitle": "Settings",
   "settingsLanguage": "Language",
@@ -377,5 +344,7 @@
   "addRecordTooltip": "Add record",
   "addAccountTooltip": "Add account",
   "addCategoryTooltip": "Add category",
-  "editCategoryTooltip": "Edit category"
+  "editCategoryTooltip": "Edit category",
+  "loadErrorHint": "Something went wrong. Check your connection and try again.",
+  "loadErrorRetry": "Try again"
 }

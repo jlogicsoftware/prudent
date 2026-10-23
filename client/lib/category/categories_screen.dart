@@ -5,6 +5,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/categories.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../load_error_view.dart';
 import '../providers.dart';
 import '../popup.dart';
 import 'category_grid_items.dart';
@@ -50,9 +51,12 @@ class CategoriesScreen extends ConsumerWidget {
         ],
         body: categoriesAsync.when(
           loading: () => const Center(child: ZenProgressIndicator()),
-          error:
-              (error, _) =>
-                  Center(child: Text(t.categoriesLoadError(error.toString()))),
+          error: (error, stack) => LoadErrorView(
+            message: t.categoriesLoadError,
+            error: error,
+            stackTrace: stack,
+            onRetry: () => ref.invalidate(categoriesProvider),
+          ),
           data: (categories) {
             if (categories.isEmpty) {
               return Center(child: Text(t.categoriesEmpty));

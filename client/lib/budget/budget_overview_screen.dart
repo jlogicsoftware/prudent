@@ -4,6 +4,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/categories.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../load_error_view.dart';
 import '../providers.dart';
 import 'budget_month.dart';
 import 'budget_month_bar.dart';
@@ -41,9 +42,8 @@ class _BudgetOverviewScreenState extends ConsumerState<BudgetOverviewScreen> {
     }
     final currency = currencies.contains(_currency) ? _currency! : currencies.first;
 
-    final summaryAsync = ref.watch(
-      budgetSummaryProvider(BudgetSummaryParams(month: _month.wire, currency: currency)),
-    );
+    final params = BudgetSummaryParams(month: _month.wire, currency: currency);
+    final summaryAsync = ref.watch(budgetSummaryProvider(params));
     final categories = {
       for (final category in ref.watch(categoriesProvider).value ?? const <Category>[])
         category.id: category,
@@ -78,9 +78,12 @@ class _BudgetOverviewScreenState extends ConsumerState<BudgetOverviewScreen> {
           Expanded(
             child: summaryAsync.when(
               loading: () => const Center(child: ZenProgressIndicator()),
-              error:
-                  (error, _) =>
-                      Center(child: Text(t.budgetLoadError(error.toString()))),
+              error: (error, stack) => LoadErrorView(
+                message: t.budgetLoadError,
+                error: error,
+                stackTrace: stack,
+                onRetry: () => ref.invalidate(budgetSummaryProvider(params)),
+              ),
               data:
                   (summary) => BudgetSummaryView(
                     summary: summary,

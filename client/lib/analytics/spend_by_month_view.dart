@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../l10n/generated/prudent_localizations.dart';
+import '../load_error_view.dart';
 import '../providers.dart';
 import 'analytics_content.dart';
 
@@ -19,15 +20,17 @@ class SpendByMonthView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = PrudentLocalizations.of(context);
-    final periodAsync = ref.watch(
-      spendByPeriodProvider(
-        SpendByPeriodParams(currency: currency, granularity: 'MONTH', count: months),
-      ),
-    );
+    final params = SpendByPeriodParams(currency: currency, granularity: 'MONTH', count: months);
+    final periodAsync = ref.watch(spendByPeriodProvider(params));
 
     return periodAsync.when(
       loading: () => const Center(child: ZenProgressIndicator()),
-      error: (error, _) => Center(child: Text(t.analyticsLoadError(error.toString()))),
+      error: (error, stack) => LoadErrorView(
+        message: t.analyticsLoadError,
+        error: error,
+        stackTrace: stack,
+        onRetry: () => ref.invalidate(spendByPeriodProvider(params)),
+      ),
       data: (response) => AnalyticsContent(response: response, currency: currency, months: months),
     );
   }

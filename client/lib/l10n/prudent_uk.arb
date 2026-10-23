@@ -30,10 +30,7 @@
   "recordsDeleted": "Запис видалено.",
   "recordsUndo": "Скасувати",
   "recordsEmpty": "Записів не знайдено. Додайте перший!",
-  "recordsLoadError": "Не вдалося завантажити записи: {error}",
-  "@recordsLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "recordsLoadError": "Не вдалося завантажити записи.",
 
   "recordsFilterTooltip": "Фільтр",
   "recordsFilterActiveTooltip": "Фільтр (активний)",
@@ -77,10 +74,7 @@
 
   "categoriesTitle": "Категорії",
   "categoriesEmpty": "Категорій ще не додано.",
-  "categoriesLoadError": "Не вдалося завантажити категорії: {error}",
-  "@categoriesLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "categoriesLoadError": "Не вдалося завантажити категорії.",
   "categoryTitleField": "Назва",
   "categoryDescriptionField": "Опис",
   "categorySave": "Зберегти категорію",
@@ -92,10 +86,7 @@
   "accountsOther": "Інші рахунки",
   "accountsEmpty": "Рахунків ще не додано.",
   "accountsNoBalance": "Без балансу",
-  "accountsLoadError": "Не вдалося завантажити рахунки: {error}",
-  "@accountsLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "accountsLoadError": "Не вдалося завантажити рахунки.",
   "accountNameField": "Назва рахунку",
   "accountOpeningBalanceField": "Початковий баланс",
   "accountCurrencyField": "Валюта",
@@ -133,7 +124,7 @@
   "plannedCashFlowSpending": "Очікувані витрати",
   "plannedCashFlowNet": "Разом заплановано",
   "plannedCashFlowEmpty": "Нічого не заплановано на наступні {days} днів.",
-  "plannedCashFlowLoadError": "Не вдалося завантажити запланований рух коштів: {error}",
+  "plannedCashFlowLoadError": "Не вдалося завантажити запланований рух коштів.",
 
   "budgetsTitle": "Бюджети",
   "budgetNoAccounts": "Додайте рахунок, щоб почати планувати бюджет.",
@@ -151,7 +142,7 @@
   "budgetCarryOverReset": "Перенесення скинуто з {month}",
   "budgetCategoryArchived": "В архіві",
   "budgetEmpty": "Немає бюджетів на {month} у валюті {currency}.",
-  "budgetLoadError": "Не вдалося завантажити бюджети: {error}",
+  "budgetLoadError": "Не вдалося завантажити бюджети.",
 
   "goalsTitle": "Цілі",
   "goalNew": "Нова ціль",
@@ -161,7 +152,7 @@
   "goalsEmptyActive": "Немає активних цілей. Додайте ціль, щоб відкладати гроші.",
   "goalsEmptyCompleted": "Досягнутих цілей ще немає.",
   "goalsEmptyArchived": "В архіві немає цілей.",
-  "goalsLoadError": "Не вдалося завантажити цілі: {error}",
+  "goalsLoadError": "Не вдалося завантажити цілі.",
   "goalStatusCompleted": "Досягнуто",
   "goalStatusArchived": "В архіві",
   "goalSetAside": "Відкладено",
@@ -182,10 +173,10 @@
   "goalFree": "Можна відкласти",
   "goalOverAllocated": "У конвертах на {amount} більше, ніж на доступних рахунках",
   "goalFreeMoneyEmpty": "Позначте рахунок як доступний для цілей, щоб почати відкладати гроші.",
-  "goalFreeMoneyLoadError": "Не вдалося завантажити гроші для цілей: {error}",
+  "goalFreeMoneyLoadError": "Не вдалося завантажити гроші для цілей.",
   "goalHistory": "Історія",
   "goalHistoryEmpty": "На цю ціль ще нічого не відкладено.",
-  "goalHistoryLoadError": "Не вдалося завантажити історію: {error}",
+  "goalHistoryLoadError": "Не вдалося завантажити історію.",
   "goalEntryAllocate": "Відкладено",
   "goalEntryWithdraw": "Знято",
   "goalEntryMoveIn": "Переміщено з «{goal}»",
@@ -227,7 +218,7 @@
   "remindersNoticeUnsupported": "Цей пристрій не може показувати нагадування як сповіщення. Вони з'являються тут, у Prudent.",
   "remindersNoticeDenied": "Сповіщення для Prudent вимкнено, тож нагадування з'являються лише тут. Щоб отримувати їх і як сповіщення, дозвольте їх у налаштуваннях пристрою.",
   "remindersEmpty": "Немає нагадувань. Увімкніть нагадування в плані, щоб дізнаватися про нього до настання терміну.",
-  "remindersLoadError": "Не вдалося завантажити нагадування: {error}",
+  "remindersLoadError": "Не вдалося завантажити нагадування.",
   "remindersMarkAllRead": "Позначити всі як прочитані",
   "reminderMarkRead": "Позначити як прочитане",
   "reminderMarkUnread": "Позначити як непрочитане",
@@ -262,20 +253,14 @@
   "analyticsSpendByMonth": "Витрати за місяцями",
   "analyticsSpendByCategory": "Витрати за категоріями",
   "analyticsEmpty": "Немає витрат за останні 12 місяців.",
-  "analyticsLoadError": "Не вдалося завантажити аналітику: {error}",
-  "@analyticsLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "analyticsLoadError": "Не вдалося завантажити аналітику.",
 
   "analyticsCurrencyField": "Валюта",
 
   "chartNoAccounts": "Додайте рахунок, щоб побачити діаграму.",
   "chartEmpty": "Немає витрат цього місяця.",
   "chartUnknownCategory": "Невідома категорія",
-  "chartLoadError": "Не вдалося завантажити діаграму: {error}",
-  "@chartLoadError": {
-    "placeholders": { "error": { "type": "String" } }
-  },
+  "chartLoadError": "Не вдалося завантажити діаграму.",
 
   "settingsTitle": "Налаштування",
   "settingsLanguage": "Мова",
@@ -284,5 +269,7 @@
   "addRecordTooltip": "Додати запис",
   "addAccountTooltip": "Додати рахунок",
   "addCategoryTooltip": "Додати категорію",
-  "editCategoryTooltip": "Редагувати категорію"
+  "editCategoryTooltip": "Редагувати категорію",
+  "loadErrorHint": "Щось пішло не так. Перевірте з’єднання та спробуйте ще раз.",
+  "loadErrorRetry": "Спробувати ще раз"
 }

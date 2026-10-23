@@ -4,6 +4,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/reminders.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../load_error_view.dart';
 import '../notification/notification_notice.dart';
 import '../providers.dart';
 import 'reminder_figures.dart';
@@ -62,9 +63,12 @@ class RemindersScreen extends ConsumerWidget {
   ) {
     return remindersAsync.when(
       loading: () => const Center(child: ZenProgressIndicator()),
-      error:
-          (error, _) =>
-              Center(child: Text(t.remindersLoadError(error.toString()))),
+      error: (error, stack) => LoadErrorView(
+        message: t.remindersLoadError,
+        error: error,
+        stackTrace: stack,
+        onRetry: () => ref.invalidate(remindersProvider),
+      ),
       data: (reminders) {
         if (reminders.isEmpty) {
           return Center(
