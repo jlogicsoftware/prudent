@@ -123,7 +123,11 @@ because it has already been set with a different type`; removing the secret refe
 adding the literals in the next works. (BugEater's notes say the combined call works; jZen's later
 correction, and the rehearsal, say it does not.) So the order is: take the values from the secrets,
 remove the references from the job and the service, then run `deploy:cloudrun`, which adds the
-literals. In a shell with the environment's `GCP_PROJECT`, `GCP_REGION` and `SERVICE_NAME`:
+literals. **There is a window** between the second command and the end of the deploy, about eleven
+minutes (the native build is most of it), in which the service is up and misconfigured. jZen's note
+says the revision does not start; here it did, so that is not a protection to count on. That is
+acceptable for this environment's test data. For a service with real users, `--no-traffic` on the
+removal would keep the old revision serving; it was not tried. In a shell with the environment's `GCP_PROJECT`, `GCP_REGION` and `SERVICE_NAME`:
 
 ```sh
 SUPABASE_URL=$(gcloud secrets versions access latest --secret=SUPABASE_URL --project="$GCP_PROJECT")
@@ -133,8 +137,8 @@ PUBLIC=SUPABASE_URL,SITE_URL,CORS_ORIGINS,AUTH_REDIRECT_URI,AUTH_REDIRECT_URIS
 
 # The job never runs its container on an update, so this just succeeds.
 gcloud run jobs update "$SERVICE_NAME-migrate" --region="$GCP_REGION" --project="$GCP_PROJECT" --remove-secrets=$PUBLIC
-# The revision this creates has no configuration, fails its startup validation, and never receives
-# traffic: gcloud reports a failure, and the previous revision keeps serving.
+# The revision this creates lacks the five values and STILL STARTS: on 2026-10-23 it took all the
+# traffic and /health answered 200. The service runs without them until the deploy below finishes.
 gcloud run services update "$SERVICE_NAME" --region="$GCP_REGION" --project="$GCP_PROJECT" --remove-secrets=$PUBLIC
 
 task deploy:cloudrun          # with the environment's other variables; adds the five as literals
@@ -277,7 +281,9 @@ runtime login; the origin checks; `verify:deploy`; a Scheduler trigger answered 
 corrected teardown. **And, on the persistent environment (ADR-069):** the same deploy a second time
 and a redeploy over a running service; the Supabase Site URL and Redirect URLs set through the
 Management API; a registration, the confirmation mail and a sign-in from a phone browser and a
-desktop browser, after which the screens load.
+desktop browser, after which the screens load. **And (ADR-070):** the rebind of the five public values from secrets to plain
+variables on a running service and job, the deletion of the five secrets (12 before, 7 after), and
+the sign-in from a phone afterwards.
 
 **Documented by the provider, not tried here:** domain mappings and their region list; the
 verification flow; Cloudflare's DNS-only meaning; liens; Supabase's backup policy and default mail

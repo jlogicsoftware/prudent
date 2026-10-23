@@ -162,7 +162,9 @@ exact artifact a deploy ships, in Docker, against a throwaway Postgres. A persis
 proof of concept on `*.run.app`, Supabase Free with **no backups** (ADR-068, ADR-069,
 `docs/persistent-environment.md`), signed in to from a browser. It holds test data only; real finances
 wait for #47. Its first sign-in found that no Prudent message was registered for the native image
-(#158, fixed; `task verify:reflection` guards the list). Never invent or commit a project, region,
+(#158, fixed; `task verify:reflection` guards the list). Seven genuine secrets remain in Secret Manager; the five public
+configuration values (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`, `AUTH_REDIRECT_URIS`) are plain
+environment variables on the service and the migration job (ADR-070, #166), and `verify:deploy` fails when one is not. Never invent or commit a project, region,
 service name or URL: no environment fact is ever written into this repository (ADR-021) — the tasks
 themselves are real; use them rather than treating deployment as unstarted. Run them from the main checkout: `task` does not
 load from a git worktree (ADR-065).
