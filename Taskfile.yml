@@ -253,8 +253,8 @@ tasks:
                                       a public value as a secret or for another origin (#166).
         test_public_config.py         scripts/public_config.sh (what it accepts, refuses by name and
                                       derives) and the shape of deploy:cloudrun's gcloud calls: only
-                                      the seven genuine secrets, the five public values as literals
-                                      on the job AND the service.
+                                      the nine genuine secrets, the five public values and the
+                                      three mail values as literals on the job AND the service.
 
       It needs python3, curl and go-task; it starts no container and touches no cloud.
     cmds:
@@ -630,7 +630,9 @@ tasks:
             -e SITE_URL=http://localhost:18085 \
             -e AUTH_REDIRECT_URI=http://localhost:18085/auth/callback \
             -e CORS_ORIGINS=http://localhost:18085 \
-            -e ZEN_I18N_SUPPORTED=en,uk,pl
+            -e ZEN_I18N_SUPPORTED=en,uk,pl \
+            -e SMTP_HOST=smtp.invalid -e SMTP_FROM=noreply@prudent.invalid \
+            -e SMTP_USERNAME=smoke -e SMTP_PASSWORD=smoke
         }
         migrate_only() {
           docker rm -f prudent-smoke-migrate >/dev/null 2>&1 || true
@@ -851,8 +853,12 @@ tasks:
         WEB_API_URL              the origin the web bundle is compiled to call
         SUPABASE_URL             https://REF.supabase.co
         AUTH_REDIRECT_URIS       the native return addresses, comma-separated (the app's scheme)
+        SMTP_HOST                the mail relay's host name, for the dormancy warnings (ADR-073)
+        SMTP_FROM                the sender address of those warnings
+        SMTP_PORT                optional; 587 (STARTTLS) when unset
 
-      The last two are PUBLIC CONFIGURATION, not secrets (#166): they, and the three values derived
+      SUPABASE_URL, AUTH_REDIRECT_URIS and the three mail values are PUBLIC CONFIGURATION, not
+      secrets (#166, ADR-073): they, and the three values derived
       from WEB_API_URL (SITE_URL and CORS_ORIGINS equal it, AUTH_REDIRECT_URI is it plus
       /auth/callback), are passed to the migration job and the service as plain environment
       variables (scripts/public_config.sh checks and derives them, before the build). Secret
@@ -928,11 +934,12 @@ tasks:
                 --member=serviceAccount:prudent-runtime@PROJECT.iam.gserviceaccount.com \
                 --role=roles/secretmanager.secretAccessor
 
-        2. THE SEVEN SECRETS. --set-secrets below fails the deploy if any is missing, which is the
+        2. THE NINE SECRETS. --set-secrets below fails the deploy if any is missing, which is the
            point: a service that boots without one is a service whose security control is absent
            rather than failing. The five public values (SUPABASE_URL, SITE_URL, CORS_ORIGINS,
-           AUTH_REDIRECT_URI, AUTH_REDIRECT_URIS) are NOT here: they are exported in the shell that
-           runs this task, as above (#166).
+           AUTH_REDIRECT_URI, AUTH_REDIRECT_URIS), and the mail relay's SMTP_HOST, SMTP_PORT and
+           SMTP_FROM, are NOT here: they are exported in the shell that runs this task, as above
+           (#166, ADR-073).
 
            The database is a Supabase project, which this runbook does not otherwise create. Make
            one in the same region family as REGION, and generate its database password BEFORE you
@@ -948,6 +955,17 @@ tasks:
              mk APP_DB_USERNAME         zen_runtime.REF      # least privilege at runtime
              mk APP_DB_PASSWORD         <a new password; deploy:cloudrun applies it, see 2b>
              mk ZEN_JOBS_TRIGGER_TOKEN  "$(openssl rand -base64 32)"
+             mk SMTP_USERNAME           <the mail relay's login>
+             mk SMTP_PASSWORD           <the relay's password or API key>
+
+           THE TWO SMTP SECRETS ARE WHAT LETS A DORMANT ACCOUNT BE ERASED AT ALL (ADR-073).
+           zen-identity anonymises an account only after a warning mail was confirmed delivered, so
+           a service that cannot send one never erases anyone. They are required for that reason,
+           the service refuses to start without them, and so does this deploy: --set-secrets fails
+           on a missing one. Any SMTP relay works (the mailer is stock quarkus-mailer; no provider
+           is named in this repository). Use its submission port with STARTTLS (587), and verify
+           the SENDER DOMAIN with the relay (SPF and DKIM): an unverified sender is accepted by the
+           relay and then filtered by the recipient, which looks exactly like a delivered warning.
 
            DB_URL IS THE SESSION POOLER, PORT 5432 — the mode this deploy was measured against. The
            Management API reports the pooler on 6543, which is TRANSACTION mode and was not tried.
@@ -1076,12 +1094,14 @@ tasks:
           -t "${IMAGE}" {{.SERVER_DIR}}
         docker push "${IMAGE}"
 
-        # Seven genuine secrets (#166): these five and the APP_DB_* pair below. The five public
-        # values are literals, passed as --set-env-vars on the job AND the service, because the
-        # packaged image fails config validation without them on either. SITE_URL, CORS_ORIGINS and
+        # Nine genuine secrets (#166, ADR-073): these seven and the APP_DB_* pair below. The five
+        # public values and the three mail values (SMTP_HOST, SMTP_PORT, SMTP_FROM) are literals,
+        # passed as --set-env-vars on the job AND the service, because the packaged image fails
+        # config validation without them on either — and so does it without the SMTP_* secrets,
+        # which is why the migration job holds them too. SITE_URL, CORS_ORIGINS and
         # AUTH_REDIRECT_URI come out of public_config.sh, derived from WEB_API_URL.
         . scripts/public_config.sh
-        SECRETS="SUPABASE_KEY=SUPABASE_KEY:latest,DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,ZEN_JOBS_TRIGGER_TOKEN=ZEN_JOBS_TRIGGER_TOKEN:latest"
+        SECRETS="SUPABASE_KEY=SUPABASE_KEY:latest,DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,ZEN_JOBS_TRIGGER_TOKEN=ZEN_JOBS_TRIGGER_TOKEN:latest,SMTP_USERNAME=SMTP_USERNAME:latest,SMTP_PASSWORD=SMTP_PASSWORD:latest"
         APP_DB="APP_DB_USERNAME=APP_DB_USERNAME:latest,APP_DB_PASSWORD=APP_DB_PASSWORD:latest"
 
         # ZEN_I18N_SUPPORTED is carried EXPLICITLY on every deploy. --set-env-vars replaces the
@@ -1117,6 +1137,9 @@ tasks:
           --set-env-vars="CORS_ORIGINS=${CORS_ORIGINS}" \
           --set-env-vars="AUTH_REDIRECT_URI=${AUTH_REDIRECT_URI}" \
           --set-env-vars="^@^AUTH_REDIRECT_URIS=${AUTH_REDIRECT_URIS}" \
+          --set-env-vars="SMTP_HOST=${SMTP_HOST}" \
+          --set-env-vars="SMTP_PORT=${SMTP_PORT}" \
+          --set-env-vars="SMTP_FROM=${SMTP_FROM}" \
           --set-secrets="${SECRETS}" \
           --quiet
 
@@ -1163,6 +1186,9 @@ tasks:
           --set-env-vars="CORS_ORIGINS=${CORS_ORIGINS}" \
           --set-env-vars="AUTH_REDIRECT_URI=${AUTH_REDIRECT_URI}" \
           --set-env-vars="^@^AUTH_REDIRECT_URIS=${AUTH_REDIRECT_URIS}" \
+          --set-env-vars="SMTP_HOST=${SMTP_HOST}" \
+          --set-env-vars="SMTP_PORT=${SMTP_PORT}" \
+          --set-env-vars="SMTP_FROM=${SMTP_FROM}" \
           --set-secrets="${SECRETS},${APP_DB}" \
           --quiet
 
@@ -1322,15 +1348,17 @@ tasks:
         # host, and verifying it proves nothing about the one the bundle calls.
         BUNDLE="${WEB_API_URL:-}"
 
-        # The running service's variables, one `NAME,VALUE` line each, when the service is named.
-        # A variable that is a Secret Manager reference has no value of its own, so it prints as
-        # `NAME,` — the same as an empty literal, and both are "not a plain value".
+        # The running service's variables, one `NAME,VALUE,SECRET` line each, when the service is
+        # named. A variable that is a Secret Manager reference has no value of its own and names
+        # its secret in the third field (`NAME,,SECRET`); a plain one has a value and an empty third
+        # field (`NAME,VALUE,`). An empty literal prints as `NAME,,` — neither, and so "not a plain
+        # value" and "not a secret reference" both.
         SVC=unnamed
         if [ -n "${GCP_PROJECT:-}" ] && [ -n "${GCP_REGION:-}" ] && [ -n "${SERVICE_NAME:-}" ]; then
           if VARS=$(gcloud run services describe "${SERVICE_NAME}" --region="${GCP_REGION}" \
                       --project="${GCP_PROJECT}" \
                       --flatten='spec.template.spec.containers[0].env[]' \
-                      --format='csv[no-heading](spec.template.spec.containers[0].env.name,spec.template.spec.containers[0].env.value)'); then
+                      --format='csv[no-heading](spec.template.spec.containers[0].env.name,spec.template.spec.containers[0].env.value,spec.template.spec.containers[0].env.valueFrom.secretKeyRef.name)'); then
             SVC=read
           else
             SVC=unreadable
@@ -1340,8 +1368,17 @@ tasks:
         # secret reference. csv quotes a value that has a comma in it.
         svc_value() {
           v=$(printf '%s\n' "${VARS}" | grep "^$1," | head -n 1) || return 0
-          v="${v#"$1",}"; v="${v%\"}"; v="${v#\"}"
+          v="${v#"$1",}"
+          case "${v}" in ,*) return 0 ;; esac
+          v="${v%,}"; v="${v%\"}"; v="${v#\"}"
           printf '%s' "${v}"
+        }
+        # The Secret Manager secret one variable of the running service is bound to; empty when it
+        # is absent or a plain value.
+        svc_secret() {
+          v=$(printf '%s\n' "${VARS}" | grep "^$1," | head -n 1) || return 0
+          v="${v#"$1",}"
+          case "${v}" in ,?*) printf '%s' "${v#,}" ;; esac
         }
 
         if [ -z "${BUNDLE}" ] && [ -n "${GCP_PROJECT:-}" ]; then
@@ -1439,7 +1476,7 @@ tasks:
                --location="${GCP_REGION}" --project="${GCP_PROJECT}" >/dev/null 2>&1; then
             printf '  ok    scheduled work is triggered (%s)\n' "${SCHEDULER_JOB:-prudent-jobs-tick}"
           else
-            printf '  FAIL  no Cloud Scheduler entry — the GDPR retention sweep can never run\n'
+            printf '  FAIL  no Cloud Scheduler entry — dormant accounts are never warned or erased\n'
             printf '        create it per: task deploy:cloudrun --summary (step 3)\n'
             fail=1
           fi
@@ -1457,13 +1494,20 @@ tasks:
         # WEB_API_URL at deploy time, and a service built for another origin is the one failure
         # every status-code check above passes through.
         if [ "${SVC}" = read ]; then
-          for n in SUPABASE_URL SITE_URL CORS_ORIGINS AUTH_REDIRECT_URI AUTH_REDIRECT_URIS; do
+          for n in SUPABASE_URL SITE_URL CORS_ORIGINS AUTH_REDIRECT_URI AUTH_REDIRECT_URIS SMTP_HOST SMTP_PORT SMTP_FROM; do
             if [ -n "$(svc_value "$n")" ]; then printf '  ok    %s is a plain value\n' "$n"
             else printf '  FAIL  %s is absent or still a Secret Manager reference (see docs/persistent-environment.md, section 3)\n' "$n"; fail=1; fi
           done
           if [ -n "${BUNDLE}" ]; then
             check "SITE_URL of the running service is the bundle origin" "${BUNDLE}" "$(svc_value SITE_URL)"
           fi
+          # The relay's login is the opposite: a secret, bound as a reference. Without both the
+          # service cannot send a dormancy warning, so no dormant account can ever be erased (ADR-073),
+          # and a login held as a plain value sits in the service's readable configuration.
+          for n in SMTP_USERNAME SMTP_PASSWORD; do
+            if [ -n "$(svc_secret "$n")" ]; then printf '  ok    %s is a Secret Manager reference\n' "$n"
+            else printf '  FAIL  %s is absent or a plain value: dormancy warnings cannot be sent, or the credential is readable in the service configuration\n' "$n"; fail=1; fi
+          done
         elif [ "${SVC}" = unreadable ]; then
           printf '  FAIL  could not read the configuration of %s to check its public values\n' "${SERVICE_NAME}"
           fail=1

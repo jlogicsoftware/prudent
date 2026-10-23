@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+{!
+  Ukrainian first dormancy notice, sent by DormancyWarningMailer when UserRetentionJob
+  finds an account due its first warning. Subject: RetentionMessages.firstWarningSubject(days)
+  and its localized variants.
+
+  Carries the recipient's own address, the days left and a link — nothing from the person's ledger.
+  Inline styles only, and no style block: Qute would read a CSS rule's braces as an expression.
+  This is a Qute comment, not an HTML one, so it is not in the mail the recipient receives.
+  Available data: email, siteUrl, days.
+!}
+<html lang="uk">
+  <body style="margin: 0; padding: 24px; background: #f5f6f8; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #1c2024;">
+    <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 32px;">
+      <h1 style="margin: 0 0 16px; font-size: 22px;">Ваші дані в Prudent буде видалено</h1>
+      <p style="margin: 0 0 16px; line-height: 1.6;">Уже давно ніхто не входив в обліковий запис Prudent для <strong>{email}</strong>.</p>
+      <p style="margin: 0 0 24px; line-height: 1.6;">Усе, що в ньому є, &mdash; рахунки, записи, бюджети й цілі &mdash; буде остаточно видалено й відновити це не вдасться. Днів до видалення: <strong>{days}</strong>. Якщо ви увійдете раніше, дані залишаться. Щоб спершу зберегти копію, відкрийте Налаштування &rarr; Конфіденційність і дані &rarr; Скопіювати мої дані.</p>
+      <p style="margin: 0 0 24px;">
+        <a href="{siteUrl}" style="display: inline-block; background: #1c2024; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 8px;">Увійти в Prudent</a>
+      </p>
+      <p style="margin: 0; font-size: 13px; color: #6b7280;">Незадовго до видалення ми напишемо ще раз. Якщо дані вам більше не потрібні, можете проігнорувати цей лист.</p>
+    </div>
+  </body>
+</html>
