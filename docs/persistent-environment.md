@@ -230,7 +230,13 @@ worth a week on DNS.
 | The origin has to change | New `WEB_API_URL`, new `SITE_URL`/`AUTH_REDIRECT_URI`/`CORS_ORIGINS`, Supabase Site URL and Redirect URLs, **a rebuilt bundle** | `deploy:check-origin-config` and `deploy:accept-origin` catch a wrong host; a live migration of an origin was never done |
 | Supabase project paused or deleted | Resume (paused); not recoverable (deleted) | Section 4 |
 
-### Diagnosing a failure (ADR-071)
+**A person asks for their data to be erased.** Prudent's own data goes when they use Settings → Privacy
+and data → Delete my data (ADR-071); that does **not** remove their sign-in. Delete the user in the
+Supabase dashboard (Authentication → Users) as well — it is the half the server cannot do, because it
+holds no service-role key. There are no backups on this environment (section 4), so nothing else
+retains the data. `docs/privacy-policy.md` is what the person has been told.
+
+### Diagnosing a failure (ADR-072)
 
 - **Is it up?** `GET /api/v1/health` answers 200 if the process is. `GET /api/v1/health/ready` answers 200 only if the service can also
   reach its database, and 503 (`ZenError`, code `unavailable`) otherwise. `task verify:deploy` checks both.

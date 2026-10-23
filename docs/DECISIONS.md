@@ -13,7 +13,7 @@ own — ADR-001 is the first instance.
 
 ---
 
-## ADR-071 — Readiness is a separate probe that asks the database; an unhandled failure is logged as a request id, a handler and a code, never as an exception
+## ADR-072 — Readiness is a separate probe that asks the database; an unhandled failure is logged as a request id, a handler and a code, never as an exception
 
 **Date:** 2026-10-23. **Status:** accepted. **Refines:** ADR-021, ADR-023. **Closes:** jlogicsoftware/prudent#49.
 
@@ -56,6 +56,76 @@ own — ADR-001 is the first instance.
   the database, for the request id on success and failure, and for the logged line from a real request including that the query string
   does not reach it. **Not verified:** the line in Cloud Logging; `verify:deploy` against a live service with the new check (the service
   must be redeployed first); the native image (nothing here uses reflection, but `test:native` was not run for this change).
+
+## ADR-071 — A person can take a copy of their data and erase it themselves; erasure is one shared deletion, and the dormancy route that was meant to back it up has never been able to run
+
+**Date:** 2026-10-23. **Status:** accepted. **Refines:** ADR-019, ADR-022. **Closes:** jlogicsoftware/prudent#48. **Addresses:** jlogicsoftware/prudent#29.
+
+### Decision
+
+- **`GET /api/v1/privacy/export`** answers one `DataExport` (`proto/prudent/v1/privacy.proto`): the profile, the settings and **every**
+  account, category, record, plan, occurrence, budget, carry-over reset, goal and envelope entry the caller owns, **in any lifecycle
+  state**. It reuses the resources' mappers, so a record in an export is the record the API serves; it does not reuse their list queries,
+  several of which narrow by state or period and would have made "my data" mean "my data minus what the screens show". Calculated
+  figures (balances, budget summaries, goal progress, analytics) are not exported — they are computed from the rest on every read
+  (ADR-044, ADR-050, ADR-052). It is canonical proto3 JSON by default, so it is readable, and `Cache-Control: no-store`.
+- **`POST /api/v1/privacy/erase`** deletes everything the caller owns and anonymises their `users` row, **in one transaction**. It is
+  refused (400, nothing deleted) unless the body repeats the account's sign-in address — a route that deletes a person's financial
+  history must not be one stray request away. The deletion is **`PrudentDataEraser`**, extracted from `PrudentRetentionCleanup`, which
+  now delegates to it: two routes end in the same code, so they cannot disagree about which tables hold a person's data.
+- **The proof is derived from the schema, not from a list.** `PrivacyCoverageTest` reads `information_schema` for every table with a
+  `user_id` column and requires each to be seeded, present in the export and empty after an erasure, and another user's rows in it
+  untouched. A table added tomorrow fails the suite until the exporter and the eraser know it. Verified by breaking both: with
+  `SettingsEntity.delete` removed from the eraser and `setSettings` removed from the exporter, two tests fail and name
+  `prudent_settings`. What it cannot see is per-user data in a table with no `user_id` (today only `prudent_account_balance`, which is
+  checked for orphans explicitly).
+- **The profile row is anonymised by Prudent, copying the framework's shape** (`anon_<id>@deleted.invalid`, "Deleted User", names
+  cleared), because `UserRetentionService` offers only a batch anonymiser of accounts that ran out their warnings and keeps its
+  constants package-private. A copied convention is the coupling ADR-022 retired, so it is **asserted against the framework** rather
+  than against our own literal: `PrivacyErasureTest` requires `UserRetentionService.isAnonymised` to accept the row.
+- **The client** gets a "Privacy and data" detail of Settings: the three-paragraph summary, **Copy my data** (readable JSON to the
+  clipboard) and **Delete my data** (an adaptive presentation asking for the address). After an accepted erasure the device forgets
+  too: the provider caches are dropped, every pending reminder notification is cancelled by reconciling to "nothing wanted" (ADR-057),
+  and the session is ended. The clipboard is the export's only destination for now: a file save needs a platform package per target
+  that the app does not otherwise carry, and the clipboard behaves the same on all six.
+- **`docs/privacy-policy.md` is the policy**, written to be true of this code, and each of its claims has a test named at its foot.
+
+### Two findings the policy could not be written around
+
+- **Dormancy erasure has never been able to run in Prudent.** The framework anonymises an account only after a warning was *confirmed
+  delivered*, by an observer of `AccountDeletionWarning`; Prudent has none (it assembles no `zen-email`, ADR-021), so no warning is ever
+  confirmed and no account ever advances. ADR-019 and ADR-022 describe the cascade that follows anonymisation, and
+  `PrudentRetentionCleanupTest` proves it — by seeding a delivered final warning ten years old, which is why it could not notice. The
+  policy therefore says **nothing expires on its own**, and `PrivacyRetentionStatementTest` pins that, so the day warnings are wired it
+  goes red and names the paragraph that has become wrong. Wiring them is open work, not done here: it needs a mail sender and its
+  secrets, a deliberate deployment change.
+- **Erasure does not reach Supabase's `auth.users`.** That table holds the sign-in address and password hash, is Supabase's, and
+  needs a service-role key this server deliberately does not hold (jZen ADR-007, ADR-008, finding F4 of its security review). Signing in
+  again after an erasure starts an empty account. The policy says so in the section headed "What deletion does not remove", and tells
+  the operator to delete the Supabase user on a request. Giving the server that key would be a security-posture decision — a new
+  secret, a wider blast radius — and is **not** taken here.
+
+### What this supersedes, and why
+
+- **ADR-022's reading that the erasure path is "implemented properly"** → **narrowed.** *Why:* the cascade is right and tested; what
+  triggers it for a dormant account is not wired. That sentence was true of the code and false of the behaviour.
+- **`PrudentRetentionCleanup` owning the list of tables** → **moved to `PrudentDataEraser`.** *Why:* a second erasure route would
+  otherwise need a second copy.
+
+### Consequence
+
+`task test:server` **710/710** (the privacy classes: export 7, erasure 10, coverage 4, retention statement 1, retention cascade 3);
+`task zen:test:client` **364/364**; `verify:controls`, `verify:reflection` (the three new messages are registered for native),
+`verify:boundaries`, `zen:verify:widget-files` and the admin typecheck green; regenerating the contract a second time changes nothing.
+`verify:contracts` itself compares with what is committed, so it can only pass once the generated files are. Not run: the native image
+and a deployed environment. `GET /api/v1/privacy/export` serialises most of the API's messages in one response and #159 is still open,
+so **a deployed JSON read of the export is the check this decision does not have.**
+
+**Still open, named rather than glossed over:** an operator-initiated erasure for a person who cannot sign in; warning mail so the
+dormancy cycle can run; removing the Supabase record from the server instead of by hand; a file save for the export; and the framework
+gap that `UserRetentionService` cannot anonymise one account on request (recorded in `docs/jzen/README.md`, not yet filed).
+
+---
 
 ## ADR-070 — The five public configuration values are plain environment variables, not secrets; a service made before the change is rebound once
 

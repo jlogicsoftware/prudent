@@ -2,20 +2,9 @@ package prudent.retention;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import java.util.List;
-import java.util.UUID;
-import org.jboss.logging.Logger;
-import prudent.account.AccountEntity;
-import prudent.budget.BudgetCarryResetEntity;
-import prudent.budget.BudgetEntity;
-import prudent.category.CategoryEntity;
-import prudent.goal.GoalAllocationEntity;
-import prudent.goal.GoalEntity;
-import prudent.plan.PlanEntity;
-import prudent.plan.PlanOccurrenceEntity;
-import prudent.record.RecordEntity;
-import prudent.settings.SettingsEntity;
+import prudent.privacy.PrudentDataEraser;
 import zen.identity.event.UserAnonymised;
 
 /**
@@ -47,18 +36,19 @@ import zen.identity.event.UserAnonymised;
  * financial data. {@code MANDATORY} states that requirement rather than assuming it — an event
  * fired outside a transaction fails loudly here instead of quietly committing on its own.
  *
- * <p><strong>Deletion order is FK-driven, not arbitrary</strong>: records first (the migration
- * carries no {@code ON DELETE CASCADE} on either the account or category reference — ADR-010 — so
- * a record row must go before the rows it points to), then plan occurrences and plans for the same
- * reason (ADR-037, ADR-038), then budgets (ADR-043) and carry-over resets (ADR-046), then envelope
- * entries and goals (ADR-049, ADR-050), then accounts and categories, then the singleton settings
- * row. Accounts are deleted entity-by-entity rather than by a bulk query so Hibernate cascades the
- * {@code @ElementCollection} balances ({@code prudent_account_balance}) it owns; a bulk HQL delete bypasses the persistence context and would leave orphaned balance rows.
+ * <p><strong>What "all of Prudent's rows" means is {@link PrudentDataEraser}'s</strong>, shared with
+ * the person who asks to be erased rather than waits for dormancy to do it, so the two routes cannot
+ * disagree about which tables hold a user's data (ADR-071).
  */
 @ApplicationScoped
 public class PrudentRetentionCleanup {
 
-  private static final Logger LOG = Logger.getLogger(PrudentRetentionCleanup.class);
+  private final PrudentDataEraser eraser;
+
+  @Inject
+  public PrudentRetentionCleanup(PrudentDataEraser eraser) {
+    this.eraser = eraser;
+  }
 
   /**
    * Cascades Prudent's own deletion for one anonymised account.
@@ -71,46 +61,6 @@ public class PrudentRetentionCleanup {
    */
   @Transactional(Transactional.TxType.MANDATORY)
   public void onUserAnonymised(@Observes UserAnonymised event) {
-    UUID userId = event.userId();
-
-    long records = RecordEntity.delete("userId", userId);
-    // Occurrences before their plans, and both before accounts and categories, like records: none
-    // of those references carries a cascade.
-    PlanOccurrenceEntity.delete("userId", userId);
-    // Before accounts and categories, like records: a plan references both, without a cascade.
-    long plans = PlanEntity.delete("userId", userId);
-    // Before categories, like plans: a budget references its category without a cascade (ADR-043).
-    long budgets = BudgetEntity.delete("userId", userId);
-    // The audit history goes with the user it belongs to: erasure of a person's data outranks the
-    // history's own never-deleted rule, which is a promise to the user, not to the system (ADR-046).
-    long resets = BudgetCarryResetEntity.delete("userId", userId);
-    // Goals are never deleted through the API (ADR-049); like the reset history, they go here
-    // because erasing a person outranks that promise. The envelope history is just as permanent
-    // and references goals with no cascade (ADR-050), so it goes first.
-    long allocations = GoalAllocationEntity.delete("userId", userId);
-    long goals = GoalEntity.delete("userId", userId);
-
-    List<AccountEntity> accounts = AccountEntity.list("userId", userId);
-    accounts.forEach(AccountEntity::delete);
-
-    long categories = CategoryEntity.delete("userId", userId);
-    long settings = SettingsEntity.delete("userId", userId);
-
-    if (records > 0
-        || plans > 0
-        || budgets > 0
-        || resets > 0
-        || allocations > 0
-        || goals > 0
-        || !accounts.isEmpty()
-        || categories > 0
-        || settings > 0) {
-      LOG.infof(
-          "Retention cascade for %s: %d record(s), %d plan(s), %d budget(s), %d carry-over"
-              + " reset(s), %d envelope entry(ies), %d goal(s), %d account(s), %d category(ies),"
-              + " %d settings row(s)",
-          userId, records, plans, budgets, resets, allocations, goals, accounts.size(),
-          categories, settings);
-    }
+    eraser.erase(event.userId());
   }
 }

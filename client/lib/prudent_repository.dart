@@ -10,6 +10,7 @@ import 'generated/prudent/v1/goals.pb.dart';
 import 'generated/prudent/v1/plans.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
 import 'generated/prudent/v1/reminders.pb.dart';
+import 'generated/prudent/v1/privacy.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
 import 'record/record_filter.dart';
 
@@ -31,6 +32,7 @@ class PrudentRepository {
   static const String _accountsPath = '/api/v1/accounts';
   static const String _categoriesPath = '/api/v1/categories';
   static const String _settingsPath = '/api/v1/settings';
+  static const String _privacyPath = '/api/v1/privacy';
   static const String _budgetsPath = '/api/v1/budgets';
   static const String _goalsPath = '/api/v1/goals';
   static const String _goalAllocationsPath = '/api/v1/goal-allocations';
@@ -437,6 +439,27 @@ class PrudentRepository {
 
   Future<ZenResult<Settings>> updateSettings(UpdateSettingsRequest request) =>
       _client.put<Settings>(Settings.new, _settingsPath, body: request);
+
+  // --- Privacy (M0, jlogicsoftware/prudent#48) — what the server holds about the user ----------
+
+  /// Everything the server stores for the user, as one document: every account, category, record,
+  /// plan, occurrence, budget, carry-over reset, goal and envelope entry, in any lifecycle state,
+  /// plus the settings and profile. Complete rather than view-shaped; see `privacy.proto`.
+  Future<ZenResult<DataExport>> exportData() =>
+      _client.get<DataExport>(DataExport.new, '$_privacyPath/export');
+
+  /// Erases every Prudent row the user owns and anonymises their profile — IRREVERSIBLE. Refused
+  /// (400) unless [EraseAccountRequest.confirmEmail] is the account's sign-in address, in which case
+  /// nothing is deleted. The sign-in credential at the identity provider is not removed, and the
+  /// session is not ended: the caller logs out. The server answers 204, so the empty request
+  /// message stands in for the missing body, as [deleteAccount]'s does.
+  Future<ZenResult<EraseAccountRequest>> eraseAccount(
+    EraseAccountRequest request,
+  ) => _client.post<EraseAccountRequest>(
+    EraseAccountRequest.new,
+    '$_privacyPath/erase',
+    body: request,
+  );
 
   // --- Analytics — read-only, always scoped to one currency (analytics.proto) --------------------
 
