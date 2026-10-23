@@ -51,26 +51,37 @@ esac
 """
 
 
-PUBLIC = ("SUPABASE_URL", "SITE_URL", "CORS_ORIGINS", "AUTH_REDIRECT_URI", "AUTH_REDIRECT_URIS")
+PUBLIC = ("SUPABASE_URL", "SITE_URL", "CORS_ORIGINS", "AUTH_REDIRECT_URI", "AUTH_REDIRECT_URIS",
+          "SMTP_HOST", "SMTP_PORT", "SMTP_FROM")
+MAIL_SECRETS = ("SMTP_USERNAME", "SMTP_PASSWORD")
 
 
-def service_env(site_url, secret=(), absent=()):
+def service_env(site_url, secret=(), absent=(), plain=(), missing_secret=()):
     """What `gcloud run services describe --flatten=...env[] --format=csv` prints for the service.
 
-    A variable that is a Secret Manager reference has no value of its own and prints as `NAME,`;
-    one in `absent` is not there at all."""
+    One `NAME,VALUE,SECRET` line each. A variable that is a Secret Manager reference has no value
+    of its own and names its secret in the third field (`NAME,,SECRET`); a plain one has a value and
+    an empty third field. One in `absent` is not there at all; one in `plain` is a mail secret held
+    as a literal (the wrong way round), and one in `missing_secret` is not bound."""
     values = {
         "SUPABASE_URL": "https://ref.supabase.co",
         "SITE_URL": site_url,
         "CORS_ORIGINS": site_url,
         "AUTH_REDIRECT_URI": site_url + "/auth/callback",
         "AUTH_REDIRECT_URIS": '"prudent://auth-callback,other://x"',  # csv quotes a comma
+        "SMTP_HOST": "smtp.example.org",
+        "SMTP_PORT": "587",
+        "SMTP_FROM": "noreply@prudent.example.org",
     }
-    lines = ["ZEN_I18N_SUPPORTED," + '"en,uk,pl"', "SUPABASE_KEY,"]
+    lines = ["ZEN_I18N_SUPPORTED," + '"en,uk,pl",', "SUPABASE_KEY,,SUPABASE_KEY"]
     for name in PUBLIC:
         if name in absent:
             continue
-        lines.append(name + "," + ("" if name in secret else values[name]))
+        lines.append(name + (",," + name if name in secret else "," + values[name] + ","))
+    for name in MAIL_SECRETS:
+        if name in missing_secret:
+            continue
+        lines.append(name + ("," + "literal-value," if name in plain else ",," + name))
     return "\n".join(lines)
 
 
@@ -243,14 +254,15 @@ class VerifyDeployOrigin(TaskCase):
 
 
 class PublicConfigOnTheService(TaskCase):
-    """verify:deploy asserts the five public values of the RUNNING service are plain values."""
+    """verify:deploy asserts the public values of the RUNNING service are plain values and the mail
+    relay's login is bound as secrets."""
 
     SERVICE = dict(GCP_PROJECT="p", GCP_REGION="r", SERVICE_NAME="svc")
 
     def run_verify(self, origin, **kw):
         return self.run_task("verify:deploy", WEB_API_URL=origin, SERVICE_URL=origin, **self.SERVICE, **kw)
 
-    def test_five_plain_values_pass(self):
+    def test_the_plain_values_pass(self):
         with Server(Prudent) as s:
             rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin))
         self.assertEqual(rc, 0, out)
@@ -263,6 +275,28 @@ class PublicConfigOnTheService(TaskCase):
                 rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin, secret=(name,)))
                 self.assertNotEqual(rc, 0, out)
                 self.assertIn(f"FAIL  {name} is absent or still a Secret Manager reference", out)
+
+    def test_the_relay_login_is_checked_as_secret_references(self):
+        with Server(Prudent) as s:
+            rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin))
+        self.assertEqual(rc, 0, out)
+        for name in MAIL_SECRETS:
+            self.assertIn(f"ok    {name} is a Secret Manager reference", out)
+
+    def test_a_relay_login_that_is_not_bound_fails_by_name(self):
+        # Without it the service cannot send a dormancy warning, and no dormant account is erased.
+        for name in MAIL_SECRETS:
+            with self.subTest(name=name), Server(Prudent) as s:
+                rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin, missing_secret=(name,)))
+                self.assertNotEqual(rc, 0, out)
+                self.assertIn(f"FAIL  {name} is absent or a plain value", out)
+
+    def test_a_relay_login_held_as_a_plain_value_fails_by_name(self):
+        for name in MAIL_SECRETS:
+            with self.subTest(name=name), Server(Prudent) as s:
+                rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin, plain=(name,)))
+                self.assertNotEqual(rc, 0, out)
+                self.assertIn(f"FAIL  {name} is absent or a plain value", out)
 
     def test_a_value_that_is_absent_fails(self):
         with Server(Prudent) as s:

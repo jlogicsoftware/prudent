@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+{!
+  English first dormancy notice, sent by DormancyWarningMailer when UserRetentionJob
+  finds an account due its first warning. Subject: RetentionMessages.firstWarningSubject(days)
+  and its localized variants.
+
+  Carries the recipient's own address, the days left and a link — nothing from the person's ledger.
+  Inline styles only, and no style block: Qute would read a CSS rule's braces as an expression.
+  This is a Qute comment, not an HTML one, so it is not in the mail the recipient receives.
+  Available data: email, siteUrl, days.
+!}
+<html lang="en">
+  <body style="margin: 0; padding: 24px; background: #f5f6f8; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #1c2024;">
+    <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 32px;">
+      <h1 style="margin: 0 0 16px; font-size: 22px;">Your Prudent data will be deleted</h1>
+      <p style="margin: 0 0 16px; line-height: 1.6;">Nobody has signed in to the Prudent account for <strong>{email}</strong> for a long time.</p>
+      <p style="margin: 0 0 24px; line-height: 1.6;">In <strong>{days} days</strong> everything in it &mdash; your accounts, records, budgets and goals &mdash; will be permanently deleted and cannot be restored. Signing in before then keeps it. If you want a copy first, open Settings &rarr; Privacy and data &rarr; Copy my data.</p>
+      <p style="margin: 0 0 24px;">
+        <a href="{siteUrl}" style="display: inline-block; background: #1c2024; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 8px;">Sign in to Prudent</a>
+      </p>
+      <p style="margin: 0; font-size: 13px; color: #6b7280;">We will write once more shortly before the deletion. You can ignore this message if you no longer need the data.</p>
+    </div>
+  </body>
+</html>

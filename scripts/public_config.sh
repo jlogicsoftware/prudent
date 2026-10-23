@@ -15,6 +15,13 @@
 #   AUTH_REDIRECT_URIS   comma-separated native return addresses, e.g. the app's custom scheme.
 #                        Empty means no native client can sign in and nothing else notices, so
 #                        it is required rather than defaulted.
+#   SMTP_HOST            the mail relay's host name, for the dormancy warnings (ADR-072). Required:
+#                        a service without a sender boots, looks healthy, and can never warn anyone,
+#                        so no dormant account is ever erased.
+#   SMTP_FROM            the sender address those warnings come from. Required, for the same reason.
+#   SMTP_PORT            optional, 587 when unset. The service speaks STARTTLS, which is the
+#                        submission port's mode; 465 (implicit TLS) is not what it is configured for.
+# The relay's login (SMTP_USERNAME, SMTP_PASSWORD) is NOT here: those two are secrets.
 # Derived, so they cannot disagree with the bundle's origin:
 #   SITE_URL             = WEB_API_URL
 #   CORS_ORIGINS         = WEB_API_URL
@@ -25,7 +32,7 @@
 # On any problem it prints what is wrong to stderr and EXITS the shell that sourced it.
 
 _pc_missing=0
-for _pc_v in WEB_API_URL SUPABASE_URL AUTH_REDIRECT_URIS; do
+for _pc_v in WEB_API_URL SUPABASE_URL AUTH_REDIRECT_URIS SMTP_HOST SMTP_FROM; do
   eval "_pc_val=\${$_pc_v:-}"
   if [ -z "${_pc_val}" ]; then
     echo "MISSING: ${_pc_v}" >&2
@@ -34,9 +41,8 @@ for _pc_v in WEB_API_URL SUPABASE_URL AUTH_REDIRECT_URIS; do
 done
 if [ "${_pc_missing}" -ne 0 ]; then
   echo >&2
-  echo "SUPABASE_URL and AUTH_REDIRECT_URIS are public configuration: exported and passed to" >&2
-  echo "Cloud Run as plain values, not created in Secret Manager (#166). See" >&2
-  echo "'task deploy:cloudrun --summary'." >&2
+  echo "These are public configuration: exported and passed to Cloud Run as plain values," >&2
+  echo "not created in Secret Manager (#166, ADR-072). See 'task deploy:cloudrun --summary'." >&2
   exit 1
 fi
 
@@ -57,6 +63,34 @@ case "${AUTH_REDIRECT_URIS}" in
     echo "${AUTH_REDIRECT_URIS}" >&2
     exit 1 ;;
 esac
+
+# The mail settings. SMTP_HOST is a bare host name: a scheme or a port in it is the usual mistake
+# and Quarkus would try to resolve the whole string. SMTP_FROM is one address: gcloud splits a
+# --set-env-vars value on commas, and a display-name form ("Name <a@b>") is not what the mailer's
+# `from` takes as a plain value here.
+case "${SMTP_HOST}" in
+  *[!A-Za-z0-9.-]* | -* | .* | *.)
+    echo "SMTP_HOST must be a bare host name (no scheme, port, path or whitespace): ${SMTP_HOST}" >&2
+    exit 1 ;;
+esac
+case "${SMTP_FROM}" in
+  *[[:space:],\<\>\"]* | @* | *@ | *@*@* | *@*[!A-Za-z0-9.-]* | *@.* | *@-*)
+    echo "SMTP_FROM must be one plain address, local@host: ${SMTP_FROM}" >&2
+    exit 1 ;;
+  *@*.*) ;;
+  *) echo "SMTP_FROM must be one plain address, local@host: ${SMTP_FROM}" >&2
+     exit 1 ;;
+esac
+SMTP_PORT="${SMTP_PORT:-587}"
+case "${SMTP_PORT}" in
+  '' | *[!0-9]* | 0*)
+    echo "SMTP_PORT must be a port number, got: ${SMTP_PORT}" >&2
+    exit 1 ;;
+esac
+if [ "${#SMTP_PORT}" -gt 5 ] || [ "${SMTP_PORT}" -gt 65535 ]; then
+  echo "SMTP_PORT must be a port number, got: ${SMTP_PORT}" >&2
+  exit 1
+fi
 
 case "${SUPABASE_URL}" in
   https://?*) ;;
@@ -93,4 +127,4 @@ done
 SITE_URL="${_pc_origin}"
 CORS_ORIGINS="${_pc_origin}"
 AUTH_REDIRECT_URI="${_pc_origin}/auth/callback"
-export SITE_URL CORS_ORIGINS AUTH_REDIRECT_URI
+export SITE_URL CORS_ORIGINS AUTH_REDIRECT_URI SMTP_PORT

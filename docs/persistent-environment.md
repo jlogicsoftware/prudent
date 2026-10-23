@@ -71,8 +71,9 @@ because the project holds nothing but this application's secrets. Keep it that w
 
 ## 3. Secrets and sign-in
 
-Seven secrets and five public values: the secrets and how each is created are runbook step 2, and
-the public values (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`,
+Nine secrets and eight public values: the secrets and how each is created are runbook step 2, and
+the eight public values are the five below plus the three mail values (`SMTP_HOST`, `SMTP_PORT`,
+`SMTP_FROM`, ADR-072). The five (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`,
 `AUTH_REDIRECT_URIS`) are not in Secret Manager at all (#166, ADR-070). They are plain environment
 variables on the migration job and the service: `SUPABASE_URL` and `AUTH_REDIRECT_URIS` are exported
 in the shell that runs `deploy:cloudrun`, and the other three are derived from `WEB_API_URL`, so they
@@ -84,6 +85,7 @@ say.
 | `DB_PASSWORD` | Reset in Supabase, **then** a new secret version, then a deploy | Never exercised |
 | `APP_DB_PASSWORD` | A new secret version plus `task deploy:cloudrun`; the deploy applies it to the role (ADR-066) | Proven on a throwaway Postgres, **not** against a live service |
 | `ZEN_JOBS_TRIGGER_TOKEN` | New version, deploy, **then** update the scheduler header: `gcloud scheduler jobs update http prudent-jobs-tick --update-headers=...` | Flag exists in gcloud 587; never run |
+| `SMTP_USERNAME`, `SMTP_PASSWORD` | A new secret version, then a deploy; the relay's own console issues the new login first | Never exercised |
 | `SUPABASE_KEY` | Read again from the dashboard or Management API. How Supabase rotates it, and what that invalidates, was not tried | Unknown |
 | `DB_URL`, `DB_USERNAME`, `APP_DB_USERNAME` | Derived from `REF` and the pooler host; recreate rather than rotate | — |
 
@@ -113,6 +115,19 @@ application). Done this way on 2026-10-22; the owner then registered from a phon
 mail and confirmed the link from a desktop (ADR-069). The native return address
 `prudent://auth-callback` is in the list but **has not been followed**, because no native build
 exists (#155).
+
+**The mail relay (ADR-072).** The environment made before this change has no relay, and `deploy:cloudrun`
+now refuses to run without one: `SMTP_HOST` and `SMTP_FROM` exported, `SMTP_PORT` optional (587),
+and the secrets `SMTP_USERNAME` and `SMTP_PASSWORD` created (runbook step 2). It exists for one
+message, the warning a dormant account must be sent before it can be erased (`docs/privacy-policy.md`,
+"How long it is kept"), so until it is in place nothing in this environment ever expires. Any SMTP
+relay with a submission port and STARTTLS will do; this repository names none, and the choice is the
+owner's. Before relying on it: verify the sender domain with the relay (SPF and DKIM), and send one
+real warning to an address you control (a throwaway user whose `last_login_at` you set far enough back
+in the database, then the job's trigger) and read it. **That has not been done**: the code and its
+failure paths are tested against a mock and a relay that always fails, and nothing has authenticated
+against a real relay. `task verify:deploy` checks the service holds the five variables and two secrets;
+it does not send a message.
 
 **Rebinding a service that still holds the five public values as secrets (#166).** It is needed
 once, by an environment made before the change, and never by a new one. Cloud Run will not retype a

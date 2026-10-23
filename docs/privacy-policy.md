@@ -15,8 +15,9 @@ On the server, for each person:
 
 | What | Why |
 |---|---|
-| The email address you sign in with, and — if ever set — a display name and a nickname | To identify you and to send the account emails (confirmation and password recovery, sent by the identity provider) |
-| Your language | To show the app, and write account emails, in it |
+| The email address you sign in with, and — if ever set — a display name and a nickname | To identify you, to send the account emails (confirmation and password recovery, sent by the identity provider) and, if your account goes unused, the two warnings described under "How long it is kept" |
+| Your language | To show the app, and write account emails and those warnings, in it |
+| When you last signed in, and when each warning was sent | To run the schedule under "How long it is kept" |
 | Your accounts and their currencies, categories, records (title, payee, note, amount, date), transfers and balance corrections | The application: this is what it is for |
 | Your plans and their occurrences, reminder settings and whether you have read a reminder | Planned and recurring transactions |
 | Your budgets, carry-over resets and goals, and the history of money set aside for goals | Budgets and goals |
@@ -31,21 +32,41 @@ one server and nothing else.
 
 ## Where it is processed
 
-The operator's deployment: a server and a Postgres database, and Supabase for sign-in (and so for
-the account emails). Those are the only processors.
+The operator's deployment: a server and a Postgres database, Supabase for sign-in (and so for the
+account emails), and a mail relay that sends the two unused-account warnings. The relay sees your
+sign-in address and the text of those warnings (below) and nothing else; it keeps whatever record of
+sent mail its own terms say. Those are the only processors.
 
 ## How long it is kept
 
-**Until you delete it.** Nothing expires on its own today.
+**Until you delete it — or until you have not signed in for about a year and have been warned twice.**
 
-The framework Prudent is built on has a dormancy cycle — a warning email after 330 days without a
-sign-in, a final one 23 days later, and, 7 days after that, anonymisation of the account — and
-Prudent's side of it (deleting all of the account's data when it is anonymised) is built and tested.
-But the framework anonymises an account only after a warning was **confirmed delivered**, and Prudent
-has no mail sender to deliver one, so no account ever gets that far. A test
-(`PrivacyRetentionStatementTest`) pins that, so this paragraph cannot go stale quietly. Giving the
-cycle a way to warn people is open work; until it exists, dormant accounts are kept, and the only
-way your data is removed is you deleting it (below) or the operator doing so.
+The schedule is counted from your last sign-in. The windows are the framework's own, which Prudent
+does not change:
+
+| When | What happens |
+|---|---|
+| **330 days** after your last sign-in | A first warning email to the address you sign in with: your data will be deleted in 30 days unless you sign in |
+| **23 days** after the first warning | A final warning: 7 days left |
+| **7 days** after the final warning | The account is anonymised and **everything Prudent holds for it is deleted** — the same thing "Delete my data" does (below) |
+
+**Signing in at any point before the last step cancels all of it** and starts the count again. The
+check runs once a day, so each step can come up to a day after its date.
+
+Two things about the warnings, so that nobody is surprised by either:
+
+- **They are sent in your language** (English, Ukrainian or Polish) and carry your sign-in address,
+  the number of days left and a link to the app. Nothing from your accounts, records, budgets or
+  goals is in them, and the operator's logs name you by an internal id and never by address.
+- **A warning counts only when the operator's mail relay accepted it.** If it could not be sent —
+  the relay is down, your address is refused — the account does not move to the next step and its
+  data is kept until a warning can be sent. So an account whose address no longer receives mail is
+  not deleted by this route. The relay accepting a message is the most Prudent can know: it does not
+  see a message later bounce, be filtered as spam or go unread. "Warned" here means "sent", not
+  "read".
+
+This route does not remove your sign-in with the identity provider either; see "What deletion does
+not remove".
 
 ## Your copy
 
@@ -86,16 +107,25 @@ It cannot be undone. Copy your data first if you want to keep it.
 ### If you cannot sign in
 
 The in-app route needs a session. Deleting the sign-in record at Supabase stops anyone using the
-account, but it does **not** delete the Prudent data behind it, and no dormancy cycle will (see
-"How long it is kept"). An operator-initiated erasure of a person's Prudent data is **not built**;
-it would be a new route, and is a follow-up rather than something this policy can promise. Until it
-exists, a person who can no longer sign in has to be helped to sign in again — password recovery —
-and delete from inside the app.
+account, but it does **not** delete the Prudent data behind it. That data is deleted on the schedule
+under "How long it is kept" — if the warnings can reach the address on the account. An
+operator-initiated erasure of a person's Prudent data is **not built**; it would be a new route, and
+is a follow-up rather than something this policy can promise. Until it exists, a person who can no
+longer sign in has to be helped to sign in again — password recovery — and delete from inside the
+app, or wait for the schedule.
 
 ## For the operator
 
-- Dormancy erasure does not run, whatever the scheduler does: see "How long it is kept". Do not tell
-  anyone their data expires.
+- Dormancy erasure runs only if **both** halves are in place: the Cloud Scheduler entry that drives
+  the daily job, and a working mail relay (`SMTP_HOST`, `SMTP_FROM`, `SMTP_USERNAME`,
+  `SMTP_PASSWORD`). Without the relay nothing is ever warned, so nothing ever expires, and nothing
+  else says so. `task verify:deploy` fails when either is missing from the running service. It does
+  **not** prove that the relay authenticates or that a message reaches an inbox: the first real
+  warning is the first proof. Verify the sender domain with the relay (SPF and DKIM), or the warnings
+  are accepted and then filtered.
+- The relay is a processor of the addresses it sends to; keep it in the list you give people who ask.
+- An account the identity table marks as premium is never touched by the cycle. Prudent never sets
+  that flag.
 - On an erasure request, also delete the person's Supabase user. Prudent's side is complete when the
   app has said so; the identity record is the half only you can remove.
 - This policy and the code move together: a table added with a `user_id` fails the privacy test
@@ -114,8 +144,15 @@ and delete from inside the app.
 - `PrivacyErasureTest` — the typed-address confirmation, that a refusal deletes nothing, that other
   users are untouched, and that the anonymised profile is one the framework itself recognises.
 - `PrudentRetentionCleanupTest` — Prudent's cascade when the framework anonymises an account, driven
-  through the framework's own anonymisation, and `PrivacyRetentionStatementTest` — that no account
-  is in fact anonymised today, which is what "Nothing expires on its own" rests on.
+  through the framework's own anonymisation.
+- `PrivacyDormancyErasureTest` — the schedule above, end to end: a dormant account is sent the first
+  warning, then the final one, then anonymised, and afterwards no table with a `user_id` holds a row
+  for it while another user's rows are untouched; signing in cancels it; the warning is in the
+  account's language and carries nothing from the ledger; and the windows this page states are the
+  ones the framework is configured with.
+- `PrivacyDormancyUnreachableMailerTest` — with a relay that always fails, no warning is stamped,
+  no account advances however often the job runs, nothing is erased, and the failure is logged
+  against the account's id and never its address.
 
 `client/test/privacy_actions_test.dart` and `privacy_screen_test.dart` cover the app's side.
 

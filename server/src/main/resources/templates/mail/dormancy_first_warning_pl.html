@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+{!
+  Polish first dormancy notice, sent by DormancyWarningMailer when UserRetentionJob
+  finds an account due its first warning. Subject: RetentionMessages.firstWarningSubject(days)
+  and its localized variants.
+
+  Carries the recipient's own address, the days left and a link — nothing from the person's ledger.
+  Inline styles only, and no style block: Qute would read a CSS rule's braces as an expression.
+  This is a Qute comment, not an HTML one, so it is not in the mail the recipient receives.
+  Available data: email, siteUrl, days.
+!}
+<html lang="pl">
+  <body style="margin: 0; padding: 24px; background: #f5f6f8; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #1c2024;">
+    <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 32px;">
+      <h1 style="margin: 0 0 16px; font-size: 22px;">Twoje dane w Prudent zostaną usunięte</h1>
+      <p style="margin: 0 0 16px; line-height: 1.6;">Od dawna nikt nie logował się na konto Prudent dla adresu <strong>{email}</strong>.</p>
+      <p style="margin: 0 0 24px; line-height: 1.6;">Wszystko, co na nim jest &mdash; konta, zapisy, budżety i cele &mdash; zostanie trwale usunięte i nie będzie można tego przywrócić. Dni do usunięcia: <strong>{days}</strong>. Zalogowanie się wcześniej zachowa dane. Jeśli chcesz najpierw zrobić kopię, otwórz Ustawienia &rarr; Prywatność i dane &rarr; Skopiuj moje dane.</p>
+      <p style="margin: 0 0 24px;">
+        <a href="{siteUrl}" style="display: inline-block; background: #1c2024; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 8px;">Zaloguj się do Prudent</a>
+      </p>
+      <p style="margin: 0; font-size: 13px; color: #6b7280;">Tuż przed usunięciem napiszemy jeszcze raz. Jeśli dane nie są Ci już potrzebne, możesz zignorować tę wiadomość.</p>
+    </div>
+  </body>
+</html>

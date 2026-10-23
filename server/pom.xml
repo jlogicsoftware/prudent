@@ -173,12 +173,17 @@
     </dependency>
 
     <!--
-      NO zen-email, and this absence is still not an oversight. Prudent sends no mail; zen-identity
-      does not need it either — UserRegistered is fired as an event precisely so the framework
-      stays free of any dependency on zen-email, and an application that wants no welcome message
-      simply observes nothing (jZen ADR-007). This was checked against that class's contract
-      rather than assumed.
+      ASSEMBLED FOR ONE MESSAGE: the warning a dormant account's owner must receive before the
+      framework will anonymise it (prudent.retention.DormancyWarningMailer, ADR-072). zen-identity
+      advances an account toward erasure only after an observer of AccountDeletionWarning confirms
+      the mail was delivered, so with no mail sender no warning was ever confirmed and the retention
+      cycle (ADR-019) could never anonymise anyone. Prudent sends nothing else: Supabase sends the
+      sign-in mail, and UserRegistered is still observed only to seed a new user's rows.
     -->
+    <dependency>
+      <groupId>zen</groupId>
+      <artifactId>zen-email</artifactId>
+    </dependency>
 
     <!--
       The runtime for the DTOs generated from ../proto below. Declared explicitly, with no

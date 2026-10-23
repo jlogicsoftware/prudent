@@ -25,13 +25,17 @@ from typing import Dict, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 PUBLIC = ("SUPABASE_URL", "SITE_URL", "CORS_ORIGINS", "AUTH_REDIRECT_URI", "AUTH_REDIRECT_URIS")
-SECRETS = ("SUPABASE_KEY", "DB_URL", "DB_USERNAME", "DB_PASSWORD", "ZEN_JOBS_TRIGGER_TOKEN")
+MAIL = ("SMTP_HOST", "SMTP_PORT", "SMTP_FROM")
+SECRETS = ("SUPABASE_KEY", "DB_URL", "DB_USERNAME", "DB_PASSWORD", "ZEN_JOBS_TRIGGER_TOKEN",
+           "SMTP_USERNAME", "SMTP_PASSWORD")
 APP_DB = ("APP_DB_USERNAME", "APP_DB_PASSWORD")
 
 GOOD = {
     "WEB_API_URL": "https://svc-123.europe-west1.run.app",
     "SUPABASE_URL": "https://ref.supabase.co",
     "AUTH_REDIRECT_URIS": "prudent://auth-callback",
+    "SMTP_HOST": "smtp.example.org",
+    "SMTP_FROM": "noreply@prudent.example.org",
 }
 
 
@@ -45,8 +49,8 @@ def source(env_overrides: Optional[Dict[str, Optional[str]]] = None) -> Tuple[in
         else:
             env[k] = v
     p = subprocess.run(
-        ["sh", "-c", '. scripts/public_config.sh; printf "%s\\n%s\\n%s\\n" '
-                     '"$SITE_URL" "$CORS_ORIGINS" "$AUTH_REDIRECT_URI"'],
+        ["sh", "-c", '. scripts/public_config.sh; printf "%s\\n%s\\n%s\\n%s\\n" '
+                     '"$SITE_URL" "$CORS_ORIGINS" "$AUTH_REDIRECT_URI" "$SMTP_PORT"'],
         cwd=ROOT, env=env, capture_output=True, text=True, timeout=30)
     return p.returncode, p.stdout, p.stderr
 
@@ -67,6 +71,18 @@ class Accepts(unittest.TestCase):
         rc, _, err = source({"AUTH_REDIRECT_URIS": "prudent://auth-callback,https://x.example/cb"})
         self.assertEqual(rc, 0, err)
 
+    def test_the_mail_port_defaults_to_the_submission_port_and_can_be_set(self):
+        rc, out, err = source()
+        self.assertEqual((rc, out.split("\n")[3]), (0, "587"), err)
+        rc, out, err = source({"SMTP_PORT": "2525"})
+        self.assertEqual((rc, out.split("\n")[3]), (0, "2525"), err)
+
+    def test_a_plus_tag_or_a_subdomain_in_the_sender_is_accepted(self):
+        for ok in ("no+reply@mail.prudent.example.org", "a.b@x.example.org"):
+            with self.subTest(value=ok):
+                rc, _, err = source({"SMTP_FROM": ok})
+                self.assertEqual(rc, 0, err)
+
     def test_a_derived_value_exported_as_the_same_thing_is_accepted(self):
         rc, _, err = source({"SITE_URL": GOOD["WEB_API_URL"]})
         self.assertEqual(rc, 0, err)
@@ -81,7 +97,7 @@ class Refuses(unittest.TestCase):
             self.assertIn(f, err)
 
     def test_each_missing_input_is_named(self):
-        for name in ("WEB_API_URL", "SUPABASE_URL", "AUTH_REDIRECT_URIS"):
+        for name in ("WEB_API_URL", "SUPABASE_URL", "AUTH_REDIRECT_URIS", "SMTP_HOST", "SMTP_FROM"):
             with self.subTest(name=name):
                 self.refused({name: None}, "MISSING: " + name)
 
@@ -91,6 +107,23 @@ class Refuses(unittest.TestCase):
     def test_every_missing_input_is_named_at_once(self):
         self.refused({"SUPABASE_URL": None, "AUTH_REDIRECT_URIS": None},
                      "MISSING: SUPABASE_URL", "MISSING: AUTH_REDIRECT_URIS")
+
+    def test_a_mail_host_is_a_bare_host_name(self):
+        for bad in ("smtp://smtp.example.org", "smtp.example.org:587", "smtp.example.org/x",
+                    "smtp example.org", ".smtp.example.org", "smtp.example.org."):
+            with self.subTest(value=bad):
+                self.refused({"SMTP_HOST": bad}, "SMTP_HOST must be a bare host name")
+
+    def test_a_sender_is_one_plain_address(self):
+        for bad in ("noreply", "noreply@host", "a b@x.org", "Name <a@x.org>", "a@x.org,b@x.org",
+                    "@x.org", "a@", "a@@x.org", "a@x.org@y.org", '"a"@x.org'):
+            with self.subTest(value=bad):
+                self.refused({"SMTP_FROM": bad}, "SMTP_FROM must be one plain address")
+
+    def test_a_mail_port_is_a_port_number(self):
+        for bad in ("abc", "0587", "65536", "-1", "58 7", "587.0"):
+            with self.subTest(value=bad):
+                self.refused({"SMTP_PORT": bad}, "SMTP_PORT must be a port number")
 
     def test_supabase_url_must_be_https(self):
         self.refused({"SUPABASE_URL": "http://ref.supabase.co"}, "SUPABASE_URL must be an https:// URL")
@@ -144,10 +177,10 @@ class TaskfileShape(unittest.TestCase):
         self.assertIsNotNone(m, "no `gcloud run %s` call" % subcommand)
         return m.group(0)
 
-    def test_the_secret_list_holds_the_seven_genuine_secrets_and_no_public_value(self):
+    def test_the_secret_list_holds_the_nine_genuine_secrets_and_no_public_value(self):
         names = self.secrets_line("SECRETS") + self.secrets_line("APP_DB")
         self.assertEqual(sorted(names), sorted(SECRETS + APP_DB))
-        for public in PUBLIC:
+        for public in PUBLIC + MAIL:
             self.assertNotIn(public, names)
 
     def test_the_migration_job_gets_the_secrets_but_not_the_runtime_login(self):
@@ -158,9 +191,11 @@ class TaskfileShape(unittest.TestCase):
     def test_the_service_gets_the_runtime_login_as_well(self):
         self.assertIn('--set-secrets="${SECRETS},${APP_DB}"', self.gcloud_call("deploy"))
 
-    def test_the_job_and_the_service_both_get_all_five_public_values_as_literals(self):
+    def test_the_job_and_the_service_both_get_all_the_public_values_as_literals(self):
+        # The five of #166 and the three mail values of ADR-072: the packaged image fails config
+        # validation without any of them, on the job as on the service.
         for where, call in (("migration job", self.gcloud_call("jobs deploy")), ("service", self.gcloud_call("deploy"))):
-            for name in PUBLIC:
+            for name in PUBLIC + MAIL:
                 with self.subTest(where=where, name=name):
                     self.assertRegex(call, r'--set-env-vars="(\^@\^)?%s=\$\{%s\}"' % (name, name))
 

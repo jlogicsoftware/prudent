@@ -13,6 +13,91 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-072 — A dormant account is now warned by mail, and only a warning the relay accepted moves it toward erasure
+
+**Date:** 2026-10-23. **Status:** accepted. **Refines:** ADR-019, ADR-021, ADR-022, ADR-071. **Follows:** jlogicsoftware/prudent#48.
+
+### Decision
+
+- **`DormancyWarningMailer` observes `AccountDeletionWarning`** and sends the first and the final warning through `zen-email`'s
+  `EmailService`. It calls `receipt().confirm()` **only when `send` returned `true`** — the relay accepted the message — and on nothing
+  else, so an undelivered warning leaves the account where it is and it is found again at the next cycle (the framework's own
+  ordering, ADR-008 upstream). That one condition is the whole of "confirms the receipt only on real delivery"; it is the reason the
+  cascade of ADR-019 and ADR-022 had never been reachable, and it is what a reviewer should read first.
+- **The wording is Prudent's** (`RetentionMessages` and its `uk` and `pl` variants for the subjects, six Qute templates under
+  `templates/mail/` for the bodies). It carries the recipient's own address, the days left, how to keep the data (sign in) and how to take a
+  copy first (Settings → Privacy and data). **It carries nothing from the ledger**: the event holds none, and a test seeds every table and
+  asserts no account, category, goal or currency name appears. The Ukrainian and Polish text says "days left: N" rather than "in N days",
+  because both decline the noun by the number and the number is configuration. Template commentary is a Qute comment `{! !}`, not an HTML
+  one — jZen's reference templates use HTML comments, which are delivered to the recipient with the class names in them.
+- **The recipient is named in logs by user id only.** `LocalizedEmail.recipientRef` is the user id, which is all `EmailService` logs, and the
+  observer's own lines use it too. A test with a relay that always fails asserts that the id is in the log and neither the address nor its
+  local part is.
+- **Subject and body are chosen in the same language.** `EmailService` resolves the body's template against `zen.i18n.supported`; the
+  observer resolves the subject against the same property, because the framework's one-argument `ZenLocales.resolve` knows only `en` and `uk`
+  and would send a Polish body under an English subject. That repeats a resolution the framework does not expose (recorded in
+  `docs/jzen/README.md`), and a test covers `en`, `uk`, `pl`, `pl-PL`, an unsupported tag and none.
+- **Configuration, and what is secret.** `%prod` has no default for any mail setting, so a service without a sender does not start. `SMTP_HOST`,
+  `SMTP_PORT` (587, STARTTLS required) and `SMTP_FROM` are public and are plain environment variables, checked by `scripts/public_config.sh`
+  (a bare host name, one address, a port number) and derived nowhere; `SMTP_USERNAME` and `SMTP_PASSWORD` are secrets, which makes **nine**
+  (ADR-070 had seven). `%dev` and `%test` use the mock mailer and a `prudent.invalid` sender, the reserved TLD of ADR-021. No relay, host or
+  sender is named in this repository.
+- **The deploy.** `deploy:cloudrun` requires `SMTP_HOST` and `SMTP_FROM`, passes the three public values as `--set-env-vars` and the two
+  secrets in `--set-secrets` on the migration job **and** the service. The job holds credentials it never uses: the packaged image fails
+  configuration validation without them, and defaulting them away would let the service boot without a sender, which is the failure this
+  decision exists to end. `verify:deploy` fails when the running service lacks any of the three values as a plain value or either secret as a
+  Secret Manager reference. Its service read now takes a third column (`valueFrom.secretKeyRef.name`) to tell a bound secret from a literal.
+- **`PrivacyRetentionStatementTest` is replaced.** It pinned the absence of the behaviour and was written to go red the day this landed.
+  `PrivacyDormancyErasureTest` drives the cycle the way it runs: a dormant user with a row in every table, warned, warned again, anonymised,
+  with the stamps aged between cycles; the windows are read from the framework's configuration, not repeated. It then requires every table
+  with a `user_id` (discovered from the schema, as in `PrivacyCoverageTest`) to be empty for that user and another user's rows untouched. It
+  also drives the **real sign-in path** (`UserStore.upsertOnLogin`) to show a returning user's countdown is cleared and that they are neither
+  warned again nor erased, and it reads `docs/privacy-policy.md` to require that the windows the policy states are the ones configured.
+  `PrivacyDormancyUnreachableMailerTest` runs the real observer over a relay that always throws: nothing is stamped, nothing advances over four
+  cycles, nothing is erased. Verified by breaking it: with `if (sent)` replaced by `if (true)` two of its three tests fail.
+- **`docs/privacy-policy.md` "How long it is kept" is rewritten** to the schedule (330 days, +23, +7), the two warnings, the cancel-by-signing-in
+  rule, and the limit of "warned": the relay accepted it, which is not the same as read. The mail relay is added to the processors.
+
+### What the build found
+
+- **Signing in already resets the countdown.** `UserStore.upsertOnLogin` clears both warning stamps, so a person who returns after the first
+  warning is not erased; this was not assumed but exercised through that method.
+- **Delivery is the relay's acceptance, not an inbox.** A bounce, a spam filter or an unread message is invisible to the framework and so to
+  Prudent. A person whose address no longer receives mail is *safe* in one direction and not in the other: if the relay accepts and the
+  mailbox is dead, the schedule still advances. That is the framework's design (a delivered warning is the most it can ask) and the policy
+  says it in those words rather than "you will be told".
+- **A refusing address never erases.** An account whose address the relay rejects stays at its first step indefinitely; its data is kept. The
+  policy says so. It is the safe direction, and it means the operator may hold data for people who cannot be reached.
+- **`EmailService` logs `e.toString()` on failure**, and an SMTP rejection's message commonly names the recipient, so an address can reach a
+  log however carefully `recipientRef` is set. Prudent cannot filter it; it is recorded for jZen.
+- **The existing persistent environment has no relay.** Its next `deploy:cloudrun` fails on the missing `SMTP_HOST`, which is the intent.
+  `docs/persistent-environment.md` section 3 says what to create first.
+
+### What this supersedes, and why
+
+- **ADR-071's "the dormancy route … has never been able to run" and its statement that nothing expires** → **superseded for the code and the
+  policy**, and still true of any deployment without a relay. *Why:* the observer exists, and the policy now describes the schedule.
+  ADR-071's finding is kept as written; it was true on the day.
+- **ADR-021's "fewer than jZen's fourteen because Prudent assembles no `zen-email`"** → **no longer true.** Prudent assembles it for this one
+  message, and sends no other mail (Supabase sends the sign-in mail).
+- **`PrivacyRetentionStatementTest`** → deleted, replaced as above.
+
+### Consequence
+
+`task test:server` **717/717** (the dormancy classes: erasure 5, unreachable relay 3; the 710 of ADR-071 less its statement test). The packaged
+server in `%prod` boots (migrate-only) with the mail settings and refuses to start without them, run against a throwaway Postgres.
+`scripts/test_public_config.py` and `scripts/test_deploy_origin_tasks.py` cover the new inputs, the secret and literal lists on both `gcloud` calls
+and the two new `verify:deploy` checks.
+
+**Not done, and named rather than glossed over:** no message has been sent through a real relay, so authentication, the sender domain (SPF and
+DKIM) and delivery to a real inbox are unproven — the first real warning is the first proof, and `docs/persistent-environment.md` says how to
+produce one safely. The native image has not been built with the mailer and the Qute bundles (`task test:native` does not send a mail). The
+Cloud Scheduler entry and the mail relay are two separate things that must both exist; `verify:deploy` checks both and proves neither works.
+Still open from ADR-071: an operator-initiated erasure, removing the Supabase record from the server, and the framework's missing
+anonymise-one-account entry point.
+
+---
+
 ## ADR-071 — A person can take a copy of their data and erase it themselves; erasure is one shared deletion, and the dormancy route that was meant to back it up has never been able to run
 
 **Date:** 2026-10-23. **Status:** accepted. **Refines:** ADR-019, ADR-022. **Closes:** jlogicsoftware/prudent#48. **Addresses:** jlogicsoftware/prudent#29.
