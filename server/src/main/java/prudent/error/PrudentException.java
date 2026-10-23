@@ -29,6 +29,9 @@ public class PrudentException extends RuntimeException {
   /** The request would break a rule that protects existing data (a delete that would orphan it). */
   public static final String CONFLICT = "conflict";
 
+  /** The service cannot do its job right now (a dependency is down); retrying later may work. */
+  public static final String UNAVAILABLE = "unavailable";
+
   private final String code;
   private final Status status;
 
@@ -62,6 +65,14 @@ public class PrudentException extends RuntimeException {
   /** A 409 for a request that would orphan or contradict data that already exists. */
   public static PrudentException conflict(String message) {
     return new PrudentException(CONFLICT, Status.CONFLICT, message);
+  }
+
+  /**
+   * A 503 for a dependency that did not answer. The message is fixed by the caller and never
+   * carries the dependency's own error text.
+   */
+  public static PrudentException unavailable(String message) {
+    return new PrudentException(UNAVAILABLE, Status.SERVICE_UNAVAILABLE, message);
   }
 
   /** The stable code the client branches on. */

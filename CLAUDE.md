@@ -152,6 +152,12 @@ is remembered across launches (`shared_preferences`) so the prompt is not repeat
 has been seen to fire on a device. With no plan screen
 yet nothing in the UI switches a reminder on.
 
+M0's health and error reporting (ADR-072, jlogicsoftware/prudent#49): `GET /api/v1/health/ready` is a readiness probe that runs
+`SELECT 1` and answers 503 (`ZenError`, `unavailable`) when the database is away, beside the liveness `/api/v1/health`, which touches
+nothing; `verify:deploy` checks both. Every response carries `X-Request-ID` (`RequestIdFilter`), and an unhandled server failure is
+logged by `UnhandledExceptionMapper` as one line — request id, handler, exception classes, SQLSTATE, first `prudent.*` frame — never as
+the exception, whose message can quote a database row. Nothing is sent to an error-tracking service and the client does not show the id.
+
 M0's privacy task (ADR-071, jlogicsoftware/prudent#48) is built: `GET /api/v1/privacy/export` answers one `DataExport` with
 every row a user owns in any lifecycle state (readable JSON, never cached), and `POST /api/v1/privacy/erase` deletes them all and
 anonymises the profile in one transaction, refused unless the body repeats the account's address. The deletion is

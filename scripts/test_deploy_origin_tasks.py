@@ -86,6 +86,7 @@ class Prudent(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802 - http.server's naming
         routes = {
             "/api/v1/health": (200, HEALTH),
+            "/api/v1/health/ready": (200, HEALTH),
             "/api/v1/records": (401, b""),
             "/": (200, b"<html></html>"),
             "/main.dart.wasm": (200, b"\0asm"),
@@ -101,6 +102,16 @@ class Prudent(BaseHTTPRequestHandler):
 
     def log_message(self, *args):
         pass
+
+
+class NotReady(Prudent):
+    """A Prudent that is up but cannot reach its database."""
+
+    def do_GET(self):  # noqa: N802
+        if self.path == "/api/v1/health/ready":
+            self._answer(503, b"")
+        else:
+            super().do_GET()
 
 
 class Elsewhere(Prudent):
@@ -170,6 +181,12 @@ class VerifyDeployOrigin(TaskCase):
             rc, out = self.run_task("verify:deploy", WEB_API_URL=s.origin)
         self.assertEqual(rc, 0, out)
         self.assertIn("health names prudent-server", out)
+
+    def test_a_service_that_is_up_but_cannot_reach_its_database_fails(self):
+        with Server(NotReady) as s:
+            rc, out = self.run_task("verify:deploy", WEB_API_URL=s.origin)
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("FAIL  ready (database) (expected 200, got 503)", out)
 
     def test_with_nothing_to_go_on_it_stops(self):
         rc, out = self.run_task("verify:deploy")

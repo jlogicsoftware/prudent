@@ -13,6 +13,50 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-072 — Readiness is a separate probe that asks the database; an unhandled failure is logged as a request id, a handler and a code, never as an exception
+
+**Date:** 2026-10-23. **Status:** accepted. **Refines:** ADR-021, ADR-023. **Closes:** jlogicsoftware/prudent#49.
+
+### Decision
+
+- **`GET /api/v1/health/ready`** answers 200 with the same `HealthStatus` as `/api/v1/health` when a connection can be taken and
+  `SELECT 1` runs inside two seconds, and **503 with a `ZenError` (`code: unavailable`, a fixed message)** when it cannot.
+  `/api/v1/health` stays a liveness answer that touches nothing. It is anonymous like the first, and reads no table: it proves the
+  service reaches its database, not anything about the data. `verify:deploy` now checks it.
+- **Every response carries `X-Request-ID`.** A caller's value is kept only if it is 1-64 characters of `[A-Za-z0-9._-]`; anything else
+  is replaced by a UUID, because the id is written into a log line and a newline would forge one. The header was already in the CORS
+  allow and expose lists; nothing produced it.
+- **An exception no other mapper claims is logged as one line**: `request=<id> method=<verb> handler=<Class.method> status=<n>
+  failure=<exception classes, outermost to root> sqlstate=<code> at=<first prudent.* frame of the root cause>`. No exception message, no
+  path, no query string, no stack trace, no user id. The caller still receives the fixed `internal_error` `ZenError`. The same line
+  (without request fields) is written when the readiness probe fails. A `WebApplicationException` keeps its own response and is logged
+  only when its status is 5xx.
+- `UnhandledExceptionMapper` is Prudent's own `ExceptionMapper<Throwable>` and takes precedence over `zen-transport`'s, which is
+  registered at the lowest priority so that an application's wins.
+
+### What this supersedes, and why
+
+- **jZen's `ZenExceptionMapper`, which logs the throwable** (`LOG.error("...", exception)`) → **replaced inside Prudent, not changed
+  upstream.** *Why:* a stack trace prints every exception's message, and Postgres puts the failing row, amounts included, in the message of
+  a NOT NULL or CHECK violation. Writing that to a log is leaking financial data to wherever logs go. The framework's answer to the caller
+  is right and is kept; only what is written down differs. If the framework adopts the same line, this class is deleted.
+- **A readiness check folded into `/health`** (considered) → **not done.** *Why:* a platform restarts a process whose liveness fails; a
+  database that is briefly away is not a reason to restart anything, and every earlier consumer (`test:e2e`, the deploy's readiness wait,
+  `check_origin_serves.sh`) polls `/health` to learn the process is up.
+
+### Consequence
+
+- **Diagnosing a report:** take `X-Request-ID` from the failing response (browser network panel or `curl -i`) and search the service's
+  logs for `request=<id>`; the line names the handler, the exception classes, the SQLSTATE and the line in Prudent's code.
+- **Not done, deliberately:** no error-tracking service, no metrics, and no request id in the client's UI. Sending failures to a third
+  party would need a decision about what may leave the server; the log line is written to be safe to forward, which keeps that door open.
+  The id is not shown to the user, so a report from a person still needs a developer to find the request.
+- **Verified:** unit tests for the line (a Postgres-style message carrying `12345.67` and a category name appears in neither the line nor
+  the response), the id's sanitising, the probe's three outcomes; `@QuarkusTest` for readiness in both transport modes with and without
+  the database, for the request id on success and failure, and for the logged line from a real request including that the query string
+  does not reach it. **Not verified:** the line in Cloud Logging; `verify:deploy` against a live service with the new check (the service
+  must be redeployed first); the native image (nothing here uses reflection, but `test:native` was not run for this change).
+
 ## ADR-071 — A person can take a copy of their data and erase it themselves; erasure is one shared deletion, and the dormancy route that was meant to back it up has never been able to run
 
 **Date:** 2026-10-23. **Status:** accepted. **Refines:** ADR-019, ADR-022. **Closes:** jlogicsoftware/prudent#48. **Addresses:** jlogicsoftware/prudent#29.
