@@ -85,6 +85,13 @@ vars:
   CLIENT_DIR: client
   SERVER_DIR: server
   ADMIN_DIR: admin
+  # The Supabase containers `test:e2e` and `test:native` do not start (ADR-076). Prudent's server
+  # reaches Supabase for exactly three things: GoTrue (sign-up, sign-in, the admin delete) through
+  # the Kong gateway, the JWKS that Kong serves, and the Postgres they sit on. Every other service
+  # was an image pulled anonymously from ghcr.io for nothing, and CI's e2e job failed on that
+  # registry's rate limit (#167). A service Prudent starts to use goes OUT of this list, in the
+  # same change that uses it; `supabase start --help` names the valid values.
+  SUPABASE_EXCLUDE: realtime,storage-api,imgproxy,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
   # Where the web (Flutter) and admin (react-admin) bundles are staged so the native image
   # serves them same-origin with the API (load-bearing for the session cookie — see build:web's
   # own summary). Gitignored; never committed.
@@ -621,7 +628,7 @@ tasks:
         # user, which needs a real Supabase auth API to mint a session against — so this reuses
         # Prudent's own local Supabase project (already the one every other local gate runs
         # against) rather than fabricating a second identity provider for one check.
-        supabase status >/dev/null 2>&1 || supabase start
+        supabase status >/dev/null 2>&1 || supabase start -x "{{.SUPABASE_EXCLUDE}}"
         eval "$(supabase status -o env | sed 's/^/export SB_/')"
         # The current API keys, never the legacy anon/service_role JWTs (ADR-075). A CLI too old to
         # hand them out would leave these empty; that must stop here, not as a 401 three steps later.
@@ -811,7 +818,7 @@ tasks:
 
         set -e
         # Bring up Prudent's own local Supabase stack if it is not already running.
-        supabase status >/dev/null 2>&1 || supabase start
+        supabase status >/dev/null 2>&1 || supabase start -x "{{.SUPABASE_EXCLUDE}}"
         eval "$(supabase status -o env | sed 's/^/export SB_/')"
         # The current API keys, never the legacy anon/service_role JWTs (ADR-075). A CLI too old to
         # hand them out would leave these empty; that must stop here, not as a 401 three steps later.
