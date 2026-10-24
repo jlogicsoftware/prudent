@@ -13,6 +13,51 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-074 — An operator erases a person's data through an admin-only route, with the same deletion the person's own request runs
+
+**Date:** 2026-10-24. **Status:** accepted. **Refines:** ADR-071. **Closes:** jlogicsoftware/prudent#172.
+
+### Decision
+
+- **`POST /api/v1/admin/privacy/users/{userId}/erase`** (`OperatorErasureResource`) erases one person's Prudent data without their session. It is
+  `@RolesAllowed(admin)` — the gate the framework's `AdminUserResource` uses, resolved by `RoleAugmentor` from `users.role` on every request and
+  never from the token. No session is 401, any other role 403, both before the method runs and with nothing deleted.
+- **It is the same deletion.** `PrudentDataEraser` then `PrudentIdentityAnonymiser`, in one transaction, so a failure half-way leaves the person as
+  they were and the operator route and the self-service route cannot disagree about what a person's data is. `PrivacyCoverageTest`'s guarantee
+  therefore covers both. The typed-address confirmation of `POST /api/v1/privacy/erase` is not carried over: its purpose is to make the *person* type
+  something only they would know. The operator's counterpart is that the full user id must be spelled out in the path.
+- **Answers.** 204 on success and on repeating it for an already erased person (nothing left to delete is not an error, as for the eraser itself);
+  404 for an id that is not a UUID or under which Prudent holds neither a profile nor any row (a typo and a stranger look the same); 400 for the
+  caller's own id. Data with no profile row left behind it is still erased, since "cannot sign in" is when a profile may be missing.
+- **An operator does not erase themselves here.** The self-service route exists for that, with its confirmation; a mistyped id must not be able to
+  remove the profile that grants the access needed to repair it.
+- **Logging.** The eraser's line (opaque id, row counts) and one line from the route (the person's id and the operator's id). Never an address, name or
+  title; `OperatorErasureTest` asserts that on a person with a row in every table.
+- **No new credential.** A shared token like the job trigger's would be a standing secret that erases any person on possession; an admin session is
+  attributable (the operator's id is logged), revocable (set `role` back to `user`; effective at the next request) and already how Prudent's
+  operators reach the admin panel. The cost is that calling it needs a browser session and a CSRF header, which `docs/persistent-environment.md` spells out.
+
+### What this does not do
+
+- **The Supabase user stays.** The server holds no service-role key (ADR-071, jZen ADR-007/008), so the operator deletes it in the dashboard. Still open from
+  ADR-071: removing that record from the server.
+- **No admin-panel button.** The route is in the OpenAPI contract and so in the panel's generated schema, but nothing in `admin/` calls it.
+
+### What this supersedes, and why
+
+- **`docs/privacy-policy.md` "If you cannot sign in": "An operator-initiated erasure of a person's Prudent data is **not built**"** → **replaced.**
+  *Why:* it is built; the section now says the operator erases on request and that the Supabase record is deleted as well.
+
+### Consequence
+
+`OperatorErasureTest` (11 cases, both transports for the main one): every `user_id` table (discovered from the schema) empty for the person, the
+operator's rows unchanged, the profile anonymised in the way the framework's `isAnonymised` accepts, 401/403/404/400 with nothing deleted, repeating
+it, an orphaned row erased, and the log. **Not verified:** the route against a deployed service (the console recipe in
+`docs/persistent-environment.md` has not been run there), and that `RoleAugmentor` grants `admin` from the `users` table for this route (the suite mints
+the role with `@TestSecurity`, as jZen's admin suites do; the augmentor path is proven upstream by `RoleAugmentorTest`).
+
+---
+
 ## ADR-073 — A dormant account is now warned by mail, and only a warning the relay accepted moves it toward erasure
 
 **Date:** 2026-10-23. **Status:** accepted. **Refines:** ADR-019, ADR-021, ADR-022, ADR-071. **Follows:** jlogicsoftware/prudent#48.

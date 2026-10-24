@@ -251,6 +251,29 @@ Supabase dashboard (Authentication → Users) as well — it is the half the ser
 holds no service-role key. There are no backups on this environment (section 4), so nothing else
 retains the data. `docs/privacy-policy.md` is what the person has been told.
 
+**A person asks for erasure and cannot sign in.** The in-app route needs their session, so the operator
+erases their Prudent data with `POST /api/v1/admin/privacy/users/{userId}/erase` (#172), which answers
+only to a signed-in user whose `users.role` is `admin` — 401 with no session, 403 for any other role,
+404 for an id nothing is held under, 400 for your own id. There is no key or token for it; it is an
+ordinary session. Once, for your own account, grant the role in the database as the DDL user
+(`update users set role = 'admin' where email = '…'`; the role is read on every request, so it takes
+effect at once and `role = 'user'` revokes it). Then sign in to the service's origin in a browser, take
+the person's **User UID** from the Supabase dashboard (Authentication → Users; it is the id Prudent
+stores) and run in that tab's console:
+
+```js
+const csrf = document.cookie.match(/XSRF-TOKEN=([^;]+)/)[1];
+const r = await fetch('/api/v1/admin/privacy/users/<USER UID>/erase', {
+  method: 'POST', credentials: 'include', headers: {'X-CSRF-Token': csrf},
+});
+r.status; // 204 erased; the service log has "erased at an operator's request" and the row counts
+```
+
+Then delete the Supabase user, as above. It runs the same `PrudentDataEraser` and anonymisation as the
+in-app route in one transaction (`OperatorErasureTest` proves every `user_id` table is empty afterwards
+and nobody else's rows move). **Not run against the deployed service**; the console snippet is the
+assumed shape of a session call, not something that has been executed there.
+
 ### Diagnosing a failure (ADR-072)
 
 - **Is it up?** `GET /api/v1/health` answers 200 if the process is. `GET /api/v1/health/ready` answers 200 only if the service can also

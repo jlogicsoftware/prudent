@@ -106,13 +106,14 @@ It cannot be undone. Copy your data first if you want to keep it.
 
 ### If you cannot sign in
 
-The in-app route needs a session. Deleting the sign-in record at Supabase stops anyone using the
-account, but it does **not** delete the Prudent data behind it. That data is deleted on the schedule
-under "How long it is kept" — if the warnings can reach the address on the account. An
-operator-initiated erasure of a person's Prudent data is **not built**; it would be a new route, and
-is a follow-up rather than something this policy can promise. Until it exists, a person who can no
-longer sign in has to be helped to sign in again — password recovery — and delete from inside the
-app, or wait for the schedule.
+The in-app route needs a session, so a person who cannot sign in asks the operator instead. On a
+request the operator erases that person's Prudent data by their user id, without their session: the
+same deletion, in one transaction, as the in-app route, and the profile is anonymised the same way.
+Only an administrator of the service can do it — anyone else, signed in or not, is refused. Deleting
+the sign-in record at Supabase on its own stops anyone using the account but does **not** delete the
+Prudent data behind it, so the operator does both. The operator finds your user id from the address you
+give, in the sign-in record. If you do not ask, the data is deleted on the schedule under "How long it is kept" — if the warnings can reach the address
+on the account.
 
 ## For the operator
 
@@ -128,6 +129,11 @@ app, or wait for the schedule.
   that flag.
 - On an erasure request, also delete the person's Supabase user. Prudent's side is complete when the
   app has said so; the identity record is the half only you can remove.
+- For a person who cannot sign in, erase their Prudent data yourself:
+  `POST /api/v1/admin/privacy/users/{userId}/erase` as a signed-in user whose `users.role` is
+  `admin` (`docs/persistent-environment.md` shows the call). It refuses everyone else (401 without a
+  session, 403 for any other role), answers 404 for an id Prudent holds nothing under, and refuses
+  your own id. It logs the opaque id and the row counts, nothing else. Repeating it is harmless.
 - This policy and the code move together: a table added with a `user_id` fails the privacy test
   suite until it is both exported and erased (see below).
 
@@ -143,6 +149,11 @@ app, or wait for the schedule.
   another user's, no caching.
 - `PrivacyErasureTest` — the typed-address confirmation, that a refusal deletes nothing, that other
   users are untouched, and that the anonymised profile is one the framework itself recognises.
+- `OperatorErasureTest` — the operator route: only an admin may call it (anonymous 401, an ordinary
+  user 403, nothing deleted), every table with a `user_id` is empty for the person afterwards and the
+  operator's and everyone else's rows are untouched, the profile is one the framework recognises as
+  anonymised, the operator cannot erase themselves, an unknown id is 404, and the log line names the
+  ids and counts and no address or name.
 - `PrudentRetentionCleanupTest` — Prudent's cascade when the framework anonymises an account, driven
   through the framework's own anonymisation.
 - `PrivacyDormancyErasureTest` — the schedule above, end to end: a dormant account is sent the first
