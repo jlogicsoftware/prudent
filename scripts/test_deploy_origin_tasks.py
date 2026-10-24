@@ -54,6 +54,7 @@ esac
 PUBLIC = ("SUPABASE_URL", "SITE_URL", "CORS_ORIGINS", "AUTH_REDIRECT_URI", "AUTH_REDIRECT_URIS",
           "SMTP_HOST", "SMTP_PORT", "SMTP_FROM")
 MAIL_SECRETS = ("SMTP_USERNAME", "SMTP_PASSWORD")
+ADMIN_KEY = "SUPABASE_SERVICE_ROLE_KEY"
 
 
 def service_env(site_url, secret=(), absent=(), plain=(), missing_secret=()):
@@ -61,8 +62,9 @@ def service_env(site_url, secret=(), absent=(), plain=(), missing_secret=()):
 
     One `NAME,VALUE,SECRET` line each. A variable that is a Secret Manager reference has no value
     of its own and names its secret in the third field (`NAME,,SECRET`); a plain one has a value and
-    an empty third field. One in `absent` is not there at all; one in `plain` is a mail secret held
-    as a literal (the wrong way round), and one in `missing_secret` is not bound."""
+    an empty third field. One in `absent` is not there at all; one in `plain` is a secret held
+    as a literal (the wrong way round), and one in `missing_secret` is not bound. The secrets checked
+    are the relay's login and the service-role key (ADR-075)."""
     values = {
         "SUPABASE_URL": "https://ref.supabase.co",
         "SITE_URL": site_url,
@@ -78,7 +80,7 @@ def service_env(site_url, secret=(), absent=(), plain=(), missing_secret=()):
         if name in absent:
             continue
         lines.append(name + (",," + name if name in secret else "," + values[name] + ","))
-    for name in MAIL_SECRETS:
+    for name in MAIL_SECRETS + (ADMIN_KEY,):
         if name in missing_secret:
             continue
         lines.append(name + ("," + "literal-value," if name in plain else ",," + name))
@@ -314,6 +316,21 @@ class PublicConfigOnTheService(TaskCase):
                 rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin, plain=(name,)))
                 self.assertNotEqual(rc, 0, out)
                 self.assertIn(f"FAIL  {name} is absent or a plain value", out)
+
+    def test_the_service_role_key_is_checked_as_a_secret_reference(self):
+        with Server(Prudent) as s:
+            rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin))
+        self.assertEqual(rc, 0, out)
+        self.assertIn(f"ok    {ADMIN_KEY} is a Secret Manager reference", out)
+
+    def test_a_service_role_key_that_is_unbound_or_plain_fails(self):
+        # Unbound, erasure cannot delete the sign-in record; plain, the key is readable by anyone
+        # who can describe the service.
+        for kw in (dict(missing_secret=(ADMIN_KEY,)), dict(plain=(ADMIN_KEY,))):
+            with self.subTest(**kw), Server(Prudent) as s:
+                rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin, **kw))
+                self.assertNotEqual(rc, 0, out)
+                self.assertIn(f"FAIL  {ADMIN_KEY} is absent or a plain value", out)
 
     def test_a_value_that_is_absent_fails(self):
         with Server(Prudent) as s:

@@ -448,11 +448,12 @@ class PrudentRepository {
   Future<ZenResult<DataExport>> exportData() =>
       _client.get<DataExport>(DataExport.new, '$_privacyPath/export');
 
-  /// Erases every Prudent row the user owns and anonymises their profile — IRREVERSIBLE. Refused
-  /// (400) unless [EraseAccountRequest.confirmEmail] is the account's sign-in address, in which case
-  /// nothing is deleted. The sign-in credential at the identity provider is not removed, and the
-  /// session is not ended: the caller logs out. The server answers 204, so the empty request
-  /// message stands in for the missing body, as [deleteAccount]'s does.
+  /// Erases every Prudent row the user owns, anonymises their profile and deletes their sign-in
+  /// record at the identity provider — IRREVERSIBLE. Refused (400) unless
+  /// [EraseAccountRequest.confirmEmail] is the account's sign-in address, and answered 503 when the
+  /// sign-in record could not be deleted; in both cases nothing is deleted. The session is not
+  /// ended: the caller logs out. The server answers 204, so the empty request message stands in for
+  /// the missing body, as [deleteAccount]'s does.
   Future<ZenResult<EraseAccountRequest>> eraseAccount(
     EraseAccountRequest request,
   ) => _client.post<EraseAccountRequest>(

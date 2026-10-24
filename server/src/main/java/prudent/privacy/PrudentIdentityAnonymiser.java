@@ -20,10 +20,9 @@ import zen.identity.user.User;
  * which fails the moment the two disagree. The gap is reported upstream in {@code docs/jzen/}.
  *
  * <p><strong>What this does not reach: the sign-in credential.</strong> The address a person signs
- * in with is also held by Supabase in {@code auth.users}, which is Supabase's table, reachable only
- * with a service-role key this server deliberately does not hold (jZen ADR-007, ADR-008; finding F4
- * of jZen's security review). Erasing it is an operator action — see
- * {@code docs/privacy-policy.md} — and the policy says so rather than implying otherwise.
+ * in with is also held by Supabase in {@code auth.users}, which is Supabase's table and not this
+ * row. {@link SignInRecordEraser} deletes it through Supabase's admin API, in the same transaction,
+ * for the two request routes (ADR-075); dormancy anonymisation does not reach it yet.
  *
  * <p>Joins the caller's transaction ({@code MANDATORY}): the identity change and the deletion of
  * the person's financial rows must commit together or not at all.

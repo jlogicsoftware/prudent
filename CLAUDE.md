@@ -163,16 +163,18 @@ every row a user owns in any lifecycle state (readable JSON, never cached), and 
 anonymises the profile in one transaction, refused unless the body repeats the account's address. The deletion is
 `PrudentDataEraser`, shared with the retention observer; `PrivacyCoverageTest` derives its coverage from the database's own schema, so
 a table with a `user_id` that the exporter and eraser do not know fails the suite. Settings has a "Privacy and data" detail (copy to
-the clipboard, delete). `docs/privacy-policy.md` is the published policy. **Two things it states plainly and does not fix:** erasure
-does not reach Supabase's `auth.users` (the server holds no service-role key — the operator deletes that user). Dormancy erasure
+the clipboard, delete). `docs/privacy-policy.md` is the published policy. Both request routes delete the person's Supabase sign-in
+record too (ADR-075, jlogicsoftware/prudent#173): `SignInRecordEraser` calls GoTrue's admin delete with `SUPABASE_SERVICE_ROLE_KEY`,
+last in the erasure's transaction, so a refusal is a 503 with nothing erased; a dormancy-erased person keeps theirs (the operator
+deletes it). `task test:e2e` proves the deletion against a real local Supabase; no deployed service has the key yet. Dormancy erasure
 (ADR-073) runs: `DormancyWarningMailer` observes the framework's `AccountDeletionWarning`, sends the first and final warning
 through `zen-email` (en/uk/pl, no ledger data, the recipient logged by id only) and confirms the receipt only when the relay
 accepted the message, so an unwarned account never advances; `PrivacyDormancyErasureTest` drives warnings then anonymisation and
 checks nothing of Prudent's remains. It needs a mail relay in every deployment (`SMTP_HOST`, `SMTP_FROM`, `SMTP_PORT` public;
 `SMTP_USERNAME`, `SMTP_PASSWORD` secrets) and **has not been run against a real relay**. No deployed read of the export has been
 done (#159). For a person who cannot sign in, `POST /api/v1/admin/privacy/users/{userId}/erase` (`OperatorErasureResource`, ADR-074,
-jlogicsoftware/prudent#172) runs the same eraser and anonymiser for an `admin`-role session (401/403 otherwise, 404 for an id with nothing
-behind it, 400 for the caller's own); it has not been run against a deployed service, and the Supabase user is still deleted by hand.
+jlogicsoftware/prudent#172) runs the same eraser, anonymiser and sign-in deletion for an `admin`-role session (401/403 otherwise, 404 for an id with nothing
+behind it, 400 for the caller's own); it has not been run against a deployed service.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
@@ -184,7 +186,9 @@ exact artifact a deploy ships, in Docker, against a throwaway Postgres. A persis
 proof of concept on `*.run.app`, Supabase Free with **no backups** (ADR-068, ADR-069,
 `docs/persistent-environment.md`), signed in to from a browser. It holds test data only; real finances
 wait for #47. Its first sign-in found that no Prudent message was registered for the native image
-(#158, fixed; `task verify:reflection` guards the list). Nine genuine secrets are in Secret Manager (the seven of ADR-070 and the relay's `SMTP_USERNAME` and `SMTP_PASSWORD`, ADR-073);
+(#158, fixed; `task verify:reflection` guards the list). Ten genuine secrets are required (the seven of ADR-070, the relay's `SMTP_USERNAME` and `SMTP_PASSWORD`, ADR-073, and
+`SUPABASE_SERVICE_ROLE_KEY`, ADR-075, on the service only; `SUPABASE_KEY` is the anon key, and which key the persistent
+environment's holds is to be checked before its next deploy);
 the five public configuration values (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`, `AUTH_REDIRECT_URIS`) and the
 three mail values (`SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`) are plain environment variables on the service and the migration job
 (ADR-070, #166, ADR-073), and `verify:deploy` fails when one is not. The persistent environment predates the mail values and has

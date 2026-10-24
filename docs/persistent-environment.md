@@ -71,7 +71,7 @@ because the project holds nothing but this application's secrets. Keep it that w
 
 ## 3. Secrets and sign-in
 
-Nine secrets and eight public values: the secrets and how each is created are runbook step 2, and
+Ten secrets and eight public values: the secrets and how each is created are runbook step 2, and
 the eight public values are the five below plus the three mail values (`SMTP_HOST`, `SMTP_PORT`,
 `SMTP_FROM`, ADR-073). The five (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`,
 `AUTH_REDIRECT_URIS`) are not in Secret Manager at all (#166, ADR-070). They are plain environment
@@ -80,6 +80,16 @@ in the shell that runs `deploy:cloudrun`, and the other three are derived from `
 cannot disagree with the origin the bundle calls. What follows is only what the runbook does not
 say.
 
+**`SUPABASE_KEY` is the anon key and `SUPABASE_SERVICE_ROLE_KEY` the service-role key (ADR-075).** Until
+ADR-075 the runbook asked for the service-role key under `SUPABASE_KEY`, while every decision said the
+server held none, so **check which key this environment's `SUPABASE_KEY` holds** before its next deploy.
+In the dashboard compare it with Project Settings → API keys. A legacy JWT can also be decoded: its
+`role` claim is `anon` or `service_role`. If it is the service-role key, store that value as
+`SUPABASE_SERVICE_ROLE_KEY`, add a new version of `SUPABASE_KEY` holding the anon key, then deploy.
+`SUPABASE_SERVICE_ROLE_KEY` is new: create it before that deploy, or the service revision does not start.
+It is given to the service and not the migration job, and `verify:deploy` fails when it is unbound or a
+plain value.
+
 | Secret | Rotation | Status |
 |---|---|---|
 | `DB_PASSWORD` | Reset in Supabase, **then** a new secret version, then a deploy | Never exercised |
@@ -87,6 +97,7 @@ say.
 | `ZEN_JOBS_TRIGGER_TOKEN` | New version, deploy, **then** update the scheduler header: `gcloud scheduler jobs update http prudent-jobs-tick --update-headers=...` | Flag exists in gcloud 587; never run |
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | A new secret version, then a deploy; the relay's own console issues the new login first | Never exercised |
 | `SUPABASE_KEY` | Read again from the dashboard or Management API. How Supabase rotates it, and what that invalidates, was not tried | Unknown |
+| `SUPABASE_SERVICE_ROLE_KEY` | A new secret key in the dashboard (Project Settings → API keys), a new secret version, a deploy, **then** revoke the old key | Never exercised |
 | `DB_URL`, `DB_USERNAME`, `APP_DB_USERNAME` | Derived from `REF` and the pooler host; recreate rather than rotate | — |
 
 `gcloud secrets create` accepts `--version-destroy-ttl="86400s"` (the format is in `--help`): a
@@ -245,11 +256,14 @@ worth a week on DNS.
 | The origin has to change | New `WEB_API_URL`, new `SITE_URL`/`AUTH_REDIRECT_URI`/`CORS_ORIGINS`, Supabase Site URL and Redirect URLs, **a rebuilt bundle** | `deploy:check-origin-config` and `deploy:accept-origin` catch a wrong host; a live migration of an origin was never done |
 | Supabase project paused or deleted | Resume (paused); not recoverable (deleted) | Section 4 |
 
-**A person asks for their data to be erased.** Prudent's own data goes when they use Settings → Privacy
-and data → Delete my data (ADR-071); that does **not** remove their sign-in. Delete the user in the
-Supabase dashboard (Authentication → Users) as well — it is the half the server cannot do, because it
-holds no service-role key. There are no backups on this environment (section 4), so nothing else
-retains the data. `docs/privacy-policy.md` is what the person has been told.
+**A person asks for their data to be erased.** Settings → Privacy and data → Delete my data removes their
+Prudent data and, since ADR-075, their Supabase user too, in one step: the server deletes the sign-in
+record with `SUPABASE_SERVICE_ROLE_KEY`, and if Supabase refuses, the person is told nothing was erased
+and can try again (the service log has `Sign-in record of <id> not deleted` and Supabase's status). There
+is nothing for you to do. There are no backups on this environment (section 4), so nothing else retains
+the data. `docs/privacy-policy.md` is what the person has been told. **A person who dies out through
+dormancy** (ADR-073) keeps their Supabase user: delete it in the dashboard (Authentication → Users) when
+the service log reports the account anonymised.
 
 **A person asks for erasure and cannot sign in.** The in-app route needs their session, so the operator
 erases their Prudent data with `POST /api/v1/admin/privacy/users/{userId}/erase` (#172), which answers
@@ -269,8 +283,9 @@ const r = await fetch('/api/v1/admin/privacy/users/<USER UID>/erase', {
 r.status; // 204 erased; the service log has "erased at an operator's request" and the row counts
 ```
 
-Then delete the Supabase user, as above. It runs the same `PrudentDataEraser` and anonymisation as the
-in-app route in one transaction (`OperatorErasureTest` proves every `user_id` table is empty afterwards
+A 503 means Supabase did not delete the sign-in record and nothing was erased; repeat it. The Supabase
+user is deleted by the same call, so there is no dashboard step. It runs the same `PrudentDataEraser`,
+anonymisation and sign-in deletion as the in-app route in one transaction (`OperatorErasureTest` proves every `user_id` table is empty afterwards
 and nobody else's rows move). **Not run against the deployed service**; the console snippet is the
 assumed shape of a session call, not something that has been executed there.
 

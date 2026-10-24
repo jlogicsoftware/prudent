@@ -39,8 +39,9 @@ import zen.identity.user.UserRole;
  * person type something only they would know — does not carry over to an operator; the id in the
  * path has to be spelled out in full instead.
  *
- * <p><strong>What it does not do</strong>, and the policy says so: it does not remove the sign-in
- * credential Supabase holds, which the server has no key for. The operator deletes that user too.
+ * <p><strong>The sign-in record goes too</strong> ({@link SignInRecordEraser}, ADR-075), last and in
+ * the same transaction, so a refusal from Supabase is a 503 with nothing erased. A record that is
+ * already gone — deleted in the dashboard, or by an earlier erasure — is not an error.
  *
  * <p>The operator may not erase themselves here — that is the self-service route's job, with its
  * confirmation, and an operator account that lost its profile to a mistyped id would lose the very
@@ -56,6 +57,7 @@ public class OperatorErasureResource {
   @Inject CurrentUser currentUser;
   @Inject PrudentDataEraser eraser;
   @Inject PrudentIdentityAnonymiser identity;
+  @Inject SignInRecordEraser signIn;
 
   @POST
   @Path("/users/{userId}/erase")
@@ -63,10 +65,10 @@ public class OperatorErasureResource {
   @Operation(
       summary = "Erase one person's data on the operator's request",
       description =
-          "IRREVERSIBLE. Deletes every Prudent row the named user owns and anonymises their"
-              + " profile, in one transaction, exactly as their own erasure does. Admin role"
-              + " only. The sign-in credential held by the identity provider is not removed."
-              + " Repeating it for an already erased user succeeds and deletes nothing.")
+          "IRREVERSIBLE. Deletes every Prudent row the named user owns, anonymises their"
+              + " profile and deletes their sign-in record at the identity provider, in one"
+              + " transaction, exactly as their own erasure does. Admin role only. Repeating it"
+              + " for an already erased user succeeds and deletes nothing.")
   @APIResponse(responseCode = ZenStatus.NO_CONTENT, description = "Erased")
   @APIResponse(
       responseCode = ZenStatus.BAD_REQUEST,
@@ -77,6 +79,10 @@ public class OperatorErasureResource {
   @APIResponse(
       responseCode = ZenStatus.NOT_FOUND,
       description = "The id is not a user id, or Prudent holds nothing under it",
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  @APIResponse(
+      responseCode = ZenStatus.SERVICE_UNAVAILABLE,
+      description = "The sign-in record could not be deleted; nothing is deleted",
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response erase(@PathParam("userId") String userId) {
     UUID target = Ids.parse("user", userId);
@@ -94,6 +100,7 @@ public class OperatorErasureResource {
       // transaction back, which has nothing in it to undo.
       throw PrudentException.notFound("user", target);
     }
+    signIn.delete(target);
     LOG.infof("Account %s erased at an operator's request (operator %s)", target, operator);
     return Response.noContent().build();
   }

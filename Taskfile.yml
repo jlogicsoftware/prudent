@@ -253,8 +253,9 @@ tasks:
                                       a public value as a secret or for another origin (#166).
         test_public_config.py         scripts/public_config.sh (what it accepts, refuses by name and
                                       derives) and the shape of deploy:cloudrun's gcloud calls: only
-                                      the nine genuine secrets, the five public values and the
-                                      three mail values as literals on the job AND the service.
+                                      the ten genuine secrets (the service-role key on the service
+                                      only), the five public values and the three mail values as
+                                      literals on the job AND the service.
 
       It needs python3, curl and go-task; it starts no container and touches no cloud.
     cmds:
@@ -634,6 +635,9 @@ tasks:
             -e SMTP_HOST=smtp.invalid -e SMTP_FROM=noreply@prudent.invalid \
             -e SMTP_USERNAME=smoke -e SMTP_PASSWORD=smoke
         }
+        # A serving %prod process refuses to start without the service-role key (ADR-075); the
+        # migration job does not need it and is deliberately not given it, as on Cloud Run.
+        serving_env() { printf '%s ' -e SUPABASE_SERVICE_ROLE_KEY="${SB_SERVICE_ROLE_KEY}"; }
         migrate_only() {
           docker rm -f prudent-smoke-migrate >/dev/null 2>&1 || true
           docker run --name prudent-smoke-migrate --network "$NET" --platform=linux/amd64 \
@@ -709,7 +713,7 @@ tasks:
 
         # ── The deploy's second half: the same image, serving, against the migrated schema. ──
         docker run -d --name prudent-smoke-app --network "$NET" -p 18085:8085 --platform=linux/amd64 \
-          $(smoke_env) -e APP_DB_USERNAME=zen_runtime -e APP_DB_PASSWORD=smoke-runtime "$IMG" >/dev/null
+          $(smoke_env) $(serving_env) -e APP_DB_USERNAME=zen_runtime -e APP_DB_PASSWORD=smoke-runtime "$IMG" >/dev/null
 
         up=0
         for _ in $(seq 1 60); do
@@ -804,6 +808,8 @@ tasks:
         eval "$(supabase status -o env | sed 's/^/export SB_/')"
         export SUPABASE_URL="${SB_API_URL}"
         export SUPABASE_KEY="${SB_ANON_KEY}"
+        # Erasure deletes the sign-in record with it (ADR-075), and the suite proves that it does.
+        export SUPABASE_SERVICE_ROLE_KEY="${SB_SERVICE_ROLE_KEY}"
 
         # Install the framework libs, then build Prudent's server (fast when already built).
         ( cd {{.SERVER_DIR}} && ./mvnw -B -q install -DskipTests )
@@ -934,7 +940,7 @@ tasks:
                 --member=serviceAccount:prudent-runtime@PROJECT.iam.gserviceaccount.com \
                 --role=roles/secretmanager.secretAccessor
 
-        2. THE NINE SECRETS. --set-secrets below fails the deploy if any is missing, which is the
+        2. THE TEN SECRETS. --set-secrets below fails the deploy if any is missing, which is the
            point: a service that boots without one is a service whose security control is absent
            rather than failing. The five public values (SUPABASE_URL, SITE_URL, CORS_ORIGINS,
            AUTH_REDIRECT_URI, AUTH_REDIRECT_URIS), and the mail relay's SMTP_HOST, SMTP_PORT and
@@ -948,7 +954,8 @@ tasks:
            the command's output cannot be parsed. With REF the project's reference:
 
              mk() { printf '%s' "$2" | gcloud secrets create "$1" --data-file=- --project=PROJECT; }
-             mk SUPABASE_KEY            <the service_role key — server-side only, NEVER a client>
+             mk SUPABASE_KEY            <the anon (publishable) key — sent on every sign-in call>
+             mk SUPABASE_SERVICE_ROLE_KEY <the service_role (secret) key — server-side only, NEVER a client>
              mk DB_URL                  jdbc:postgresql://<pooler db_host>:5432/postgres
              mk DB_USERNAME             postgres.REF         # DDL role: migrations run as this
              mk DB_PASSWORD             <the database password chosen above>
@@ -957,6 +964,17 @@ tasks:
              mk ZEN_JOBS_TRIGGER_TOKEN  "$(openssl rand -base64 32)"
              mk SMTP_USERNAME           <the mail relay's login>
              mk SMTP_PASSWORD           <the relay's password or API key>
+
+           SUPABASE_KEY AND SUPABASE_SERVICE_ROLE_KEY ARE DIFFERENT KEYS, and swapping them is the
+           mistake to avoid (ADR-075). SUPABASE_KEY is the anon key: zen-identity sends it as
+           `apikey` on every call it makes for a person (sign-in, sign-up, refresh). The service-role
+           key administers every identity in the project — it can delete a user, set a password,
+           mint a sign-in link — and the server sends it on ONE call only, deleting a person's
+           sign-in record when they are erased. Only the SERVICE is given it, not the migration job;
+           a serving %prod process refuses to start without it, and verify:deploy fails when it is
+           unbound or held as a plain value. Take both from the Supabase dashboard (Project
+           Settings → API keys): the legacy anon/service_role pair or the publishable/secret pair
+           both work.
 
            THE TWO SMTP SECRETS ARE WHAT LETS A DORMANT ACCOUNT BE ERASED AT ALL (ADR-073).
            zen-identity anonymises an account only after a warning mail was confirmed delivered, so
@@ -1094,7 +1112,9 @@ tasks:
           -t "${IMAGE}" {{.SERVER_DIR}}
         docker push "${IMAGE}"
 
-        # Nine genuine secrets (#166, ADR-073): these seven and the APP_DB_* pair below. The five
+        # Ten genuine secrets (#166, ADR-073, ADR-075): these seven, the APP_DB_* pair and the
+        # service-role key below. The APP_DB_* pair and the key go to the SERVICE ONLY: the
+        # migration job connects as the DDL role and deletes no sign-in record. The five
         # public values and the three mail values (SMTP_HOST, SMTP_PORT, SMTP_FROM) are literals,
         # passed as --set-env-vars on the job AND the service, because the packaged image fails
         # config validation without them on either — and so does it without the SMTP_* secrets,
@@ -1103,6 +1123,7 @@ tasks:
         . scripts/public_config.sh
         SECRETS="SUPABASE_KEY=SUPABASE_KEY:latest,DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,ZEN_JOBS_TRIGGER_TOKEN=ZEN_JOBS_TRIGGER_TOKEN:latest,SMTP_USERNAME=SMTP_USERNAME:latest,SMTP_PASSWORD=SMTP_PASSWORD:latest"
         APP_DB="APP_DB_USERNAME=APP_DB_USERNAME:latest,APP_DB_PASSWORD=APP_DB_PASSWORD:latest"
+        ADMIN_KEY="SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest"
 
         # ZEN_I18N_SUPPORTED is carried EXPLICITLY on every deploy. --set-env-vars replaces the
         # whole environment, so a value set by hand on the service is wiped by the next deploy;
@@ -1189,7 +1210,7 @@ tasks:
           --set-env-vars="SMTP_HOST=${SMTP_HOST}" \
           --set-env-vars="SMTP_PORT=${SMTP_PORT}" \
           --set-env-vars="SMTP_FROM=${SMTP_FROM}" \
-          --set-secrets="${SECRETS},${APP_DB}" \
+          --set-secrets="${SECRETS},${APP_DB},${ADMIN_KEY}" \
           --quiet
 
       # The deploy is not finished until the origin the bundle calls answers as Prudent.
@@ -1508,6 +1529,15 @@ tasks:
             if [ -n "$(svc_secret "$n")" ]; then printf '  ok    %s is a Secret Manager reference\n' "$n"
             else printf '  FAIL  %s is absent or a plain value: dormancy warnings cannot be sent, or the credential is readable in the service configuration\n' "$n"; fail=1; fi
           done
+          # The service-role key, the same way (ADR-075). Unbound, the revision does not start (the
+          # last revision keeps serving, so the deploy looks fine); as a plain value, the key that
+          # administers every identity sits in configuration anyone with run.services.get can read.
+          if [ -n "$(svc_secret SUPABASE_SERVICE_ROLE_KEY)" ]; then
+            printf '  ok    SUPABASE_SERVICE_ROLE_KEY is a Secret Manager reference\n'
+          else
+            printf '  FAIL  SUPABASE_SERVICE_ROLE_KEY is absent or a plain value: erasure cannot delete the sign-in record, or the key is readable in the service configuration\n'
+            fail=1
+          fi
         elif [ "${SVC}" = unreadable ]; then
           printf '  FAIL  could not read the configuration of %s to check its public values\n' "${SERVICE_NAME}"
           fail=1

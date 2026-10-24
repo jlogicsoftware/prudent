@@ -15,7 +15,9 @@ library;
 // What it asserts end to end: register (which seeds the default categories and settings row via
 // zen-identity's UserRegistered event, ADR-010), the session cookie surviving across requests,
 // an account created, a record created against it and read back with the derived balance moved,
-// and a typed round trip in BOTH transport modes on the records endpoint.
+// and a typed round trip in BOTH transport modes on the records endpoint. And erasure: a second
+// user erased through the API can no longer sign in, because the server deleted the sign-in record
+// at Supabase as well (ADR-075) — the one place that call meets the real GoTrue.
 import 'dart:io';
 
 import 'package:fixnum/fixnum.dart';
@@ -26,6 +28,7 @@ import 'package:zen_transport/zen_transport.dart';
 
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent/generated/prudent/v1/privacy.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
 import 'package:prudent/prudent_repository.dart';
 
@@ -186,6 +189,46 @@ void main() {
     final result = await anon.listRecords();
     expect(result.isFailure, isTrue);
     expect(result.errorOrNull!.message, isNotEmpty);
+  });
+
+  test('an erased person can no longer sign in: the sign-in record is gone too', () async {
+    // A user of its own, on a session of its own, so the rest of the suite keeps its account.
+    final erasedSession = createSessionClient();
+    addTearDown(erasedSession.close);
+    late SupabaseIdentityRepository erasedIdentity;
+    Future<bool> recover() async => (await erasedIdentity.refreshSession()).isSuccess;
+    erasedIdentity = SupabaseIdentityRepository(
+      client: ZenClient(baseUrl: baseUrl, httpClient: erasedSession, recoverSession: recover),
+    );
+    final erasedPrudent = PrudentRepository(
+      client: ZenClient(baseUrl: baseUrl, httpClient: erasedSession, recoverSession: recover),
+    );
+    final erasedEmail = 'prudent-e2e-erased-${DateTime.now().microsecondsSinceEpoch}@example.com';
+
+    unwrap(
+      await erasedIdentity.registerWithEmail(email: erasedEmail, password: password),
+      'registering the user to erase',
+    );
+    // Signing out and back in first shows the credentials work, so the refusal at the end can only
+    // mean the record is gone, not that the password was wrong.
+    unwrap(await erasedIdentity.logout(), 'signing out before erasure');
+    unwrap(
+      await erasedIdentity.loginWithEmail(email: erasedEmail, password: password),
+      'signing in before erasure',
+    );
+
+    unwrap(
+      await erasedPrudent.eraseAccount(EraseAccountRequest(confirmEmail: erasedEmail)),
+      'erasing the account (a 503 here means the server could not delete the sign-in record)',
+    );
+    unwrap(await erasedIdentity.logout(), 'signing out after erasure');
+
+    final again = await erasedIdentity.loginWithEmail(email: erasedEmail, password: password);
+    expect(
+      again.isFailure,
+      isTrue,
+      reason: 'signing in again after erasure must fail: Supabase still holds the sign-in record',
+    );
   });
 
   test('logout clears the session', () async {

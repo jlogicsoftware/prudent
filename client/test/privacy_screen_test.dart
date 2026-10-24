@@ -145,8 +145,9 @@ void main() {
 
     expect(find.textContaining('Prudent keeps the accounts'), findsOneWidget);
     expect(find.textContaining('copy everything'), findsOneWidget);
-    // The limit is stated up front, not discovered afterwards.
-    expect(find.textContaining('does not remove your sign-in'), findsOneWidget);
+    // What deletion reaches, and what it leaves, is stated up front, not discovered afterwards.
+    expect(find.textContaining('also deletes your sign-in'), findsOneWidget);
+    expect(find.textContaining('A backup taken before keeps a copy'), findsOneWidget);
     expect(button('Copy my data'), findsOneWidget);
     expect(button('Delete my data'), findsOneWidget);
   });
