@@ -170,6 +170,10 @@ void main() {
     if (skipWithoutZenPlatform()) return;
     await pump(tester);
 
+    // The screen scrolls, and on an 800×600 surface the button sits below the fold on some
+    // platforms' layouts; a person scrolls to it, so the test does too.
+    await tester.ensureVisible(button('Delete my data'));
+    await tester.pumpAndSettle();
     await tester.tap(button('Delete my data'));
     await tester.pumpAndSettle();
 
