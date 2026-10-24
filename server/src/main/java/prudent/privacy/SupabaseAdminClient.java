@@ -13,16 +13,17 @@ import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
  * <p>The base URL ends in {@code /auth/v1} ({@code quarkus.rest-client.supabase-admin.url}), as for
  * the framework's own {@code SupabaseAuthClient}, so the path here is relative. It is a separate
  * client, under its own config key, because it carries a different credential: the framework's
- * client sends the anon key on behalf of a person, and this one sends the service-role key on
+ * client sends the publishable key on behalf of a person, and this one sends the secret key on
  * behalf of the server. Keeping them apart means no call made for a person ever carries the key
  * that administers everyone.
  *
- * <p>The key travels in both headers, as Supabase's own client libraries send it: GoTrue's admin
- * routes read the bearer token, and Supabase's gateway reads {@code apikey}. Measured against the
- * local stack, a legacy service-role JWT is refused (401) without the bearer, and both the legacy
- * key and an {@code sb_secret_} key are accepted with both headers. The key is a parameter rather
- * than a {@code @ClientHeaderParam} so that it is read in one place, {@link SignInRecordEraser},
- * which also refuses to send a blank one.
+ * <p><strong>The secret key travels in {@code apikey} and nowhere else.</strong> It is not a JWT,
+ * so it does not belong in {@code Authorization}; Supabase's gateway reads {@code apikey} and
+ * presents the call to GoTrue as the service role. Measured against the local stack: an
+ * {@code sb_secret_} key in {@code apikey} alone deletes a user (200, then 404 on a repeat), and the
+ * publishable key is refused (403 {@code not_admin}). The legacy service-role JWT is not used at all
+ * (ADR-075). The key is a parameter rather than a {@code @ClientHeaderParam} so that it is read and
+ * checked in one place, {@link SignInRecordEraser}.
  *
  * <p>No body is sent, which GoTrue reads as a hard delete ({@code should_soft_delete} defaults to
  * false). Nothing is read from the answer either, so no JSON provider is involved — the server has
@@ -38,8 +39,5 @@ public interface SupabaseAdminClient {
    */
   @DELETE
   @Path("/admin/users/{id}")
-  void deleteUser(
-      @PathParam("id") UUID userId,
-      @HeaderParam("apikey") String apiKey,
-      @HeaderParam("Authorization") String bearer);
+  void deleteUser(@PathParam("id") UUID userId, @HeaderParam("apikey") String secretKey);
 }

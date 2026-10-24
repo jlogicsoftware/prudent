@@ -1,16 +1,12 @@
 package prudent.privacy;
 
-import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.WebApplicationException;
-import java.util.Optional;
 import java.util.UUID;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 import prudent.error.PrudentException;
@@ -19,12 +15,13 @@ import prudent.error.PrudentException;
  * Deletes a person's sign-in record — the address and password hash Supabase holds in
  * {@code auth.users} — as the last step of an erasure (ADR-075).
  *
- * <p><strong>Why the server holds a service-role key for this.</strong> Until ADR-075 it was meant
- * not to, and the operator deleted the record by hand (jZen ADR-007 and ADR-008 leave {@code auth.users} to
+ * <p><strong>Why the server holds a secret key for this.</strong> Until ADR-075 it was meant not to,
+ * and the operator deleted the record by hand (jZen ADR-007 and ADR-008 leave {@code auth.users} to
  * Supabase; finding F4 of jZen's security review priced the choice). That left a person who erased
  * their own data with a live sign-in that nobody was told to remove, and signing in again started an
- * empty account. The key is held under its own name, {@code SUPABASE_SERVICE_ROLE_KEY}, used by this
- * class only and only for this call, and given to the serving container and not the migration job.
+ * empty account. The key is the project's secret key, {@code SUPABASE_SECRET_KEY}
+ * ({@link SupabaseKeys}), used by this class only and only for this call, and given to the serving
+ * container and not the migration job.
  *
  * <p><strong>A failure is the caller's answer, never a log line alone.</strong> Anything but
  * success or "already gone" throws a 503, and because this runs last inside the erasure's
@@ -49,36 +46,15 @@ public class SignInRecordEraser {
 
   @Inject @RestClient SupabaseAdminClient admin;
   @Inject EntityManager entityManager;
-
-  @ConfigProperty(name = "prudent.supabase.service-role-key")
-  Optional<String> serviceRoleKey;
-
-  @ConfigProperty(name = "prudent.supabase.service-role-key-required", defaultValue = "false")
-  boolean keyRequired;
-
-  @ConfigProperty(name = "zen.migrate-only", defaultValue = "false")
-  boolean migrateOnly;
-
-  /**
-   * Refuses to start a serving {@code %prod} process without the key, so a deployment that lacks it
-   * fails at boot rather than at the first person's erasure. The migration job is exempt: it serves
-   * nothing, and giving it the key would widen what that job can do for no use.
-   */
-  void requireKey(@Observes StartupEvent event) {
-    if (keyRequired && !migrateOnly && key().isEmpty()) {
-      throw new IllegalStateException(
-          "SUPABASE_SERVICE_ROLE_KEY is not set. Erasure deletes the sign-in record with it"
-              + " (ADR-075); a service without it cannot erase anyone.");
-    }
-  }
+  @Inject SupabaseKeys keys;
 
   /**
    * Deletes the sign-in record of {@code userId}, or confirms there is none. Called last, inside
    * the erasure's transaction ({@code MANDATORY} says so).
    *
-   * <p>The transaction is flushed before the call. Deleting the record cannot be undone, so whatever could
-   * still refuse — a constraint the anonymised profile breaks — has to refuse before it, not at the
-   * commit after it.
+   * <p>The transaction is flushed before the call. Deleting the record cannot be undone, so whatever
+   * could still refuse — a constraint the anonymised profile breaks — has to refuse before it, not at
+   * the commit after it.
    *
    * @param userId the person being erased, whose Prudent id is their Supabase id
    * @throws PrudentException 503 when the record could not be deleted
@@ -86,17 +62,18 @@ public class SignInRecordEraser {
   @Transactional(Transactional.TxType.MANDATORY)
   public void delete(UUID userId) {
     String key =
-        key()
+        keys.secret()
             .orElseThrow(
                 () -> {
+                  // Unset, or not an sb_secret_ key: a legacy JWT is never sent (SupabaseKeys).
                   LOG.errorf(
-                      "Sign-in record of %s not deleted: SUPABASE_SERVICE_ROLE_KEY is not set",
+                      "Sign-in record of %s not deleted: SUPABASE_SECRET_KEY is not a secret key",
                       userId);
                   return PrudentException.unavailable(FAILED);
                 });
     entityManager.flush();
     try {
-      admin.deleteUser(userId, key, "Bearer " + key);
+      admin.deleteUser(userId, key);
     } catch (WebApplicationException e) {
       int status = e.getResponse().getStatus();
       if (status == NOT_FOUND) {
@@ -107,14 +84,9 @@ public class SignInRecordEraser {
       LOG.errorf("Sign-in record of %s not deleted: Supabase answered %d", userId, status);
       throw PrudentException.unavailable(FAILED);
     } catch (ProcessingException e) {
-      LOG.errorf(
-          "Sign-in record of %s not deleted: %s", userId, e.getClass().getSimpleName());
+      LOG.errorf("Sign-in record of %s not deleted: %s", userId, e.getClass().getSimpleName());
       throw PrudentException.unavailable(FAILED);
     }
     LOG.infof("Sign-in record of %s deleted", userId);
-  }
-
-  private Optional<String> key() {
-    return serviceRoleKey.map(String::trim).filter(k -> !k.isEmpty());
   }
 }

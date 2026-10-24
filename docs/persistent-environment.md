@@ -80,15 +80,18 @@ in the shell that runs `deploy:cloudrun`, and the other three are derived from `
 cannot disagree with the origin the bundle calls. What follows is only what the runbook does not
 say.
 
-**`SUPABASE_KEY` is the anon key and `SUPABASE_SERVICE_ROLE_KEY` the service-role key (ADR-075).** Until
-ADR-075 the runbook asked for the service-role key under `SUPABASE_KEY`, while every decision said the
-server held none, so **check which key this environment's `SUPABASE_KEY` holds** before its next deploy.
-In the dashboard compare it with Project Settings → API keys. A legacy JWT can also be decoded: its
-`role` claim is `anon` or `service_role`. If it is the service-role key, store that value as
-`SUPABASE_SERVICE_ROLE_KEY`, add a new version of `SUPABASE_KEY` holding the anon key, then deploy.
-`SUPABASE_SERVICE_ROLE_KEY` is new: create it before that deploy, or the service revision does not start.
-It is given to the service and not the migration job, and `verify:deploy` fails when it is unbound or a
-plain value.
+**`SUPABASE_KEY` is the publishable key and `SUPABASE_SECRET_KEY` a secret key (ADR-075)**, Supabase's current API keys
+(Project Settings → API keys), never the legacy anon/service_role JWTs. A serving process refuses to start unless `SUPABASE_KEY` begins
+`sb_publishable_` and `SUPABASE_SECRET_KEY` begins `sb_secret_`. Until ADR-075 the runbook asked for the service-role JWT under
+`SUPABASE_KEY`, so this environment's `SUPABASE_KEY` is whatever was stored then. Before its next deploy:
+
+1. Add a new version of `SUPABASE_KEY` holding the publishable key.
+2. Create a secret key of its own for this service in the dashboard (Secret keys → New secret key), and create the secret
+   `SUPABASE_SECRET_KEY` from it (runbook step 2). Without it the service revision does not start.
+3. If the old `SUPABASE_KEY` was the service-role JWT, it has sat in a secret that was named as harmless. Once the deploy serves,
+   disable the legacy JWT keys in the dashboard, which retires both of them.
+
+`SUPABASE_SECRET_KEY` is given to the service and not the migration job, and `verify:deploy` fails when it is unbound or a plain value.
 
 | Secret | Rotation | Status |
 |---|---|---|
@@ -96,8 +99,8 @@ plain value.
 | `APP_DB_PASSWORD` | A new secret version plus `task deploy:cloudrun`; the deploy applies it to the role (ADR-066) | Proven on a throwaway Postgres, **not** against a live service |
 | `ZEN_JOBS_TRIGGER_TOKEN` | New version, deploy, **then** update the scheduler header: `gcloud scheduler jobs update http prudent-jobs-tick --update-headers=...` | Flag exists in gcloud 587; never run |
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | A new secret version, then a deploy; the relay's own console issues the new login first | Never exercised |
-| `SUPABASE_KEY` | Read again from the dashboard or Management API. How Supabase rotates it, and what that invalidates, was not tried | Unknown |
-| `SUPABASE_SERVICE_ROLE_KEY` | A new secret key in the dashboard (Project Settings → API keys), a new secret version, a deploy, **then** revoke the old key | Never exercised |
+| `SUPABASE_KEY` | The publishable key: a new one in the dashboard, a new secret version, a deploy, then delete the old one. Not tried | Unknown |
+| `SUPABASE_SECRET_KEY` | A new secret key in the dashboard (Project Settings → API keys → Secret keys), a new secret version, a deploy, **then** delete the old key there | Never exercised |
 | `DB_URL`, `DB_USERNAME`, `APP_DB_USERNAME` | Derived from `REF` and the pooler host; recreate rather than rotate | — |
 
 `gcloud secrets create` accepts `--version-destroy-ttl="86400s"` (the format is in `--help`): a
@@ -258,7 +261,7 @@ worth a week on DNS.
 
 **A person asks for their data to be erased.** Settings → Privacy and data → Delete my data removes their
 Prudent data and, since ADR-075, their Supabase user too, in one step: the server deletes the sign-in
-record with `SUPABASE_SERVICE_ROLE_KEY`, and if Supabase refuses, the person is told nothing was erased
+record with `SUPABASE_SECRET_KEY`, and if Supabase refuses, the person is told nothing was erased
 and can try again (the service log has `Sign-in record of <id> not deleted` and Supabase's status). There
 is nothing for you to do. There are no backups on this environment (section 4), so nothing else retains
 the data. `docs/privacy-policy.md` is what the person has been told. **A person who dies out through

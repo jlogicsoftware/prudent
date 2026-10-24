@@ -40,8 +40,8 @@ import zen.proto.v1.ZenError;
 @QuarkusTest
 class SignInRecordErasureTest {
 
-  /** {@code %test.prudent.supabase.service-role-key}. */
-  private static final String KEY = "test-service-role-key";
+  /** {@code %test.prudent.supabase.secret-key}. */
+  private static final String KEY = "sb_secret_test";
 
   private final CopyOnWriteArrayList<String> logged = new CopyOnWriteArrayList<>();
   private Handler capture;
@@ -110,11 +110,12 @@ class SignInRecordErasureTest {
   @ParameterizedTest
   @ValueSource(strings = {PrudentTest.JSON, PrudentTest.PROTOBUF})
   @TestSecurity(user = PrudentTest.ALICE)
-  void aPersonsOwnErasureDeletesTheirSignInRecordWithTheServiceRoleKey(String mode)
+  void aPersonsOwnErasureDeletesTheirSignInRecordWithTheSecretKey(String mode)
       throws Exception {
     assertEquals(204, eraseSelf(mode).statusCode());
 
-    assertEquals(List.of(new Call(PrudentTest.ALICE, KEY, "Bearer " + KEY)), FakeGoTrueAdmin.calls());
+    // The secret key is not a JWT: it goes in apikey and nothing is sent as Authorization.
+    assertEquals(List.of(new Call(PrudentTest.ALICE, KEY, null)), FakeGoTrueAdmin.calls());
     assertEquals(0, records(PrudentTest.ALICE));
   }
 
@@ -129,7 +130,7 @@ class SignInRecordErasureTest {
   }
 
   /**
-   * 401/403 is a wrong or anon key, 500/503 a Supabase that is down. All four leave the person as
+   * 401/403 is a wrong or publishable key, 500/503 a Supabase that is down. All four leave the person as
    * they were: the transaction is rolled back, so the address they would confirm a retry with is
    * still theirs.
    */
@@ -194,7 +195,7 @@ class SignInRecordErasureTest {
   void anOperatorErasureDeletesTheSignInRecordToo() {
     assertEquals(204, eraseByOperator(PrudentTest.BOB).statusCode());
 
-    assertEquals(List.of(new Call(PrudentTest.BOB, KEY, "Bearer " + KEY)), FakeGoTrueAdmin.calls());
+    assertEquals(List.of(new Call(PrudentTest.BOB, KEY, null)), FakeGoTrueAdmin.calls());
     assertEquals(0, records(PrudentTest.BOB));
   }
 

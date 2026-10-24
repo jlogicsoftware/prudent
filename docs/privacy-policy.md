@@ -130,7 +130,7 @@ on the account.
 - The relay is a processor of the addresses it sends to; keep it in the list you give people who ask.
 - An account the identity table marks as premium is never touched by the cycle. Prudent never sets
   that flag.
-- Both erasure routes delete the person's Supabase user with `SUPABASE_SERVICE_ROLE_KEY`, a secret
+- Both erasure routes delete the person's Supabase user with `SUPABASE_SECRET_KEY`, a secret
   given to the serving container alone; a service without it does not start, and `task verify:deploy`
   fails when it is unbound. A 503 from either route means Supabase did not delete the record and
   nothing was erased. Dormancy erasure does **not** delete it yet: delete that user in the Supabase
@@ -162,11 +162,11 @@ on the account.
   anonymised, the operator cannot erase themselves, an unknown id is 404, and the log line names the
   ids and counts and no address or name.
 - `SignInRecordErasureTest` — both routes send Supabase the deletion of the person's sign-in record
-  with the service-role key; a record already gone is success; any other answer (a wrong key,
+  with the secret key; a record already gone is success; any other answer (a wrong key,
   Supabase down) is a 503 with every row and the profile left as they were, and a retry then succeeds;
   a refused confirmation, an unknown id and the operator's own id never reach Supabase; the key never
   reaches a log line. `SignInRecordUnreachableTest` does the same for a Supabase that cannot be reached,
-  and `SignInRecordEraserKeyTest` shows a serving production process refuses to start without the key.
+  and `SupabaseKeysTest` shows a serving production process refuses to start without the right kind of key.
 - `PrudentRetentionCleanupTest` — Prudent's cascade when the framework anonymises an account, driven
   through the framework's own anonymisation.
 - `PrivacyDormancyErasureTest` — the schedule above, end to end: a dormant account is sent the first

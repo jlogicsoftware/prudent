@@ -164,7 +164,7 @@ anonymises the profile in one transaction, refused unless the body repeats the a
 `PrudentDataEraser`, shared with the retention observer; `PrivacyCoverageTest` derives its coverage from the database's own schema, so
 a table with a `user_id` that the exporter and eraser do not know fails the suite. Settings has a "Privacy and data" detail (copy to
 the clipboard, delete). `docs/privacy-policy.md` is the published policy. Both request routes delete the person's Supabase sign-in
-record too (ADR-075, jlogicsoftware/prudent#173): `SignInRecordEraser` calls GoTrue's admin delete with `SUPABASE_SERVICE_ROLE_KEY`,
+record too (ADR-075, jlogicsoftware/prudent#173): `SignInRecordEraser` calls GoTrue's admin delete with `SUPABASE_SECRET_KEY`,
 last in the erasure's transaction, so a refusal is a 503 with nothing erased; a dormancy-erased person keeps theirs (the operator
 deletes it). `task test:e2e` proves the deletion against a real local Supabase; no deployed service has the key yet. Dormancy erasure
 (ADR-073) runs: `DormancyWarningMailer` observes the framework's `AccountDeletionWarning`, sends the first and final warning
@@ -187,7 +187,8 @@ proof of concept on `*.run.app`, Supabase Free with **no backups** (ADR-068, ADR
 `docs/persistent-environment.md`), signed in to from a browser. It holds test data only; real finances
 wait for #47. Its first sign-in found that no Prudent message was registered for the native image
 (#158, fixed; `task verify:reflection` guards the list). Ten genuine secrets are required (the seven of ADR-070, the relay's `SMTP_USERNAME` and `SMTP_PASSWORD`, ADR-073, and
-`SUPABASE_SERVICE_ROLE_KEY`, ADR-075, on the service only; `SUPABASE_KEY` is the anon key, and which key the persistent
+`SUPABASE_SECRET_KEY`, ADR-075, on the service only; both Supabase keys are the current `sb_publishable_` / `sb_secret_` kind, checked at
+boot, and which key the persistent
 environment's holds is to be checked before its next deploy);
 the five public configuration values (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`, `AUTH_REDIRECT_URIS`) and the
 three mail values (`SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`) are plain environment variables on the service and the migration job

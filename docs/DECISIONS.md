@@ -13,7 +13,7 @@ own — ADR-001 is the first instance.
 
 ---
 
-## ADR-075 — Erasure deletes the person's Supabase sign-in record, with a service-role key the serving container alone holds
+## ADR-075 — Erasure deletes the person's Supabase sign-in record, with a secret key the serving container alone holds
 
 **Date:** 2026-10-24. **Status:** accepted. **Refines:** ADR-071, ADR-074. **Diverges from:** jZen ADR-007, ADR-008 (finding F4 of jZen's
 security review). **Closes:** jlogicsoftware/prudent#173.
@@ -29,18 +29,24 @@ security review). **Closes:** jlogicsoftware/prudent#173.
   data is gone and whose self-service retry is refused, because the address it asks them to confirm is already anonymised. The flush makes a
   constraint failure in the anonymised profile refuse *before* the irreversible call.
 - **A failure is the caller's answer.** GoTrue's 404 (`user_not_found`) means the work is done (deleted in the dashboard, or by an earlier
-  erasure) and is success. Anything else — 401/403 for a wrong or anon key, 5xx, no connection, no key configured — is **503 `unavailable`**
+  erasure) and is success. Anything else — 401/403 for a wrong or publishable key, 5xx, no connection, no key configured — is **503 `unavailable`**
   ("The sign-in record could not be deleted, so nothing was erased. Try again later."), and the throw rolls everything back. The log line
   names the person's id and the status or failure class; never the key, never GoTrue's answer.
-- **The key is a secret of its own.** It is `SUPABASE_SERVICE_ROLE_KEY` in Secret Manager, bound by `deploy:cloudrun` to the **service
-  only** (`ADMIN_KEY` in the task), not to the migration job, which deletes nothing. That makes ten secrets. A serving `%prod` process
-  refuses to start without it (`prudent.supabase.service-role-key-required`, skipped under `zen.migrate-only`). `verify:deploy` fails when
-  the running service lacks it as a Secret Manager reference, so a plain value fails too. It is sent in `apikey` and as the bearer token,
-  as Supabase's own clients send it: measured against the local stack, a legacy service-role JWT is refused without the bearer, and both
-  the legacy key and an `sb_secret_` key are accepted with both headers. The anon key gets 403 `not_admin`.
-- **`SUPABASE_KEY` is the anon key.** zen-identity sends it as `apikey` on every call it makes for a person. The runbook in
-  `deploy:cloudrun` said otherwise (below); keeping the two apart means no call made for a person carries the key that administers
-  everyone.
+- **The key is a secret of its own, and it is Supabase's secret key, never the legacy service_role JWT.** It is `SUPABASE_SECRET_KEY`
+  (`sb_secret_…`) in Secret Manager, bound by `deploy:cloudrun` to the **service only** (`ADMIN_KEY` in the task), not to the migration
+  job, which deletes nothing. That makes ten secrets. It is sent in **`apikey` only**: it is not a JWT, so nothing goes in
+  `Authorization`, and Supabase's gateway presents the call to GoTrue as the service role. Measured against the local stack, an
+  `sb_secret_` key in `apikey` alone deletes a user (200, then 404 on a repeat); the publishable key gets 403 `not_admin`.
+  `verify:deploy` fails when the running service lacks it as a Secret Manager reference, so a plain value fails too.
+- **`SUPABASE_KEY` is the publishable key** (`sb_publishable_…`), not the legacy anon JWT. zen-identity sends it as `apikey` on
+  every call it makes for a person. The runbook in `deploy:cloudrun` said otherwise (below).
+- **Both kinds are checked at boot** (`SupabaseKeys`, `prudent.supabase.keys-required` in `%prod`, skipped under `zen.migrate-only`).
+  A serving process refuses to start when `SUPABASE_KEY` is not `sb_publishable_…`, which catches a legacy JWT and a secret key put
+  there by mistake, and when `SUPABASE_SECRET_KEY` is not `sb_secret_…`. The message names the variable and the kind, never the value.
+  Supabase recommends these keys over the legacy pair: each can be revoked on its own, and a secret key is refused when it comes from a
+  browser. The legacy keys are two JWTs that look alike, which is how the runbook came to ask for the wrong one, and a prefix tells the
+  new kinds apart without decoding anything. `SignInRecordEraser` never sends anything but an `sb_secret_` key, so in `%dev` too a
+  legacy JWT is a 503, not a call.
 
 ### Why accept the wider blast radius
 
@@ -48,7 +54,7 @@ jZen's review (F4) priced this as introducing "the single most powerful Supabase
 for Prudent:
 
 - **The container already holds the database owner.** `deploy:cloudrun` binds `DB_USERNAME`/`DB_PASSWORD` (the `postgres.REF` DDL role)
-  to the service as well as `APP_DB_*`. A compromised container can already read every ledger row. What the service-role key adds is
+  to the service as well as `APP_DB_*`. A compromised container can already read every ledger row. What the secret key adds is
   **identity administration**: deleting users, setting passwords, minting sign-in links, so taking over any account. That is real and
   is the cost accepted here.
 - **The manual step did not work for the common case.** A person who erased themselves in the app was told to ask the operator, and nobody
@@ -66,7 +72,7 @@ filed.
   here."** and **ADR-074: "The Supabase user stays. The server holds no service-role key … so the operator deletes it in the
   dashboard."** → **reversed for the two request routes.** *Why:* the decision is now taken, on the reasoning above.
 - **`deploy:cloudrun` runbook step 2: `mk SUPABASE_KEY <the service_role key — server-side only, NEVER a client>`** → **corrected to the
-  anon key**, with `SUPABASE_SERVICE_ROLE_KEY` added beside it. *Why:* the line contradicted ADR-071/074, jZen's own Taskfile
+  publishable key**, with `SUPABASE_SECRET_KEY` (a secret key) added beside it. *Why:* the line contradicted ADR-071/074, jZen's own Taskfile
   ("<publishable/anon key>") and how zen-identity uses the value. **Which key the persistent environment's `SUPABASE_KEY` actually holds is
   not known from this repository** (ADR-021 keeps environment facts out of it); `docs/persistent-environment.md` section 3 says how to check
   and correct it before the next deploy.
@@ -95,12 +101,14 @@ filed.
   - a refused confirmation, an unknown id and the operator's own id never reaching Supabase;
   - the key never reaching the log.
 - `SignInRecordUnreachableTest` covers a Supabase with nothing listening.
-- `SignInRecordEraserKeyTest` covers the boot check (a serving `%prod` boot refuses, the migration job and other profiles do not) and an
-  erasure with no key.
+- `SupabaseKeysTest` covers the boot check:
+  - a serving `%prod` boot refuses a missing key, a legacy JWT, or a secret key in `SUPABASE_KEY`, and the message never repeats a key;
+  - the migration job and the other profiles do not check;
+  - an erasure without an `sb_secret_` key is refused before anything is sent.
 - **Verified by breaking it:** with the call removed from `PrivacyResource`, 8 of the 13 fail. The existing privacy classes (operator 11,
   erasure 10, coverage 4) are green with the change.
-- `client/integration_test/e2e_test.dart` gains the real-Supabase proof, run by `task test:e2e` (which now exports
-  `SUPABASE_SERVICE_ROLE_KEY` from `supabase status`): it registers a person, shows the credentials work, erases them through the API and
+- `client/integration_test/e2e_test.dart` gains the real-Supabase proof, run by `task test:e2e`, which now runs the server on the stack's
+  publishable key and exports its secret key as `SUPABASE_SECRET_KEY`: it registers a person, shows the credentials work, erases them through the API and
   requires that signing in again fails. `test:native` gives the serving container the local key, and only the serving container.
 - `scripts/test_public_config.py` checks:
   - ten secrets;
@@ -109,13 +117,14 @@ filed.
   - the key not part of `SECRETS`.
 
   `scripts/test_deploy_origin_tasks.py` checks that the `verify:deploy` check passes, and fails when the key is unbound or a plain value.
-- **Run green on 2026-10-24:** `task test:server` 778/778 (on `-Dquarkus.http.test-port=18181`, because another project held 8081);
-  `task zen:test:client` 364/364; `task test:e2e` 7/7 against the local Supabase, including the erasure case; both script suites;
+- **Run green on 2026-10-24:** `task test:server` 780/780 (on `-Dquarkus.http.test-port=18181`, because another project held 8081);
+  `task zen:test:client` 364/364 (`privacy_screen_test.dart` also under every `ZEN_PLATFORM`); `task test:e2e` 7/7 against the local
+  Supabase on its publishable and secret keys, including the erasure case; both script suites;
   `verify:controls`, `verify:boundaries`, `verify:reflection`. `task generate` changed only the two erasure routes' descriptions and
   their new 503 in `admin/src/api/schema.generated.ts`. `task test:native` was not run.
 - **Not verified:** a deployed service. The persistent environment has neither the new secret nor a known-correct `SUPABASE_KEY`, and its
-  next `deploy:cloudrun` fails until `SUPABASE_SERVICE_ROLE_KEY` exists. `task zen:run:server` (jZen's) does not export the key, so a local
-  erasure under it answers 503 unless `SUPABASE_SERVICE_ROLE_KEY` is exported first.
+  next `deploy:cloudrun` fails until `SUPABASE_SECRET_KEY` exists. `task zen:run:server` (jZen's) does not export the key, so a local
+  erasure under it answers 503 unless `SUPABASE_SECRET_KEY` is exported first.
 
 ---
 
