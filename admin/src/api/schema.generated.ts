@@ -372,7 +372,7 @@ export interface paths {
         put?: never;
         /**
          * Erase one person's data on the operator's request
-         * @description IRREVERSIBLE. Deletes every Prudent row the named user owns and anonymises their profile, in one transaction, exactly as their own erasure does. Admin role only. The sign-in credential held by the identity provider is not removed. Repeating it for an already erased user succeeds and deletes nothing.
+         * @description IRREVERSIBLE. Deletes every Prudent row the named user owns, anonymises their profile and deletes their sign-in record at the identity provider, in one transaction, exactly as their own erasure does. Admin role only. Repeating it for an already erased user succeeds and deletes nothing.
          */
         post: {
             parameters: {
@@ -418,6 +418,16 @@ export interface paths {
                 };
                 /** @description The id is not a user id, or Prudent holds nothing under it */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The sign-in record could not be deleted; nothing is deleted */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -3865,7 +3875,7 @@ export interface paths {
         put?: never;
         /**
          * Erase the authenticated user's data
-         * @description IRREVERSIBLE. Deletes every Prudent row the caller owns and anonymises their profile, in one transaction. Refused unless confirmEmail matches the account's sign-in address. The sign-in credential held by the identity provider is not removed.
+         * @description IRREVERSIBLE. Deletes every Prudent row the caller owns, anonymises their profile and deletes their sign-in record at the identity provider, in one transaction. Refused unless confirmEmail matches the account's sign-in address.
          */
         post: {
             parameters: {
@@ -3911,6 +3921,16 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description The sign-in record could not be deleted; nothing is deleted */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
                 };
             };
         };

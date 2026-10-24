@@ -29,6 +29,7 @@ MAIL = ("SMTP_HOST", "SMTP_PORT", "SMTP_FROM")
 SECRETS = ("SUPABASE_KEY", "DB_URL", "DB_USERNAME", "DB_PASSWORD", "ZEN_JOBS_TRIGGER_TOKEN",
            "SMTP_USERNAME", "SMTP_PASSWORD")
 APP_DB = ("APP_DB_USERNAME", "APP_DB_PASSWORD")
+ADMIN_KEY = ("SUPABASE_SECRET_KEY",)
 
 GOOD = {
     "WEB_API_URL": "https://svc-123.europe-west1.run.app",
@@ -177,19 +178,26 @@ class TaskfileShape(unittest.TestCase):
         self.assertIsNotNone(m, "no `gcloud run %s` call" % subcommand)
         return m.group(0)
 
-    def test_the_secret_list_holds_the_nine_genuine_secrets_and_no_public_value(self):
-        names = self.secrets_line("SECRETS") + self.secrets_line("APP_DB")
-        self.assertEqual(sorted(names), sorted(SECRETS + APP_DB))
+    def test_the_secret_list_holds_the_ten_genuine_secrets_and_no_public_value(self):
+        names = self.secrets_line("SECRETS") + self.secrets_line("APP_DB") + self.secrets_line("ADMIN_KEY")
+        self.assertEqual(sorted(names), sorted(SECRETS + APP_DB + ADMIN_KEY))
         for public in PUBLIC + MAIL:
             self.assertNotIn(public, names)
 
-    def test_the_migration_job_gets_the_secrets_but_not_the_runtime_login(self):
+    def test_the_migration_job_gets_the_secrets_but_not_the_runtime_login_or_the_secret_key(self):
         job = self.gcloud_call("jobs deploy")
         self.assertIn('--set-secrets="${SECRETS}"', job)
         self.assertNotIn("APP_DB", job)
+        # ADR-075: the key that administers every identity goes where it is used, and only there.
+        self.assertNotIn("ADMIN_KEY", job)
+        self.assertNotIn("SUPABASE_SECRET_KEY", job)
 
-    def test_the_service_gets_the_runtime_login_as_well(self):
-        self.assertIn('--set-secrets="${SECRETS},${APP_DB}"', self.gcloud_call("deploy"))
+    def test_the_service_gets_the_runtime_login_and_the_secret_key_as_well(self):
+        self.assertIn('--set-secrets="${SECRETS},${APP_DB},${ADMIN_KEY}"', self.gcloud_call("deploy"))
+
+    def test_the_secret_key_is_not_supabase_key(self):
+        # SUPABASE_KEY travels on every call made for a person; the secret key must not.
+        self.assertNotIn("SUPABASE_SECRET_KEY", self.secrets_line("SECRETS"))
 
     def test_the_job_and_the_service_both_get_all_the_public_values_as_literals(self):
         # The five of #166 and the three mail values of ADR-073: the packaged image fails config

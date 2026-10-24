@@ -13,6 +13,121 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-075 — Erasure deletes the person's Supabase sign-in record, with a secret key the serving container alone holds
+
+**Date:** 2026-10-24. **Status:** accepted. **Refines:** ADR-071, ADR-074. **Diverges from:** jZen ADR-007, ADR-008 (finding F4 of jZen's
+security review). **Closes:** jlogicsoftware/prudent#173.
+
+### Decision
+
+- **Both request routes delete the sign-in record.** `POST /api/v1/privacy/erase` and the operator's
+  `POST /api/v1/admin/privacy/users/{userId}/erase` call `SignInRecordEraser.delete` after the eraser and the anonymiser. That method calls
+  GoTrue's `DELETE /auth/v1/admin/users/{id}` (`SupabaseAdminClient`, a REST client of its own under config key `supabase-admin`).
+  The call is a hard delete: no body is sent, so `should_soft_delete` keeps its default of false.
+- **Last, inside the transaction, after a flush.** If the record is deleted and the commit then fails, the person cannot sign in but keeps
+  their data, and the operator route repairs that. The other order is worse: commit first, and a failed deletion leaves a person whose
+  data is gone and whose self-service retry is refused, because the address it asks them to confirm is already anonymised. The flush makes a
+  constraint failure in the anonymised profile refuse *before* the irreversible call.
+- **A failure is the caller's answer.** GoTrue's 404 (`user_not_found`) means the work is done (deleted in the dashboard, or by an earlier
+  erasure) and is success. Anything else — 401/403 for a wrong or publishable key, 5xx, no connection, no key configured — is **503 `unavailable`**
+  ("The sign-in record could not be deleted, so nothing was erased. Try again later."), and the throw rolls everything back. The log line
+  names the person's id and the status or failure class; never the key, never GoTrue's answer.
+- **The key is a secret of its own, and it is Supabase's secret key, never the legacy service_role JWT.** It is `SUPABASE_SECRET_KEY`
+  (`sb_secret_…`) in Secret Manager, bound by `deploy:cloudrun` to the **service only** (`ADMIN_KEY` in the task), not to the migration
+  job, which deletes nothing. That makes ten secrets. It is sent in **`apikey` only**: it is not a JWT, so nothing goes in
+  `Authorization`, and Supabase's gateway presents the call to GoTrue as the service role. Measured against the local stack, an
+  `sb_secret_` key in `apikey` alone deletes a user (200, then 404 on a repeat); the publishable key gets 403 `not_admin`.
+  `verify:deploy` fails when the running service lacks it as a Secret Manager reference, so a plain value fails too.
+- **`SUPABASE_KEY` is the publishable key** (`sb_publishable_…`), not the legacy anon JWT. zen-identity sends it as `apikey` on
+  every call it makes for a person. The runbook in `deploy:cloudrun` said otherwise (below).
+- **Both kinds are checked at boot** (`SupabaseKeys`, `prudent.supabase.keys-required` in `%prod`, skipped under `zen.migrate-only`).
+  A serving process refuses to start when `SUPABASE_KEY` is not `sb_publishable_…`, which catches a legacy JWT and a secret key put
+  there by mistake, and when `SUPABASE_SECRET_KEY` is not `sb_secret_…`. The message names the variable and the kind, never the value.
+  Supabase recommends these keys over the legacy pair: each can be revoked on its own, and a secret key is refused when it comes from a
+  browser. The legacy keys are two JWTs that look alike, which is how the runbook came to ask for the wrong one, and a prefix tells the
+  new kinds apart without decoding anything. `SignInRecordEraser` never sends anything but an `sb_secret_` key, so in `%dev` too a
+  legacy JWT is a 503, not a call.
+
+### Why accept the wider blast radius
+
+jZen's review (F4) priced this as introducing "the single most powerful Supabase credential" into the container. Two facts change the price
+for Prudent:
+
+- **The container already holds the database owner.** `deploy:cloudrun` binds `DB_USERNAME`/`DB_PASSWORD` (the `postgres.REF` DDL role)
+  to the service as well as `APP_DB_*`. A compromised container can already read every ledger row. What the secret key adds is
+  **identity administration**: deleting users, setting passwords, minting sign-in links, so taking over any account. That is real and
+  is the cost accepted here.
+- **The manual step did not work for the common case.** A person who erased themselves in the app was told to ask the operator, and nobody
+  was told anything. Their address and password hash stayed indefinitely, and signing in again opened an empty account. That is a
+  completeness gap in the right to erasure on the route people actually use.
+
+What limits the key: it is used by one class for one call, it never travels on a person's call, the migration job does not have it, and it
+is a Secret Manager reference that `verify:deploy` checks. Prudent does this in its own code rather than in jZen, because jZen leaves
+`auth.users` to the application on purpose; whether the framework should offer it is recorded in `docs/jzen/README.md` as a candidate, not
+filed.
+
+### What this supersedes, and why
+
+- **ADR-071: "Giving the server that key would be a security-posture decision — a new secret, a wider blast radius — and is not taken
+  here."** and **ADR-074: "The Supabase user stays. The server holds no service-role key … so the operator deletes it in the
+  dashboard."** → **reversed for the two request routes.** *Why:* the decision is now taken, on the reasoning above.
+- **`deploy:cloudrun` runbook step 2: `mk SUPABASE_KEY <the service_role key — server-side only, NEVER a client>`** → **corrected to the
+  publishable key**, with `SUPABASE_SECRET_KEY` (a secret key) added beside it. *Why:* the line contradicted ADR-071/074, jZen's own Taskfile
+  ("<publishable/anon key>") and how zen-identity uses the value. **Which key the persistent environment's `SUPABASE_KEY` actually holds is
+  not known from this repository** (ADR-021 keeps environment facts out of it); `docs/persistent-environment.md` section 3 says how to check
+  and correct it before the next deploy.
+- **`docs/privacy-policy.md` "What deletion does not remove": "Your sign-in with the identity provider … signing in again with it starts an
+  empty account"** → **replaced.** Deletion now lists the sign-in among what goes, and says that a failure deletes nothing. The section keeps
+  the one case left open: dormancy. The in-app strings `privacyPolicyLimits` and `privacyEraseBody` (en/uk/pl) change with it.
+- **`docs/persistent-environment.md`: "Delete the user in the Supabase dashboard … the half the server cannot do"** → **removed** for both
+  request routes.
+
+### What this does not do
+
+- **Dormancy erasure still leaves the Supabase user.** The framework anonymises a batch of accounts in one transaction and fires
+  `UserAnonymised` inside it. A GoTrue call in Prudent's observer would roll back the whole batch when one person's call fails, and the
+  oldest-first order would put that person in every later batch, so nobody would ever be erased again. Doing it properly needs a
+  per-account hook or a separate sweep. The policy and the operator doc say the operator deletes those users by hand.
+- **No session is revoked.** The caller's access token stays valid until it expires; the client signs out on success, as before.
+- **Not tried against a hosted Supabase project.** Both key styles were measured against the local stack only.
+
+### Consequence
+
+- `SignInRecordErasureTest` (13 cases), against `FakeGoTrueAdmin` (a test-only resource the test instance serves), covers:
+  - what both routes send;
+  - 404 as success;
+  - 401/403/500/503 as 503, with every row and the profile untouched;
+  - a retry that succeeds;
+  - a refused confirmation, an unknown id and the operator's own id never reaching Supabase;
+  - the key never reaching the log.
+- `SignInRecordUnreachableTest` covers a Supabase with nothing listening.
+- `SupabaseKeysTest` covers the boot check:
+  - a serving `%prod` boot refuses a missing key, a legacy JWT, or a secret key in `SUPABASE_KEY`, and the message never repeats a key;
+  - the migration job and the other profiles do not check;
+  - an erasure without an `sb_secret_` key is refused before anything is sent.
+- **Verified by breaking it:** with the call removed from `PrivacyResource`, 8 of the 13 fail. The existing privacy classes (operator 11,
+  erasure 10, coverage 4) are green with the change.
+- `client/integration_test/e2e_test.dart` gains the real-Supabase proof, run by `task test:e2e`, which now runs the server on the stack's
+  publishable key and exports its secret key as `SUPABASE_SECRET_KEY`: it registers a person, shows the credentials work, erases them through the API and
+  requires that signing in again fails. `test:native` gives the serving container the local key, and only the serving container.
+- `scripts/test_public_config.py` checks:
+  - ten secrets;
+  - the key on the service;
+  - the key absent from the migration job;
+  - the key not part of `SECRETS`.
+
+  `scripts/test_deploy_origin_tasks.py` checks that the `verify:deploy` check passes, and fails when the key is unbound or a plain value.
+- **Run green on 2026-10-24:** `task test:server` 780/780 (on `-Dquarkus.http.test-port=18181`, because another project held 8081);
+  `task zen:test:client` 364/364 (`privacy_screen_test.dart` also under every `ZEN_PLATFORM`); `task test:e2e` 7/7 against the local
+  Supabase on its publishable and secret keys, including the erasure case; both script suites;
+  `verify:controls`, `verify:boundaries`, `verify:reflection`. `task generate` changed only the two erasure routes' descriptions and
+  their new 503 in `admin/src/api/schema.generated.ts`. `task test:native` was not run.
+- **Not verified:** a deployed service. The persistent environment has neither the new secret nor a known-correct `SUPABASE_KEY`, and its
+  next `deploy:cloudrun` fails until `SUPABASE_SECRET_KEY` exists. `task zen:run:server` (jZen's) does not export the key, so a local
+  erasure under it answers 503 unless `SUPABASE_SECRET_KEY` is exported first.
+
+---
+
 ## ADR-074 — An operator erases a person's data through an admin-only route, with the same deletion the person's own request runs
 
 **Date:** 2026-10-24. **Status:** accepted. **Refines:** ADR-071. **Closes:** jlogicsoftware/prudent#172.

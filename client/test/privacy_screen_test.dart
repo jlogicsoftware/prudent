@@ -145,8 +145,9 @@ void main() {
 
     expect(find.textContaining('Prudent keeps the accounts'), findsOneWidget);
     expect(find.textContaining('copy everything'), findsOneWidget);
-    // The limit is stated up front, not discovered afterwards.
-    expect(find.textContaining('does not remove your sign-in'), findsOneWidget);
+    // What deletion reaches, and what it leaves, is stated up front, not discovered afterwards.
+    expect(find.textContaining('also deletes your sign-in'), findsOneWidget);
+    expect(find.textContaining('A backup taken before keeps a copy'), findsOneWidget);
     expect(button('Copy my data'), findsOneWidget);
     expect(button('Delete my data'), findsOneWidget);
   });
@@ -169,6 +170,10 @@ void main() {
     if (skipWithoutZenPlatform()) return;
     await pump(tester);
 
+    // The screen scrolls, and on an 800×600 surface the button sits below the fold on some
+    // platforms' layouts; a person scrolls to it, so the test does too.
+    await tester.ensureVisible(button('Delete my data'));
+    await tester.pumpAndSettle();
     await tester.tap(button('Delete my data'));
     await tester.pumpAndSettle();
 

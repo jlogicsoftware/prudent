@@ -37,10 +37,10 @@ import zen.identity.user.User;
  * and the {@code users} row is anonymised in the same unit of work, so a failure half-way leaves the
  * person exactly as they were rather than half-deleted.
  *
- * <p><strong>What a successful erasure does not do, and the policy says so:</strong> it does not
- * remove the sign-in credential Supabase holds, and it does not end the caller's session — the
- * client logs out when it succeeds. Signing in again with the same credential starts an empty
- * account.
+ * <p><strong>The sign-in record goes too</strong> ({@link SignInRecordEraser}, ADR-075), last and
+ * inside the same transaction: if Supabase does not delete it, the answer is 503 and nothing at all
+ * is erased, so the person can simply ask again. It does not end the caller's session — the client
+ * logs out when it succeeds, and the access token it held stops at its own expiry.
  */
 @Path("/api/v1/privacy")
 @Authenticated
@@ -54,6 +54,7 @@ public class PrivacyResource {
   @Inject PrudentDataExporter exporter;
   @Inject PrudentDataEraser eraser;
   @Inject PrudentIdentityAnonymiser identity;
+  @Inject SignInRecordEraser signIn;
 
   @GET
   @Path("/export")
@@ -80,14 +81,18 @@ public class PrivacyResource {
   @Operation(
       summary = "Erase the authenticated user's data",
       description =
-          "IRREVERSIBLE. Deletes every Prudent row the caller owns and anonymises their profile,"
-              + " in one transaction. Refused unless confirmEmail matches the account's sign-in"
-              + " address. The sign-in credential held by the identity provider is not removed.")
+          "IRREVERSIBLE. Deletes every Prudent row the caller owns, anonymises their profile"
+              + " and deletes their sign-in record at the identity provider, in one transaction."
+              + " Refused unless confirmEmail matches the account's sign-in address.")
   @RequestBody(content = @Content(schema = @Schema(ref = "EraseAccountRequest")))
   @APIResponse(responseCode = ZenStatus.NO_CONTENT, description = "Erased")
   @APIResponse(
       responseCode = ZenStatus.BAD_REQUEST,
       description = "confirmEmail is missing or is not this account's address; nothing is deleted",
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  @APIResponse(
+      responseCode = ZenStatus.SERVICE_UNAVAILABLE,
+      description = "The sign-in record could not be deleted; nothing is deleted",
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response erase(EraseAccountRequest request) {
     UUID userId = currentUser.id();
@@ -102,6 +107,7 @@ public class PrivacyResource {
 
     eraser.erase(userId);
     identity.anonymise(userId);
+    signIn.delete(userId);
     LOG.infof("Account %s erased at its owner's request", userId);
     return Response.noContent().build();
   }
