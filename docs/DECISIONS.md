@@ -13,6 +13,49 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-076 — The e2e and native gates start three Supabase containers, not thirteen, so a registry's rate limit has less to bite
+
+**Date:** 2026-10-24. **Status:** accepted. **Refines:** ADR-010. **Addresses:** jlogicsoftware/prudent#167.
+
+### What failed
+
+CI's `e2e` job runs `supabase start`, which pulls about a dozen images from `ghcr.io/supabase/*` anonymously. On 2026-10-22 ghcr.io
+answered with `toomanyrequests` and five of the day's runs failed before any Prudent code ran (32-53 such lines in each log). The job
+passed on other runs the same day. The failure is a property of the runner's shared address and the registry's window, not of the
+code, and it still taught people to re-run red.
+
+### Decision
+
+- **`task test:e2e` and `task test:native` start the stack with `supabase start -x "$SUPABASE_EXCLUDE"`.** The list is one Taskfile
+  variable, `SUPABASE_EXCLUDE`: realtime, storage-api, imgproxy, mailpit, postgrest, postgres-meta, studio, edge-runtime, logflare,
+  vector, supavisor. What runs is Postgres, GoTrue and Kong.
+- **Why those three are enough.** Prudent's server reaches Supabase for GoTrue only: sign-up and sign-in (zen-identity),
+  the admin delete (ADR-075), and the JWKS at `/auth/v1/.well-known/jwks.json`, all through Kong; and the database. Nothing in
+  `server/src/main`, `client/lib` or `client/integration_test` calls `/rest/v1`, storage, realtime or functions, and
+  `enable_confirmations` is false, so no mail is read.
+- **A service Prudent starts to use leaves the list in the same change.** The comment on the variable says so; the e2e suite fails the
+  first time a call goes to a container that is not there.
+- **No retry, no `continue-on-error`.** A failed pull still fails the job. There are simply roughly a quarter of the pulls to fail.
+
+### Measured
+
+On 2026-10-24, on the CLI installed locally (2.118.0; CI pins 2.113.0): `supabase start -x …` ran three containers and took 25 s on a warm
+image cache. Against that stack, with the server on its own port, the sign-up, password sign-in, JWKS read, and the admin delete with the
+secret key in `apikey` alone (200, then 404 on a repeat) all answered as they do on the full stack, and `client/integration_test/e2e_test.dart`
+passed 7 of 7, including the erasure case. The scratch stack was removed afterwards.
+
+### Not done, and why
+
+- **Authenticating the pulls** (`docker login ghcr.io` with `GITHUB_TOKEN`, `packages: read`) is not in this change. It is unverified
+  whether the CLI's pulls would count against a per-user limit instead of the shared address, and a permission added for an untested
+  effect is a worse trade than waiting for the evidence. If `toomanyrequests` still appears with fewer pulls, it is the next step.
+- **Caching images** costs a share of the repository's 10 GB cache for images that change with every CLI bump.
+- **Not verified:** that CI no longer fails on the limit. The pull count fell; the window is the registry's. The acceptance for #167 is a
+  number of consecutive green `e2e` runs, recorded there, and no number exists yet. jZen's reference app runs the same `supabase start`
+  (`../jZen/Taskfile.app.yml`, `../jZen/Taskfile.yml`) and is told, not edited.
+
+---
+
 ## ADR-075 — Erasure deletes the person's Supabase sign-in record, with a secret key the serving container alone holds
 
 **Date:** 2026-10-24. **Status:** accepted. **Refines:** ADR-071, ADR-074. **Diverges from:** jZen ADR-007, ADR-008 (finding F4 of jZen's
