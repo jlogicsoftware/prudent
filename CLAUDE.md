@@ -170,7 +170,9 @@ through `zen-email` (en/uk/pl, no ledger data, the recipient logged by id only) 
 accepted the message, so an unwarned account never advances; `PrivacyDormancyErasureTest` drives warnings then anonymisation and
 checks nothing of Prudent's remains. It needs a mail relay in every deployment (`SMTP_HOST`, `SMTP_FROM`, `SMTP_PORT` public;
 `SMTP_USERNAME`, `SMTP_PASSWORD` secrets) and **has not been run against a real relay**. No deployed read of the export has been
-done (#159).
+done (#159). For a person who cannot sign in, `POST /api/v1/admin/privacy/users/{userId}/erase` (`OperatorErasureResource`, ADR-074,
+jlogicsoftware/prudent#172) runs the same eraser and anonymiser for an `admin`-role session (401/403 otherwise, 404 for an id with nothing
+behind it, 400 for the caller's own); it has not been run against a deployed service, and the Supabase user is still deleted by hand.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
