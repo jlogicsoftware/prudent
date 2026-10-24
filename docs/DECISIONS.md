@@ -13,6 +13,33 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-077 — `JZEN_REF` moves to `15cafd7`: the e-mail is trimmed before it is validated on sign-in, registration and restore
+
+**Date:** 2026-10-24. **Status:** accepted. **Follows:** ADR-063 (prior `JZEN_REF` bump). jZenDev/jZen#143 (→ #144);
+jlogicsoftware/prudent#161.
+
+### Decision
+
+- `JZEN_REF` moves from `b67a54924de2c744a05b077f5c18ac546ffcdcd3` to `15cafd786c3ef8ecf39471c77fccefe9eaf2f399` (`ci.yml`,
+  `audit.yml`). It brings three jZen commits: #144 (the fix: one shared e-mail validator in `zen_ui_identity` that judges the
+  trimmed value; whitespace inside an address stays invalid), #135 (`audit:server` installs the framework libs first) and #139
+  (`deploy-cleanup`, new tasks in `Taskfile.app.yml`). The last two touch jZen's Taskfiles and scripts only; Prudent calls neither.
+- Prudent changes no application code for it. `client/test/auth_flow_test.dart` drives sign-in, registration and password restore
+  through `AuthFlow` with the delegates `PrudentApp` registers, and asserts a padded address is accepted and sent trimmed.
+
+### Why this was a bump and not only a test
+
+CI checks jZen out at the pinned SHA, not at the sibling checkout a developer has. The new test passed locally (the checkout was
+already at `15cafd7`) and failed in CI at `b67a549`: exactly the three padded-address cases, while the case with a space inside
+an address passed. That is also the evidence that the test fails without the fix, which a local run could not give.
+
+### Consequence
+
+- Verified locally at `15cafd7`: `task zen:test:client` (368 tests, the four new ones among them) and `task verify:controls`.
+- Not verified: that the other jobs, `audit.yml` included, are green on the new pin; their first run on it is the check.
+
+---
+
 ## ADR-076 — The e2e and native gates start three Supabase containers, not thirteen, so a registry's rate limit has less to bite
 
 **Date:** 2026-10-24. **Status:** accepted. **Refines:** ADR-010. **Addresses:** jlogicsoftware/prudent#167.
