@@ -33,7 +33,7 @@ rediscover it:
 | Owners | **One** Owner; no second Owner, no lien required | A lost or locked account is a lost environment |
 | Address | A subdomain of a domain the owner already holds (DNS at Cloudflare) is **tried**; the deterministic `*.run.app` host is the fallback | Section 5 |
 | Project id | The bare name is almost certainly taken; the id carries an owner-specific suffix | The id is permanent and not recorded here |
-| Sign-in mail | Supabase's default sender | Section 3 |
+| Sign-in mail | Supabase's default sender | Section 3; the mail looks like phishing and reaches no one outside the organisation (ADR-079, #186) |
 | Recovery copies | None | Consistent with no backups |
 | Native iPhone build | Built and installed once (ADR-078, `docs/native-iphone-build.md`) | Re-signing and a redeploy that needs a new build, section 10 |
 
@@ -131,6 +131,22 @@ mail and confirmed the link from a desktop (ADR-069). The native return address
 build: the link opened in the browser, which offered to open Prudent, and the app signed the new
 user in at once (ADR-078, `docs/native-iphone-build.md`).
 
+**What the person receives, and why it looks like phishing (ADR-079).** On that same sign-in the owner
+found the confirmation mail almost empty and its address suspicious. Two causes, in two repositories.
+*Prudent's:* the mail comes from Supabase's built-in sender, so nothing ties it to a domain the
+recipient knows, and from Supabase's default template, which names no product and gives no reason. An
+authenticated sending domain and a relay are #186; Prudent's own template in `en`, `uk` and `pl` is #187.
+*The framework's:* `zen-identity` gives GoTrue only a `redirect_to`, so the link is
+`https://<project-ref>.supabase.co/auth/v1/verify?…`, a host that is neither the sender nor the product.
+A template cannot fix that, and the framework has no route a one-time token could land on; that is
+jZenDev/jZen#154, consumed here by #188. **Until #188 the link still names the Supabase project's host,
+whatever the sender and the template say.** Nothing in this section was changed in the environment: the
+default sender and template are what is running. What the mail actually contains was not inspected for
+this record; it rests on the owner's description. A relay that rewrites links (a tracking redirect, an
+open pixel) would reintroduce the same symptom with a good sender, and `bugeater-quarkus` met exactly that
+(its #362, #380); so the relay for #186 must not do it, and the same relay carries the dormancy warning
+below.
+
 **The mail relay (ADR-073).** The environment made before this change has no relay, and `deploy:cloudrun`
 now refuses to run without one: `SMTP_HOST` and `SMTP_FROM` exported, `SMTP_PORT` optional (587),
 and the secrets `SMTP_USERNAME` and `SMTP_PASSWORD` created (runbook step 2). It exists for one
@@ -142,7 +158,9 @@ real warning to an address you control (a throwaway user whose `last_login_at` y
 in the database, then the job's trigger) and read it. **That has not been done**: the code and its
 failure paths are tested against a mock and a relay that always fails, and nothing has authenticated
 against a real relay. `task verify:deploy` checks the service holds the five variables and two secrets;
-it does not send a message.
+it does not send a message. Supabase Auth's own mail can use the same relay once its SMTP settings point
+at it (#186, ADR-079), so the choice of relay is made once for both and must also pass the criterion above
+(it does not rewrite transactional links).
 
 **Rebinding a service that still holds the five public values as secrets (#166).** It is needed
 once, by an environment made before the change, and never by a new one. Cloud Run will not retype a
@@ -378,6 +396,10 @@ an undelete; a deployer without Owner.
   the deployed origin, and a build is tied to the origin it was compiled for, so moving the origin
   (section 5) means a new build as well as a new bundle. Its signing lapses on a schedule that was not
   observed.
+- **The sign-up and recovery mail is not fit for anyone but the owner** (ADR-079): the sender and relay
+  (#186), the templates in three languages (#187), and the link that still names the Supabase project's
+  host until jZenDev/jZen#154 lands and #188 consumes it. The relay must not rewrite links, and it is the
+  same relay the dormancy warning needs.
 - **The deployed service is older than `main`** (the privacy routes, the readiness probe, the dormancy
   mail). The phone shows the older surface until a redeploy, which needs the mail relay and
   `SUPABASE_SECRET_KEY` (section 3).

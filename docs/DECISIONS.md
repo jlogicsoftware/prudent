@@ -13,6 +13,69 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-079 — Sign-up and recovery mail is Prudent's to send and word; where its link points is the framework's to fix; both are reported, and nothing is built yet
+
+**Date:** 2026-10-27. **Status:** accepted. **Refines:** ADR-068, ADR-073, ADR-078.
+jlogicsoftware/prudent#186, #187, #188; jZenDev/jZen#154.
+
+### Decision
+
+- The owner's first native sign-in (ADR-078) produced a confirmation mail that was **almost empty and whose address looked like
+  phishing**. Two separate things cause that, and they sit in different repositories:
+  - **Prudent's:** who sends the mail (the built-in Supabase sender, no tie to a domain the recipient knows), what it says (Supabase's
+    default template: no product name, no reason, one link) and in which languages. Tracked as #186 (an authenticated sending
+    domain and a relay) and #187 (templates in `en`, `uk`, `pl`, kept in the repository and applied to the hosted project with a
+    drift check).
+  - **jZen's:** where the link points. `zen-identity` hands GoTrue only a `redirect_to`, so the link in the mail is
+    `https://<project-ref>.supabase.co/auth/v1/verify?…`, a host that is neither the sender nor the product. A template cannot fix
+    that, because the framework has no route a one-time token could land on. Reported as jZenDev/jZen#154: a landing page that
+    spends nothing, a verification `POST`, a decided native hand-off, reference templates and an operator checklist. Prudent's
+    consumption of it is #188, blocked until that lands.
+- **Both levels, in that order of independence.** #186 and #187 can ship now with GoTrue's own `{{ .ConfirmationURL }}`; they make
+  the mail legible and deliverable, not self-evidently ours. #188 is the step that removes the foreign host.
+- **Prudent builds no verification route of its own.** jZen is a dependency, not a donor (CLAUDE.md): a route that holds a
+  one-time credential, its CSRF reasoning and its rate limit is framework behaviour, and a copy in Prudent is the drift this
+  repository exists to avoid.
+- **The relay is chosen against one criterion before any other: it must not rewrite transactional links or add an open pixel.**
+  One relay serves both Supabase Auth's mail and the dormancy warning (ADR-073). The reason is the evidence below.
+- **All three languages go in one body per mail type**, because GoTrue sends one template per type and the signup and recovery calls
+  carry no language; a template that picked one would show the wrong language to exactly the people who need another.
+
+### Evidence
+
+The sibling product `bugeater-quarkus` (Quarkus + Supabase, the same owner) met the same symptom and left a record:
+
+- jlogicsoftware/bugeater-quarkus#362 (its ADR-079, `docs/EMAIL_DELIVERABILITY.md`): mail in Spam with Gmail's "might be dangerous" banner;
+  fixed with an authenticated subdomain, a relay, Supabase's SMTP settings and bilingual repository-owned templates.
+- #409 → #496 (its ADR-082): even then the link named `<project>.supabase.co`, "neither the sender nor the product, which reads as
+  phishing"; fixed by linking to its own origin with `token_hash` and verifying the token itself. Review added a landing page that
+  spends nothing (mail scanners fetch every URL), `Referrer-Policy: no-referrer`, CSRF kept on the verification `POST` (login CSRF with an
+  attacker's own token), a per-IP rate limit, an upstream 429 never reported as an expired link, and no retry on a call that spends
+  a token.
+- Its relay (Brevo) then rewrote every link to a tracking redirect and added an open pixel, so the visible URL and the real `href`
+  differed again, with no self-service switch (#380). That is why the relay criterion above comes first.
+
+### What this supersedes, and why
+
+- **"Sign-in mail | Supabase's default sender | Section 3"** (`docs/persistent-environment.md`, section 1; ADR-068) → **refined.** *Why:*
+  the default sender was accepted for a proof of concept with one owner who is a member of the Supabase organisation. It still is
+  the sender in use, and it still delivers to nobody else; what changed is that it is no longer *fine* for the owner either, because
+  the mail it sends is unfit to be trusted on a phone. The environment is unchanged by this entry.
+- **"No relay, host or sender is named in this repository."** (ADR-073) → **kept, with a criterion added.** *Why:* the choice stays the
+  owner's, and the repository still names none (ADR-021); but the choice now has a test it must pass.
+
+### Consequence
+
+- **Documentation and tickets only.** No code, template, DNS record or dashboard setting changed, and no suite was run.
+- **Not verified, and said so in the tickets:** that Supabase's Management API covers the template and subject fields (the names are
+  recalled, not read); that any particular relay leaves links alone (bugeater-quarkus names Postmark, Resend and Amazon SES; that is its
+  claim); the content and headers of the mail the owner received (this entry rests on the owner's description, not on the message);
+  that jZen will take #154 as proposed.
+- Until #188, the mail's link still names the Supabase project's host. `docs/persistent-environment.md` section 3 says so where an
+  operator will read it.
+
+---
+
 ## ADR-078 — A native iPhone build is a written procedure, run by hand against the persistent environment; it has signed a user in once
 
 **Date:** 2026-10-27. **Status:** accepted. **Refines:** ADR-068, ADR-069. jlogicsoftware/prudent#155.
