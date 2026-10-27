@@ -13,6 +13,51 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-078 — A native iPhone build is a written procedure, run by hand against the persistent environment; it has signed a user in once
+
+**Date:** 2026-10-27. **Status:** accepted. **Refines:** ADR-068, ADR-069. jlogicsoftware/prudent#155.
+
+### Decision
+
+- The native iPhone build is **documented as a procedure** (`docs/native-iphone-build.md`), not made a `task`
+  target. It calls `flutter build ios --release` with `ZEN_ENV=prd`, `ZEN_PLATFORM=ios`, `ZEN_API_URL` (the
+  service URL read from `gcloud` at build time) and `ZEN_AUTH_REDIRECT_URI=prudent://auth-callback`, then
+  `flutter install --release` and `xcrun devicectl device process launch`. The build contains the origin, so it is
+  rebuilt, never reconfigured, when the origin changes.
+- Nothing environment-specific enters the repository (ADR-021): the document carries placeholders only, and
+  the origin is read from the cloud each time.
+- The build is a **development install on the owner's own device**. No distribution (TestFlight, the App Store)
+  is set up or implied.
+
+### What this supersedes, and why
+
+- **"The native return address `prudent://auth-callback` is in the list but has not been followed, because no native
+  build exists (#155)"** (`docs/persistent-environment.md`, section 3, and "Native iPhone build: A separate issue,
+  #155 / The phone uses the web app first", section 1) → **refined.** *Why:* on 2026-10-27 the owner followed it. A new
+  user registered, the mail arrived, the link opened in the browser, which offered to open Prudent, and the app
+  opened and signed the user in at once. Both passages now say so; ADR-068 and ADR-069 are not edited.
+- A task was **not** added, although the rule that `task` is the only entry point argues for one. *Why:* a task that
+  cannot be run in CI (it needs a paired phone, a certificate in a keychain and an interactive Apple ID) and has
+  run once is a script nothing exercises. It would pass its own checks on a machine that proves nothing about the
+  phone. When the build is repeated enough to need one, it earns the task then, with the origin check the web
+  bundle already has (`build:web`).
+
+### Consequence
+
+- **Observed once, by hand, on one iPhone (iOS 26.6) against the persistent environment:** sign-in with an existing
+  user; registration, the mail and the return into the app; the overview with a balance; Settings opening; the
+  language changed with all three offered; an account created and one expense recorded and reflected in the balance.
+- **Found on the way:** signing failed with "could not code sign" until the Apple ID was signed in again in Xcode —
+  an interactive step no script can take. The first launch is refused until the developer profile is trusted on the
+  phone. Building with Xcode 27.1 rewrote `client/ios/Runner.xcodeproj/project.pbxproj` and `Runner.xcscheme`; that is
+  not part of this decision and was not committed.
+- **Not proven:** a notification firing (a reminder cannot be switched on in the UI); an automated read of a Prudent
+  message in both transports (#159); the privacy routes on the deployed service, which predates them; when the build
+  stops launching, and what kind of Apple Developer account signs it; any second device or iOS version.
+- Documentation only: no code or test changed, so no suite was run for this entry.
+
+---
+
 ## ADR-077 — `JZEN_REF` moves to `15cafd7`: the e-mail is trimmed before it is validated on sign-in, registration and restore
 
 **Date:** 2026-10-24. **Status:** accepted. **Follows:** ADR-063 (prior `JZEN_REF` bump). jZenDev/jZen#143 (→ #144);

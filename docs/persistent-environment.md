@@ -1,6 +1,6 @@
 # The persistent environment — a proof of concept, and what is different about it
 
-**Status (2026-10-22): created on `*.run.app`, signed in from a browser.** The owner's decisions are
+**Status (2026-10-27): created on `*.run.app`, signed in from a browser and from a native iPhone build.** The owner's decisions are
 recorded in ADR-068; what the first provisioning and sign-in found is ADR-069. This document is what
 to do with them and what to watch for; where it still reads as a plan, section 9 says what has since
 been done. It keeps **what is proven, what is only documented by
@@ -35,7 +35,7 @@ rediscover it:
 | Project id | The bare name is almost certainly taken; the id carries an owner-specific suffix | The id is permanent and not recorded here |
 | Sign-in mail | Supabase's default sender | Section 3 |
 | Recovery copies | None | Consistent with no backups |
-| Native iPhone build | A separate issue, #155 | The phone uses the web app first |
+| Native iPhone build | Built and installed once (ADR-078, `docs/native-iphone-build.md`) | Re-signing and a redeploy that needs a new build, section 10 |
 
 ## 2. Systems, and who holds each
 
@@ -127,8 +127,9 @@ project's `config/auth` Management API endpoint (`site_url` and a comma-separate
 a missing entry fails silently (GoTrue falls back to the Site URL and the mail opens the wrong
 application). Done this way on 2026-10-22; the owner then registered from a phone, received the
 mail and confirmed the link from a desktop (ADR-069). The native return address
-`prudent://auth-callback` is in the list but **has not been followed**, because no native build
-exists (#155).
+`prudent://auth-callback` is in the list and **was followed on 2026-10-27** from a native iPhone
+build: the link opened in the browser, which offered to open Prudent, and the app signed the new
+user in at once (ADR-078, `docs/native-iphone-build.md`).
 
 **The mail relay (ADR-073).** The environment made before this change has no relay, and `deploy:cloudrun`
 now refuses to run without one: `SMTP_HOST` and `SMTP_FROM` exported, `SMTP_PORT` optional (587),
@@ -355,14 +356,16 @@ and a redeploy over a running service; the Supabase Site URL and Redirect URLs s
 Management API; a registration, the confirmation mail and a sign-in from a phone browser and a
 desktop browser, after which the screens load. **And (ADR-070):** the rebind of the five public values from secrets to plain
 variables on a running service and job, the deletion of the five secrets (12 before, 7 after), and
-the sign-in from a phone afterwards.
+the sign-in from a phone afterwards. **And (ADR-078):** a native iPhone build compiled against the
+deployed origin, installed on a real phone, with a registration, the confirmation mail, the return into
+the app through `prudent://auth-callback`, a balance, an account created and an expense recorded, once, by hand.
 
 **Documented by the provider, not tried here:** domain mappings and their region list; the
 verification flow; Cloudflare's DNS-only meaning; liens; Supabase's backup policy and default mail
 sender; `--version-destroy-ttl`.
 
-**Never done:** a sign-in from a native app and the `prudent://auth-callback` return; reading back,
-on a second device, a record written on the first; whether the hourly Scheduler call keeps the Free
+**Never done:** a notification fired on a device; the expiry and re-signing of a development build
+(`docs/native-iphone-build.md`); reading back, on a second device, a record written on the first; whether the hourly Scheduler call keeps the Free
 Supabase project awake; a custom domain; a rotation on a live service; a restore of anything; a lien;
 an undelete; a deployer without Owner.
 
@@ -370,6 +373,12 @@ an undelete; a deployer without Owner.
 
 - **The DDL pair in the running service** (section 3), #156: a change to `deploy:cloudrun` and an ADR,
   before real data.
-- **A native iPhone build** against the deployed origin, #155. No task builds, signs or
-  distributes one, and `prudent://auth-callback` works only with a native build installed.
+- **The native iPhone build is a procedure, not a task** (ADR-078, `docs/native-iphone-build.md`). It
+  has run once by hand; nothing builds, signs or installs one, nothing checks that the build contains
+  the deployed origin, and a build is tied to the origin it was compiled for, so moving the origin
+  (section 5) means a new build as well as a new bundle. Its signing lapses on a schedule that was not
+  observed.
+- **The deployed service is older than `main`** (the privacy routes, the readiness probe, the dormancy
+  mail). The phone shows the older surface until a redeploy, which needs the mail relay and
+  `SUPABASE_SECRET_KEY` (section 3).
 - **Backups (#47)** are not provided by this environment and are not closed by it.
