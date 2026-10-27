@@ -187,7 +187,10 @@ proof of concept on `*.run.app`, Supabase Free with **no backups** (ADR-068, ADR
 `docs/persistent-environment.md`), signed in to from a browser and, since 2026-10-27, from a native iPhone
 build (ADR-078, #155, `docs/native-iphone-build.md`): registration, the mail, the return through
 `prudent://auth-callback`, a balance, an account and an expense, once, by hand — no task builds or
-installs it, and no notification or re-signing has been seen. It holds test data only; real finances
+installs it, and no notification or re-signing has been seen. The sign-up mail it sent was almost empty and
+its link named the Supabase project's host, which reads as phishing: the sender and relay (#186), Prudent's own
+`en`/`uk`/`pl` templates (#187) and consuming jZen's own-origin link (jZenDev/jZen#154, #188) are open (ADR-079); nothing
+is built for it yet. It holds test data only; real finances
 wait for #47. Its first sign-in found that no Prudent message was registered for the native image
 (#158, fixed; `task verify:reflection` guards the list). Ten genuine secrets are required (the seven of ADR-070, the relay's `SMTP_USERNAME` and `SMTP_PASSWORD`, ADR-073, and
 `SUPABASE_SECRET_KEY`, ADR-075, on the service only; both Supabase keys are the current `sb_publishable_` / `sb_secret_` kind, checked at

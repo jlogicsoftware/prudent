@@ -85,6 +85,12 @@ Observed by the owner on the installed build, against the persistent environment
 
 ## What it did not show
 
+- **The mail was not good, and that is not fixed.** The confirmation mail was almost empty and its
+  address looked like phishing (the owner's description; the message itself was not inspected for this
+  record). It is Supabase's built-in sender and default template, and the link names the Supabase
+  project's host, so the link opens the browser on that host first. Tracked as #186 (sender and
+  relay), #187 (Prudent's own template in `en`, `uk`, `pl`) and jZenDev/jZen#154 with #188 (the link);
+  ADR-079. Do not give this build to anyone but the owner until they land.
 - **No notification has been seen to fire**, and none can be: a plan's reminder cannot be switched on in
   the UI yet (CLAUDE.md, M5).
 - **Both transports, as an automated check, are still unproven** (#159). The above was a person using the
