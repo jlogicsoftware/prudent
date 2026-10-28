@@ -80,6 +80,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
     final result = await _repository.createRecord(request);
     final record = result.fold((r) => r, (error) => throw error);
     state = AsyncValue.data([...?state.value, record]);
+    ref.invalidate(accountsProvider);
     ref.invalidate(budgetSummaryProvider);
     ref.invalidate(goalFreeMoneyProvider);
   }
