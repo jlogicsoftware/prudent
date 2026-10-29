@@ -119,6 +119,8 @@
   },
   "accountDeleteBlockedGeneric": "This account could not be deleted.",
   "accountReconcile": "Reconcile balance",
+  "accountShowActions": "Show account actions",
+  "accountHideActions": "Hide account actions",
 
   "overviewEmpty": "No accounts to show. Add one to get started.",
   "overviewTotalsTitle": "Total balance",

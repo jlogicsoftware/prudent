@@ -119,6 +119,8 @@
   },
   "accountDeleteBlockedGeneric": "Nie udało się usunąć tego rachunku.",
   "accountReconcile": "Uzgodnij saldo",
+  "accountShowActions": "Pokaż działania rachunku",
+  "accountHideActions": "Ukryj działania rachunku",
 
   "overviewEmpty": "Brak rachunków do pokazania. Dodaj pierwszy, aby zacząć.",
   "overviewTotalsTitle": "Saldo łączne",
