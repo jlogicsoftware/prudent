@@ -202,3 +202,7 @@ versioned dependency's documentation travels with the package.
 ## Licence
 
 Apache License 2.0 — see [`LICENSE`](LICENSE).
+
+### Planned cash flow
+
+The overview can show expected income and spending separately from your balances. Use **Settings → Include planned cash flow** to show or hide it. This choice lasts for the current session.

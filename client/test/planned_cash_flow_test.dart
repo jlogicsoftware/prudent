@@ -154,7 +154,9 @@ void main() {
       );
     }
 
-    testWidgets('hides add transaction when there are no accounts', (tester) async {
+    testWidgets('hides add transaction when there are no accounts', (
+      tester,
+    ) async {
       await pump(tester, accounts: []);
       await tester.pumpAndSettle();
       expect(
@@ -163,7 +165,10 @@ void main() {
         ),
         findsNothing,
       );
-      expect(find.text('No accounts to show. Add one to get started.'), findsOneWidget);
+      expect(
+        find.text('No accounts to show. Add one to get started.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('opens the transaction form from the overview', (tester) async {
@@ -180,7 +185,7 @@ void main() {
     });
 
     testWidgets(
-      'shows planned money apart from the balance, and the switch hides it',
+      'shows planned money apart from balances and respects visibility',
       (tester) async {
         await pump(tester);
         await tester.pumpAndSettle();
@@ -193,11 +198,12 @@ void main() {
         // account row).
         expect(find.text('1000.00 PLN'), findsNWidgets(2));
 
-        await tester.scrollUntilVisible(
-          find.text('Include planned cash flow'),
-          200,
+        expect(find.text('Include planned cash flow'), findsNothing);
+        expect(find.byType(ZenSwitchRow), findsNothing);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(OverviewScreen)),
         );
-        await tester.tap(find.text('Include planned cash flow'));
+        container.read(plannedCashFlowVisibleProvider.notifier).set(false);
         await tester.pumpAndSettle();
 
         expect(find.text('Planned cash flow'), findsNothing);
