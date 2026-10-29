@@ -33,13 +33,18 @@ def java(*names: str) -> str:
 
 class Gate(unittest.TestCase):
     def test_agreement_passes(self):
-        r = run("message A {}\nmessage B {}\nenum E {}\n", java("A", "B"))
+        r = run("message A {}\nmessage B {}\nenum E {}\n", java("A", "B", "E"))
         self.assertEqual(r.returncode, 0, r.stdout)
 
     def test_unregistered_message_fails(self):
         r = run("message A {}\nmessage B {}\n", java("A"))
         self.assertEqual(r.returncode, 1)
-        self.assertIn("message B", r.stdout)
+        self.assertIn("type B", r.stdout)
+
+    def test_unregistered_enum_fails(self):
+        r = run("message A {}\nenum Granularity {}\n", java("A"))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("type Granularity", r.stdout)
 
     def test_stale_entry_fails(self):
         r = run("message A {}\n", java("A", "Gone"))

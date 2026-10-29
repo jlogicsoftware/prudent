@@ -404,3 +404,8 @@ an undelete; a deployer without Owner.
   mail). The phone shows the older surface until a redeploy, which needs the mail relay and
   `SUPABASE_SECRET_KEY` (section 3).
 - **Backups (#47)** are not provided by this environment and are not closed by it.
+
+The native JSON serializer requires reflection for generated protobuf messages and enums.
+Run `task verify:reflection` before building the server; it checks registration against the
+contract. The web build removes Flutter’s reference to its unshipped loader source map so the
+browser does not request `flutter.js.map`.

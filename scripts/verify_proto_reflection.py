@@ -2,14 +2,14 @@
 """Fail if the native-image reflection list and the proto contract disagree. Run by
 `task verify:reflection`.
 
-`server/src/main/java/prudent/proto/PrudentProtoReflection.java` lists every generated message so a
+`server/src/main/java/prudent/proto/PrudentProtoReflection.java` lists every generated message and enum so a
 native image keeps the accessors canonical proto3 JSON reads by reflection. A message missing from
 that list is invisible to every check that does not run authenticated JSON against a native build:
 the service starts, answers /health, rejects with 401, and returns 500 for the first screen a
 signed-in user opens (found on the first persistent deploy, #46). This gate makes the list follow
 the contract instead of memory.
 
-Two failures, both fatal: a `message` declared in `proto/prudent/v1/*.proto` that the class does not
+Two failures, both fatal: a `message` or `enum` declared in `proto/prudent/v1/*.proto` that the class does not
 name, and a class named in the list that no `.proto` declares any more. A scope that matches nothing
 (no proto files, no entries) is a failure, not a pass.
 
@@ -29,10 +29,10 @@ def main() -> int:
     declared = set()
     files = sorted(root.glob(PROTO_GLOB))
     for f in files:
-        declared |= set(re.findall(r"^message\s+(\w+)", f.read_text(), re.M))
+        declared |= set(re.findall(r"^(?:message|enum)\s+(\w+)", f.read_text(), re.M))
     path = root / REFLECTION
     if not files or not declared:
-        print(f"FAIL  no proto messages found under {PROTO_GLOB} — the scope matches nothing")
+        print(f"FAIL  no proto messages or enums found under {PROTO_GLOB} — the scope matches nothing")
         return 1
     if not path.is_file():
         print(f"FAIL  {REFLECTION} does not exist")
@@ -46,12 +46,12 @@ def main() -> int:
     missing = sorted(declared - registered)
     stale = sorted(registered - declared)
     for name in missing:
-        print(f"FAIL  message {name} is declared in proto but not registered in {REFLECTION}")
+        print(f"FAIL  type {name} is declared in proto but not registered in {REFLECTION}")
     for name in stale:
         print(f"FAIL  {name} is registered in {REFLECTION} but no .proto declares it")
     if missing or stale:
         return 1
-    print(f"ok    {len(declared)} proto messages, all registered for native reflection")
+    print(f"ok    {len(declared)} proto messages and enums, all registered for native reflection")
     return 0
 
 

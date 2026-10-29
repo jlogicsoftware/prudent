@@ -2,6 +2,7 @@ package prudent.proto;
 
 import io.quarkus.runtime.annotations.RegisterForReflection;
 import prudent.proto.v1.Account;
+import prudent.proto.v1.AccountType;
 import prudent.proto.v1.Budget;
 import prudent.proto.v1.BudgetCarryOverReset;
 import prudent.proto.v1.BudgetSummaryResponse;
@@ -27,8 +28,12 @@ import prudent.proto.v1.ExportProfile;
 import prudent.proto.v1.GetFreeMoneyResponse;
 import prudent.proto.v1.Goal;
 import prudent.proto.v1.GoalAllocation;
+import prudent.proto.v1.GoalAllocationKind;
 import prudent.proto.v1.GoalEnvelope;
+import prudent.proto.v1.GoalGuidance;
 import prudent.proto.v1.GoalProgress;
+import prudent.proto.v1.GoalStatus;
+import prudent.proto.v1.Granularity;
 import prudent.proto.v1.ListAccountsResponse;
 import prudent.proto.v1.ListBudgetCarryOverResetsResponse;
 import prudent.proto.v1.ListBudgetsResponse;
@@ -41,11 +46,13 @@ import prudent.proto.v1.ListOccurrencesResponse;
 import prudent.proto.v1.ListPlansResponse;
 import prudent.proto.v1.ListRecordsResponse;
 import prudent.proto.v1.ListRemindersResponse;
+import prudent.proto.v1.OccurrenceStatus;
 import prudent.proto.v1.PeriodSpend;
 import prudent.proto.v1.Plan;
 import prudent.proto.v1.PlanOccurrence;
 import prudent.proto.v1.Record;
 import prudent.proto.v1.Recurrence;
+import prudent.proto.v1.RecurrenceFrequency;
 import prudent.proto.v1.Reminder;
 import prudent.proto.v1.ResetBudgetCarryOverRequest;
 import prudent.proto.v1.SetBudgetRequest;
@@ -77,7 +84,7 @@ import prudent.proto.v1.UpdateSettingsRequest;
  * {@code Response} with an {@code @APIResponse} schema reference, so no message type appears in a
  * signature for static analysis to find.
  *
- * <p><b>The list is checked, not trusted.</b> {@code task verify:reflection} fails when a message
+ * <p><b>The list is checked, not trusted.</b> {@code task verify:reflection} fails when a message or enum
  * declared in {@code proto/prudent/v1/*.proto} is missing below, or one named below no longer
  * exists, so a message added to a proto file cannot reach a native build unregistered. Nested
  * {@code Builder} types are covered because {@code ignoreNested} defaults to false.
@@ -87,6 +94,7 @@ import prudent.proto.v1.UpdateSettingsRequest;
 @RegisterForReflection(
     targets = {
       Account.class,
+      AccountType.class,
       Budget.class,
       BudgetCarryOverReset.class,
       BudgetSummaryResponse.class,
@@ -112,8 +120,12 @@ import prudent.proto.v1.UpdateSettingsRequest;
       GetFreeMoneyResponse.class,
       Goal.class,
       GoalAllocation.class,
+      GoalAllocationKind.class,
       GoalEnvelope.class,
+      GoalGuidance.class,
       GoalProgress.class,
+      GoalStatus.class,
+      Granularity.class,
       ListAccountsResponse.class,
       ListBudgetCarryOverResetsResponse.class,
       ListBudgetsResponse.class,
@@ -126,11 +138,13 @@ import prudent.proto.v1.UpdateSettingsRequest;
       ListPlansResponse.class,
       ListRecordsResponse.class,
       ListRemindersResponse.class,
+      OccurrenceStatus.class,
       PeriodSpend.class,
       Plan.class,
       PlanOccurrence.class,
       Record.class,
       Recurrence.class,
+      RecurrenceFrequency.class,
       Reminder.class,
       ResetBudgetCarryOverRequest.class,
       SetBudgetRequest.class,
