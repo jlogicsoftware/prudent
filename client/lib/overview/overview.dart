@@ -9,7 +9,6 @@ import '../money.dart';
 import '../reminder/reminder_bell.dart';
 import '../record/add_record.dart';
 import 'overview_totals.dart';
-import 'planned_cash_flow.dart';
 import 'planned_cash_flow_section.dart';
 import '../providers.dart';
 
@@ -26,7 +25,7 @@ import '../providers.dart';
 ///
 /// PLANNED CASH FLOW (jlogicsoftware/prudent#58) is a section of its own beneath the balances and
 /// is never added to them: it is money still expected, not money that moved, so no figure above it
-/// changes when it is shown or hidden. The switch is the user's include/hide control.
+/// changes when it is shown or hidden. Settings controls its visibility.
 class OverviewScreen extends ConsumerWidget {
   const OverviewScreen({super.key});
 
@@ -65,12 +64,13 @@ class OverviewScreen extends ConsumerWidget {
               ],
               body: accountsAsync.when(
                 loading: () => const Center(child: ZenProgressIndicator()),
-                error: (error, stack) => LoadErrorView(
-                  message: t.accountsLoadError,
-                  error: error,
-                  stackTrace: stack,
-                  onRetry: () => ref.invalidate(accountsProvider),
-                ),
+                error:
+                    (error, stack) => LoadErrorView(
+                      message: t.accountsLoadError,
+                      error: error,
+                      stackTrace: stack,
+                      onRetry: () => ref.invalidate(accountsProvider),
+                    ),
                 data: (accounts) {
                   final overviewAccounts = accountsForOverview(accounts);
                   final totals = totalsByCurrency(accounts, mainCurrency);
@@ -124,17 +124,6 @@ class OverviewScreen extends ConsumerWidget {
                           ),
                         const SizedBox(height: 24),
                       ],
-                      ZenSwitchRow(
-                        label: t.plannedCashFlowToggle,
-                        subtitle: t.plannedCashFlowToggleHint(
-                          plannedCashFlowDays,
-                        ),
-                        value: showPlanned,
-                        onChanged:
-                            ref
-                                .read(plannedCashFlowVisibleProvider.notifier)
-                                .set,
-                      ),
                       if (showPlanned)
                         PlannedCashFlowSection(
                           accounts: accounts,

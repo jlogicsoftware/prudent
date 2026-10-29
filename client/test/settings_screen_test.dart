@@ -25,7 +25,9 @@ void main() {
     tester.view.physicalSize = Size(width, 1800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    container = ProviderContainer(overrides: [accountsProvider.overrideWith(_NoAccounts.new)]);
+    container = ProviderContainer(
+      overrides: [accountsProvider.overrideWith(_NoAccounts.new)],
+    );
     addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -50,53 +52,94 @@ void main() {
   testWidgets('offers its five actions as framework buttons', (tester) async {
     await pump(tester);
 
-    for (final label in ['Accounts', 'Categories', 'Profile', 'Privacy and data', 'Log Out']) {
-      expect(find.widgetWithText(ZenButton, label), findsOneWidget, reason: label);
+    for (final label in [
+      'Accounts',
+      'Categories',
+      'Profile',
+      'Privacy and data',
+      'Log Out',
+    ]) {
+      expect(
+        find.widgetWithText(ZenButton, label),
+        findsOneWidget,
+        reason: label,
+      );
     }
     expect(find.byType(ZenButton), findsNWidgets(5));
   });
 
-  testWidgets('the language select names each language in itself and shows the current one', (
+  testWidgets('planned cash flow visibility can be changed in settings', (
     tester,
   ) async {
-    await pump(tester);
+    await pump(tester, width: 360);
 
-    final select = tester.widget<ZenSelect<String>>(find.byType(ZenSelect<String>));
-    expect(select.label, 'Language');
-    expect(select.value, 'en');
-    expect(select.items.map(select.itemLabel), ['English', 'Українська', 'Polski']);
+    final toggle = find.byType(ZenSwitchRow);
+    expect(find.text('Include planned cash flow'), findsOneWidget);
+    expect(tester.widget<ZenSwitchRow>(toggle).value, isTrue);
+    await tester.tap(find.text('Include planned cash flow'));
+    await tester.pumpAndSettle();
+    expect(container.read(plannedCashFlowVisibleProvider), isFalse);
+    expect(tester.widget<ZenSwitchRow>(toggle).value, isFalse);
   });
+
+  testWidgets(
+    'the language select names each language in itself and shows the current one',
+    (tester) async {
+      await pump(tester);
+
+      final select = tester.widget<ZenSelect<String>>(
+        find.byType(ZenSelect<String>),
+      );
+      expect(select.label, 'Language');
+      expect(select.value, 'en');
+      expect(select.items.map(select.itemLabel), [
+        'English',
+        'Українська',
+        'Polski',
+      ]);
+    },
+  );
 
   testWidgets('choosing a language switches the app to it', (tester) async {
     await pump(tester);
 
-    tester.widget<ZenSelect<String>>(find.byType(ZenSelect<String>)).onChanged!('pl');
+    tester.widget<ZenSelect<String>>(find.byType(ZenSelect<String>)).onChanged!(
+      'pl',
+    );
     await tester.pumpAndSettle();
 
     expect(container.read(localeProvider), const Locale('pl'));
     // The screen re-renders in the chosen language, and the select now shows it.
     expect(find.text('Ustawienia'), findsOneWidget);
-    expect(tester.widget<ZenSelect<String>>(find.byType(ZenSelect<String>)).value, 'pl');
+    expect(
+      tester.widget<ZenSelect<String>>(find.byType(ZenSelect<String>)).value,
+      'pl',
+    );
   });
 
   // Accounts, Categories and Profile open as the detail of Settings (ADR-062).
-  testWidgets('on a wide window Accounts opens beside the settings, which stay', (tester) async {
-    await pump(tester);
+  testWidgets(
+    'on a wide window Accounts opens beside the settings, which stay',
+    (tester) async {
+      await pump(tester);
 
-    await tester.tap(find.widgetWithText(ZenButton, 'Accounts'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ZenButton, 'Accounts'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('No accounts added yet.'), findsOneWidget);
-    expect(
-      find.text('Settings'),
-      findsOneWidget,
-      reason: 'the settings, and the sidebar around them, stay',
-    );
-    expect(find.byType(ZenSelect<String>), findsOneWidget);
-    expect(iconButton('Back'), findsNothing);
-  });
+      expect(find.text('No accounts added yet.'), findsOneWidget);
+      expect(
+        find.text('Settings'),
+        findsOneWidget,
+        reason: 'the settings, and the sidebar around them, stay',
+      );
+      expect(find.byType(ZenSelect<String>), findsOneWidget);
+      expect(iconButton('Back'), findsNothing);
+    },
+  );
 
-  testWidgets('on a narrow window Accounts is a full-screen push with Back', (tester) async {
+  testWidgets('on a narrow window Accounts is a full-screen push with Back', (
+    tester,
+  ) async {
     await pump(tester, width: 600);
 
     await tester.tap(find.widgetWithText(ZenButton, 'Accounts'));

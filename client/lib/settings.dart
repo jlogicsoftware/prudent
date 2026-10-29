@@ -7,6 +7,7 @@ import 'account/account_screen.dart';
 import 'category/categories_screen.dart';
 import 'l10n/generated/prudent_localizations.dart';
 import 'privacy/privacy_screen.dart';
+import 'overview/planned_cash_flow.dart';
 import 'providers.dart';
 
 /// Each language's own name (autonym), not translated per-locale — a language picker
@@ -70,6 +71,26 @@ class SettingsScreen extends ConsumerWidget {
                               (code) => ref
                                   .read(localeProvider.notifier)
                                   .setLocale(Locale(code)),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 360),
+                        child: ZenSwitchRow(
+                          label: t.plannedCashFlowToggle,
+                          subtitle: t.plannedCashFlowToggleHint(
+                            plannedCashFlowDays,
+                          ),
+                          value: ref.watch(plannedCashFlowVisibleProvider),
+                          onChanged:
+                              ref
+                                  .read(plannedCashFlowVisibleProvider.notifier)
+                                  .set,
                         ),
                       ),
                     ),
