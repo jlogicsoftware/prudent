@@ -7,6 +7,7 @@ import '../l10n/generated/prudent_localizations.dart';
 import '../load_error_view.dart';
 import '../money.dart';
 import '../reminder/reminder_bell.dart';
+import '../record/add_record.dart';
 import 'overview_totals.dart';
 import 'planned_cash_flow.dart';
 import 'planned_cash_flow_section.dart';
@@ -45,6 +46,12 @@ class OverviewScreen extends ConsumerWidget {
             (context) => ZenPageScaffold(
               title: t.appTitle,
               actions: [
+                if (accountsAsync.value?.isNotEmpty == true)
+                  ZenIconButton(
+                    icon: Icons.add,
+                    label: t.addRecordTooltip,
+                    onPressed: () => showAddRecord(context, ref),
+                  ),
                 const ReminderBell(),
                 ZenIconButton(
                   icon: Icons.list,

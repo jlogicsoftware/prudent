@@ -6,12 +6,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent/record/new_record.dart';
 import 'package:prudent/generated/prudent/v1/plans.pb.dart';
 import 'package:prudent/generated/prudent/v1/settings.pb.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
 import 'package:prudent/overview/overview.dart';
 import 'package:prudent/overview/planned_cash_flow.dart';
 import 'package:prudent/providers.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
+
+import 'zen_platform_skip.dart';
 
 Account _account(
   String id, {
@@ -60,7 +65,10 @@ void main() {
         [
           _occurrence(-100),
           _occurrence(-200, status: OccurrenceStatus.OCCURRENCE_STATUS_OVERDUE),
-          _occurrence(-400, status: OccurrenceStatus.OCCURRENCE_STATUS_COMPLETED),
+          _occurrence(
+            -400,
+            status: OccurrenceStatus.OCCURRENCE_STATUS_COMPLETED,
+          ),
           _occurrence(-800, status: OccurrenceStatus.OCCURRENCE_STATUS_SKIPPED),
         ],
         [_account('a')],
@@ -71,7 +79,11 @@ void main() {
 
     test('never blends currencies, and lists the main currency first', () {
       final flows = plannedCashFlowByCurrency(
-        [_occurrence(100, currency: 'EUR'), _occurrence(-50), _occurrence(70, currency: 'USD')],
+        [
+          _occurrence(100, currency: 'EUR'),
+          _occurrence(-50),
+          _occurrence(70, currency: 'USD'),
+        ],
         [_account('a'), _account('b')],
         'USD',
       );
@@ -89,30 +101,52 @@ void main() {
           _occurrence(-400, account: 'hidden'),
           _occurrence(-800, account: 'deleted'),
         ],
-        [_account('a'), _account('inactive', isActive: false), _account('hidden', includeInTotal: false)],
+        [
+          _account('a'),
+          _account('inactive', isActive: false),
+          _account('hidden', includeInTotal: false),
+        ],
         null,
       );
       expect(flows['PLN']!.spending, Int64(-100));
     });
 
     test('is empty when nothing is expected', () {
-      expect(plannedCashFlowByCurrency(const [], [_account('a')], null), isEmpty);
+      expect(
+        plannedCashFlowByCurrency(const [], [_account('a')], null),
+        isEmpty,
+      );
     });
   });
 
   group('OverviewScreen planned section', () {
-    Future<void> pump(WidgetTester tester, {Future<List<PlanOccurrence>> Function()? planned}) {
+    Future<void> pump(
+      WidgetTester tester, {
+      Future<List<PlanOccurrence>> Function()? planned,
+      List<Account>? accounts,
+    }) {
       return tester.pumpWidget(
         ProviderScope(
           overrides: [
-            accountsProvider.overrideWith(() => _FixedAccounts([_account('a')])),
+            accountsProvider.overrideWith(
+              () => _FixedAccounts(accounts ?? [_account('a')]),
+            ),
             settingsProvider.overrideWith(() => _FixedSettings()),
+            categoriesProvider.overrideWith(() => _FixedCategories()),
             plannedOccurrencesProvider.overrideWith(
-              (ref) => (planned ?? () async => [_occurrence(500000), _occurrence(-120000)])(),
+              (ref) =>
+                  (planned ??
+                      () async => [
+                        _occurrence(500000),
+                        _occurrence(-120000),
+                      ])(),
             ),
           ],
           child: const MaterialApp(
-            localizationsDelegates: PrudentLocalizations.localizationsDelegates,
+            localizationsDelegates: [
+              ...PrudentLocalizations.localizationsDelegates,
+              zenWidgetsLocaleDelegate,
+            ],
             supportedLocales: PrudentLocalizations.supportedLocales,
             home: OverviewScreen(),
           ),
@@ -120,36 +154,71 @@ void main() {
       );
     }
 
-    testWidgets('shows planned money apart from the balance, and the switch hides it', (tester) async {
+    testWidgets('hides add transaction when there are no accounts', (tester) async {
+      await pump(tester, accounts: []);
+      await tester.pumpAndSettle();
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is ZenIconButton && widget.label == 'Add record',
+        ),
+        findsNothing,
+      );
+      expect(find.text('No accounts to show. Add one to get started.'), findsOneWidget);
+    });
+
+    testWidgets('opens the transaction form from the overview', (tester) async {
+      if (skipWithoutZenPlatform()) return;
       await pump(tester);
       await tester.pumpAndSettle();
-
-      expect(find.text('Planned cash flow'), findsOneWidget);
-      expect(find.text('5000.00 PLN'), findsOneWidget);
-      expect(find.text('-1200.00 PLN'), findsOneWidget);
-      expect(find.text('3800.00 PLN'), findsOneWidget);
-      // The actual balance is untouched by the planned money (it appears as the total and on the
-      // account row).
-      expect(find.text('1000.00 PLN'), findsNWidgets(2));
-
-      await tester.scrollUntilVisible(find.text('Include planned cash flow'), 200);
-      await tester.tap(find.text('Include planned cash flow'));
+      final add = find.byWidgetPredicate(
+        (widget) => widget is ZenIconButton && widget.label == 'Add record',
+      );
+      expect(add, findsOneWidget);
+      await tester.tap(add);
       await tester.pumpAndSettle();
-
-      expect(find.text('Planned cash flow'), findsNothing);
-      expect(find.text('3800.00 PLN'), findsNothing);
-      expect(find.text('1000.00 PLN'), findsNWidgets(2));
+      expect(find.byType(NewRecord), findsOneWidget);
     });
 
-    testWidgets('a failed load is reported in the section and leaves the balances readable', (
-      tester,
-    ) async {
-      await pump(tester, planned: () async => throw StateError('boom'));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'shows planned money apart from the balance, and the switch hides it',
+      (tester) async {
+        await pump(tester);
+        await tester.pumpAndSettle();
 
-      expect(find.textContaining('Could not load planned cash flow'), findsOneWidget);
-      expect(find.text('1000.00 PLN'), findsNWidgets(2));
-    });
+        expect(find.text('Planned cash flow'), findsOneWidget);
+        expect(find.text('5000.00 PLN'), findsOneWidget);
+        expect(find.text('-1200.00 PLN'), findsOneWidget);
+        expect(find.text('3800.00 PLN'), findsOneWidget);
+        // The actual balance is untouched by the planned money (it appears as the total and on the
+        // account row).
+        expect(find.text('1000.00 PLN'), findsNWidgets(2));
+
+        await tester.scrollUntilVisible(
+          find.text('Include planned cash flow'),
+          200,
+        );
+        await tester.tap(find.text('Include planned cash flow'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Planned cash flow'), findsNothing);
+        expect(find.text('3800.00 PLN'), findsNothing);
+        expect(find.text('1000.00 PLN'), findsNWidgets(2));
+      },
+    );
+
+    testWidgets(
+      'a failed load is reported in the section and leaves the balances readable',
+      (tester) async {
+        await pump(tester, planned: () async => throw StateError('boom'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.textContaining('Could not load planned cash flow'),
+          findsOneWidget,
+        );
+        expect(find.text('1000.00 PLN'), findsNWidgets(2));
+      },
+    );
 
     testWidgets('says so when nothing is planned', (tester) async {
       await pump(tester, planned: () async => const []);
@@ -171,4 +240,9 @@ class _FixedAccounts extends AccountsNotifier {
 class _FixedSettings extends SettingsNotifier {
   @override
   Future<Settings> build() async => Settings(mainCurrency: 'PLN');
+}
+
+class _FixedCategories extends CategoriesNotifier {
+  @override
+  Future<List<Category>> build() async => [];
 }

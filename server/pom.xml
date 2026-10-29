@@ -360,7 +360,10 @@
         <groupId>io.github.ascopes</groupId>
         <artifactId>protobuf-maven-plugin</artifactId>
         <configuration>
+          <!-- jZen versions in use declare either plugin 2.x or 5.x; each reads its own
+               parameter and ignores the other. Keep both until the dependency is aligned. -->
           <protocVersion>${protobuf.version}</protocVersion>
+          <protoc>${protobuf.version}</protoc>
           <sourceDirectories>
             <sourceDirectory>${project.basedir}/../proto</sourceDirectory>
           </sourceDirectories>

@@ -26,7 +26,15 @@ void main() {
       httpClient: MockClient((request) async {
         calls.add('${request.method} ${request.url.path}');
         const headers = {'X-Zen-Transport': 'json'};
-        if (request.method == 'DELETE') return http.Response('', 204, headers: headers);
+        if (request.method == 'DELETE')
+          return http.Response('', 204, headers: headers);
+        if (request.url.path == '/api/v1/accounts') {
+          return http.Response(
+            jsonEncode({'accounts': []}),
+            200,
+            headers: headers,
+          );
+        }
         if (request.url.path == '/api/v1/budgets/summary') {
           return http.Response(
             jsonEncode({'month': '2026-10', 'currency': 'PLN'}),
@@ -35,40 +43,75 @@ void main() {
           );
         }
         if (request.method == 'GET' && request.url.path == '/api/v1/records') {
-          return http.Response(jsonEncode({'records': []}), 200, headers: headers);
+          return http.Response(
+            jsonEncode({'records': []}),
+            200,
+            headers: headers,
+          );
         }
         // createRecord / updateRecord answer the record.
         return http.Response(
-          jsonEncode({'id': 'r1', 'title': 'Coffee', 'amountMinor': '-450', 'currency': 'PLN'}),
+          jsonEncode({
+            'id': 'r1',
+            'title': 'Coffee',
+            'amountMinor': '-450',
+            'currency': 'PLN',
+          }),
           200,
           headers: headers,
         );
       }),
     );
     container = ProviderContainer(
-      overrides: [prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client))],
+      overrides: [
+        prudentRepositoryProvider.overrideWithValue(
+          PrudentRepository(client: client),
+        ),
+      ],
     );
     addTearDown(container.dispose);
   });
 
-  int summaryReads() => calls.where((c) => c == 'GET /api/v1/budgets/summary').length;
+  int summaryReads() =>
+      calls.where((c) => c == 'GET /api/v1/budgets/summary').length;
 
   Future<void> readSummary() async {
     await container.read(budgetSummaryProvider(_params).future);
   }
 
-  test('is fetched once and served from cache while it is being watched', () async {
-    final subscription = container.listen(budgetSummaryProvider(_params), (_, _) {});
+  test('adding a record refreshes account balances', () async {
+    final subscription = container.listen(accountsProvider, (_, _) {});
     addTearDown(subscription.close);
-
-    await readSummary();
-    await readSummary();
-
-    expect(summaryReads(), 1);
+    await container.read(accountsProvider.future);
+    final before = calls.where((c) => c == 'GET /api/v1/accounts').length;
+    await container
+        .read(recordsProvider.notifier)
+        .addRecord(CreateRecordRequest(title: 'Coffee'));
+    await container.read(accountsProvider.future);
+    expect(calls.where((c) => c == 'GET /api/v1/accounts').length, before + 1);
   });
 
+  test(
+    'is fetched once and served from cache while it is being watched',
+    () async {
+      final subscription = container.listen(
+        budgetSummaryProvider(_params),
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+
+      await readSummary();
+      await readSummary();
+
+      expect(summaryReads(), 1);
+    },
+  );
+
   test('is fetched again after a record is added, edited or removed', () async {
-    final subscription = container.listen(budgetSummaryProvider(_params), (_, _) {});
+    final subscription = container.listen(
+      budgetSummaryProvider(_params),
+      (_, _) {},
+    );
     addTearDown(subscription.close);
     final records = container.read(recordsProvider.notifier);
     await readSummary();

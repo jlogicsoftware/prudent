@@ -7,7 +7,7 @@ import '../l10n/generated/prudent_localizations.dart';
 import '../load_error_view.dart';
 import '../money.dart';
 import '../providers.dart';
-import 'new_record.dart';
+import 'add_record.dart';
 import 'new_transfer.dart';
 import 'records_filter_sheet.dart';
 import 'records_list.dart';
@@ -24,37 +24,6 @@ class RecordsScreen extends ConsumerStatefulWidget {
 class _RecordsState extends ConsumerState<RecordsScreen> {
   void _presentOverlay(Widget body) {
     showAdaptivePresentation<void>(context, builder: (_) => body);
-  }
-
-  void _openAddRecordOverlay() {
-    _presentOverlay(
-      NewRecord(
-        onSave:
-            ({
-              required title,
-              required amountInput,
-              required date,
-              required categoryId,
-              required accountId,
-              required currency,
-              required payee,
-              required note,
-            }) => ref
-                .read(recordsProvider.notifier)
-                .addRecord(
-                  CreateRecordRequest(
-                    title: title,
-                    amountMinor: parseMinorUnits(amountInput),
-                    date: date,
-                    categoryId: categoryId,
-                    accountId: accountId,
-                    currency: currency,
-                    payee: payee,
-                    note: note,
-                  ),
-                ),
-      ),
-    );
   }
 
   void _openFilterOverlay() {
@@ -102,18 +71,20 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
       t.recordsDeleted,
       actionLabel: t.recordsUndo,
       onAction: () {
-        ref.read(recordsProvider.notifier).addRecord(
-          CreateRecordRequest(
-            title: record.title,
-            amountMinor: record.amountMinor,
-            date: record.date,
-            categoryId: record.categoryId,
-            accountId: record.accountId,
-            currency: record.currency,
-            payee: record.payee,
-            note: record.note,
-          ),
-        );
+        ref
+            .read(recordsProvider.notifier)
+            .addRecord(
+              CreateRecordRequest(
+                title: record.title,
+                amountMinor: record.amountMinor,
+                date: record.date,
+                categoryId: record.categoryId,
+                accountId: record.accountId,
+                currency: record.currency,
+                payee: record.payee,
+                note: record.note,
+              ),
+            );
       },
     );
   }
@@ -143,17 +114,18 @@ class _RecordsState extends ConsumerState<RecordsScreen> {
         ZenIconButton(
           icon: Icons.add,
           label: t.addRecordTooltip,
-          onPressed: _openAddRecordOverlay,
+          onPressed: () => showAddRecord(context, ref),
         ),
       ],
       body: recordsAsync.when(
         loading: () => const Center(child: ZenProgressIndicator()),
-        error: (error, stack) => LoadErrorView(
-          message: t.recordsLoadError,
-          error: error,
-          stackTrace: stack,
-          onRetry: () => ref.invalidate(recordsProvider),
-        ),
+        error:
+            (error, stack) => LoadErrorView(
+              message: t.recordsLoadError,
+              error: error,
+              stackTrace: stack,
+              onRetry: () => ref.invalidate(recordsProvider),
+            ),
         data: (records) {
           if (records.isEmpty && filterActive) {
             return Center(
