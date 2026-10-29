@@ -274,3 +274,12 @@ this session wrote from the transcript, refuses a commit whose index holds
 anything else, and refuses a branch switch under foreign changes. Prefix a
 command with `ALLOW_FOREIGN=1` when the foreign files genuinely belong in the
 commit.
+
+### GitHub identity for Prudent
+
+All GitHub actions for `jlogicsoftware/prudent` must use the `konter-dev` account.
+Use GitHub Desktop for this repository, and Chrome with `konter.dev@gmail.com` when working
+through the browser. Verify the
+active GitHub identity before creating or modifying issues, pull requests, or other repository
+resources. Git commits use `Adam Konter <konter.dev@gmail.com>`. Do not use another GitHub
+account for Prudent.
