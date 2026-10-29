@@ -119,6 +119,8 @@
   },
   "accountDeleteBlockedGeneric": "Не вдалося видалити цей рахунок.",
   "accountReconcile": "Звірити баланс",
+  "accountShowActions": "Показати дії з рахунком",
+  "accountHideActions": "Приховати дії з рахунком",
 
   "overviewEmpty": "Немає рахунків для показу. Додайте перший, щоб почати.",
   "overviewTotalsTitle": "Загальний баланс",

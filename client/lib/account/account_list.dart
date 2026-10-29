@@ -18,12 +18,13 @@ class AccountList extends ConsumerWidget {
 
     return accountsAsync.when(
       loading: () => const Center(child: ZenProgressIndicator()),
-      error: (error, stack) => LoadErrorView(
-        message: t.accountsLoadError,
-        error: error,
-        stackTrace: stack,
-        onRetry: () => ref.invalidate(accountsProvider),
-      ),
+      error:
+          (error, stack) => LoadErrorView(
+            message: t.accountsLoadError,
+            error: error,
+            stackTrace: stack,
+            onRetry: () => ref.invalidate(accountsProvider),
+          ),
       data: (accounts) {
         if (accounts.isEmpty) {
           return Center(child: Text(t.accountsEmpty));
@@ -31,11 +32,19 @@ class AccountList extends ConsumerWidget {
 
         final cardsAccounts =
             accounts
-                .where((a) => a.type == AccountType.ACCOUNT_TYPE_CARD || a.type == AccountType.ACCOUNT_TYPE_CASH)
+                .where(
+                  (a) =>
+                      a.type == AccountType.ACCOUNT_TYPE_CARD ||
+                      a.type == AccountType.ACCOUNT_TYPE_CASH,
+                )
                 .toList();
         final otherAccounts =
             accounts
-                .where((a) => a.type != AccountType.ACCOUNT_TYPE_CARD && a.type != AccountType.ACCOUNT_TYPE_CASH)
+                .where(
+                  (a) =>
+                      a.type != AccountType.ACCOUNT_TYPE_CARD &&
+                      a.type != AccountType.ACCOUNT_TYPE_CASH,
+                )
                 .toList();
 
         return ListView(
@@ -43,16 +52,24 @@ class AccountList extends ConsumerWidget {
             if (cardsAccounts.isNotEmpty) ...[
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text(t.accountsBanksAndCards, style: Theme.of(context).textTheme.headlineSmall),
+                child: Text(
+                  t.accountsBanksAndCards,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
               ),
-              for (final account in cardsAccounts) AccountTile(account),
+              for (final account in cardsAccounts)
+                AccountTile(account, key: ValueKey(account.id)),
             ],
             if (otherAccounts.isNotEmpty) ...[
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text(t.accountsOther, style: Theme.of(context).textTheme.headlineSmall),
+                child: Text(
+                  t.accountsOther,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
               ),
-              for (final account in otherAccounts) AccountTile(account),
+              for (final account in otherAccounts)
+                AccountTile(account, key: ValueKey(account.id)),
             ],
           ],
         );

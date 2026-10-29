@@ -21,7 +21,10 @@ class AccountTile extends ConsumerWidget {
   void _openEdit(BuildContext context, WidgetRef ref) {
     final body = AccountEdit(
       account: account,
-      onSave: (request) => ref.read(accountsProvider.notifier).editAccount(account.id, request),
+      onSave:
+          (request) => ref
+              .read(accountsProvider.notifier)
+              .editAccount(account.id, request),
     );
     showAdaptivePresentation<void>(context, builder: (_) => body);
   }
@@ -56,7 +59,9 @@ class AccountTile extends ConsumerWidget {
                 (ctx) => AlertDialog(
                   title: Text(t.correctionsTitle),
                   content: Text(
-                    error.message.isEmpty ? t.correctionsAlreadyBalanced : error.message,
+                    error.message.isEmpty
+                        ? t.correctionsAlreadyBalanced
+                        : error.message,
                   ),
                   actions: [
                     ZenButton(
@@ -110,7 +115,11 @@ class AccountTile extends ConsumerWidget {
               // message the resource wrote (AccountResource.delete); every ZenError arriving
               // here carries the server's message the same way, decoded transport-side by
               // ZenTransportError, so there is one path rather than a type check per error kind.
-              content: Text(error.message.isEmpty ? t.accountDeleteBlockedGeneric : error.message),
+              content: Text(
+                error.message.isEmpty
+                    ? t.accountDeleteBlockedGeneric
+                    : error.message,
+              ),
               actions: [
                 ZenButton(
                   label: t.okay,
@@ -129,31 +138,34 @@ class AccountTile extends ConsumerWidget {
     final balances = account.balances
         .map((b) => '${formatMinorUnits(b.amountMinor)} ${b.currency}')
         .join(', ');
-    return ListTile(
-      onTap: () => _openEdit(context, ref),
-      leading: Icon(
-        account.type == AccountType.ACCOUNT_TYPE_CARD || account.type == AccountType.ACCOUNT_TYPE_CASH
-            ? Icons.account_balance
-            : Icons.account_balance_wallet,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      title: Text(account.name),
-      subtitle: Text(balances.isEmpty ? t.accountsNoBalance : balances),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ZenIconButton(
-            icon: Icons.balance,
-            label: t.accountReconcile,
-            onPressed: () => _openReconcile(context, ref),
-          ),
-          ZenIconButton(
-            icon: Icons.delete_outline,
-            label: t.accountDelete,
-            onPressed: () => _confirmDelete(context, ref),
-          ),
-        ],
+    return ZenListItemActions(
+      showActionsLabel: t.accountShowActions,
+      hideActionsLabel: t.accountHideActions,
+      actions: [
+        ZenListItemAction(
+          icon: Icons.balance,
+          label: t.accountReconcile,
+          onPressed: () => _openReconcile(context, ref),
+        ),
+        ZenListItemAction(
+          icon: Icons.delete_outline,
+          label: t.accountDelete,
+          variant: ZenListItemActionVariant.destructive,
+          onPressed: () => _confirmDelete(context, ref),
+        ),
+      ],
+      child: ListTile(
+        onTap: () => _openEdit(context, ref),
+        leading: Icon(
+          account.type == AccountType.ACCOUNT_TYPE_CARD ||
+                  account.type == AccountType.ACCOUNT_TYPE_CASH
+              ? Icons.account_balance
+              : Icons.account_balance_wallet,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        title: Text(account.name),
+        subtitle: Text(balances.isEmpty ? t.accountsNoBalance : balances),
       ),
     );
   }
