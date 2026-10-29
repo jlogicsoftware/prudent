@@ -53,6 +53,12 @@ class _Identity implements IdentityRepository {
       const ZenResult.err(ZenUnknownError('not used'));
 
   @override
+  Future<ZenResult<IdentityContract>> confirmEmailLink({
+    required String tokenHash,
+    required String type,
+  }) async => const ZenResult.err(ZenUnknownError('not used'));
+
+  @override
   Future<ZenResult<IdentityContract>> exchangeLinkSession({
     required String accessToken,
     String? refreshToken,
