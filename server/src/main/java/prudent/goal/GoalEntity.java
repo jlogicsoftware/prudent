@@ -12,6 +12,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import prudent.error.PrudentException;
 
 /**
@@ -37,9 +39,10 @@ public class GoalEntity extends PanacheEntityBase {
   @Column(nullable = false)
   public String name;
 
-  // char(3), matching the migration, so Hibernate's schema validation stays honest. Never changed
+  // char(3), matching the migration. JdbcTypeCode tells Hibernate's schema validation to expect CHAR. Never changed
   // after creation: money set aside for the goal is held in this currency.
-  @Column(nullable = false, length = 3, columnDefinition = "char(3)")
+  @JdbcTypeCode(SqlTypes.CHAR)
+  @Column(nullable = false, length = 3)
   public String currency;
 
   /** Positive minor units: the amount to reach. */

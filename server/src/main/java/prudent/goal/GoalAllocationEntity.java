@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * The {@code prudent_goal_allocation} table — one entry of the envelope history (M4,
@@ -49,8 +51,9 @@ public class GoalAllocationEntity extends PanacheEntityBase {
   @Column(name = "target_goal_id")
   public UUID targetGoalId;
 
-  // char(3), matching the migration, so Hibernate's schema validation stays honest.
-  @Column(nullable = false, length = 3, columnDefinition = "char(3)")
+  // char(3), matching the migration. JdbcTypeCode tells Hibernate's schema validation to expect CHAR.
+  @JdbcTypeCode(SqlTypes.CHAR)
+  @Column(nullable = false, length = 3)
   public String currency;
 
   /** Positive minor units: how much moved. The direction is the kind, not the sign. */
