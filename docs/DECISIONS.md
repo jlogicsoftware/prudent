@@ -13,6 +13,36 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-082 — Bound page content in the navigation shell
+
+**Date:** 2026-10-30. **Status:** accepted. jlogicsoftware/prudent#195; jZenDev/jZen#197 and #201.
+
+### Decision
+
+The authenticated shell supplies `ZenPageWidthScope`: ordinary page bodies are centred at a
+maximum of 640 logical pixels, and analytics opts into 960 for charts. Both use the framework's
+16-pixel gutter on each side. Page headers, navigation and `ZenDetailHost` retain the available
+width, so the 720-pixel detail breakpoint still measures the host. The scope reaches pages pushed
+inside destination navigators and framework-owned pages. The previous local settings and analytics
+width constraints are removed. CI and audit pin jZen at `089ebfe`, which includes the scope.
+
+### What this refines, and why
+
+- **"the detail of this screen ... beside it on a wide host"** (ADR-062, Decision) → **refined.**
+  *Why:* page bodies need a readable width without narrowing the host used to choose detail layout.
+- **"The widest the analytics content grows, in logical pixels"** (`AnalyticsColumn.maxWidth`,
+  set to 720, issue #194) → **changed.**
+  *Why:* the shell owns the common width rule and charts have a deliberate wider allowance.
+
+### Consequence
+
+New `ZenPageScaffold` pages below the shell inherit the width without screen-specific layout code;
+charts may opt into the named wider limit. The 392-test client suite passed on macOS; shell and
+analytics tests measured 400- and 1600-pixel windows, and a browser preview showed settings and
+the accounts detail at narrow and wide widths.
+
+---
+
 ## ADR-081 — An account can be deleted together with all of its transactions, but only on a second, typed confirmation
 
 **Date:** 2026-10-30. **Status:** accepted. **Refines:** ADR-008. jlogicsoftware/prudent#201.

@@ -8,6 +8,8 @@ applications: a Quarkus server, a Flutter client, and a contract in Protobuf. jZ
 dependency** — Prudent is its consumer, not part of it, and nothing here ever edits the jZen
 checkout.
 
+On wide windows, page content stays centred in a readable column. Charts have more room, while navigation and page headers continue to use the available width.
+
 ## The three tiers
 
 The repository root is **language-neutral** on purpose: no root `pom.xml`, no root `pubspec.yaml`,

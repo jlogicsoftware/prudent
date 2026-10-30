@@ -60,18 +60,15 @@ class SettingsScreen extends ConsumerWidget {
                         horizontal: 16,
                         vertical: 8,
                       ),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 360),
-                        child: ZenSelect<String>(
-                          label: t.settingsLanguage,
-                          items: _languageNames.keys.toList(),
-                          itemLabel: (code) => _languageNames[code]!,
-                          value: locale.languageCode,
-                          onChanged:
-                              (code) => ref
-                                  .read(localeProvider.notifier)
-                                  .setLocale(Locale(code)),
-                        ),
+                      child: ZenSelect<String>(
+                        label: t.settingsLanguage,
+                        items: _languageNames.keys.toList(),
+                        itemLabel: (code) => _languageNames[code]!,
+                        value: locale.languageCode,
+                        onChanged:
+                            (code) => ref
+                                .read(localeProvider.notifier)
+                                .setLocale(Locale(code)),
                       ),
                     ),
                     Padding(
@@ -79,19 +76,16 @@ class SettingsScreen extends ConsumerWidget {
                         horizontal: 16,
                         vertical: 8,
                       ),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 360),
-                        child: ZenSwitchRow(
-                          label: t.plannedCashFlowToggle,
-                          subtitle: t.plannedCashFlowToggleHint(
-                            plannedCashFlowDays,
-                          ),
-                          value: ref.watch(plannedCashFlowVisibleProvider),
-                          onChanged:
-                              ref
-                                  .read(plannedCashFlowVisibleProvider.notifier)
-                                  .set,
+                      child: ZenSwitchRow(
+                        label: t.plannedCashFlowToggle,
+                        subtitle: t.plannedCashFlowToggleHint(
+                          plannedCashFlowDays,
                         ),
+                        value: ref.watch(plannedCashFlowVisibleProvider),
+                        onChanged:
+                            ref
+                                .read(plannedCashFlowVisibleProvider.notifier)
+                                .set,
                       ),
                     ),
                     ZenButton(

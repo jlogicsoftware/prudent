@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prudent/content_width.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
 import 'package:prudent/providers.dart';
@@ -43,7 +44,10 @@ void main() {
                   zenWidgetsLocaleDelegate,
                 ],
                 supportedLocales: PrudentLocalizations.supportedLocales,
-                home: const SettingsScreen(),
+                home: const ZenPageWidthScope(
+                  maxWidth: prudentContentMaxWidth,
+                  child: SettingsScreen(),
+                ),
               ),
         ),
       ),
@@ -77,8 +81,14 @@ void main() {
 
     final toggle = find.byType(ZenSwitchRow);
     expect(find.text('Include planned cash flow'), findsOneWidget);
-    expect(find.byType(CupertinoSwitch), zenIsApplePlatform ? findsOneWidget : findsNothing);
-    expect(find.byType(SwitchListTile), zenIsApplePlatform ? findsNothing : findsOneWidget);
+    expect(
+      find.byType(CupertinoSwitch),
+      zenIsApplePlatform ? findsOneWidget : findsNothing,
+    );
+    expect(
+      find.byType(SwitchListTile),
+      zenIsApplePlatform ? findsNothing : findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
     expect(tester.widget<ZenSwitchRow>(toggle).value, isTrue);
     await tester.tap(find.text('Include planned cash flow'));
