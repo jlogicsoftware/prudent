@@ -277,6 +277,13 @@ builds are **host-only** — Flutter refuses `build linux` off Linux and `build 
 — so every desktop target Prudent claims costs a CI runner, and no single machine can verify the
 full set. Claim the platforms Prudent actually ships and let CI prove them.
 
+**The iOS and macOS runners use Swift Package Manager only (ADR-083, #183).** There is no `Podfile`,
+`Podfile.lock` or `Pods/` in `client/ios` or `client/macos`, and no `[CP]` build phase in either Xcode
+project; the minimum OS (iOS 15.0, macOS 12.0) is set in the projects. Flutter falls back to CocoaPods
+for a plugin that has no Swift package and the build stays green, so `task verify:swiftpm` (run in CI)
+fails when a Podfile or any trace of CocoaPods returns. Do not run `pod install`; a plugin without a
+Swift package is a reason to choose another plugin or version.
+
 `task` (go-task) is the only entry point, and it **triggers native tools, never replaces them** —
 `mvnw` owns Java, `dart pub` owns Dart, `pnpm` owns TypeScript. A task that reimplements a package
 manager is a bug.

@@ -66,7 +66,7 @@ xcrun devicectl device process launch --device DEVICE_ID com.jlogicsoftware.prud
 | What was seen | Cause | Fix |
 |---|---|---|
 | `Error: could not code sign the application` with `Unable to log in with account … The login details … were rejected` and `No profiles for 'com.jlogicsoftware.prudent' were found` | Xcode's Apple ID session had expired; with it gone, automatic signing cannot create the provisioning profile, although the certificate is still in the keychain | Sign in again in Xcode → Settings → Accounts. It is interactive and cannot be scripted or retried |
-| `All plugins found for ios are Swift Packages, but your project still has CocoaPods integration` | A Flutter notice: `client/ios` still has a `Podfile` | None needed; it only warns. Removing CocoaPods is a separate change |
+| `Flutter` writes `client/ios/Podfile` (or `client/macos/Podfile`) back, or `task verify:swiftpm` fails | A plugin that was added or updated has no Swift package, so Flutter fell back to CocoaPods for it. The runners carry no CocoaPods integration (ADR-083), so that is a second build description arriving unannounced | Find the plugin (`flutter build ios` names it) and use a version or an alternative that ships a Swift package; do not commit the Podfile. `pod install` is never part of building Prudent |
 | `git status` shows `client/ios/Runner.xcodeproj/project.pbxproj` and `Runner.xcscheme` modified after the build | The toolchain (Xcode 27.1) rewrote the project file: `objectVersion` 54 to 60 and a reordered package reference | **Not part of this work, and not committed.** Decide on it separately; `git checkout -- client/ios` discards it |
 
 ## What this showed (2026-10-27, one iPhone, iOS 26.6)
