@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * The {@code prudent_budget_carry_reset} table — one carry-over reset and, because rows are never
@@ -43,8 +45,9 @@ public class BudgetCarryResetEntity extends PanacheEntityBase {
   @Column(name = "reset_month", nullable = false)
   public LocalDate monthStart;
 
-  // char(3), matching the migration, so Hibernate's schema validation stays honest.
-  @Column(nullable = false, length = 3, columnDefinition = "char(3)")
+  // char(3), matching the migration. JdbcTypeCode tells Hibernate's schema validation to expect CHAR.
+  @JdbcTypeCode(SqlTypes.CHAR)
+  @Column(nullable = false, length = 3)
   public String currency;
 
   /** The carry-over into the reset month just before this reset: signed minor units. */

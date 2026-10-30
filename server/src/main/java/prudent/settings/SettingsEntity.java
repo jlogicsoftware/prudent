@@ -6,6 +6,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * The {@code prudent_settings} table — one row per user (active-record Panache entity).
@@ -52,8 +54,9 @@ public class SettingsEntity extends PanacheEntityBase {
    * promise it never answers with an empty currency.
    */
   // char(3), not varchar: an ISO-4217 code is always exactly three characters, so the
-  // migration fixed the width. columnDefinition keeps Hibernate's schema validation honest.
-  @Column(name = "main_currency", nullable = false, length = 3, columnDefinition = "char(3)")
+  // migration fixed the width. JdbcTypeCode tells Hibernate's schema validation to expect CHAR.
+  @JdbcTypeCode(SqlTypes.CHAR)
+  @Column(name = "main_currency", nullable = false, length = 3)
   public String mainCurrency;
 
   /**

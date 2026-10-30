@@ -12,6 +12,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * The {@code prudent_plan} table — expected income and spending, one-off or recurring (M2,
@@ -43,8 +45,9 @@ public class PlanEntity extends PanacheEntityBase {
   @Column(name = "amount_minor", nullable = false)
   public long amountMinor;
 
-  // char(3), matching the migration, so Hibernate's schema validation stays honest.
-  @Column(nullable = false, length = 3, columnDefinition = "char(3)")
+  // char(3), matching the migration. JdbcTypeCode tells Hibernate's schema validation to expect CHAR.
+  @JdbcTypeCode(SqlTypes.CHAR)
+  @Column(nullable = false, length = 3)
   public String currency;
 
   @Column(name = "account_id", nullable = false)

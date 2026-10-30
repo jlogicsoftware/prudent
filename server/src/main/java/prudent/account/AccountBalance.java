@@ -2,6 +2,8 @@ package prudent.account;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * One currency an account holds, and how much of it — a row of {@code prudent_account_balance}.
@@ -22,8 +24,9 @@ public class AccountBalance {
    * normalises before persisting, so "pln" and "PLN" cannot become two balances of one account.
    */
   // char(3), not varchar: an ISO-4217 code is always exactly three characters, so the
-  // migration fixed the width. columnDefinition keeps Hibernate's schema validation honest.
-  @Column(name = "currency", nullable = false, length = 3, columnDefinition = "char(3)")
+  // migration fixed the width. JdbcTypeCode tells Hibernate's schema validation to expect CHAR.
+  @JdbcTypeCode(SqlTypes.CHAR)
+  @Column(name = "currency", nullable = false, length = 3)
   public String currency;
 
   @Column(name = "amount_minor", nullable = false)
