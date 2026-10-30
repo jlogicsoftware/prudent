@@ -51,12 +51,13 @@ class CategoriesScreen extends ConsumerWidget {
         ],
         body: categoriesAsync.when(
           loading: () => const Center(child: ZenProgressIndicator()),
-          error: (error, stack) => LoadErrorView(
-            message: t.categoriesLoadError,
-            error: error,
-            stackTrace: stack,
-            onRetry: () => ref.invalidate(categoriesProvider),
-          ),
+          error:
+              (error, stack) => LoadErrorView(
+                message: t.categoriesLoadError,
+                error: error,
+                stackTrace: stack,
+                onRetry: () => ref.invalidate(categoriesProvider),
+              ),
           data: (categories) {
             if (categories.isEmpty) {
               return Center(child: Text(t.categoriesEmpty));
@@ -84,7 +85,7 @@ class CategoriesScreen extends ConsumerWidget {
                           // unreachable before this phase (docs/prudent-migration-plan.md), and giving
                           // it the tile's main gesture is what makes it reachable rather than a second
                           // stub nobody can get to.
-                          InkWell(
+                          AdaptiveInkWell(
                             borderRadius: BorderRadius.circular(15),
                             onTap:
                                 () => showZenDetail<void>(
