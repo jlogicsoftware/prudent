@@ -135,7 +135,8 @@ user in at once (ADR-078, `docs/native-iphone-build.md`).
 found the confirmation mail almost empty and its address suspicious. Two causes, in two repositories.
 *Prudent's:* the mail comes from Supabase's built-in sender, so nothing ties it to a domain the
 recipient knows, and from Supabase's default template, which names no product and gives no reason. An
-authenticated sending domain and a relay are #186; Prudent's own template in `en`, `uk` and `pl` is #187.
+authenticated sending domain and a relay are #186; Prudent's own template in `en`, `uk` and `pl` is #187, written
+and gated in the repository (below) but **not yet applied to this environment**.
 *The framework's:* `zen-identity` gives GoTrue only a `redirect_to`, so the link is
 `https://<project-ref>.supabase.co/auth/v1/verify?…`, a host that is neither the sender nor the product.
 A template cannot fix that, and the framework has no route a one-time token could land on; that is
@@ -146,6 +147,35 @@ this record; it rests on the owner's description. A relay that rewrites links (a
 open pixel) would reintroduce the same symptom with a good sender, and `bugeater-quarkus` met exactly that
 (its #362, #380); so the relay for #186 must not do it, and the same relay carries the dormancy warning
 below.
+
+**Prudent's own sign-up and recovery mail (ADR-084, #187).** `supabase/templates/confirmation.html` and
+`recovery.html` hold English, Ukrainian and Polish in one body each (GoTrue sends one template per type and the
+calls carry no language), with the subject naming all three; they carry only `{{ .ConfirmationURL }}` and
+`{{ .Email }}`, so no host and no ledger data is in them. A hosted project does not read
+`supabase/config.toml`, so they reach it only through the Management API (or by pasting them into
+Authentication → Email Templates). With `SUPABASE_ACCESS_TOKEN` (a personal access token, minted for the
+session and revoked afterwards) and `SUPABASE_PROJECT_REF` of the environment in the shell:
+
+```sh
+task verify:mail-templates          # offline: placeholders, hosts, languages, subjects; also in CI
+task verify:mail-templates:hosted   # GET config/auth; fails, naming each field, when the project differs
+task deploy:mail-templates          # PATCH the four fields, then the same comparison; run deliberately
+```
+
+The fields are `mailer_subjects_confirmation`, `mailer_templates_confirmation_content`,
+`mailer_subjects_recovery` and `mailer_templates_recovery_content` of `PATCH`/`GET
+/v1/projects/{ref}/config/auth`, read from Supabase's published OpenAPI document on 2026-10-30. **When a
+template changes in the repository this is not finished until `deploy:mail-templates` has run and the check is
+green.** The Site URL and Redirect URLs of this section are set by the same endpoint and are not touched by it.
+Only the two types above are templated; e-mail change, magic link and reauthentication keep Supabase's default
+because nothing in Prudent can send them, and the password-changed and e-mail-changed notifications are not
+enabled until the sender is settled (#186), all in ADR-084. Locally, `task run:supabase` shows the recovery
+template in its inbox but not the confirmation one, because `enable_confirmations` is off there.
+**What was and was not tried:** the templates were rendered with sample values in Chromium (light and dark, 375
+and 700 px) and the gate and the scripts' tests pass; **no mail client (Gmail, Outlook, Apple Mail) was tried, no
+real message was received, the real Management API was not called, the local stack was not restarted with the
+templates, and this environment still sends Supabase's default template.** Run the apply, send a real
+registration to an address you control, and record the date and the client here.
 
 **The mail relay (ADR-073).** The environment made before this change has no relay, and `deploy:cloudrun`
 now refuses to run without one: `SMTP_HOST` and `SMTP_FROM` exported, `SMTP_PORT` optional (587),
@@ -397,8 +427,8 @@ an undelete; a deployer without Owner.
   (section 5) means a new build as well as a new bundle. Its signing lapses on a schedule that was not
   observed.
 - **The sign-up and recovery mail is not fit for anyone but the owner** (ADR-079): the sender and relay
-  (#186), the templates in three languages (#187), and the link that still names the Supabase project's
-  host until jZenDev/jZen#154 lands and #188 consumes it. The relay must not rewrite links, and it is the
+  (#186), the templates in three languages (#187: written and gated, **not yet applied** to this
+  environment), and the link that still names the Supabase project's host until #188 consumes jZenDev/jZen#154. The relay must not rewrite links, and it is the
   same relay the dormancy warning needs.
 - **The deployed service is older than `main`** (the privacy routes, the readiness probe, the dormancy
   mail). The phone shows the older surface until a redeploy, which needs the mail relay and

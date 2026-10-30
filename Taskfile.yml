@@ -262,6 +262,65 @@ tasks:
       - python3 -m unittest discover -s scripts -p 'test_verify_no_cocoapods.py'
       - python3 scripts/verify_no_cocoapods.py
 
+  verify:mail-templates:
+    desc: Fail if a sign-up or recovery mail template carries a placeholder, host or remote content it should not
+    summary: |
+      THE GATE BEHIND "Prudent's own sign-up and password-recovery mail" (ADR-079,
+      jlogicsoftware/prudent#187). GoTrue renders supabase/templates/*.html and an unknown
+      double-brace placeholder renders as nothing, so a mistyped placeholder sends a mail whose link is empty; and
+      the link in the first mail naming the Supabase project's host is what read as phishing.
+
+      Runs scripts/verify_mail_templates.py over supabase/config.toml's [auth.email.template.*] and
+      supabase/templates/ and fails on a placeholder other than .ConfirmationURL and .Email, an href
+      that is not the .ConfirmationURL placeholder, any literal http(s):// or // address, a remote image, a
+      script, `url(` or `src`, a body missing its en / uk / pl block, its plain link or the name
+      Prudent, a subject that is empty, takes a placeholder or does not name three languages, and a
+      template that is wired by nothing or whose file is missing. Until #188 points the link at
+      Prudent's own origin the set is deliberately this narrow; #188 widens it.
+
+      scripts/test_verify_mail_templates.py runs first and is what proves the gate can fail: it plants
+      each defect in a copy of the real templates and requires the gate to go red.
+      scripts/test_hosted_mail_templates.py also runs here, so CI proves the hosted check below can
+      fail. This task does NOT check the hosted project: that needs a token (verify:mail-templates:hosted).
+    cmds:
+      - python3 -m unittest discover -s scripts -p 'test_verify_mail_templates.py'
+      - python3 -m unittest discover -s scripts -p 'test_hosted_mail_templates.py'
+      - python3 scripts/verify_mail_templates.py
+
+  verify:mail-templates:hosted:
+    desc: Fail if the hosted Supabase project's sign-up and recovery mail differs from supabase/templates/
+    summary: |
+      THE CHECK THAT MAKES DRIFT VISIBLE (jlogicsoftware/prudent#187). A hosted project does not
+      read supabase/config.toml, so a template edited in the repository reaches it only when
+      somebody applies it, and nothing else notices the two differ. This reads the project's
+      `config/auth` through the Management API (GET) and fails, naming each field, when the
+      confirmation or recovery subject or body is not the repository's. It changes nothing.
+
+      Needs SUPABASE_ACCESS_TOKEN (a personal access token, minted for the session and revoked
+      afterwards, never stored) and SUPABASE_PROJECT_REF in the environment; either missing is a
+      failure, not a skip. No project reference is written in this repository (ADR-021).
+
+      scripts/test_hosted_mail_templates.py (run by verify:mail-templates, in CI) is what proves the
+      check can fail, against a stub of the endpoint. The real API was not called by it; see
+      docs/persistent-environment.md section 3 for what was and was not run against a real project.
+    cmds:
+      - python3 scripts/hosted_mail_templates.py check
+
+  deploy:mail-templates:
+    desc: Write supabase/templates/ to the hosted Supabase project, then read it back
+    summary: |
+      Sends the confirmation and recovery subjects and bodies to the hosted project's `config/auth`
+      (PATCH, Management API) and then runs the same comparison as verify:mail-templates:hosted, so
+      a write the API accepted but did not keep fails. It changes the mail the environment sends,
+      so it is run by the owner, deliberately, with the same token and reference as the check.
+
+      Run the offline gate first (verify:mail-templates). Until jlogicsoftware/prudent#188 the
+      link is GoTrue's own, so there is no ordering against a verification route to respect; #188
+      makes this refuse unless that route is deployed.
+    cmds:
+      - task: verify:mail-templates
+      - python3 scripts/hosted_mail_templates.py apply
+
   test:deploy-origin:
     desc: Prove the deploy's origin checks and its public-configuration wiring can fail
     summary: |
