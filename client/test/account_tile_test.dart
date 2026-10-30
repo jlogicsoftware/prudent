@@ -54,7 +54,9 @@ void main() {
       actions.last.onPressed!();
       await tester.pumpAndSettle();
       expect(
-        find.text('Delete "Bank"? This cannot be undone.'),
+        find.text(
+          'Delete "Bank"? This also permanently deletes every transaction in this account.',
+        ),
         findsOneWidget,
       );
       await tester.tap(find.text('Cancel'));

@@ -195,13 +195,30 @@ class AccountsNotifier extends AsyncNotifier<List<Account>> {
     ref.invalidate(goalFreeMoneyProvider);
   }
 
-  Future<void> removeAccount(String id) async {
-    final result = await _repository.deleteAccount(id);
+  /// Deletes an account; with [deleteRecords], every record of it too, in one server transaction
+  /// (jlogicsoftware/prudent#201). Nothing here changes unless the server succeeded, so a refusal
+  /// leaves every list as it was.
+  Future<void> removeAccount(String id, {bool deleteRecords = false}) async {
+    final result = await _repository.deleteAccount(id, deleteRecords: deleteRecords);
     result.fold((_) => null, (error) => throw error);
     state = AsyncValue.data([
       for (final a in state.value ?? const <Account>[]) if (a.id != id) a,
     ]);
     ref.invalidate(goalFreeMoneyProvider);
+    if (deleteRecords) {
+      // Everything calculated from the ledger has moved. A transfer's other leg went too, so
+      // another account's balance changed as well and the accounts are refetched rather than
+      // filtered. A confirming record that went reopens its occurrence (ADR-040), which can be a
+      // reminder to deliver again.
+      ref.invalidateSelf();
+      ref.invalidate(recordsProvider);
+      ref.invalidate(budgetSummaryProvider);
+      ref.invalidate(spendByCategoryProvider);
+      ref.invalidate(spendByPeriodProvider);
+      ref.invalidate(plannedOccurrencesProvider);
+      ref.invalidate(remindersProvider);
+      ref.read(reminderScheduleRevisionProvider.notifier).bump();
+    }
   }
 }
 

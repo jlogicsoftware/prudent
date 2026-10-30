@@ -13,6 +13,59 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-081 — An account can be deleted together with all of its transactions, but only on a second, typed confirmation
+
+**Date:** 2026-10-30. **Status:** accepted. **Refines:** ADR-008. jlogicsoftware/prudent#201.
+
+### Decision
+
+`DELETE /api/v1/accounts/{id}` takes `?deleteRecords=true`. Without it nothing changes: the account
+is refused (409) while any record remains. With it, the account and every record that touches it go
+in one transaction, and a failure anywhere leaves all of it where it was.
+
+- **What goes.** Ordinary records, balance corrections, and transfer legs — **both legs**, the one in
+  this account and the one in the other. A lone leg would be a withdrawal with no destination, a
+  balance change nobody made; this is what `DELETE /api/v1/transfers/{id}` already does. The cost is
+  stated to the person: the other account's balance moves, and the confirmation says so.
+- **How.** `RecordEntity.deleteAllForAccount`: one bulk `update` and one bulk `delete`, scoped by
+  `user_id`, however many rows there are. Per-row deletes would load thousands of entities into the
+  persistence context. The record delete's other duty is kept: an occurrence that a deleted record
+  had confirmed is set back to `PLANNED` (ADR-040), or it would claim a transaction that is gone
+  and could never be confirmed again. That can happen to an account with no plan, because
+  confirmation may override the account.
+- **Plans still refuse**, flag or not, checked before any record is touched. A plan is a promise to
+  act, not a transaction; the flag authorises deleting transactions only.
+- **On the client** the delete action is two steps: a warning that the transactions go too, then a
+  form that shows a phrase (`DELETE`, `ВИДАЛИТИ`, `USUŃ`) and enables the delete button only when it
+  is typed (trimmed, without case). The phrase guards against a stray tap and is checked in the
+  client; the server does not know it. Cancelling either step, or a wrong phrase, sends nothing; a
+  refusal or failure is shown in the form in the server's words and nothing is removed. Both steps
+  are shown for every account, including an empty one: the client holds a filtered list of records,
+  so it cannot say reliably that an account has none. After success the accounts, records, budget,
+  analytics, planned occurrences and reminders are refetched and the reminder notifications are
+  reconciled.
+
+### What this refines, and why
+
+- **"Refused rather than cascaded"** (`AccountResource.delete`, from ADR-008's reasoning about money
+  that left an account no longer admitting it exists) → **refined.** *Why:* the refusal is still the
+  default and still what a caller gets without asking. But an account with thousands of records could
+  only be deleted by removing each one, which is impractical, and a person who has been told exactly
+  what goes and has typed a phrase has not had money disappear unannounced.
+
+### Consequence
+
+Verified: `AccountResourceTest` (18 tests, green) covers every kind of record going with the account,
+the counterpart transfer leg, 5,000 records in one request, the reopened occurrence, a plan refusing
+with nothing deleted, and another user's account answering 404 with nothing deleted. The new client
+tests (`delete_account_form_test.dart`) cover cancelling, the disabled button, the request carrying
+`deleteRecords=true`, and a refusal staying on screen.
+
+Not done, and stated rather than implied: nothing audits the deletion; there is no undo and no backup
+in the persistent environment (ADR-069); the form has not been looked at in a browser or on a device.
+
+---
+
 ## ADR-080 — Pin jZen's adaptive list and switch rows in CI
 
 **Date:** 2026-10-30. **Status:** accepted. **Refines:** ADR-018. jlogicsoftware/prudent#211; jZenDev/jZen#190, #192.

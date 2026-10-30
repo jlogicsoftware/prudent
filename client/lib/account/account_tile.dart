@@ -9,6 +9,7 @@ import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
 import '../providers.dart';
 import 'account_edit.dart';
+import 'delete_account_form.dart';
 import 'reconcile_account.dart';
 
 /// One account in the accounts list: its balances per currency, and the edit, reconcile and delete
@@ -78,9 +79,11 @@ class AccountTile extends ConsumerWidget {
     showAdaptivePresentation<void>(context, builder: (_) => body);
   }
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+  /// Two steps (jlogicsoftware/prudent#201): this warning, then [DeleteAccountForm], which asks for
+  /// a typed phrase before anything is deleted. Cancelling either deletes nothing.
+  Future<void> _confirmDelete(BuildContext context) async {
     final t = PrudentLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
+    final proceed = await showDialog<bool>(
       context: context,
       builder:
           (ctx) => AlertDialog(
@@ -93,43 +96,18 @@ class AccountTile extends ConsumerWidget {
                 onPressed: () => Navigator.pop(ctx, false),
               ),
               ZenButton(
-                label: t.accountDelete,
+                label: t.accountDeleteContinue,
                 variant: ZenButtonVariant.text,
                 onPressed: () => Navigator.pop(ctx, true),
               ),
             ],
           ),
     );
-    if (confirmed != true || !context.mounted) return;
-
-    try {
-      await ref.read(accountsProvider.notifier).removeAccount(account.id);
-    } on ZenError catch (error) {
-      if (!context.mounted) return;
-      showDialog(
-        context: context,
-        builder:
-            (ctx) => AlertDialog(
-              title: Text(t.accountDeleteTitle),
-              // A conflict (records still reference this account) is refused at 409 with a
-              // message the resource wrote (AccountResource.delete); every ZenError arriving
-              // here carries the server's message the same way, decoded transport-side by
-              // ZenTransportError, so there is one path rather than a type check per error kind.
-              content: Text(
-                error.message.isEmpty
-                    ? t.accountDeleteBlockedGeneric
-                    : error.message,
-              ),
-              actions: [
-                ZenButton(
-                  label: t.okay,
-                  variant: ZenButtonVariant.text,
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-              ],
-            ),
-      );
-    }
+    if (proceed != true || !context.mounted) return;
+    await showAdaptivePresentation<void>(
+      context,
+      builder: (_) => DeleteAccountForm(account: account),
+    );
   }
 
   @override
@@ -151,7 +129,7 @@ class AccountTile extends ConsumerWidget {
           icon: Icons.delete_outline,
           label: t.accountDelete,
           variant: ZenListItemActionVariant.destructive,
-          onPressed: () => _confirmDelete(context, ref),
+          onPressed: () => _confirmDelete(context),
         ),
       ],
       child: ZenListRow(

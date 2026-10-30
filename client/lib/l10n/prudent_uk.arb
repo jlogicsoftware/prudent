@@ -113,11 +113,24 @@
   "accountSave": "Зберегти рахунок",
   "accountDelete": "Видалити",
   "accountDeleteTitle": "Видалити рахунок",
-  "accountDeleteConfirm": "Видалити «{name}»? Цю дію не можна скасувати.",
+  "accountDeleteConfirm": "Видалити «{name}»? Також буде остаточно видалено всі транзакції цього рахунку.",
   "@accountDeleteConfirm": {
     "placeholders": { "name": { "type": "String" } }
   },
-  "accountDeleteBlockedGeneric": "Не вдалося видалити цей рахунок.",
+  "accountDeleteContinue": "Далі",
+  "accountDeleteFinalTitle": "Видалити рахунок і транзакції",
+  "accountDeleteFinalBody": "«{name}» і всі його транзакції буде остаточно видалено. Переказ видаляється з обох боків, тож баланс іншого рахунку теж зміниться. Цю дію не можна скасувати.",
+  "@accountDeleteFinalBody": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "accountDeletePhrase": "ВИДАЛИТИ",
+  "accountDeletePhraseField": "Введіть {phrase} для підтвердження",
+  "@accountDeletePhraseField": {
+    "placeholders": { "phrase": { "type": "String" } }
+  },
+  "accountDeleteAction": "Видалити рахунок і транзакції",
+  "accountDeleteFailed": "Не вдалося видалити рахунок. Нічого не змінено.",
+  "accountDeleted": "Рахунок і його транзакції видалено.",
   "accountReconcile": "Звірити баланс",
   "accountShowActions": "Показати дії з рахунком",
   "accountHideActions": "Приховати дії з рахунком",

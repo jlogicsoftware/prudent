@@ -113,11 +113,24 @@
   "accountSave": "Zapisz rachunek",
   "accountDelete": "Usuń",
   "accountDeleteTitle": "Usuń rachunek",
-  "accountDeleteConfirm": "Usunąć „{name}”? Tej operacji nie można cofnąć.",
+  "accountDeleteConfirm": "Usunąć „{name}”? Zostaną też trwale usunięte wszystkie transakcje tego rachunku.",
   "@accountDeleteConfirm": {
     "placeholders": { "name": { "type": "String" } }
   },
-  "accountDeleteBlockedGeneric": "Nie udało się usunąć tego rachunku.",
+  "accountDeleteContinue": "Dalej",
+  "accountDeleteFinalTitle": "Usuń rachunek i transakcje",
+  "accountDeleteFinalBody": "„{name}” i wszystkie jego transakcje zostaną trwale usunięte. Przelew jest usuwany po obu stronach, więc zmieni się też saldo drugiego rachunku. Tej operacji nie można cofnąć.",
+  "@accountDeleteFinalBody": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "accountDeletePhrase": "USUŃ",
+  "accountDeletePhraseField": "Wpisz {phrase}, aby potwierdzić",
+  "@accountDeletePhraseField": {
+    "placeholders": { "phrase": { "type": "String" } }
+  },
+  "accountDeleteAction": "Usuń rachunek i transakcje",
+  "accountDeleteFailed": "Nie udało się usunąć rachunku. Nic nie zostało zmienione.",
+  "accountDeleted": "Rachunek i jego transakcje zostały usunięte.",
   "accountReconcile": "Uzgodnij saldo",
   "accountShowActions": "Pokaż działania rachunku",
   "accountHideActions": "Ukryj działania rachunku",

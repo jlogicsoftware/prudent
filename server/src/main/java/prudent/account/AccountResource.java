@@ -5,12 +5,14 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.ArrayList;
@@ -21,6 +23,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
@@ -155,35 +158,59 @@ public class AccountResource {
   @APIResponse(responseCode = ZenStatus.NO_CONTENT, description = "Deleted")
   @APIResponse(
       responseCode = ZenStatus.CONFLICT,
-      description = "The account still has records or plans",
+      description =
+          "The account still has plans, or still has records and deleteRecords is not true",
       content = @Content(schema = @Schema(ref = "ZenError")))
   @APIResponse(
       responseCode = ZenStatus.NOT_FOUND,
       content = @Content(schema = @Schema(ref = "ZenError")))
-  public Response delete(@PathParam("id") String id) {
+  public Response delete(
+      @PathParam("id") String id,
+      @Parameter(
+              description =
+                  "When true, also permanently deletes every record of the account (ordinary"
+                      + " records, balance corrections and transfers, both legs of a transfer) in"
+                      + " the same transaction. Absent or false keeps the refusal while any record"
+                      + " remains.")
+          @QueryParam("deleteRecords")
+          @DefaultValue("false")
+          boolean deleteRecords) {
     UUID userId = currentUser.id();
     AccountEntity entity = require(userId, id);
-    // Refused rather than cascaded — see the same rule on categories, and ADR-008's reasoning about
-    // money that left an account no longer admitting it exists.
+    // Refused rather than cascaded unless the caller says otherwise — see the same rule on
+    // categories, and ADR-008's reasoning about money that left an account no longer admitting it
+    // exists. Deleting the records with the account is the caller's explicit, separate decision
+    // (jlogicsoftware/prudent#201), never a default.
     //
     // A transfer leg or a balance correction is a RecordEntity row like any other, so it already
     // blocks this delete — but neither can be removed through DELETE /api/v1/records/{id}
     // (RecordResource.requireNotTransferLeg/requireNotCorrection), so pointing at that endpoint
     // would send the caller to a refusal instead of an answer (M1, jlogicsoftware/prudent#54).
     // Named separately so the message sends the caller to whichever endpoint actually applies.
-    boolean hasOrdinary = RecordEntity.existsOrdinaryRecordForAccount(userId, entity.id);
-    boolean hasTransfers = RecordEntity.existsTransferLegForAccount(userId, entity.id);
-    boolean hasCorrections = RecordEntity.existsCorrectionForAccount(userId, entity.id);
-    if (hasOrdinary || hasTransfers || hasCorrections) {
-      throw PrudentException.conflict(deleteConflictMessage(hasOrdinary, hasTransfers, hasCorrections));
+    if (!deleteRecords) {
+      boolean hasOrdinary = RecordEntity.existsOrdinaryRecordForAccount(userId, entity.id);
+      boolean hasTransfers = RecordEntity.existsTransferLegForAccount(userId, entity.id);
+      boolean hasCorrections = RecordEntity.existsCorrectionForAccount(userId, entity.id);
+      if (hasOrdinary || hasTransfers || hasCorrections) {
+        throw PrudentException.conflict(
+            deleteConflictMessage(hasOrdinary, hasTransfers, hasCorrections));
+      }
     }
     // A plan (ADR-037) is not money that moved, but it still names this account as where money
     // will move; deleting the account would leave it pointing nowhere. Checked after records so a
     // caller with both is sent to the records first — they are the part with a balance behind it.
+    // It refuses even with deleteRecords: a plan is a promise to act, not a transaction, and the
+    // flag authorises deleting transactions only. Checked before any record is deleted.
     if (PlanEntity.existsForAccount(userId, entity.id)) {
       throw PrudentException.conflict(
           "This account still has plans. Delete them (DELETE /api/v1/plans/{id}) or move them to"
               + " another account first.");
+    }
+    if (deleteRecords) {
+      // The same transaction as the account's own delete below (@Transactional on this method), so
+      // a failure anywhere leaves the account and every record where they were. Scoped to the
+      // caller in every statement.
+      RecordEntity.deleteAllForAccount(userId, entity.id);
     }
     entity.delete();
     return Response.noContent().build();

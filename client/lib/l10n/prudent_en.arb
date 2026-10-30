@@ -113,11 +113,24 @@
   "accountSave": "Save Account",
   "accountDelete": "Delete",
   "accountDeleteTitle": "Delete account",
-  "accountDeleteConfirm": "Delete \"{name}\"? This cannot be undone.",
+  "accountDeleteConfirm": "Delete \"{name}\"? This also permanently deletes every transaction in this account.",
   "@accountDeleteConfirm": {
     "placeholders": { "name": { "type": "String" } }
   },
-  "accountDeleteBlockedGeneric": "This account could not be deleted.",
+  "accountDeleteContinue": "Continue",
+  "accountDeleteFinalTitle": "Delete account and transactions",
+  "accountDeleteFinalBody": "\"{name}\" and every transaction in it will be permanently deleted. A transfer is deleted on both sides, so the other account's balance changes too. This cannot be undone.",
+  "@accountDeleteFinalBody": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "accountDeletePhrase": "DELETE",
+  "accountDeletePhraseField": "Type {phrase} to confirm",
+  "@accountDeletePhraseField": {
+    "placeholders": { "phrase": { "type": "String" } }
+  },
+  "accountDeleteAction": "Delete account and transactions",
+  "accountDeleteFailed": "The account could not be deleted. Nothing was changed.",
+  "accountDeleted": "Account and its transactions deleted.",
   "accountReconcile": "Reconcile balance",
   "accountShowActions": "Show account actions",
   "accountHideActions": "Hide account actions",
