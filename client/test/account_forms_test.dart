@@ -140,6 +140,8 @@ void main() {
       UpdateAccountRequest? sent;
       await _pump(tester, AccountEdit(account: _account(), onSave: (request) => sent = request));
       expect(find.byType(ZenSwitchRow), findsNWidgets(5));
+      expect(find.byType(CupertinoSwitch), zenIsApplePlatform ? findsNWidgets(5) : findsNothing);
+      expect(find.byType(SwitchListTile), zenIsApplePlatform ? findsNothing : findsNWidgets(5));
       await tester.tap(find.text('Active'));
       await tester.tap(find.text('Include in total balance'));
       await tester.tap(find.text('Show on overview'));

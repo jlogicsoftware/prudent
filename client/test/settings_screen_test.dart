@@ -2,6 +2,7 @@
 // navigation/session actions are ZenButtons and the language choice is a ZenSelect whose options
 // are each language's own name. Which widget draws a control is zen_ui_widgets' test; what is
 // asserted here is that the screen offers the right ones and that choosing a language takes effect.
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,7 @@ import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
 import 'package:prudent/providers.dart';
 import 'package:prudent/settings.dart';
+import 'package:zen_core/zen_core.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import 'zen_fields.dart';
@@ -75,6 +77,9 @@ void main() {
 
     final toggle = find.byType(ZenSwitchRow);
     expect(find.text('Include planned cash flow'), findsOneWidget);
+    expect(find.byType(CupertinoSwitch), zenIsApplePlatform ? findsOneWidget : findsNothing);
+    expect(find.byType(SwitchListTile), zenIsApplePlatform ? findsNothing : findsOneWidget);
+    expect(tester.takeException(), isNull);
     expect(tester.widget<ZenSwitchRow>(toggle).value, isTrue);
     await tester.tap(find.text('Include planned cash flow'));
     await tester.pumpAndSettle();
