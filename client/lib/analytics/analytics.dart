@@ -4,7 +4,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../l10n/generated/prudent_localizations.dart';
 import '../providers.dart';
-import 'analytics_column.dart';
+import '../content_width.dart';
 import 'analytics_view.dart';
 import 'spend_by_category_view.dart';
 import 'spend_by_month_view.dart';
@@ -30,49 +30,60 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final t = PrudentLocalizations.of(context);
     final currencies = ref.watch(analyticsCurrenciesProvider);
     if (currencies.isEmpty) {
-      return ZenPageScaffold(title: t.analyticsTitle, body: Center(child: Text(t.chartNoAccounts)));
+      return ZenPageScaffold(
+        title: t.analyticsTitle,
+        body: Center(child: Text(t.chartNoAccounts)),
+      );
     }
     _currency ??= currencies.first;
-    final currency = currencies.contains(_currency) ? _currency! : currencies.first;
+    final currency =
+        currencies.contains(_currency) ? _currency! : currencies.first;
 
     return ZenPageScaffold(
       title: t.analyticsTitle,
-      body: AnalyticsColumn(
-        child: Column(
-          children: [
-            if (currencies.length > 1)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: ZenSelect<String>(
-                  label: t.analyticsCurrencyField,
-                  items: currencies,
-                  itemLabel: (c) => c,
-                  value: currency,
-                  onChanged: (value) => setState(() => _currency = value),
-                ),
-              ),
+      contentMaxWidth: prudentChartMaxWidth,
+      body: Column(
+        children: [
+          if (currencies.length > 1)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: ZenSegmentedControl<AnalyticsView>(
-                segments: [
-                  ZenSegment(value: AnalyticsView.byMonth, label: t.analyticsSpendByMonth),
-                  ZenSegment(value: AnalyticsView.byCategory, label: t.analyticsSpendByCategory),
-                ],
-                selected: _view,
-                onChanged: (view) => setState(() => _view = view),
+              child: ZenSelect<String>(
+                label: t.analyticsCurrencyField,
+                items: currencies,
+                itemLabel: (c) => c,
+                value: currency,
+                onChanged: (value) => setState(() => _currency = value),
               ),
             ),
-            Expanded(
-              child: switch (_view) {
-                AnalyticsView.byMonth => SpendByMonthView(
-                  currency: currency,
-                  months: _trailingMonths,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: ZenSegmentedControl<AnalyticsView>(
+              segments: [
+                ZenSegment(
+                  value: AnalyticsView.byMonth,
+                  label: t.analyticsSpendByMonth,
                 ),
-                AnalyticsView.byCategory => SpendByCategoryView(currency: currency),
-              },
+                ZenSegment(
+                  value: AnalyticsView.byCategory,
+                  label: t.analyticsSpendByCategory,
+                ),
+              ],
+              selected: _view,
+              onChanged: (view) => setState(() => _view = view),
             ),
-          ],
-        ),
+          ),
+          Expanded(
+            child: switch (_view) {
+              AnalyticsView.byMonth => SpendByMonthView(
+                currency: currency,
+                months: _trailingMonths,
+              ),
+              AnalyticsView.byCategory => SpendByCategoryView(
+                currency: currency,
+              ),
+            },
+          ),
+        ],
       ),
     );
   }

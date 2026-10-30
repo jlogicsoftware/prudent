@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_navigation/zen_ui_navigation.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
+
+import 'content_width.dart';
 
 import 'record/records_screen.dart';
 import 'analytics/analytics.dart';
@@ -71,10 +74,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       ),
     ];
 
-    return ZenNavigation(
-      items: items,
-      selectedIndex: _index,
-      onItemSelected: (index) => setState(() => _index = index),
+    return ZenPageWidthScope(
+      maxWidth: prudentContentMaxWidth,
+      child: ZenNavigation(
+        items: items,
+        selectedIndex: _index,
+        onItemSelected: (index) => setState(() => _index = index),
+      ),
     );
   }
 }

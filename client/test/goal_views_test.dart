@@ -427,18 +427,18 @@ void main() {
     await tester.tap(find.text('Move'));
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      zenIsApplePlatform
-          ? find.text('Move to')
-          : find.byWidgetPredicate((widget) => widget is DropdownButton),
-    );
+    final targetPicker = zenIsIOS
+        ? find.byType(ZenPickerField)
+        : find.byWidgetPredicate((widget) => widget is DropdownButton);
+    await tester.ensureVisible(targetPicker);
+    await tester.tap(targetPicker);
     await tester.pumpAndSettle();
     expect(find.text('Trip'), findsWidgets);
     expect(find.text('Euro trip'), findsNothing);
     expect(find.text('Bike'), findsNothing);
     expect(find.text('TV'), findsNothing);
     // The Cupertino wheel's first item is Trip; selection is committed with Done.
-    await tester.tap(find.text(zenIsApplePlatform ? 'Done' : 'Trip').last);
+    await tester.tap(find.text(zenIsIOS ? 'Done' : 'Trip').last);
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(ZenTextField).first, '25');

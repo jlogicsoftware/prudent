@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/analytics/analytics.dart';
-import 'package:prudent/analytics/analytics_column.dart';
+import 'package:prudent/content_width.dart';
 import 'package:prudent/analytics/analytics_view.dart';
 import 'package:prudent/analytics/bar_chart_painter.dart';
 import 'package:prudent/analytics/legend_row.dart';
@@ -25,7 +25,11 @@ class _Categories extends CategoriesNotifier {
 }
 
 void main() {
-  Future<void> pump(WidgetTester tester, double width, {ThemeMode mode = ThemeMode.light}) async {
+  Future<void> pump(
+    WidgetTester tester,
+    double width, {
+    ThemeMode mode = ThemeMode.light,
+  }) async {
     tester.view.physicalSize = Size(width, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -54,13 +58,19 @@ void main() {
         child: MaterialApp(
           themeMode: mode,
           theme: ThemeData(colorSchemeSeed: Colors.green),
-          darkTheme: ThemeData(colorSchemeSeed: Colors.green, brightness: Brightness.dark),
+          darkTheme: ThemeData(
+            colorSchemeSeed: Colors.green,
+            brightness: Brightness.dark,
+          ),
           localizationsDelegates: [
             ...PrudentLocalizations.localizationsDelegates,
             zenWidgetsLocaleDelegate,
           ],
           supportedLocales: PrudentLocalizations.supportedLocales,
-          home: const AnalyticsScreen(),
+          home: const ZenPageWidthScope(
+            maxWidth: prudentContentMaxWidth,
+            child: AnalyticsScreen(),
+          ),
         ),
       ),
     );
@@ -72,68 +82,106 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  final barChart = find.byWidgetPredicate((w) => w is CustomPaint && w.painter is BarChartPainter);
+  final barChart = find.byWidgetPredicate(
+    (w) => w is CustomPaint && w.painter is BarChartPainter,
+  );
 
   double bodySize(WidgetTester tester) =>
-      Theme.of(tester.element(find.byType(AnalyticsColumn))).textTheme.bodyMedium!.fontSize!;
+      Theme.of(
+        tester.element(find.byType(AnalyticsScreen)),
+      ).textTheme.bodyMedium!.fontSize!;
 
   for (final (name, width, expected) in [
-    ('wide', 1600.0, AnalyticsColumn.maxWidth),
-    ('narrow', 400.0, 400.0),
+    ('wide', 1600.0, prudentChartMaxWidth),
+    ('narrow', 400.0, 368.0),
   ]) {
     group('$name window ($width px)', () {
-      testWidgets('the content column is bounded and fills a narrow window', (tester) async {
+      testWidgets('the content column is bounded and fills a narrow window', (
+        tester,
+      ) async {
         await pump(tester, width);
-        final toggle = tester.getSize(find.byType(ZenSegmentedControl<AnalyticsView>)).width;
+        final toggle =
+            tester
+                .getSize(find.byType(ZenSegmentedControl<AnalyticsView>))
+                .width;
         final chart = tester.getSize(barChart).width;
         expect(toggle, lessThanOrEqualTo(expected));
         expect(chart, lessThanOrEqualTo(expected));
-        if (width < AnalyticsColumn.maxWidth) {
-          expect(chart, greaterThan(width - 40));
-          expect(toggle, greaterThan(width - 40));
+        if (width < prudentChartMaxWidth) {
+          expect(chart, greaterThan(width - 75));
+          expect(toggle, greaterThan(width - 75));
         } else {
-          expect(chart, greaterThan(AnalyticsColumn.maxWidth - 40));
+          expect(chart, greaterThan(prudentChartMaxWidth - 40));
         }
       });
 
-      testWidgets('legend rows are divided and keep name and figures within the column', (tester) async {
-        await pump(tester, width);
-        await openByCategory(tester);
-
-        expect(find.byType(LegendRow), findsNWidgets(3));
-        expect(find.descendant(of: find.byType(AnalyticsColumn), matching: find.byType(Divider)), findsNWidgets(2));
-        for (final row in tester.widgetList<LegendRow>(find.byType(LegendRow))) {
-          expect(row.label, isNotEmpty);
-        }
-        final left = tester.getTopLeft(find.text('Food')).dx;
-        final right = tester.getTopRight(find.text('50.00 PLN')).dx;
-        expect(right - left, lessThanOrEqualTo(expected));
-      });
-
-      testWidgets('legend text is no smaller than the body, in light and dark', (tester) async {
-        for (final mode in ThemeMode.values.where((m) => m != ThemeMode.system)) {
-          await pump(tester, width, mode: mode);
+      testWidgets(
+        'legend rows are divided and keep name and figures within the column',
+        (tester) async {
+          await pump(tester, width);
           await openByCategory(tester);
-          for (final text in ['Food', '50%', '50.00 PLN']) {
-            final style = tester.widget<Text>(find.text(text)).style!;
-            expect(style.fontSize, greaterThanOrEqualTo(bodySize(tester)), reason: text);
-            expect(style.color, Theme.of(tester.element(find.text(text))).colorScheme.onSurface);
-          }
-        }
-      });
 
-      testWidgets('the bar chart labels are body-sized and the chart is bounded', (tester) async {
-        await pump(tester, width);
-        final painter =
-            tester
-                    .widgetList<CustomPaint>(find.byType(CustomPaint))
-                    .map((p) => p.painter)
-                    .whereType<BarChartPainter>()
-                    .single;
-        expect(painter.labelStyle.fontSize, greaterThanOrEqualTo(bodySize(tester)));
-        expect(tester.getSize(barChart).width, lessThanOrEqualTo(expected));
-        expect(tester.takeException(), isNull);
-      });
+          expect(find.byType(LegendRow), findsNWidgets(3));
+          expect(
+            find.descendant(
+              of: find.byType(AnalyticsScreen),
+              matching: find.byType(Divider),
+            ),
+            findsNWidgets(2),
+          );
+          for (final row in tester.widgetList<LegendRow>(
+            find.byType(LegendRow),
+          )) {
+            expect(row.label, isNotEmpty);
+          }
+          final left = tester.getTopLeft(find.text('Food')).dx;
+          final right = tester.getTopRight(find.text('50.00 PLN')).dx;
+          expect(right - left, lessThanOrEqualTo(expected));
+        },
+      );
+
+      testWidgets(
+        'legend text is no smaller than the body, in light and dark',
+        (tester) async {
+          for (final mode in ThemeMode.values.where(
+            (m) => m != ThemeMode.system,
+          )) {
+            await pump(tester, width, mode: mode);
+            await openByCategory(tester);
+            for (final text in ['Food', '50%', '50.00 PLN']) {
+              final style = tester.widget<Text>(find.text(text)).style!;
+              expect(
+                style.fontSize,
+                greaterThanOrEqualTo(bodySize(tester)),
+                reason: text,
+              );
+              expect(
+                style.color,
+                Theme.of(tester.element(find.text(text))).colorScheme.onSurface,
+              );
+            }
+          }
+        },
+      );
+
+      testWidgets(
+        'the bar chart labels are body-sized and the chart is bounded',
+        (tester) async {
+          await pump(tester, width);
+          final painter =
+              tester
+                  .widgetList<CustomPaint>(find.byType(CustomPaint))
+                  .map((p) => p.painter)
+                  .whereType<BarChartPainter>()
+                  .single;
+          expect(
+            painter.labelStyle.fontSize,
+            greaterThanOrEqualTo(bodySize(tester)),
+          );
+          expect(tester.getSize(barChart).width, lessThanOrEqualTo(expected));
+          expect(tester.takeException(), isNull);
+        },
+      );
     });
   }
 }
