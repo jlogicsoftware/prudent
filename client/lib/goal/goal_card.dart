@@ -26,7 +26,9 @@ class GoalCard extends StatelessWidget {
     final locale = Localizations.localeOf(context).toLanguageTag();
     final progress = this.progress;
     final guidance = progress == null ? null : goalGuidanceText(t, progress);
-    final muted = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
     final statusLabel = switch (goal.status) {
       GoalStatus.GOAL_STATUS_COMPLETED => t.goalStatusCompleted,
       GoalStatus.GOAL_STATUS_ARCHIVED => t.goalStatusArchived,
@@ -35,7 +37,7 @@ class GoalCard extends StatelessWidget {
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
+      child: AdaptiveInkWell(
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -44,7 +46,9 @@ class GoalCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Expanded(child: Text(goal.name, style: theme.textTheme.titleMedium)),
+                  Expanded(
+                    child: Text(goal.name, style: theme.textTheme.titleMedium),
+                  ),
                   if (statusLabel != null)
                     Text(
                       statusLabel,
@@ -55,7 +59,10 @@ class GoalCard extends StatelessWidget {
                 ],
               ),
               if (goal.hasTargetDate())
-                Text(t.goalTargetDate(formatGoalDate(goal.targetDate, locale)), style: muted),
+                Text(
+                  t.goalTargetDate(formatGoalDate(goal.targetDate, locale)),
+                  style: muted,
+                ),
               if (progress != null) ...[
                 const SizedBox(height: 8),
                 ZenProgressBar(
