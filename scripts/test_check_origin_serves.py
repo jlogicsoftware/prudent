@@ -32,14 +32,18 @@ HEALTH = b'{"status":"ok","service":"prudent-server","timestampMs":"1"}'
 def make_handler(behaviour):
     class Handler(BaseHTTPRequestHandler):
         hits = 0
+        # What the probe asked for. Recorded here, not handed to `behaviour`, so nothing the client
+        # sent can reach the response a behaviour builds.
+        transports = []
 
         def do_GET(self):  # noqa: N802 - http.server's naming
             type(self).hits += 1
+            type(self).transports.append(self.headers.get("X-Zen-Transport"))
             if self.path != "/api/v1/health":
                 self.send_response(404)
                 self.end_headers()
                 return
-            status, headers, body = behaviour(type(self).hits, self.headers)
+            status, headers, body = behaviour(type(self).hits)
             self.send_response(status)
             for k, v in headers.items():
                 self.send_header(k, v)
@@ -78,7 +82,7 @@ def run(origin, attempts="2"):
     return p.returncode, p.stdout + p.stderr
 
 
-def serving(_hits, _headers):
+def serving(_hits):
     return 200, {"Content-Type": "application/json"}, HEALTH
 
 
@@ -90,14 +94,9 @@ class CheckOriginServes(unittest.TestCase):
         self.assertIn("answers as prudent-server", out)
 
     def test_the_probe_asks_for_the_json_transport(self):
-        seen = []
-
-        def behaviour(hits, headers):
-            seen.append(headers.get("X-Zen-Transport"))
-            return serving(hits, headers)
-
-        with Host(behaviour) as h:
+        with Host(serving) as h:
             rc, out = run(h.origin)
+            seen = h.handler.transports
         self.assertEqual(rc, 0, out)
         self.assertEqual(seen, ["json"])
 
@@ -135,7 +134,7 @@ class CheckOriginServes(unittest.TestCase):
         self.assertIn("no HTTP answer", out)
 
     def test_a_cold_host_is_retried(self):
-        with Host(lambda hits, h: (503, {}, b"cold") if hits < 3 else serving(hits, h)) as h:
+        with Host(lambda hits: (503, {}, b"cold") if hits < 3 else serving(hits)) as h:
             rc, out = run(h.origin, attempts="4")
         self.assertEqual(rc, 0, out)
 

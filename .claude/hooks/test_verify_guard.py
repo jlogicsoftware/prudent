@@ -159,6 +159,43 @@ with tempfile.TemporaryDirectory() as root:
           capture_output=True,text=True,env=dict(os.environ,CLAUDE_PROJECT_DIR=root))
     check("cache: completed line then test clears it", p.returncode==0, p.stderr[:120])
 
+    # a session id from the payload names a cache file; it must not name a place outside the cache
+    print("hostile session id")
+    escaped = os.path.join(os.path.dirname(root), "escaped-cache.json")
+    cache_dir = os.path.join(root,".git","claude-verify-guard")
+    before = set(os.listdir(cache_dir))
+    for n, sid in enumerate(("../../escaped-cache", "/" + os.path.join(os.path.dirname(root), "x"), "a/b")):
+        rc,_ = run_persistent(root, [edit(J("src","H.java"))], session=sid, truncate=True)
+        check(f"session {sid!r}: still blocks an untested edit", rc==2)
+        rc,_ = run_persistent(root, [bash("./mvnw test")], session=sid)
+        check(f"session {sid!r}: cache resumes and the test clears it", rc==0)
+    check("no cache file was written outside the cache directory", not os.path.exists(escaped))
+    check("each hostile id got one file inside the cache directory",
+          len(set(os.listdir(cache_dir)) - before) == 3, os.listdir(cache_dir))
+
+    # a configured pattern must stay linear on a hostile command: the guards run on every Bash call
+    print("pattern cost")
+    import importlib.util, re, time
+    spec = importlib.util.spec_from_file_location("vg", GUARD)
+    vg = importlib.util.module_from_spec(spec); spec.loader.exec_module(vg)
+    cfg = os.path.join(HERE)
+    patterns = list(vg.DEFAULTS["tests"])
+    patterns += json.load(open(os.path.join(cfg, "verify-rules.json")))["tests"]
+    for rule in json.load(open(os.path.join(cfg, "skill-map.json")))["rules"]:
+        patterns += rule.get("commands", [])
+    hostile = {"repeated keyword": "mvnw " * 40000,
+               "keyword then noise": "mvnw " + "a " * 100000,
+               "long whitespace run": "task" + " " * 200000 + "x",
+               "repeated path": "../jZen/" * 30000}
+    slowest = (0.0, "", "")
+    for pat in sorted(set(patterns)):
+        rx = re.compile(pat)
+        for name, text in hostile.items():
+            t0 = time.perf_counter(); rx.search(text); took = time.perf_counter() - t0
+            slowest = max(slowest, (took, pat, name))
+    check(f"{len(set(patterns))} configured patterns: slowest {slowest[0]:.2f}s on 200 KB",
+          slowest[0] < 1.0, slowest)
+
 print()
 if FAILURES:
     print(f"{len(FAILURES)} FAILED: {FAILURES}"); sys.exit(1)

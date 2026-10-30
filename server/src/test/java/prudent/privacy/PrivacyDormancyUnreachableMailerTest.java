@@ -170,32 +170,8 @@ class PrivacyDormancyUnreachableMailerTest {
             });
   }
 
-  @SuppressWarnings("unchecked")
   private long rowsOfEveryTable(String userId) {
-    List<String> tables =
-        QuarkusTransaction.requiringNew()
-            .call(
-                () ->
-                    entityManager
-                        .createNativeQuery(
-                            "select table_name from information_schema.columns"
-                                + " where table_schema = 'public' and column_name = 'user_id'")
-                        .getResultList());
-    return tables.stream()
-        .mapToLong(
-            table ->
-                QuarkusTransaction.requiringNew()
-                    .call(
-                        () ->
-                            ((Number)
-                                    entityManager
-                                        // From information_schema, never from input.
-                                        .createNativeQuery(
-                                            "select count(*) from " + table + " where user_id = ?1")
-                                        .setParameter(1, UUID.fromString(userId))
-                                        .getSingleResult())
-                                .longValue()))
-        .sum();
+    return UserOwnedRows.totalRows(entityManager, userId);
   }
 
   /** Enables {@link UnreachableMailer} for this class only, leaving the other suites unaffected. */

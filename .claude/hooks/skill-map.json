@@ -41,7 +41,7 @@
       "why": "it is a build or suite; never wait on it in the foreground",
       "commands": [
         "\\btask\\s+(test|build)\\b",
-        "\\bmvnw\\b[^|;&]*\\b(test|verify|package)\\b",
+        "\\bmvnw\\b[^|;&]{0,256}\\b(test|verify|package)\\b",
         "\\bsupabase\\s+start\\b",
         "\\bflutter\\s+build\\b"
       ]

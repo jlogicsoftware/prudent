@@ -39,7 +39,7 @@ DEFAULTS = {
     "exempt": [".claude/*", "docs/*", "*.md", "target/*", "*/node_modules/*",
                "build/*", "*/generated/*", "*.generated.ts"],
     # Any of these having run counts as verification.
-    "tests": [r"\bmvnw\b[^|;&]*\b(test|verify)\b", r"\btask\s+test\b",
+    "tests": [r"\bmvnw\b[^|;&]{0,256}\b(test|verify)\b", r"\btask\s+test\b",
               r"\bdart\s+test\b", r"\bflutter\s+test\b", r"\bpnpm\s+test\b",
               r"\bnpm\s+test\b", r"\bpytest\b", r"\btask\s+verify\b"],
     "message": "Run the test suite before ending the turn.",
@@ -64,11 +64,19 @@ def matches(rel: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(rel, p) or fnmatch.fnmatch(base, p) for p in patterns)
 
 
+def session_key(session: str) -> str:
+    """The session id as one file name: it comes from the hook payload and is joined into a path,
+    so an id with a separator or `..` is hashed instead of being allowed to leave the directory."""
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", session):
+        return session
+    return hashlib.sha256(session.encode("utf-8")).hexdigest()[:32] if session else "nosession"
+
+
 def cache_path(root: str, session: str) -> str:
     """Where the resume point lives. Inside .git so it is never committed."""
     git_dir = os.path.join(root, ".git")
     base = git_dir if os.path.isdir(git_dir) else tempfile.gettempdir()
-    return os.path.join(base, "claude-verify-guard", f"{session or 'nosession'}.json")
+    return os.path.join(base, "claude-verify-guard", f"{session_key(session)}.json")
 
 
 def head_digest(transcript: str) -> str:
