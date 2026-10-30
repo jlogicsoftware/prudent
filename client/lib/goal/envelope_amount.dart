@@ -43,11 +43,13 @@ class EnvelopeAmount extends StatelessWidget {
           children: [
             Icon(Icons.inventory_2_outlined, size: 16, color: scheme.onTertiaryContainer),
             const SizedBox(width: 4),
-            Text(
-              text,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: scheme.onTertiaryContainer),
+            Flexible(
+              child: Text(
+                text,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: scheme.onTertiaryContainer),
+              ),
             ),
           ],
         ),

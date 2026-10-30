@@ -12,7 +12,12 @@ import 'reminder_figures.dart';
 /// carried by weight or colour alone. The trailing button flips the read state; tapping the tile
 /// opens the occurrence.
 class ReminderTile extends StatelessWidget {
-  const ReminderTile({super.key, required this.reminder, required this.onOpen, required this.onToggleRead});
+  const ReminderTile({
+    super.key,
+    required this.reminder,
+    required this.onOpen,
+    required this.onToggleRead,
+  });
 
   final DueReminder reminder;
   final VoidCallback onOpen;
@@ -24,19 +29,23 @@ class ReminderTile extends StatelessWidget {
     final locale = Localizations.localeOf(context).toString();
     final occurrence = reminder.occurrence;
     final date = formatReminderDate(occurrence.occurrenceDate, locale);
-    final when = isOverdue(reminder) ? t.reminderOverdueSince(date) : t.reminderDueOn(date);
+    final when =
+        isOverdue(reminder)
+            ? t.reminderOverdueSince(date)
+            : t.reminderDueOn(date);
     final unread = !reminder.read;
 
-    return ListTile(
+    return ZenListRow(
       leading: Icon(
         unread ? Icons.notifications_active : Icons.notifications_none,
         semanticLabel: unread ? t.reminderUnread : null,
       ),
-      title: Text(
+      titleContent: Text(
         occurrence.title,
         style: unread ? const TextStyle(fontWeight: FontWeight.bold) : null,
       ),
-      subtitle: Text('$when · ${formatMinorUnits(occurrence.amountMinor)} ${occurrence.currency}'),
+      subtitle:
+          '$when · ${formatMinorUnits(occurrence.amountMinor)} ${occurrence.currency}',
       trailing: ZenIconButton(
         icon: unread ? Icons.drafts_outlined : Icons.mark_email_unread_outlined,
         label: unread ? t.reminderMarkRead : t.reminderMarkUnread,

@@ -154,7 +154,7 @@ class AccountTile extends ConsumerWidget {
           onPressed: () => _confirmDelete(context, ref),
         ),
       ],
-      child: ListTile(
+      child: ZenListRow(
         onTap: () => _openEdit(context, ref),
         leading: Icon(
           account.type == AccountType.ACCOUNT_TYPE_CARD ||
@@ -162,10 +162,8 @@ class AccountTile extends ConsumerWidget {
               ? Icons.account_balance
               : Icons.account_balance_wallet,
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        title: Text(account.name),
-        subtitle: Text(balances.isEmpty ? t.accountsNoBalance : balances),
+        title: account.name,
+        subtitle: balances.isEmpty ? t.accountsNoBalance : balances,
       ),
     );
   }

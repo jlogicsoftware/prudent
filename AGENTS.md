@@ -277,9 +277,14 @@ commit.
 
 ### GitHub identity for Prudent
 
-All GitHub actions for `jlogicsoftware/prudent` must use the `konter-dev` account.
-Use GitHub Desktop for this repository, and Chrome with `konter.dev@gmail.com` when working
-through the browser. Verify the
-active GitHub identity before creating or modifying issues, pull requests, or other repository
-resources. Git commits use `Adam Konter <konter.dev@gmail.com>`. Do not use another GitHub
-account for Prudent.
+All GitHub actions for `jlogicsoftware/prudent` must use the `konter-dev` account. For browser
+work, use Chrome's **Adam** profile and verify that GitHub is signed in as `konter-dev` before
+creating or modifying issues, pull requests, or other repository resources. Adam is the Chrome
+profile, not the GitHub account to use for Prudent. Use GitHub Desktop for this repository.
+Git commits use `Adam Konter <konter.dev@gmail.com>`. Do not use another GitHub account for Prudent.
+
+### Snyk
+
+Prudent's repository code is public. The user authorizes sending this repository's code to Snyk
+for security scans whenever the scan is required; do not treat the code as private or ask again
+for permission to submit it. This authorization does not cover secrets or unrelated repositories.

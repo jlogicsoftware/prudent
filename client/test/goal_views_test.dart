@@ -17,6 +17,7 @@ import 'package:prudent/goal/goals_screen.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
 import 'package:prudent/prudent_repository.dart';
 import 'package:prudent/providers.dart';
+import 'package:zen_core/zen_core.dart';
 import 'package:zen_transport/zen_transport.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
@@ -422,16 +423,22 @@ void main() {
     await pump(tester, standard(), width: 600);
     await tester.tap(find.text('Car'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Move'));
     await tester.tap(find.text('Move'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Move to'));
+    await tester.tap(
+      zenIsApplePlatform
+          ? find.text('Move to')
+          : find.byWidgetPredicate((widget) => widget is DropdownButton),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Trip'), findsWidgets);
     expect(find.text('Euro trip'), findsNothing);
     expect(find.text('Bike'), findsNothing);
     expect(find.text('TV'), findsNothing);
-    await tester.tap(find.text('Trip').last);
+    // The Cupertino wheel's first item is Trip; selection is committed with Done.
+    await tester.tap(find.text(zenIsApplePlatform ? 'Done' : 'Trip').last);
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(ZenTextField).first, '25');

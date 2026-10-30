@@ -90,8 +90,8 @@ class OverviewScreen extends ConsumerWidget {
                         const SizedBox(height: 8),
                         for (final entry in totals.entries)
                           Card(
-                            child: ListTile(
-                              title: Text(entry.key),
+                            child: ZenListRow(
+                              title: entry.key,
                               trailing: Text(
                                 '${formatMinorUnits(entry.value)} ${entry.key}',
                                 style: Theme.of(context).textTheme.titleLarge,
@@ -108,18 +108,17 @@ class OverviewScreen extends ConsumerWidget {
                         const SizedBox(height: 8),
                         for (final account in overviewAccounts)
                           Card(
-                            child: ListTile(
-                              title: Text(account.name),
-                              subtitle: Text(
-                                account.balances.isEmpty
-                                    ? t.accountsNoBalance
-                                    : account.balances
-                                        .map(
-                                          (b) =>
-                                              '${formatMinorUnits(b.amountMinor)} ${b.currency}',
-                                        )
-                                        .join(', '),
-                              ),
+                            child: ZenListRow(
+                              title: account.name,
+                              subtitle:
+                                  account.balances.isEmpty
+                                      ? t.accountsNoBalance
+                                      : account.balances
+                                          .map(
+                                            (b) =>
+                                                '${formatMinorUnits(b.amountMinor)} ${b.currency}',
+                                          )
+                                          .join(', '),
                             ),
                           ),
                         const SizedBox(height: 24),
