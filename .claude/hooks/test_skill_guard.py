@@ -141,6 +141,30 @@ with tempfile.TemporaryDirectory() as root:
                        capture_output=True, text=True)
     check("malformed payload never blocks", p.returncode == 0)
 
+    # ---- identifiers from the payload and the map are data, not paths ----
+    print("hostile identifiers")
+    open(os.path.join(root, ".claude", "hooks", "skill-map.json"), "w").write(json.dumps({
+        "rules": [{"skill": "design-system", "paths": ["*.qute.html"]}]}))
+    guard_dir = os.path.join(root, ".git", "claude-skill-guard")
+    outside = os.path.join(os.path.dirname(root), "escaped-marker")
+    before = set(os.listdir(guard_dir))
+    for sid in ("../../escaped-marker", outside, "a/b", ".."):
+        target = os.path.join(root, "templates", "h.qute.html")
+        rc, err = run(root, target, session=sid)
+        check(f"session {sid!r} blocks the first edit", rc == 2, err[:120])
+        rc, err = run(root, target, session=sid)
+        check(f"session {sid!r} has a stable marker, second edit passes", rc == 0, err[:120])
+    check("no marker was written outside the guard directory",
+          not os.path.exists(outside) and not os.path.exists(os.path.join(root, "a")))
+    check("every marker is a direct child of the guard directory",
+          len(set(os.listdir(guard_dir)) - before) == 4, os.listdir(guard_dir))
+
+    open(os.path.join(root, ".claude", "hooks", "skill-map.json"), "w").write(json.dumps({
+        "rules": [{"skill": "../hooks", "paths": ["*.qute.html"]}]}))
+    rc, err = run(root, os.path.join(root, "templates/i.qute.html"), session="s10")
+    check("a skill name that is a path is refused, loudly",
+          rc == 0 and "invalid skill" in err, err[:150])
+
     os.remove(os.path.join(root, ".claude", "hooks", "skill-map.json"))
     rc, err = run(root, os.path.join(root, "templates/z.qute.html"), session="s7")
     check("missing map is a no-op", rc == 0)

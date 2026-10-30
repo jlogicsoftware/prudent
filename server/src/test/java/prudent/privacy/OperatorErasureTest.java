@@ -88,32 +88,11 @@ class OperatorErasureTest {
   }
 
   private List<String> userOwnedTables() {
-    @SuppressWarnings("unchecked")
-    List<String> tables =
-        QuarkusTransaction.requiringNew()
-            .call(
-                () ->
-                    entityManager
-                        .createNativeQuery(
-                            "select table_name from information_schema.columns"
-                                + " where table_schema = 'public' and column_name = 'user_id'"
-                                + " order by table_name")
-                        .getResultList());
-    return tables;
+    return UserOwnedRows.tables(entityManager);
   }
 
   private long rowsOf(String table, String userId) {
-    return QuarkusTransaction.requiringNew()
-        .call(
-            () ->
-                ((Number)
-                        entityManager
-                            // The table name comes from information_schema, never from input.
-                            .createNativeQuery(
-                                "select count(*) from " + table + " where user_id = ?1")
-                            .setParameter(1, UUID.fromString(userId))
-                            .getSingleResult())
-                    .longValue());
+    return UserOwnedRows.rowsOf(entityManager, table, userId);
   }
 
   private Map<String, Long> rowsOfEveryTable(String userId) {

@@ -29,6 +29,7 @@ that arrive before it are a gate.
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import json
 import os
 import re
@@ -36,6 +37,22 @@ import sys
 import tempfile
 
 MAX_INLINE_LINES = 140
+
+# One path component: no separator, and no leading dot, so it can be neither `..` nor absolute.
+_SAFE_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+
+
+def path_component(value: str, fallback: str) -> str:
+    """`value` as a single directory name, whatever it contains.
+
+    A session id arrives in the hook payload and is joined into a path under .git; an id carrying
+    `/` or `..` (or an absolute one, which os.path.join would let replace the base) must not name a
+    place outside that directory. Anything unusual is hashed rather than rejected, so it still maps
+    to its own stable marker.
+    """
+    if _SAFE_COMPONENT.fullmatch(value):
+        return value
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:32] if value else fallback
 
 
 def load_map(root: str) -> list[dict]:
@@ -122,7 +139,7 @@ def matches(rel: str, patterns: list[str]) -> bool:
 def marker_dir(root: str, session: str) -> str:
     git_dir = os.path.join(root, ".git")
     base = git_dir if os.path.isdir(git_dir) else tempfile.gettempdir()
-    return os.path.join(base, "claude-skill-guard", session or "nosession")
+    return os.path.join(base, "claude-skill-guard", path_component(session, "nosession"))
 
 
 def already_delivered(root: str, session: str, skill: str) -> bool:
@@ -185,6 +202,11 @@ def main() -> int:
     for rule in load_map(root):
         skill = rule.get("skill")
         if not skill:
+            continue
+        if not isinstance(skill, str) or not _SAFE_COMPONENT.fullmatch(skill):
+            # The name becomes a directory under .claude/skills/; a map that names anything else
+            # is wrong, and saying so beats quietly skipping the rule.
+            print(f"skill-map.json names an invalid skill {skill!r}; rule skipped.", file=sys.stderr)
             continue
         if cmd is not None:
             if not command_matches(cmd, rule.get("commands") or []):
