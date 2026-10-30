@@ -56,7 +56,9 @@ class AnalyticsContent extends StatelessWidget {
             painter: BarChartPainter(
               bars: bars,
               barColor: Theme.of(context).colorScheme.primary,
-              labelStyle: Theme.of(context).textTheme.labelSmall!,
+              labelStyle: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           ),
         ),
