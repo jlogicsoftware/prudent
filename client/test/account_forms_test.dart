@@ -2,6 +2,7 @@
 // what reaches the form's callback — the request the repository would send — for the input typed,
 // not how a control draws itself; that is zen_ui_widgets' own test.
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/account/account_edit.dart';
@@ -9,6 +10,7 @@ import 'package:prudent/account/account_new.dart';
 import 'package:prudent/account/reconcile_account.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
+import 'package:zen_core/zen_core.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 import 'zen_fields.dart';
 
@@ -52,6 +54,22 @@ void main() {
       sent = null;
       await _pump(tester, AccountNew(onAddAccount: (request) => sent = request));
     }
+
+    testWidgets('switch rows use the configured platform and submit their values', (tester) async {
+      await open(tester);
+      expect(find.byType(ZenSwitchRow), findsNWidgets(5));
+      expect(find.byType(CupertinoSwitch), zenIsApplePlatform ? findsNWidgets(5) : findsNothing);
+      expect(find.byType(SwitchListTile), zenIsApplePlatform ? findsNothing : findsNWidgets(5));
+      await tester.enterText(_field('Account Name'), 'Wallet');
+      await tester.tap(find.text('Active'));
+      await tester.tap(find.text('Include in total balance'));
+      await tester.tap(find.text('Show on overview'));
+      await tester.tap(find.text('Add Account'));
+      await tester.pumpAndSettle();
+      expect(sent!.isActive, isFalse);
+      expect(sent!.includeInTotal, isFalse);
+      expect(sent!.includeInOverview, isFalse);
+    });
 
     testWidgets('sends the typed name and the balance in minor units', (tester) async {
       await open(tester);
@@ -118,6 +136,20 @@ void main() {
   });
 
   group('AccountEdit', () {
+    testWidgets('switch changes are saved', (tester) async {
+      UpdateAccountRequest? sent;
+      await _pump(tester, AccountEdit(account: _account(), onSave: (request) => sent = request));
+      expect(find.byType(ZenSwitchRow), findsNWidgets(5));
+      await tester.tap(find.text('Active'));
+      await tester.tap(find.text('Include in total balance'));
+      await tester.tap(find.text('Show on overview'));
+      await tester.tap(find.text('Save Account'));
+      await tester.pumpAndSettle();
+      expect(sent!.isActive, isFalse);
+      expect(sent!.includeInTotal, isFalse);
+      expect(sent!.includeInOverview, isFalse);
+    });
+
     testWidgets('resends the balances it did not touch', (tester) async {
       UpdateAccountRequest? sent;
       await _pump(tester, AccountEdit(account: _account(), onSave: (request) => sent = request));
