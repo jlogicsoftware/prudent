@@ -13,6 +13,92 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-084 — Sign-up and recovery mail is worded by Prudent's own templates, kept in the repository, gated offline and compared with the hosted project on demand
+
+**Date:** 2026-10-30. **Status:** accepted. **Refines:** ADR-079. jlogicsoftware/prudent#187.
+
+### Decision
+
+- `supabase/templates/confirmation.html` and `recovery.html` are Prudent's own mail: the product name, one
+  sentence saying why the person received it, a button **and** the plain link, a line saying what to do if
+  they did not ask, and nothing from the ledger. They carry **two placeholders only**, `{{ .ConfirmationURL }}`
+  and `{{ .Email }}`. There is no remote image, script or tracking, and the one `<style>` block is the
+  dark-mode rule a mail client needs.
+- **One body per mail type holds all three languages, in the order English, Ukrainian, Polish**, each in its
+  own `lang`-tagged block with a language label, a rule between blocks, a button in each block and one
+  plain-link line under all three. The subject names the three languages separated by ` · `. The reason is
+  ADR-079's: GoTrue sends one template per type and the signup and recover calls carry no language. *Why
+  this order:* English is the product's default and what a forwarded or machine-read copy shows; Ukrainian
+  and Polish follow as the other two languages Prudent ships (CLAUDE.md, "Typed, generated i18n"). The order
+  is the owner's to change, and changing it edits two files.
+- The templates are wired for the local stack by `[auth.email.template.confirmation|recovery]` in
+  `supabase/config.toml`; **the hosted project reads nothing from the repository.**
+- **`task verify:mail-templates`** (`scripts/verify_mail_templates.py`, run in CI) fails on a placeholder
+  other than those two (GoTrue renders an unknown one as nothing, so the link would be empty), an `href`
+  that is not the link placeholder, any literal `http://`, `https://` or `//` address, a remote image,
+  `url(`, `src`, a script, a body without its `en`, `uk` and `pl` blocks, its plain link or the name
+  Prudent, a subject that is empty, takes a placeholder or names fewer than three languages, a template
+  that is wired by nothing and a wiring whose file is missing. `scripts/test_verify_mail_templates.py`
+  plants each defect. **Until #188 the link is GoTrue's own `{{ .ConfirmationURL }}` and the gate pins that;
+  #188 changes the set when it points the link at Prudent's own origin.**
+- **`task verify:mail-templates:hosted`** reads the hosted project's mail back and **`task
+  deploy:mail-templates`** writes it and reads it back, both through the Management API's `config/auth`
+  (`GET` and `PATCH`, `scripts/hosted_mail_templates.py`). The fields are
+  `mailer_subjects_confirmation`, `mailer_templates_confirmation_content`, `mailer_subjects_recovery` and
+  `mailer_templates_recovery_content`, **read from the API's published OpenAPI document on 2026-10-30**,
+  not recalled. Both need `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF` and exit 2 without them. Neither
+  runs in CI: a token for a real project does not belong there. CI runs only their tests, against a stub.
+- **The other mails Supabase can send**, decided by what Prudent can trigger. `zen-identity` calls GoTrue's
+  `signup`, `recover`, `verify`, `token`, `logout` and `PUT /user` (a new password, nothing else), and the client
+  never reaches GoTrue itself (CLAUDE.md, "The client talks to one server"):
+  - *Signup confirmation and recovery*: sent today; templated here.
+  - *E-mail change, magic link, reauthentication*: **not templated; they keep Supabase's default.** No route
+    or screen can ask for any of them, so a template would be text nobody receives. A screen that can send one
+    adds its template in the same change, in the same three languages.
+  - *Security notifications (password changed, e-mail address changed), decided as a group: **not enabled
+    now**.* The password-changed one is reachable (a recovery ends in `PUT /user`) and the e-mail-changed one
+    is not, but the pair is one decision: each wants the same trilingual body, each would go out through the
+    built-in sender, which delivers only to members of the Supabase organisation at two messages an hour
+    (ADR-068), and whether the Free plan offers them was not checked. So they wait for the sender of #186.
+    bugeater-quarkus#546 enabled both because, after a reset, the legitimate owner otherwise gets no signal that
+    someone else did it; that reasoning is why this is deferred and not rejected.
+- **A local sign-up does not send the confirmation mail.** `enable_confirmations` stays `false` in
+  `supabase/config.toml`, and ADR-076 relies on it (the e2e and native gates start no mail container). So
+  `task run:supabase` shows the *recovery* template in its inbox and never the *confirmation* one. Turning it
+  on would make every local sign-up, `task run:dev` and `task test:e2e` need an inbox click; that is a larger
+  decision than this one and is not taken here.
+
+### What this refines, and why
+
+- **"Prudent's own template in `en`, `uk` and `pl` is #187"** (`docs/persistent-environment.md`, section 3) →
+  **built, not yet applied.** *Why:* the files, their gate and the apply and read-back exist; the hosted
+  project still sends Supabase's default template until the owner runs `task deploy:mail-templates`.
+- **"the repo and the dashboard can drift and nothing checks it"** (the sibling product's runbook, cited by
+  ADR-079) → **checked on demand.** *Why:* the Management API carries the subject and body, so drift is a
+  command that exits non-zero, not a reading of a dashboard.
+
+### Not verified, and said so
+
+- **No mail client was tried.** Not Gmail, Outlook or Apple Mail, and no real message was received. The
+  templates were rendered with sample values in Chromium, light and dark, at 375 and 700 px; that shows the
+  layout and the dark-mode block and says nothing about Outlook's Word engine or how any client treats the
+  `<style>` block.
+- **The local stack was not restarted with the templates**, so `content_path` as written in `config.toml`
+  (`./supabase/templates/…`, the form the file's own commented example used) has not been read by a running GoTrue.
+- **The Management API was not called**; the stub the tests use accepts what the script sends. Whether the API
+  stores a body byte for byte is unknown until the first real read-back (the comparison ignores surrounding
+  whitespace for that reason).
+- The hosted project is unchanged: it still sends Supabase's default template.
+
+### Consequence
+
+`docs/persistent-environment.md` section 3 gives the steps. A template edit is not finished until the hosted
+project has it, and the check exists so that a difference is a red command rather than a surprise in a
+stranger's inbox. Verified on 2026-10-30: `task verify:mail-templates` green (both unit suites and the gate on
+the real files).
+
+---
+
 ## ADR-083 — The iOS and macOS runners resolve everything through Swift Package Manager; CocoaPods is gone, and a gate keeps it gone
 
 **Date:** 2026-10-30. **Status:** accepted. jlogicsoftware/prudent#183.

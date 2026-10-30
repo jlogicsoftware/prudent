@@ -259,10 +259,18 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Prudent's own sign-up and recovery mail (jlogicsoftware/prudent#187). GoTrue sends ONE template per
+# mail type and the signup and recover calls carry no language, so each body holds en, uk and pl, and
+# each subject names all three. The hosted project does not read this file: docs/persistent-environment.md
+# section 3 applies the same files to it. `task verify:mail-templates` fails when a template or a subject
+# here uses a placeholder it should not, or names a foreign host.
+[auth.email.template.confirmation]
+subject = "Confirm your Prudent email · Підтвердіть пошту Prudent · Potwierdź e-mail w Prudent"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Prudent password · Скидання пароля Prudent · Reset hasła Prudent"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

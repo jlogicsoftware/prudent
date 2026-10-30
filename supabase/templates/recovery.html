@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <title>Reset your Prudent password · Скидання пароля Prudent · Reset hasła Prudent</title>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            .bg { background: #121412 !important; }
+            .card { background: #1d211d !important; }
+            .heading { color: #f1f3f0 !important; }
+            .text { color: #d3d8d2 !important; }
+            .muted { color: #a3aaa2 !important; }
+            .rule { border-top-color: #343a34 !important; }
+            .chip { background: #2b332b !important; color: #cfe6cf !important; }
+            .button { background: #6fbf73 !important; color: #0c1a0d !important; }
+        }
+    </style>
+</head>
+<body class="bg" style="margin:0;padding:24px;background:#f4f6f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+<div style="display:none;max-height:0;overflow:hidden;">Choose a new password for your Prudent account. · Оберіть новий пароль для облікового запису Prudent. · Ustaw nowe hasło do konta Prudent.</div>
+<div class="card" style="background:#ffffff;border-radius:12px;max-width:520px;margin:0 auto;padding:40px 36px;">
+    <div class="heading" style="font-size:22px;font-weight:700;color:#1b5e20;margin-bottom:28px;">Prudent</div>
+
+    <div lang="en">
+        <span class="chip" style="display:inline-block;padding:2px 8px;border-radius:4px;background:#e8f1e8;color:#1b5e20;font-size:11px;font-weight:700;letter-spacing:0.06em;margin-bottom:12px;">EN</span>
+        <h1 class="heading" style="font-size:20px;font-weight:600;color:#1a1a1a;margin:0 0 16px;">Reset your password</h1>
+        <p class="text" style="font-size:15px;line-height:1.6;color:#444444;margin:0 0 16px;">
+            We received a request to reset the password of the Prudent account <strong>{{ .Email }}</strong>.
+            Use the button to choose a new one. The link works once and expires soon.
+        </p>
+        <p style="margin:24px 0;">
+            <a class="button" href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 28px;background:#2e7d32;color:#ffffff;border-radius:8px;font-weight:600;font-size:15px;text-decoration:none;">Reset password</a>
+        </p>
+        <p class="muted" style="font-size:13px;line-height:1.6;color:#666666;margin:0;">
+            If you did not ask for this, ignore this email: your password will not change.
+        </p>
+    </div>
+
+    <hr class="rule" style="border:none;border-top:1px solid #e3e7e2;margin:28px 0;">
+
+    <div lang="uk">
+        <span class="chip" style="display:inline-block;padding:2px 8px;border-radius:4px;background:#e8f1e8;color:#1b5e20;font-size:11px;font-weight:700;letter-spacing:0.06em;margin-bottom:12px;">UK</span>
+        <h1 class="heading" style="font-size:20px;font-weight:600;color:#1a1a1a;margin:0 0 16px;">Скидання пароля</h1>
+        <p class="text" style="font-size:15px;line-height:1.6;color:#444444;margin:0 0 16px;">
+            Ми отримали запит на скидання пароля облікового запису Prudent <strong>{{ .Email }}</strong>.
+            Натисніть кнопку, щоб обрати новий. Посилання діє один раз і невдовзі втрачає чинність.
+        </p>
+        <p style="margin:24px 0;">
+            <a class="button" href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 28px;background:#2e7d32;color:#ffffff;border-radius:8px;font-weight:600;font-size:15px;text-decoration:none;">Скинути пароль</a>
+        </p>
+        <p class="muted" style="font-size:13px;line-height:1.6;color:#666666;margin:0;">
+            Якщо ви цього не просили, проігноруйте лист: пароль не зміниться.
+        </p>
+    </div>
+
+    <hr class="rule" style="border:none;border-top:1px solid #e3e7e2;margin:28px 0;">
+
+    <div lang="pl">
+        <span class="chip" style="display:inline-block;padding:2px 8px;border-radius:4px;background:#e8f1e8;color:#1b5e20;font-size:11px;font-weight:700;letter-spacing:0.06em;margin-bottom:12px;">PL</span>
+        <h1 class="heading" style="font-size:20px;font-weight:600;color:#1a1a1a;margin:0 0 16px;">Reset hasła</h1>
+        <p class="text" style="font-size:15px;line-height:1.6;color:#444444;margin:0 0 16px;">
+            Otrzymaliśmy prośbę o zresetowanie hasła do konta Prudent <strong>{{ .Email }}</strong>.
+            Użyj przycisku, aby ustawić nowe. Link działa jednorazowo i wkrótce wygasa.
+        </p>
+        <p style="margin:24px 0;">
+            <a class="button" href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 28px;background:#2e7d32;color:#ffffff;border-radius:8px;font-weight:600;font-size:15px;text-decoration:none;">Zresetuj hasło</a>
+        </p>
+        <p class="muted" style="font-size:13px;line-height:1.6;color:#666666;margin:0;">
+            Jeśli nie chcesz zmieniać hasła, zignoruj tę wiadomość: hasło się nie zmieni.
+        </p>
+    </div>
+
+    <hr class="rule" style="border:none;border-top:1px solid #e3e7e2;margin:28px 0;">
+
+    <p class="muted" style="font-size:13px;line-height:1.6;color:#666666;margin:0;">
+        Button not working? Copy this link into your browser<br>
+        Кнопка не працює? Скопіюйте це посилання у браузер<br>
+        Przycisk nie działa? Skopiuj ten link do przeglądarki<br>
+        <a class="muted" href="{{ .ConfirmationURL }}" style="color:#666666;word-break:break-all;">{{ .ConfirmationURL }}</a>
+    </p>
+</div>
+</body>
+</html>

@@ -163,6 +163,13 @@ jobs:
         working-directory: prudent
         run: task verify:swiftpm
 
+      # GoTrue renders an unknown placeholder as nothing, so a mistyped one sends a mail with an empty
+      # link and nothing else notices. The mail is also where a foreign host once read as phishing
+      # (ADR-079, #187).
+      - name: Sign-up and recovery mail templates
+        working-directory: prudent
+        run: task verify:mail-templates
+
       # The deploy ends by probing the origin the web bundle calls, and nothing runs a deploy in
       # CI. This is what proves that probe can fail, so a bundle built for a host that never
       # serves keeps being caught by the deploy and not by a user (#151).
