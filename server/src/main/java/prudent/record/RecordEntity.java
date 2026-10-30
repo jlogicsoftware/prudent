@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import prudent.plan.OccurrenceState;
 
 /**
  * The {@code prudent_record} table — the individual transactions (active-record Panache entity).
@@ -193,6 +194,49 @@ public class RecordEntity extends PanacheEntityBase {
   public static long detachFromPlan(UUID userId, UUID planId) {
     return update(
         "planId = null, planOccurrenceId = null where userId = ?1 and planId = ?2", userId, planId);
+  }
+
+  /**
+   * Deletes every record that touches one account, in two statements however many there are, and
+   * returns how many rows went (jlogicsoftware/prudent#201).
+   *
+   * <p>"Touches" is wider than "belongs to": a transfer is two legs in two accounts, and a lone
+   * leg left behind would be a withdrawal with no destination in the other account — a balance
+   * change nobody made. So the counterpart leg goes with its sibling, exactly as
+   * {@code DELETE /api/v1/transfers/{id}} removes both; the other account's balance moves, which
+   * is what removing a transfer means.
+   *
+   * <p>A record that confirmed a plan occurrence is the only reason that occurrence reads as
+   * completed (ADR-040), so those occurrences are reopened first — the bulk twin of the reopen in
+   * {@code RecordResource#delete} — or they would claim a transaction that no longer exists and,
+   * being final, could never be confirmed again.
+   *
+   * <p>Bulk statements, not {@code entity.delete()} per row: an account with thousands of records
+   * must not load them all into the persistence context. The caller owns the transaction, so a
+   * failure at any point leaves every row where it was.
+   */
+  public static long deleteAllForAccount(UUID userId, UUID accountId) {
+    String touched =
+        "r.userId = :userId and (r.accountId = :accountId or r.transferId in ("
+            + "select t.transferId from RecordEntity t where t.userId = :userId"
+            + " and t.accountId = :accountId and t.transferId is not null))";
+    getEntityManager()
+        .createQuery(
+            "update PlanOccurrenceEntity o set o.state = :planned where o.userId = :userId"
+                + " and o.state = :completed and o.id in ("
+                + "select r.planOccurrenceId from RecordEntity r where "
+                + touched
+                + " and r.planOccurrenceId is not null)")
+        .setParameter("planned", OccurrenceState.PLANNED)
+        .setParameter("completed", OccurrenceState.COMPLETED)
+        .setParameter("userId", userId)
+        .setParameter("accountId", accountId)
+        .executeUpdate();
+    return getEntityManager()
+        .createQuery("delete from RecordEntity r where " + touched)
+        .setParameter("userId", userId)
+        .setParameter("accountId", accountId)
+        .executeUpdate();
   }
 
   /** Whether any record still points at this category. Guards the category delete. */

@@ -95,8 +95,15 @@ class PrudentRepository {
     UpdateAccountRequest request,
   ) => _client.put<Account>(Account.new, '$_accountsPath/$id', body: request);
 
-  Future<ZenResult<Account>> deleteAccount(String id) =>
-      _client.delete<Account>(Account.new, '$_accountsPath/$id');
+  /// Deletes an account. By default the server refuses while any record remains; with
+  /// [deleteRecords] it deletes every record of the account in the same transaction
+  /// (jlogicsoftware/prudent#201) — both legs of a transfer, so another account's balance moves.
+  /// Plans still refuse either way.
+  Future<ZenResult<Account>> deleteAccount(String id, {bool deleteRecords = false}) =>
+      _client.delete<Account>(
+        Account.new,
+        '$_accountsPath/$id${deleteRecords ? '?deleteRecords=true' : ''}',
+      );
 
   // --- Categories -------------------------------------------------------------------------------
 

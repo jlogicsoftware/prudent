@@ -127,6 +127,12 @@ envelope history and the actions its state allows (add, withdraw, move, edit, co
 Every envelope amount is drawn by `EnvelopeAmount` — an envelope icon on the tertiary container colour, read out as
 "set aside for goals" — so it is never mistaken for an account balance. That completes M4's backlog.
 
+An account can be deleted together with all of its transactions (ADR-081, jlogicsoftware/prudent#201):
+`DELETE /api/v1/accounts/{id}?deleteRecords=true` removes the account and every record touching it —
+both legs of a transfer — in one transaction, reopening any occurrence a deleted record had confirmed;
+without the flag the refusal stands, and a plan still refuses either way. The client asks twice, the
+second time for a typed phrase (`DeleteAccountForm`).
+
 M5 (local reminders) has begun: a plan carries a reminder setting (ADR-054, jlogicsoftware/prudent#40) —
 `Plan.reminder`, `enabled` plus `lead_days` — on `prudent_plan`. It is a setting only: nothing stores,
 schedules or sends a reminder yet. It is off by default (existing plans too), the lead time is one of 0, 1, 2, 3

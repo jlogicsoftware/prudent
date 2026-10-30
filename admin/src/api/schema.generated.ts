@@ -305,7 +305,10 @@ export interface paths {
         /** Delete an account */
         delete: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description When true, also permanently deletes every record of the account (ordinary records, balance corrections and transfers, both legs of a transfer) in the same transaction. Absent or false keeps the refusal while any record remains. */
+                    deleteRecords?: boolean;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -344,7 +347,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
-                /** @description The account still has records or plans */
+                /** @description The account still has plans, or still has records and deleteRecords is not true */
                 409: {
                     headers: {
                         [name: string]: unknown;

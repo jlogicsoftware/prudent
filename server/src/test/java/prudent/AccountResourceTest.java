@@ -24,6 +24,9 @@ import prudent.proto.v1.ListAccountsResponse;
 import prudent.proto.v1.UpdateAccountRequest;
 import prudent.account.AccountBalance;
 import prudent.account.AccountEntity;
+import prudent.plan.OccurrenceState;
+import prudent.plan.PlanOccurrenceEntity;
+import prudent.record.RecordEntity;
 import zen.proto.v1.ZenError;
 
 /**
@@ -314,6 +317,149 @@ class AccountResourceTest {
     assertFalse(
         error.getMessage().contains("transfers"),
         "no transfer leg blocks this delete, so the message must not mention one");
+  }
+
+  private static Response deleteWithRecords(UUID accountId) {
+    return PrudentTest.request(PrudentTest.JSON)
+        .queryParam("deleteRecords", true)
+        .when()
+        .delete("/api/v1/accounts/" + accountId)
+        .andReturn();
+  }
+
+  private static long recordsIn(UUID accountId) {
+    return QuarkusTransaction.requiringNew().call(() -> RecordEntity.count("accountId", accountId));
+  }
+
+  private static boolean accountExists(UUID accountId) {
+    return QuarkusTransaction.requiringNew()
+        .call(() -> AccountEntity.findById(accountId) != null);
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void deleteRecords_removesTheAccountWithEveryKindOfRecord() throws Exception {
+    // jlogicsoftware/prudent#201. An ordinary record, a correction and a transfer leg all go with
+    // the account, and so does the transfer's other leg: a lone leg would be a withdrawal with no
+    // destination in the other account. Records that are not the account's stay.
+    UUID accountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Wallet", "PLN");
+    UUID otherAccountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Savings", "PLN");
+    UUID categoryId = PrudentTest.seedCategory(PrudentTest.ALICE, "Food");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -10_00L, "PLN");
+    PrudentTest.seedCorrection(PrudentTest.ALICE, accountId, 20_00L, "PLN");
+    UUID transferId = UUID.randomUUID();
+    PrudentTest.seedTransferLeg(PrudentTest.ALICE, accountId, -50_00L, "PLN", transferId);
+    PrudentTest.seedTransferLeg(PrudentTest.ALICE, otherAccountId, 50_00L, "PLN", transferId);
+    PrudentTest.seedRecord(PrudentTest.ALICE, otherAccountId, categoryId, -5_00L, "PLN");
+
+    Response response = deleteWithRecords(accountId);
+
+    assertEquals(204, response.statusCode());
+    assertFalse(accountExists(accountId));
+    assertEquals(0, recordsIn(accountId));
+    assertEquals(1, recordsIn(otherAccountId), "only the unrelated record of the other account stays");
+    assertTrue(accountExists(otherAccountId));
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void deleteRecords_handlesThousandsOfRecordsInOneOperation() throws Exception {
+    UUID accountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Wallet", "PLN");
+    UUID categoryId = PrudentTest.seedCategory(PrudentTest.ALICE, "Food");
+    int count = 5_000;
+    QuarkusTransaction.requiringNew()
+        .run(
+            () -> {
+              for (int i = 0; i < count; i++) {
+                RecordEntity entity = new RecordEntity();
+                entity.id = UUID.randomUUID();
+                entity.userId = UUID.fromString(PrudentTest.ALICE);
+                entity.title = "Bulk " + i;
+                entity.amountMinor = -1_00L;
+                entity.currency = "PLN";
+                entity.date = java.time.LocalDate.of(2026, 8, 17);
+                entity.accountId = accountId;
+                entity.categoryId = categoryId;
+                entity.persist();
+              }
+            });
+    assertEquals(count, recordsIn(accountId));
+
+    assertEquals(204, deleteWithRecords(accountId).statusCode());
+
+    assertFalse(accountExists(accountId));
+    assertEquals(0, recordsIn(accountId));
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void deleteRecords_reopensTheOccurrenceARecordHadConfirmed() throws Exception {
+    // ADR-040: an occurrence is COMPLETED only because a record confirms it. The record may sit in
+    // an account other than the plan's (confirmation can override the account), so this account
+    // has no plan and the delete is allowed — and the occurrence must go back to PLANNED, or it
+    // would claim a transaction that is gone and could never be confirmed again.
+    UUID accountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Wallet", "PLN");
+    UUID planAccountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Bank", "PLN");
+    UUID categoryId = PrudentTest.seedCategory(PrudentTest.ALICE, "Rent");
+    UUID planId = PrudentTest.seedPlan(PrudentTest.ALICE, planAccountId, categoryId, -100_00L, "PLN");
+    UUID occurrenceId =
+        PrudentTest.seedOccurrence(
+            PrudentTest.ALICE, planId, java.time.LocalDate.of(2026, 9, 1), OccurrenceState.COMPLETED);
+    QuarkusTransaction.requiringNew()
+        .run(
+            () -> {
+              RecordEntity entity = new RecordEntity();
+              entity.id = UUID.randomUUID();
+              entity.userId = UUID.fromString(PrudentTest.ALICE);
+              entity.title = "Rent";
+              entity.amountMinor = -100_00L;
+              entity.currency = "PLN";
+              entity.date = java.time.LocalDate.of(2026, 9, 1);
+              entity.accountId = accountId;
+              entity.categoryId = categoryId;
+              entity.planId = planId;
+              entity.planOccurrenceId = occurrenceId;
+              entity.persist();
+            });
+
+    assertEquals(204, deleteWithRecords(accountId).statusCode());
+
+    OccurrenceState state =
+        QuarkusTransaction.requiringNew()
+            .call(() -> PlanOccurrenceEntity.<PlanOccurrenceEntity>findById(occurrenceId).state);
+    assertEquals(OccurrenceState.PLANNED, state);
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void deleteRecords_stillRefusesWhileAPlanNamesTheAccount_andDeletesNothing() throws Exception {
+    // The flag authorises deleting transactions, not plans. The refusal comes before any record is
+    // touched, so nothing is half-deleted.
+    UUID accountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Wallet", "PLN");
+    UUID categoryId = PrudentTest.seedCategory(PrudentTest.ALICE, "Food");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -10_00L, "PLN");
+    PrudentTest.seedPlan(PrudentTest.ALICE, accountId, categoryId, -10_00L, "PLN");
+
+    Response response = deleteWithRecords(accountId);
+
+    assertEquals(409, response.statusCode());
+    ZenError error = PrudentTest.decode(PrudentTest.JSON, response, ZenError.newBuilder()).build();
+    assertTrue(error.getMessage().contains("plans"));
+    assertTrue(accountExists(accountId));
+    assertEquals(1, recordsIn(accountId));
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.BOB)
+  void deleteRecords_onSomeoneElsesAccount_isNotFoundAndDeletesNothing() throws Exception {
+    UUID accountId = PrudentTest.seedAccount(PrudentTest.ALICE, "Wallet", "PLN");
+    UUID categoryId = PrudentTest.seedCategory(PrudentTest.ALICE, "Food");
+    PrudentTest.seedRecord(PrudentTest.ALICE, accountId, categoryId, -10_00L, "PLN");
+
+    assertEquals(404, deleteWithRecords(accountId).statusCode());
+
+    assertTrue(accountExists(accountId));
+    assertEquals(1, recordsIn(accountId));
   }
 
   @Test
