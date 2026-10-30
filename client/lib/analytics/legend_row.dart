@@ -11,16 +11,25 @@ class LegendRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Read at the app's body size: the colour only ties a row to its slice, while the name, the
+    // share and the amount carry the meaning.
+    final style = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: Theme.of(context).colorScheme.onSurface,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          Container(width: 14, height: 14, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          ExcludeSemantics(
+            child: Container(width: 14, height: 14, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: Text(label)),
-          Text('$percent%', style: Theme.of(context).textTheme.bodySmall),
+          Expanded(child: Text(label, style: style)),
           const SizedBox(width: 12),
-          Text(amount, style: Theme.of(context).textTheme.bodyMedium),
+          Text('$percent%', style: style),
+          const SizedBox(width: 16),
+          Text(amount, style: style),
         ],
       ),
     );

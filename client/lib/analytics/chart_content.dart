@@ -63,17 +63,21 @@ class ChartContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
-        for (final item in response.items)
-          LegendRow(
-            color: switch (_categoryFor(item.categoryId)) {
-              final c? => Color(c.colorArgb),
-              null => Theme.of(context).colorScheme.outline,
-            },
-            label: _categoryFor(item.categoryId)?.title ?? t.chartUnknownCategory,
-            amount: '${formatMinorUnits(item.amountMinor)} $currency',
-            percent: total.toInt() == 0 ? 0 : item.amountMinor.toInt() * 100 ~/ total.toInt(),
-          ),
+        for (var i = 0; i < response.items.length; i++) ...[
+          if (i > 0) const Divider(height: 1),
+          _legendRow(context, t, response.items[i], total),
+        ],
       ],
+    );
+  }
+
+  Widget _legendRow(BuildContext context, PrudentLocalizations t, CategorySpend item, Int64 total) {
+    final category = _categoryFor(item.categoryId);
+    return LegendRow(
+      color: category == null ? Theme.of(context).colorScheme.outline : Color(category.colorArgb),
+      label: category?.title ?? t.chartUnknownCategory,
+      amount: '${formatMinorUnits(item.amountMinor)} $currency',
+      percent: total.toInt() == 0 ? 0 : item.amountMinor.toInt() * 100 ~/ total.toInt(),
     );
   }
 }

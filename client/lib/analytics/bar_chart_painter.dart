@@ -25,7 +25,7 @@ class BarChartPainter extends CustomPainter {
   final Color barColor;
   final TextStyle labelStyle;
 
-  static const double _labelHeight = 20;
+  static const double _labelHeight = 28;
   static const double _barGap = 4;
 
   @override
@@ -34,6 +34,20 @@ class BarChartPainter extends CustomPainter {
     final chartHeight = size.height - _labelHeight;
     final maxValue = bars.fold<double>(0, (m, b) => b.value > m ? b.value : m);
     final barWidth = (size.width - _barGap * (bars.length - 1)) / bars.length;
+
+    // Labels are body-sized, so on a narrow chart they no longer fit under every bar. Rather than
+    // shrinking them back into unreadable type, every n-th label is drawn, n being the least that
+    // keeps neighbours from touching; every bar is still drawn.
+    final labels = [
+      for (final bar in bars)
+        TextPainter(
+          text: TextSpan(text: bar.label, style: labelStyle),
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+        )..layout(),
+    ];
+    final widest = labels.fold<double>(0, (m, p) => p.width > m ? p.width : m);
+    final stride = ((widest + _barGap * 2) / (barWidth + _barGap)).ceil().clamp(1, bars.length);
 
     for (var i = 0; i < bars.length; i++) {
       final bar = bars[i];
@@ -49,19 +63,13 @@ class BarChartPainter extends CustomPainter {
         Paint()..color = barColor,
       );
 
-      final painter = TextPainter(
-        text: TextSpan(text: bar.label, style: labelStyle),
-        textDirection: TextDirection.ltr,
-        textAlign: TextAlign.center,
-      )..layout(maxWidth: barWidth + _barGap);
-      painter.paint(
-        canvas,
-        Offset(left + (barWidth - painter.width) / 2, size.height - _labelHeight + 2),
-      );
+      if (i % stride != 0) continue;
+      final label = labels[i];
+      label.paint(canvas, Offset(left + (barWidth - label.width) / 2, size.height - _labelHeight + 6));
     }
   }
 
   @override
   bool shouldRepaint(covariant BarChartPainter oldDelegate) =>
-      oldDelegate.bars != bars || oldDelegate.barColor != barColor;
+      oldDelegate.bars != bars || oldDelegate.barColor != barColor || oldDelegate.labelStyle != labelStyle;
 }

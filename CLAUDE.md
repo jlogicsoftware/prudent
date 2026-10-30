@@ -58,7 +58,9 @@ host's width and as a page below it (`showZenDetail`, ADR-061); so, since ADR-06
 and the reminder centre (from the bell on Overview). Since ADR-063 (jZen at `b67a549`) each destination sits in a
 `Navigator` of its own, so that page stays inside the content area and the navigation sidebar stays at every width;
 a page that must cover the shell asks for `rootNavigator: true`, and switching tab discards the stack of the one left.
-The chart by category is a second view of Analytics, not a screen of its own. There are still six tabs; any push
+The chart by category is a second view of Analytics, not a screen of its own. Analytics holds its toggle, month navigator, chart and legend in one centred column of at most 720 px
+(`AnalyticsColumn`, jlogicsoftware/prudent#194); the legend rows are divided and, like the bar chart's month labels, set at the
+body size, which on a narrow chart thins the labels rather than the type. The app-wide cap is jlogicsoftware/prudent#195. There are still six tabs; any push
 is a `ZenPageRoute`, so macOS fades rather than slides (seen in slow motion on the native macOS app, ADR-064; Chrome
 on a Mac is not yet looked at, jlogicsoftware/prudent#145).
 
