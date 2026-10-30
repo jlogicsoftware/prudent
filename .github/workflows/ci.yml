@@ -156,6 +156,13 @@ jobs:
         working-directory: prudent
         run: task verify:reflection
 
+      # Flutter falls back to CocoaPods for a plugin with no Swift package and the Apple build stays
+      # green, so only a gate notices a Podfile come back. The runners themselves are not built
+      # here (ADR-003); this reads the files that would show it (ADR-083, #183).
+      - name: Apple runners stay on Swift Package Manager
+        working-directory: prudent
+        run: task verify:swiftpm
+
       # The deploy ends by probing the origin the web bundle calls, and nothing runs a deploy in
       # CI. This is what proves that probe can fail, so a bundle built for a host that never
       # serves keeps being caught by the deploy and not by a user (#151).

@@ -13,6 +13,57 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-083 — The iOS and macOS runners resolve everything through Swift Package Manager; CocoaPods is gone, and a gate keeps it gone
+
+**Date:** 2026-10-30. **Status:** accepted. jlogicsoftware/prudent#183.
+
+### Decision
+
+- `pod deintegrate` was run in `client/ios` and `client/macos`: the `[CP] Check Pods Manifest.lock`
+  phases, the `Pods_Runner` / `Pods_RunnerTests` frameworks and every `Pods-Runner` reference left
+  both `Runner.xcodeproj/project.pbxproj` files. `Podfile`, `Podfile.lock` and `Pods/` are deleted,
+  the four `#include? "Pods/…"` lines left the Flutter `.xcconfig` files, and the `Pods/Pods.xcodeproj`
+  entry left both workspaces.
+- The minimum OS is unchanged and now lives only in the Xcode projects: iOS 15.0
+  (`IPHONEOS_DEPLOYMENT_TARGET`) and macOS 12.0 (`MACOSX_DEPLOYMENT_TARGET`) were already set on
+  every build configuration there; the Podfile's `platform :osx, '12.0'` was the only other copy.
+- `task verify:swiftpm` (`scripts/verify_no_cocoapods.py`, run in CI) fails when either runner has a
+  `Podfile`, a `Podfile.lock`, a `Pods/` directory, or a CocoaPods trace in the Xcode project, a Flutter
+  `.xcconfig` or the workspace. `scripts/test_verify_no_cocoapods.py` plants each trace and requires
+  the gate to go red.
+
+### What this refines, and why
+
+- **"Removing CocoaPods is a separate change"** (`docs/native-iphone-build.md`, troubleshooting) →
+  **done**; that row now describes the failure the gate catches. *Why:* CocoaPods here was a leftover.
+  `Podfile.lock` resolved only the `Flutter` pod, every native plugin (`app_links`,
+  `flutter_local_notifications`, `flutter_secure_storage_darwin`, `flutter_timezone`,
+  `shared_preferences_foundation`) already arrived through Swift Package Manager, and the build still
+  ran `pod install` and a manifest check each time. The CocoaPods registry also turns read-only on
+  2026-12-02, and `zen_store_icloud` (jZenDev/jZen ADR-065) ships as a Swift package with no podspec,
+  so Prudent could not consume it while it built through CocoaPods.
+- Android is untouched: Gradle remains its only dependency manager.
+
+### Consequence
+
+Flutter falls back to CocoaPods for any plugin without a Swift package, writes a `Podfile`, and the
+build stays green, so a plugin added later could bring a second build system back unannounced. The
+gate makes that a red CI run. It reads files; it does not build a runner, which needs Xcode and a
+macOS host (ADR-003), so `task zen:build:runners` remains the build check and is run by hand.
+
+Verified on 2026-10-30 (Flutter 3.47.7, Xcode 27.1), after `flutter clean`: `flutter build ios
+--simulator` and `flutter build macos` both succeed and neither writes a Podfile back. A throwaway
+probe (not committed) running the app's own `SecureTokenStore` and local-notification gateway on the
+iOS 26.5 simulator: the keychain write, read and delete round-trip; the plugin initialises; the system
+permission prompt appears and, once allowed, a notification is scheduled, listed as pending and
+cancelled. **Not verified, and stated rather than implied:** on macOS the probe launched and the
+notification plugin initialised, but `SecureTokenStore` failed with keychain error -34018 (missing
+entitlement) — the known boundary recorded in the earlier decision on macOS session persistence, not
+something this change introduced, since the entitlements are untouched — and the macOS notification
+permission prompt was not answered, so scheduling there was not exercised. No device build was run.
+
+---
+
 ## ADR-082 — Bound page content in the navigation shell
 
 **Date:** 2026-10-30. **Status:** accepted. jlogicsoftware/prudent#195; jZenDev/jZen#197 and #201.

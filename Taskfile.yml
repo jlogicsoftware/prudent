@@ -241,6 +241,27 @@ tasks:
       - python3 -m unittest discover -s scripts -p 'test_verify_proto_reflection.py'
       - python3 scripts/verify_proto_reflection.py
 
+  verify:swiftpm:
+    desc: Fail if CocoaPods has come back to the iOS or macOS runner
+    summary: |
+      THE GATE BEHIND "the Apple runners resolve every native dependency through Swift Package
+      Manager" (ADR-083, jlogicsoftware/prudent#183). Flutter falls back to CocoaPods for any
+      plugin that has no Swift package: it writes a Podfile, adds `[CP]` build phases to the Xcode
+      project and runs `pod install` on every build, and the build stays green. That is a second
+      build description beside SwiftPM, so this fails instead.
+
+      Runs scripts/verify_no_cocoapods.py over client/ios and client/macos and fails on a Podfile,
+      a Podfile.lock, a Pods/ directory, or a Pods-Runner / `[CP]` / Pods/ reference in the Xcode
+      project, a Flutter .xcconfig or the workspace. A runner that is missing is a failure, not a
+      pass.
+
+      scripts/test_verify_no_cocoapods.py runs first and is what proves the gate can fail: it
+      plants each trace in a throwaway tree and requires the gate to go red. It does NOT build a
+      runner; `task zen:build:runners` does, on a macOS host with Xcode.
+    cmds:
+      - python3 -m unittest discover -s scripts -p 'test_verify_no_cocoapods.py'
+      - python3 scripts/verify_no_cocoapods.py
+
   test:deploy-origin:
     desc: Prove the deploy's origin checks and its public-configuration wiring can fail
     summary: |
