@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/goal_allocations.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
@@ -43,11 +44,10 @@ class GoalHistoryTile extends StatelessWidget {
       locale,
     ).format(DateTime.fromMillisecondsSinceEpoch(entry.createdAtMs.toInt()));
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
+    return ZenListRow(
       leading: Icon(icon),
-      title: Text(label),
-      subtitle: Text(entry.note.isEmpty ? date : '$date · ${entry.note}'),
+      title: label,
+      subtitle: entry.note.isEmpty ? date : '$date · ${entry.note}',
       trailing: EnvelopeAmount(change, entry.currency, signed: true),
     );
   }
