@@ -13,6 +13,31 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-080 — Pin jZen's adaptive list and switch rows in CI
+
+**Date:** 2026-10-30. **Status:** accepted. **Refines:** ADR-018. jlogicsoftware/prudent#211; jZenDev/jZen#190, #192.
+
+### Decision
+
+Move `JZEN_REF` in both `.github/workflows/ci.yml` and `audit.yml` from
+`b2c6cbc834eba0eb991a3d4c5be728208b897861` to `c3fafa13220d9359f84095658b2c44a470b4b784`,
+the merge of jZen #192. This includes the adaptive switch rows from #190 and the rich list rows
+from #192 that Prudent uses.
+
+### What this supersedes, and why
+
+- **"JZEN_REF: b2c6cbc834eba0eb991a3d4c5be728208b897861"** (the CI and audit workflows) →
+  **changed.** The old revision predates the exported `ZenListRow`, so CI cannot compile the
+  client even though the local sibling checkout has the widget. The same reviewed revision is
+  used in both workflows, preserving ADR-018's pinned dependency boundary.
+
+### Consequence
+
+CI and the audit will consume the merged jZen implementation. The earlier PR run failed to compile
+against the old pin; the replacement still needs verification against this exact revision in CI.
+
+---
+
 ## ADR-079 — Sign-up and recovery mail is Prudent's to send and word; where its link points is the framework's to fix; both are reported, and nothing is built yet
 
 **Date:** 2026-10-27. **Status:** accepted. **Refines:** ADR-068, ADR-073, ADR-078.
