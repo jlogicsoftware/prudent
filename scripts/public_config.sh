@@ -3,15 +3,21 @@
 # (jlogicsoftware/prudent#166), checked and derived in one place so it can be proved without a
 # deploy. SOURCE it (`. scripts/public_config.sh`); it does not print anything on success.
 #
-# WHY THESE ARE NOT SECRETS. SUPABASE_URL, SITE_URL, CORS_ORIGINS, AUTH_REDIRECT_URI and
-# AUTH_REDIRECT_URIS are public by construction: the origin is in the app's own bundle, the
-# redirect addresses are in the app and in the identity provider's allowlist. Storing them in
+# WHY THESE ARE NOT SECRETS. SUPABASE_URL, SUPABASE_KEY, SITE_URL, CORS_ORIGINS, AUTH_REDIRECT_URI
+# and AUTH_REDIRECT_URIS are public by construction: the origin is in the app's own bundle, the
+# redirect addresses are in the app and in the identity provider's allowlist, and the publishable
+# key is the one Supabase hands to any browser, where it is visible in the network panel; what it
+# may do is bounded by row-level security, not by its secrecy. Storing them in
 # Secret Manager implied a confidentiality they do not have, was billed per version per month, and
 # made the real secrets harder to pick out.
 #
 # Inputs, from the operator's shell like WEB_API_URL (never committed, ADR-021):
 #   WEB_API_URL          the origin the web bundle is compiled to call
 #   SUPABASE_URL         https://REF.supabase.co
+#   SUPABASE_KEY         the project's PUBLISHABLE key, sb_publishable_… (ADR-075). Never a legacy
+#                        anon or service_role JWT and never a secret key: a serving process refuses
+#                        to start on either, and this refuses it first, before a ten-minute build.
+#                        The SECRET key (SUPABASE_SECRET_KEY) is NOT here and stays a secret.
 #   AUTH_REDIRECT_URIS   comma-separated native return addresses, e.g. the app's custom scheme.
 #                        Empty means no native client can sign in and nothing else notices, so
 #                        it is required rather than defaulted.
@@ -32,7 +38,7 @@
 # On any problem it prints what is wrong to stderr and EXITS the shell that sourced it.
 
 _pc_missing=0
-for _pc_v in WEB_API_URL SUPABASE_URL AUTH_REDIRECT_URIS SMTP_HOST SMTP_FROM; do
+for _pc_v in WEB_API_URL SUPABASE_URL SUPABASE_KEY AUTH_REDIRECT_URIS SMTP_HOST SMTP_FROM; do
   eval "_pc_val=\${$_pc_v:-}"
   if [ -z "${_pc_val}" ]; then
     echo "MISSING: ${_pc_v}" >&2
@@ -91,6 +97,19 @@ if [ "${#SMTP_PORT}" -gt 5 ] || [ "${SMTP_PORT}" -gt 65535 ]; then
   echo "SMTP_PORT must be a port number, got: ${SMTP_PORT}" >&2
   exit 1
 fi
+
+# The key is passed through --set-env-vars like the rest, so the same splitting rules apply; the
+# prefix is what a serving process checks at boot (ADR-075), moved to where it costs seconds.
+case "${SUPABASE_KEY}" in
+  sb_publishable_?*) ;;
+  *) echo "SUPABASE_KEY must be the publishable key (sb_publishable_…), not a legacy JWT or a secret key" >&2
+     exit 1 ;;
+esac
+case "${SUPABASE_KEY}" in
+  *[!A-Za-z0-9_-]*)
+    echo "SUPABASE_KEY must contain only letters, digits, - and _ (no comma, whitespace or @)" >&2
+    exit 1 ;;
+esac
 
 case "${SUPABASE_URL}" in
   https://?*) ;;
