@@ -219,6 +219,8 @@ def check_message(message: str, rules: dict) -> list[str]:
         )
     if subject.endswith("."):
         problems.append("Subject must not end with a period.")
+    if re.search("[\u0400-\u052F]", "\n".join(body_lines)):
+        problems.append("The commit message must be in English (it contains Cyrillic).")
     if subject != subject.strip():
         problems.append("Subject has leading or trailing whitespace.")
     if len(body_lines) > 1 and body_lines[1].strip():
