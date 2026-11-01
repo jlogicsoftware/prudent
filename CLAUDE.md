@@ -420,6 +420,18 @@ exempt, and it never fires twice in a row). `skill_guard.py` also matches **comm
 paths — so `long-job` arrives on the first slow build and `deploy` on the first `gcloud`, which
 are skills no file edit could ever have summoned.
 
+**Everything this repository publishes is written in English** — documentation, ADRs, code
+comments, issues, pull requests (title, body, comments, reviews) and commit messages — whatever
+language the conversation with the user is in. Translate before writing; never publish a
+Russian (or any other Cyrillic) draft. The one exception is the product's own Ukrainian
+localisation (Prudent ships `en`, `uk`, `pl`): Ukrainian strings in `*_uk.arb`, the `*_uk` mail
+templates and `RetentionMessagesUk`, and the tests that assert them. `.claude/hooks/english_guard.py`
+enforces it (paths in `english-rules.json`): it refuses Cyrillic in text written with Edit/Write
+and in a `gh` command that publishes text, outside those paths — inside them it still refuses the
+letters Russian has and Ukrainian lacks (yery, e, hard sign, yo) — and `git_guard.py` refuses a Cyrillic commit
+message, git-side too. Adding a path to `locale_paths` is for Ukrainian locale data only, never a
+way past the guard. Test it with `python3 .claude/hooks/test_english_guard.py`.
+
 **Branch names are `<type>/<slug>`** — `feature/`, `fix/`, `docs/`.
 
 **Every commit and every PR in this repo is authored as `konter-dev`, never any other

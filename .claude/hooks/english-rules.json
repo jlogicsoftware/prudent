@@ -1,0 +1,16 @@
+{
+  "//": "Paths where Cyrillic is Ukrainian product localisation (Prudent ships en, uk, pl), or a fixture asserting it. Russian-only letters are still refused there. See english_guard.py.",
+  "locale_paths": [
+    "client/lib/l10n/*_uk.arb",
+    "client/lib/settings.dart",
+    "server/src/main/java/prudent/retention/*Uk.java",
+    "server/src/main/resources/templates/mail/*_uk.html",
+    "supabase/templates/*",
+    "supabase/config.toml",
+    "client/test/*",
+    "server/src/test/*",
+    "scripts/test_*",
+    ".claude/hooks/test_*",
+    ".codex/hooks/test_*"
+  ]
+}

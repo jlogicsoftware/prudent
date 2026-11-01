@@ -15,6 +15,10 @@
           {
             "type": "command",
             "command": "python3 '/Users/amerezhanyi/Developer/jZenDev/prudent/.codex/hooks/worktree_guard.py'"
+          },
+          {
+            "type": "command",
+            "command": "python3 '/Users/amerezhanyi/Developer/jZenDev/prudent/.codex/hooks/english_guard.py'"
           }
         ]
       },
@@ -24,6 +28,10 @@
           {
             "type": "command",
             "command": "python3 '/Users/amerezhanyi/Developer/jZenDev/prudent/.codex/hooks/skill_guard.py'"
+          },
+          {
+            "type": "command",
+            "command": "python3 '/Users/amerezhanyi/Developer/jZenDev/prudent/.codex/hooks/english_guard.py'"
           }
         ]
       }

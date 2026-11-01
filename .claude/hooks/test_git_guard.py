@@ -70,12 +70,16 @@ check("non-blank line 2 fails", any("Line 2" in p for p in g.check_message("Subj
 check("blank line 2 passes", g.check_message("Subject\n\nbody now", R) == [])
 check("empty message fails", g.check_message("\n\n", R) != [])
 check("comment lines ignored", g.check_message("Subject\n\nbody\n# comment\n", R) == [])
-cyr = "Виправлено відображення імені у таблиці лідерів"
-check("cyrillic subject of 50 chars passes (chars, not bytes)",
-      len(cyr) <= 50 and len(cyr.encode()) > 50 and g.check_message(cyr, R) == [],
-      "chars=%d bytes=%d" % (len(cyr), len(cyr.encode())))
-check("cyrillic subject over 50 chars fails",
-      any("characters" in x for x in g.check_message(cyr + "ааааа", R)))
+multi = "Zażółć gęślą jaźń: poprawiono nazwy"
+check("multibyte subject of 50 chars or fewer passes (chars, not bytes)",
+      len(multi) <= 50 and len(multi.encode()) > len(multi) and g.check_message(multi, R) == [],
+      "chars=%d bytes=%d" % (len(multi), len(multi.encode())))
+check("multibyte subject over 50 chars fails",
+      any("characters" in x for x in g.check_message(multi + "a" * 20, R)))
+check("cyrillic message fails",
+      any("English" in x for x in g.check_message("Fix \u0431\u0430\u0433", R)))
+check("cyrillic in the body fails",
+      any("English" in x for x in g.check_message("Fix the bug\n\n\u043e\u043f\u0438\u0441", R)))
 
 check("subject_pattern enforced when set",
       any("convention" in p for p in g.check_message(
