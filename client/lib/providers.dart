@@ -69,6 +69,12 @@ final recordFilterProvider = NotifierProvider<RecordFilterNotifier, RecordFilter
 class RecordsNotifier extends AsyncNotifier<List<Record>> {
   PrudentRepository get _repository => ref.read(prudentRepositoryProvider);
 
+  List<Record> _ordered(List<Record> records) => records
+    ..sort((a, b) {
+      final date = b.date.compareTo(a.date);
+      return date != 0 ? date : a.id.compareTo(b.id);
+    });
+
   @override
   Future<List<Record>> build() async {
     final filter = ref.watch(recordFilterProvider);
@@ -79,7 +85,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
   Future<void> addRecord(CreateRecordRequest request) async {
     final result = await _repository.createRecord(request);
     final record = result.fold((r) => r, (error) => throw error);
-    state = AsyncValue.data([...?state.value, record]);
+    state = AsyncValue.data(_ordered([...?state.value, record]));
     ref.invalidate(accountsProvider);
     ref.invalidate(budgetSummaryProvider);
     ref.invalidate(goalFreeMoneyProvider);
@@ -88,9 +94,9 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
   Future<void> editRecord(String id, UpdateRecordRequest request) async {
     final result = await _repository.updateRecord(id, request);
     final updated = result.fold((r) => r, (error) => throw error);
-    state = AsyncValue.data([
+    state = AsyncValue.data(_ordered([
       for (final r in state.value ?? const <Record>[]) if (r.id == id) updated else r,
-    ]);
+    ]));
     ref.invalidate(budgetSummaryProvider);
     ref.invalidate(goalFreeMoneyProvider);
   }
@@ -121,7 +127,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
   Future<Transfer> addTransfer(CreateTransferRequest request) async {
     final result = await _repository.createTransfer(request);
     final transfer = result.fold((t) => t, (error) => throw error);
-    state = AsyncValue.data([...?state.value, transfer.fromRecord, transfer.toRecord]);
+    state = AsyncValue.data(_ordered([...?state.value, transfer.fromRecord, transfer.toRecord]));
     ref.invalidate(accountsProvider);
     ref.invalidate(goalFreeMoneyProvider);
     return transfer;
@@ -145,7 +151,7 @@ class RecordsNotifier extends AsyncNotifier<List<Record>> {
   Future<Record> addCorrection(CreateCorrectionRequest request) async {
     final result = await _repository.createCorrection(request);
     final correction = result.fold((r) => r, (error) => throw error);
-    state = AsyncValue.data([...?state.value, correction]);
+    state = AsyncValue.data(_ordered([...?state.value, correction]));
     ref.invalidate(accountsProvider);
     ref.invalidate(goalFreeMoneyProvider);
     return correction;
