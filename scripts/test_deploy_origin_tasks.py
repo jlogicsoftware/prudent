@@ -51,7 +51,7 @@ esac
 """
 
 
-PUBLIC = ("SUPABASE_URL", "SITE_URL", "CORS_ORIGINS", "AUTH_REDIRECT_URI", "AUTH_REDIRECT_URIS",
+PUBLIC = ("SUPABASE_URL", "SUPABASE_KEY", "SITE_URL", "CORS_ORIGINS", "AUTH_REDIRECT_URI", "AUTH_REDIRECT_URIS",
           "SMTP_HOST", "SMTP_PORT", "SMTP_FROM")
 MAIL_SECRETS = ("SMTP_USERNAME", "SMTP_PASSWORD")
 ADMIN_KEY = "SUPABASE_SECRET_KEY"
@@ -67,6 +67,7 @@ def service_env(site_url, secret=(), absent=(), plain=(), missing_secret=()):
     are the relay's login and the secret key (ADR-075)."""
     values = {
         "SUPABASE_URL": "https://ref.supabase.co",
+        "SUPABASE_KEY": "sb_publishable_testkey123",
         "SITE_URL": site_url,
         "CORS_ORIGINS": site_url,
         "AUTH_REDIRECT_URI": site_url + "/auth/callback",
@@ -75,7 +76,7 @@ def service_env(site_url, secret=(), absent=(), plain=(), missing_secret=()):
         "SMTP_PORT": "587",
         "SMTP_FROM": "noreply@prudent.example.org",
     }
-    lines = ["ZEN_I18N_SUPPORTED," + '"en,uk,pl",', "SUPABASE_KEY,,SUPABASE_KEY"]
+    lines = ["ZEN_I18N_SUPPORTED," + '"en,uk,pl",']
     for name in PUBLIC:
         if name in absent:
             continue
@@ -294,6 +295,14 @@ class PublicConfigOnTheService(TaskCase):
                 rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=service_env(s.origin, secret=(name,)))
                 self.assertNotEqual(rc, 0, out)
                 self.assertIn(f"FAIL  {name} is absent or still a Secret Manager reference", out)
+
+    def test_a_service_holding_a_non_publishable_key_fails(self):
+        for bad in ("eyJhbGciOiJIUzI1NiJ9.e30.sig", "sb_secret_abc"):
+            with self.subTest(value=bad), Server(Prudent) as s:
+                env = service_env(s.origin).replace("sb_publishable_testkey123", bad)
+                rc, out = self.run_verify(s.origin, STUB_SERVICE_ENV=env)
+                self.assertNotEqual(rc, 0, out)
+                self.assertIn("FAIL  SUPABASE_KEY is not a publishable key", out)
 
     def test_the_relay_login_is_checked_as_secret_references(self):
         with Server(Prudent) as s:

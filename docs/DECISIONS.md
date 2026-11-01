@@ -13,6 +13,42 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-085 — `SUPABASE_KEY`, the publishable key, is a plain environment variable and no longer a secret
+
+**Date:** 2026-11-01. **Status:** accepted. **Refines:** ADR-070, ADR-075.
+
+### Decision
+
+- **`SUPABASE_KEY` leaves Secret Manager.** It is Supabase's *publishable* key (`sb_publishable_…`), the one Supabase gives to
+  any browser; it is visible in the network panel and what it can do is bounded by row-level security, not by its secrecy. It
+  is exported in the operator's shell like `SUPABASE_URL` and passed to the migration job **and** the service as a
+  `--set-env-vars` literal. **Nine genuine secrets remain:** `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `ZEN_JOBS_TRIGGER_TOKEN`,
+  `SMTP_USERNAME`, `SMTP_PASSWORD`, and, for the service only, `APP_DB_USERNAME`, `APP_DB_PASSWORD` and `SUPABASE_SECRET_KEY`.
+  `SUPABASE_SECRET_KEY` is **not** touched: it administers every identity in the project and stays a secret bound as a reference.
+- **The kind is checked where it is cheap.** `scripts/public_config.sh` refuses anything but `sb_publishable_…` made of letters,
+  digits, `-` and `_`, before the native build, instead of at the service's boot. `verify:deploy` fails when the running service's
+  `SUPABASE_KEY` is absent, is still a Secret Manager reference, or is not a publishable key. The boot check of ADR-075 stays.
+- **It is configuration at runtime, not baked into the image.** The server reads it as MicroProfile config; the image is the same
+  for every environment. The client never uses it (it talks only to Prudent's server).
+- **A service made before this change is rebound once**, the way ADR-070 describes: remove the `SUPABASE_KEY` secret reference from
+  the job, then from the service, then run `deploy:cloudrun`. The secret is deleted afterwards.
+
+### What this supersedes, and why
+
+- **"`SUPABASE_KEY` ... a secret"** (ADR-075; `deploy:cloudrun --summary` step 2; `docs/persistent-environment.md` section 3) →
+  **changed.** *Why:* a value that every browser can read gains nothing from Secret Manager except a per-version bill and a false
+  signal of confidentiality that hides the one key that needs it. The reason ADR-075 gave for the *secret* key is untouched.
+- **"Ten genuine secrets"** (ADR-070's count as amended by ADR-073 and ADR-075) → **nine.**
+
+### Consequence
+
+- The pre-change service is the persistent environment: its `SUPABASE_KEY` secret held a key of the wrong kind, which is why
+  revision 00006 did not start on 2026-11-01 (`SUPABASE_KEY must be the project's publishable key`). The last good revision kept serving.
+- Verified: `scripts/test_public_config.py` and `scripts/test_deploy_origin_tasks.py` pass, including the refusal of a legacy JWT and a
+  secret key in either place. Not verified until the deploy it enables has run: the rebind, and the sign-in on a device.
+
+---
+
 ## ADR-084 — Sign-up and recovery mail is worded by Prudent's own templates, kept in the repository, gated offline and compared with the hosted project on demand
 
 **Date:** 2026-10-30. **Status:** accepted. **Refines:** ADR-079. jlogicsoftware/prudent#187.

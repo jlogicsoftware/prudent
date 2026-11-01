@@ -71,7 +71,7 @@ because the project holds nothing but this application's secrets. Keep it that w
 
 ## 3. Secrets and sign-in
 
-Ten secrets and eight public values: the secrets and how each is created are runbook step 2, and
+Nine secrets and nine public values: the secrets and how each is created are runbook step 2, and
 the eight public values are the five below plus the three mail values (`SMTP_HOST`, `SMTP_PORT`,
 `SMTP_FROM`, ADR-073). The five (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`,
 `AUTH_REDIRECT_URIS`) are not in Secret Manager at all (#166, ADR-070). They are plain environment
@@ -85,7 +85,10 @@ say.
 `sb_publishable_` and `SUPABASE_SECRET_KEY` begins `sb_secret_`. Until ADR-075 the runbook asked for the service-role JWT under
 `SUPABASE_KEY`, so this environment's `SUPABASE_KEY` is whatever was stored then. Before its next deploy:
 
-1. Add a new version of `SUPABASE_KEY` holding the publishable key.
+1. `SUPABASE_KEY` is no longer a secret (ADR-085): export the publishable key in the shell that runs `deploy:cloudrun` (never commit it).
+   A service that still binds it as a secret is rebound once: remove the reference from the job, then the service
+   (`gcloud run jobs update NAME-migrate ... --remove-secrets=SUPABASE_KEY`, the same for `services update`), then deploy. Delete the
+   secret afterwards.
 2. Create a secret key of its own for this service in the dashboard (Secret keys → New secret key), and create the secret
    `SUPABASE_SECRET_KEY` from it (runbook step 2). Without it the service revision does not start.
 3. If the old `SUPABASE_KEY` was the service-role JWT, it has sat in a secret that was named as harmless. Once the deploy serves,
@@ -99,7 +102,7 @@ say.
 | `APP_DB_PASSWORD` | A new secret version plus `task deploy:cloudrun`; the deploy applies it to the role (ADR-066) | Proven on a throwaway Postgres, **not** against a live service |
 | `ZEN_JOBS_TRIGGER_TOKEN` | New version, deploy, **then** update the scheduler header: `gcloud scheduler jobs update http prudent-jobs-tick --update-headers=...` | Flag exists in gcloud 587; never run |
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | A new secret version, then a deploy; the relay's own console issues the new login first | Never exercised |
-| `SUPABASE_KEY` | The publishable key: a new one in the dashboard, a new secret version, a deploy, then delete the old one. Not tried | Unknown |
+| `SUPABASE_KEY` | Not a secret since ADR-085: a plain variable, public by design. Changing it is a new value exported for the next deploy | Unknown |
 | `SUPABASE_SECRET_KEY` | A new secret key in the dashboard (Project Settings → API keys → Secret keys), a new secret version, a deploy, **then** delete the old key there | Never exercised |
 | `DB_URL`, `DB_USERNAME`, `APP_DB_USERNAME` | Derived from `REF` and the pooler host; recreate rather than rotate | — |
 

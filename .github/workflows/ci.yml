@@ -57,7 +57,11 @@ jobs:
   # Contract drift, the boundary gate, the Dart/Flutter suites, and the admin typecheck. Needs the
   # full toolchain because verify:contracts regenerates across all three languages.
   gates:
-    runs-on: ubuntu-latest
+    # Pinned, not `ubuntu-latest`: that label moved to Ubuntu 26.04, which has no Python 3.9 for
+    # actions/setup-python, and `gates` runs scripts written to the 3.9 floor. The failure is at
+    # the setup step, before any gate runs, so it looked like every PR was red. Moving the floor
+    # is its own decision; this keeps the runner the gates were written against.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Prudent
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -230,7 +234,7 @@ jobs:
   # The backend @QuarkusTest suite. Uses Quarkus Dev Services, which starts Postgres in Docker —
   # available on ubuntu-latest by default, so no extra service setup.
   backend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Prudent
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -266,7 +270,7 @@ jobs:
   # a macos-latest runner at several times the Linux rate. Covered locally on the delivery
   # machine; `task zen:build:runners` announces the skip rather than passing silently.
   android-runner:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Prudent
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -378,7 +382,7 @@ jobs:
   # suite (client/integration_test/e2e_test.dart) with no mocks. LINUX-ONLY — see windows-runner's
   # comment above.
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Prudent
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

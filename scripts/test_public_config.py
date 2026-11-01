@@ -24,9 +24,9 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
-PUBLIC = ("SUPABASE_URL", "SITE_URL", "CORS_ORIGINS", "AUTH_REDIRECT_URI", "AUTH_REDIRECT_URIS")
+PUBLIC = ("SUPABASE_URL", "SUPABASE_KEY", "SITE_URL", "CORS_ORIGINS", "AUTH_REDIRECT_URI", "AUTH_REDIRECT_URIS")
 MAIL = ("SMTP_HOST", "SMTP_PORT", "SMTP_FROM")
-SECRETS = ("SUPABASE_KEY", "DB_URL", "DB_USERNAME", "DB_PASSWORD", "ZEN_JOBS_TRIGGER_TOKEN",
+SECRETS = ("DB_URL", "DB_USERNAME", "DB_PASSWORD", "ZEN_JOBS_TRIGGER_TOKEN",
            "SMTP_USERNAME", "SMTP_PASSWORD")
 APP_DB = ("APP_DB_USERNAME", "APP_DB_PASSWORD")
 ADMIN_KEY = ("SUPABASE_SECRET_KEY",)
@@ -34,6 +34,7 @@ ADMIN_KEY = ("SUPABASE_SECRET_KEY",)
 GOOD = {
     "WEB_API_URL": "https://svc-123.europe-west1.run.app",
     "SUPABASE_URL": "https://ref.supabase.co",
+    "SUPABASE_KEY": "sb_publishable_testkey123_-abc",
     "AUTH_REDIRECT_URIS": "prudent://auth-callback",
     "SMTP_HOST": "smtp.example.org",
     "SMTP_FROM": "noreply@prudent.example.org",
@@ -98,7 +99,7 @@ class Refuses(unittest.TestCase):
             self.assertIn(f, err)
 
     def test_each_missing_input_is_named(self):
-        for name in ("WEB_API_URL", "SUPABASE_URL", "AUTH_REDIRECT_URIS", "SMTP_HOST", "SMTP_FROM"):
+        for name in ("WEB_API_URL", "SUPABASE_URL", "SUPABASE_KEY", "AUTH_REDIRECT_URIS", "SMTP_HOST", "SMTP_FROM"):
             with self.subTest(name=name):
                 self.refused({name: None}, "MISSING: " + name)
 
@@ -125,6 +126,16 @@ class Refuses(unittest.TestCase):
         for bad in ("abc", "0587", "65536", "-1", "58 7", "587.0"):
             with self.subTest(value=bad):
                 self.refused({"SMTP_PORT": bad}, "SMTP_PORT must be a port number")
+
+    def test_the_supabase_key_must_be_the_publishable_kind(self):
+        for bad in ("sb_secret_abc", "eyJhbGciOiJIUzI1NiJ9.e30.sig", "sb_publishable_", "publishable_abc"):
+            with self.subTest(value=bad):
+                self.refused({"SUPABASE_KEY": bad}, "SUPABASE_KEY must be the publishable key")
+
+    def test_the_supabase_key_cannot_carry_a_delimiter(self):
+        for bad in ("sb_publishable_a,b", "sb_publishable_a b", "sb_publishable_a@b"):
+            with self.subTest(value=bad):
+                self.refused({"SUPABASE_KEY": bad}, "SUPABASE_KEY must contain only")
 
     def test_supabase_url_must_be_https(self):
         self.refused({"SUPABASE_URL": "http://ref.supabase.co"}, "SUPABASE_URL must be an https:// URL")
@@ -178,7 +189,7 @@ class TaskfileShape(unittest.TestCase):
         self.assertIsNotNone(m, "no `gcloud run %s` call" % subcommand)
         return m.group(0)
 
-    def test_the_secret_list_holds_the_ten_genuine_secrets_and_no_public_value(self):
+    def test_the_secret_list_holds_the_nine_genuine_secrets_and_no_public_value(self):
         names = self.secrets_line("SECRETS") + self.secrets_line("APP_DB") + self.secrets_line("ADMIN_KEY")
         self.assertEqual(sorted(names), sorted(SECRETS + APP_DB + ADMIN_KEY))
         for public in PUBLIC + MAIL:

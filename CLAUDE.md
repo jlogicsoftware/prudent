@@ -202,13 +202,12 @@ own-origin link (jZenDev/jZen#154, #188) are open (ADR-079). Prudent's own `en`/
 `task verify:mail-templates:hosted` / `task deploy:mail-templates` — **not yet applied** to the persistent environment, no mail
 client tried, the real Management API not yet called. It holds test data only; real finances
 wait for #47. Its first sign-in found that no Prudent message was registered for the native image
-(#158, fixed; `task verify:reflection` guards the list). Ten genuine secrets are required (the seven of ADR-070, the relay's `SMTP_USERNAME` and `SMTP_PASSWORD`, ADR-073, and
-`SUPABASE_SECRET_KEY`, ADR-075, on the service only; both Supabase keys are the current `sb_publishable_` / `sb_secret_` kind, checked at
-boot, and which key the persistent
-environment's holds is to be checked before its next deploy);
-the five public configuration values (`SUPABASE_URL`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`, `AUTH_REDIRECT_URIS`) and the
+(#158, fixed; `task verify:reflection` guards the list). Nine genuine secrets are required (the six of ADR-070 that remain, the `APP_DB_*` pair, the relay's `SMTP_USERNAME` and `SMTP_PASSWORD`, ADR-073, and
+`SUPABASE_SECRET_KEY`, ADR-075, on the service only; `SUPABASE_KEY` is the public `sb_publishable_` key and, since ADR-085, a plain variable,
+and both Supabase keys are checked at boot);
+the six public configuration values (`SUPABASE_URL`, `SUPABASE_KEY`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`, `AUTH_REDIRECT_URIS`) and the
 three mail values (`SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`) are plain environment variables on the service and the migration job
-(ADR-070, #166, ADR-073), and `verify:deploy` fails when one is not. The persistent environment predates the mail values and has
+(ADR-070, #166, ADR-073, ADR-085), and `verify:deploy` fails when one is not. The persistent environment predates the mail values and had
 no relay yet: its next deploy needs one (`docs/persistent-environment.md`, section 3). Never invent or commit a project, region,
 service name or URL: no environment fact is ever written into this repository (ADR-021) — the tasks
 themselves are real; use them rather than treating deployment as unstarted. Run them from the main checkout: `task` does not
