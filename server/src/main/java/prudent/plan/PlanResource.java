@@ -207,6 +207,10 @@ public class PlanResource {
     if (!category.id.equals(entity.categoryId)) {
       category.requireActive();
     }
+    if (!category.id.equals(entity.categoryId)
+        || Long.signum(entity.amountMinor) != Long.signum(amountMinor)) {
+      category.requireKindFor(amountMinor);
+    }
 
     String normalized = Currencies.normalize(currency);
     if (!Currencies.isValid(normalized)) {

@@ -15,6 +15,21 @@ import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
+@$core.Deprecated('Use categoryKindDescriptor instead')
+const CategoryKind$json = {
+  '1': 'CategoryKind',
+  '2': [
+    {'1': 'CATEGORY_KIND_UNSPECIFIED', '2': 0},
+    {'1': 'CATEGORY_KIND_EXPENSE', '2': 1},
+    {'1': 'CATEGORY_KIND_INCOME', '2': 2},
+  ],
+};
+
+/// Descriptor for `CategoryKind`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List categoryKindDescriptor = $convert.base64Decode(
+    'CgxDYXRlZ29yeUtpbmQSHQoZQ0FURUdPUllfS0lORF9VTlNQRUNJRklFRBAAEhkKFUNBVEVHT1'
+    'JZX0tJTkRfRVhQRU5TRRABEhgKFENBVEVHT1JZX0tJTkRfSU5DT01FEAI=');
+
 @$core.Deprecated('Use categoryDescriptor instead')
 const Category$json = {
   '1': 'Category',
@@ -25,6 +40,14 @@ const Category$json = {
     {'1': 'description', '3': 4, '4': 1, '5': 9, '10': 'description'},
     {'1': 'color_argb', '3': 5, '4': 1, '5': 13, '10': 'colorArgb'},
     {'1': 'archived', '3': 6, '4': 1, '5': 8, '10': 'archived'},
+    {
+      '1': 'kind',
+      '3': 7,
+      '4': 1,
+      '5': 14,
+      '6': '.prudent.v1.CategoryKind',
+      '10': 'kind'
+    },
   ],
 };
 
@@ -33,7 +56,7 @@ final $typed_data.Uint8List categoryDescriptor = $convert.base64Decode(
     'CghDYXRlZ29yeRIOCgJpZBgBIAEoCVICaWQSFAoFdGl0bGUYAiABKAlSBXRpdGxlEhkKCGljb2'
     '5fa2V5GAMgASgJUgdpY29uS2V5EiAKC2Rlc2NyaXB0aW9uGAQgASgJUgtkZXNjcmlwdGlvbhId'
     'Cgpjb2xvcl9hcmdiGAUgASgNUgljb2xvckFyZ2ISGgoIYXJjaGl2ZWQYBiABKAhSCGFyY2hpdm'
-    'Vk');
+    'VkEiwKBGtpbmQYByABKA4yGC5wcnVkZW50LnYxLkNhdGVnb3J5S2luZFIEa2luZA==');
 
 @$core.Deprecated('Use createCategoryRequestDescriptor instead')
 const CreateCategoryRequest$json = {
@@ -43,6 +66,14 @@ const CreateCategoryRequest$json = {
     {'1': 'icon_key', '3': 2, '4': 1, '5': 9, '10': 'iconKey'},
     {'1': 'description', '3': 3, '4': 1, '5': 9, '10': 'description'},
     {'1': 'color_argb', '3': 4, '4': 1, '5': 13, '10': 'colorArgb'},
+    {
+      '1': 'kind',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.prudent.v1.CategoryKind',
+      '10': 'kind'
+    },
   ],
 };
 
@@ -50,7 +81,8 @@ const CreateCategoryRequest$json = {
 final $typed_data.Uint8List createCategoryRequestDescriptor = $convert.base64Decode(
     'ChVDcmVhdGVDYXRlZ29yeVJlcXVlc3QSFAoFdGl0bGUYASABKAlSBXRpdGxlEhkKCGljb25fa2'
     'V5GAIgASgJUgdpY29uS2V5EiAKC2Rlc2NyaXB0aW9uGAMgASgJUgtkZXNjcmlwdGlvbhIdCgpj'
-    'b2xvcl9hcmdiGAQgASgNUgljb2xvckFyZ2I=');
+    'b2xvcl9hcmdiGAQgASgNUgljb2xvckFyZ2ISLAoEa2luZBgFIAEoDjIYLnBydWRlbnQudjEuQ2'
+    'F0ZWdvcnlLaW5kUgRraW5k');
 
 @$core.Deprecated('Use updateCategoryRequestDescriptor instead')
 const UpdateCategoryRequest$json = {
@@ -60,6 +92,14 @@ const UpdateCategoryRequest$json = {
     {'1': 'icon_key', '3': 2, '4': 1, '5': 9, '10': 'iconKey'},
     {'1': 'description', '3': 3, '4': 1, '5': 9, '10': 'description'},
     {'1': 'color_argb', '3': 4, '4': 1, '5': 13, '10': 'colorArgb'},
+    {
+      '1': 'kind',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.prudent.v1.CategoryKind',
+      '10': 'kind'
+    },
   ],
 };
 
@@ -67,7 +107,8 @@ const UpdateCategoryRequest$json = {
 final $typed_data.Uint8List updateCategoryRequestDescriptor = $convert.base64Decode(
     'ChVVcGRhdGVDYXRlZ29yeVJlcXVlc3QSFAoFdGl0bGUYASABKAlSBXRpdGxlEhkKCGljb25fa2'
     'V5GAIgASgJUgdpY29uS2V5EiAKC2Rlc2NyaXB0aW9uGAMgASgJUgtkZXNjcmlwdGlvbhIdCgpj'
-    'b2xvcl9hcmdiGAQgASgNUgljb2xvckFyZ2I=');
+    'b2xvcl9hcmdiGAQgASgNUgljb2xvckFyZ2ISLAoEa2luZBgFIAEoDjIYLnBydWRlbnQudjEuQ2'
+    'F0ZWdvcnlLaW5kUgRraW5k');
 
 @$core.Deprecated('Use listCategoriesResponseDescriptor instead')
 const ListCategoriesResponse$json = {

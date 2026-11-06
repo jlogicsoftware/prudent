@@ -19,6 +19,20 @@ option java_multiple_files = true;
 // convention, so the descriptor holder can never collide with a message name added later.
 option java_outer_classname = "CategoriesProto";
 
+// Which side of the ledger a category files records on (jlogicsoftware/prudent#229). A record's
+// sign is its direction (records.proto), so a category is offered, and accepted, only for the
+// direction it names.
+enum CategoryKind {
+  // A category that predates the kind, or one created without it. It is usable for both
+  // directions, so nothing a user already filed changes meaning; editing the category and
+  // choosing a kind is how it leaves this state.
+  CATEGORY_KIND_UNSPECIFIED = 0;
+  // Files expenses (negative records) only.
+  CATEGORY_KIND_EXPENSE = 1;
+  // Files income (positive records) only.
+  CATEGORY_KIND_INCOME = 2;
+}
+
 // A spending category, as the server holds it.
 message Category {
   // Server-minted UUID. A create request carries no id: an id chosen by an untrusted client
@@ -54,6 +68,9 @@ message Category {
   // or budget. The default, false, is the active state, so a message from a server that predates
   // the field reads as active. Set only by archive and restore, never by create or update.
   bool archived = 6;
+
+  // See CategoryKind. Changing it never touches records already filed under the category.
+  CategoryKind kind = 7;
 }
 
 // POST /api/v1/categories
@@ -62,6 +79,7 @@ message CreateCategoryRequest {
   string icon_key = 2;
   string description = 3;
   uint32 color_argb = 4;
+  CategoryKind kind = 5;
 }
 
 // PUT /api/v1/categories/{id} — A FULL REPLACEMENT, not a patch.
@@ -80,6 +98,7 @@ message UpdateCategoryRequest {
   string icon_key = 2;
   string description = 3;
   uint32 color_argb = 4;
+  CategoryKind kind = 5;
 }
 
 // GET /api/v1/categories — every category owned by the authenticated user.

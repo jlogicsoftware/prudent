@@ -112,7 +112,7 @@ public class CategoryResource {
     entity.id = UUID.randomUUID();
     entity.userId = userId;
     apply(entity, request.getTitle(), request.getIconKey(), request.getDescription(),
-        request.getColorArgb());
+        request.getColorArgb(), request.getKindValue());
     entity.persist();
     return Response.status(Response.Status.CREATED).entity(mapper.toProto(entity)).build();
   }
@@ -137,7 +137,7 @@ public class CategoryResource {
     // explicitly-sent default are byte-identical on the wire — a merge would have to guess which
     // it received, and would guess wrong half the time.
     apply(entity, request.getTitle(), request.getIconKey(), request.getDescription(),
-        request.getColorArgb());
+        request.getColorArgb(), request.getKindValue());
     return Response.ok(mapper.toProto(entity)).build();
   }
 
@@ -260,7 +260,8 @@ public class CategoryResource {
    * only until a user edits something.
    */
   private void apply(
-      CategoryEntity entity, String title, String iconKey, String description, int colorArgb) {
+      CategoryEntity entity, String title, String iconKey, String description, int colorArgb,
+      int kind) {
     if (title == null || title.isBlank()) {
       throw PrudentException.invalid("A category needs a title.");
     }
@@ -268,6 +269,10 @@ public class CategoryResource {
       throw PrudentException.invalid(
           "Unknown icon_key '" + iconKey + "'. Permitted: " + IconKeys.PERMITTED);
     }
+    if (kind < 0 || kind > 2) {
+      throw PrudentException.invalid("Unknown category kind " + kind + ".");
+    }
+    entity.kind = (short) kind;
     entity.title = title.trim();
     entity.iconKey = iconKey;
     entity.description = description == null ? "" : description;

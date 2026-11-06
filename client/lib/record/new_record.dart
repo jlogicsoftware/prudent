@@ -135,9 +135,14 @@ class _NewRecordState extends ConsumerState<NewRecord> {
     final categories = selectableCategories(
       ref.watch(categoriesProvider).value ?? const <Category>[],
       keep: widget.initialRecord?.categoryId,
+      expense: _isExpense,
     );
     final accounts = ref.watch(accountsProvider).value ?? const <Account>[];
-    _selectedCategoryId ??= categories.isNotEmpty ? categories.first.id : null;
+    // Switching between expense and income changes the list; a pick that is no longer offered gives
+    // way to the first one that is (jlogicsoftware/prudent#229).
+    if (!categories.any((c) => c.id == _selectedCategoryId)) {
+      _selectedCategoryId = categories.isNotEmpty ? categories.first.id : null;
+    }
     if (_selectedAccountId == null && accounts.isNotEmpty) {
       // The currency is the account's, so preselecting an account takes its currency with it.
       _selectedAccountId = accounts.first.id;

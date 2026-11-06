@@ -68,6 +68,19 @@ public class CategoryEntity extends PanacheEntityBase {
   @Column(name = "archived_at")
   public Instant archivedAt;
 
+  /** {@code CategoryKind} number: 0 either direction, 1 expense, 2 income (#229). */
+  @Column(nullable = false)
+  public short kind;
+
+  /** Refuses (400) a record of this direction when the category is for the other one. */
+  public void requireKindFor(long amountMinor) {
+    if (kind == 1 && amountMinor > 0 || kind == 2 && amountMinor < 0) {
+      throw PrudentException.invalid(
+          "Category '" + title + "' is for " + (kind == 1 ? "expenses" : "income")
+              + ", so it cannot file " + (kind == 1 ? "income" : "an expense") + ".");
+    }
+  }
+
   public boolean isArchived() {
     return archivedAt != null;
   }

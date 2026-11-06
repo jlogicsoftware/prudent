@@ -31,7 +31,7 @@ public abstract class CategoryMapper {
 
   /** Flat view of the wire-relevant entity fields; MapStruct fills it in. */
   public record CategoryView(
-      String id, String title, String iconKey, String description, int colorArgb, boolean archived) {}
+      String id, String title, String iconKey, String description, int colorArgb, boolean archived, int kind) {}
 
   @Mapping(target = "id", source = "id", qualifiedByName = "uuidToString")
   @Mapping(target = "colorArgb", source = "colorArgb", qualifiedByName = "toUint32")
@@ -51,6 +51,7 @@ public abstract class CategoryMapper {
         .setDescription(view.description() != null ? view.description() : "")
         .setColorArgb(view.colorArgb())
         .setArchived(view.archived())
+        .setKindValue(view.kind())
         .build();
   }
 
