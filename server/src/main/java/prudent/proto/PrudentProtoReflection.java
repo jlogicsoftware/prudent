@@ -8,6 +8,7 @@ import prudent.proto.v1.BudgetCarryOverReset;
 import prudent.proto.v1.BudgetSummaryResponse;
 import prudent.proto.v1.Category;
 import prudent.proto.v1.CategoryBudgetSummary;
+import prudent.proto.v1.CategoryKind;
 import prudent.proto.v1.CategorySpend;
 import prudent.proto.v1.ConfirmOccurrenceRequest;
 import prudent.proto.v1.ConfirmOccurrenceResponse;
@@ -100,6 +101,7 @@ import prudent.proto.v1.UpdateSettingsRequest;
       BudgetSummaryResponse.class,
       Category.class,
       CategoryBudgetSummary.class,
+      CategoryKind.class,
       CategorySpend.class,
       ConfirmOccurrenceRequest.class,
       ConfirmOccurrenceResponse.class,
