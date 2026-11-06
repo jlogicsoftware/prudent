@@ -40,4 +40,15 @@ void main() {
       'rent',
     ]);
   });
+
+  test('a record is offered only the categories of its own direction (#229)', () {
+    final byKind = [
+      Category(id: 'food', title: 'food', kind: CategoryKind.CATEGORY_KIND_EXPENSE),
+      Category(id: 'salary', title: 'salary', kind: CategoryKind.CATEGORY_KIND_INCOME),
+      _category('legacy'),
+    ];
+    expect(selectableCategories(byKind, expense: true).map((c) => c.id), ['food', 'legacy']);
+    expect(selectableCategories(byKind, expense: false).map((c) => c.id), ['salary', 'legacy']);
+    expect(selectableCategories(byKind).map((c) => c.id), ['food', 'salary', 'legacy']);
+  });
 }

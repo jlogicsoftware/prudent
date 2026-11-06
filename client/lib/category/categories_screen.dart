@@ -36,6 +36,7 @@ class CategoriesScreen extends ConsumerWidget {
                     required iconKey,
                     required description,
                     required colorArgb,
+                    required kind,
                   }) => ref
                       .read(categoriesProvider.notifier)
                       .addCategory(
@@ -44,6 +45,7 @@ class CategoriesScreen extends ConsumerWidget {
                           iconKey: iconKey,
                           description: description,
                           colorArgb: colorArgb,
+                          kind: kind,
                         ),
                       ),
             ),
@@ -109,6 +111,7 @@ class CategoriesScreen extends ConsumerWidget {
                                       required iconKey,
                                       required description,
                                       required colorArgb,
+                                      required kind,
                                     }) => ref
                                         .read(categoriesProvider.notifier)
                                         .editCategory(
@@ -118,6 +121,7 @@ class CategoriesScreen extends ConsumerWidget {
                                             iconKey: iconKey,
                                             description: description,
                                             colorArgb: colorArgb,
+                                            kind: kind,
                                           ),
                                         ),
                               ),

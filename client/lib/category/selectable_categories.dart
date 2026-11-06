@@ -10,7 +10,20 @@ import '../generated/prudent/v1/categories.pb.dart';
 ///
 /// Lists, filters and history screens do not use this: they show every category, archived or not,
 /// because a record's category must stay readable.
-List<Category> selectableCategories(List<Category> all, {String? keep}) => [
+///
+/// [expense] narrows the list to the direction of the record being written (jlogicsoftware/prudent#229):
+/// an expense is offered the expense categories, income the income ones, and a category with no kind
+/// (one that predates the field) serves both. Null offers every kind.
+List<Category> selectableCategories(List<Category> all, {String? keep, bool? expense}) => [
   for (final category in all)
-    if (!category.archived || category.id == keep) category,
+    if ((!category.archived && _suits(category, expense)) || category.id == keep) category,
 ];
+
+bool _suits(Category category, bool? expense) {
+  if (expense == null) return true;
+  return switch (category.kind) {
+    CategoryKind.CATEGORY_KIND_EXPENSE => expense,
+    CategoryKind.CATEGORY_KIND_INCOME => !expense,
+    _ => true,
+  };
+}

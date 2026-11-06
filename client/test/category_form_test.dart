@@ -35,7 +35,7 @@ void main() {
         home: Scaffold(
           body: NewCategory(
             onSave:
-                ({required title, required iconKey, required description, required colorArgb}) =>
+                ({required title, required iconKey, required description, required colorArgb, required kind}) =>
                     saved = _Saved(title, iconKey, description, colorArgb),
           ),
         ),

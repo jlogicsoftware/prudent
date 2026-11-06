@@ -19,6 +19,7 @@ class NewCategory extends StatefulWidget {
     required String iconKey,
     required String description,
     required int colorArgb,
+    required CategoryKind kind,
   })
   onSave;
 
@@ -31,6 +32,7 @@ class _NewCategoryState extends State<NewCategory> {
   final _descriptionController = TextEditingController();
   late String _selectedIconKey;
   late int _selectedColorArgb;
+  late bool _isExpense;
 
   @override
   void initState() {
@@ -41,7 +43,10 @@ class _NewCategoryState extends State<NewCategory> {
       _descriptionController.text = initial.description;
       _selectedIconKey = initial.iconKey;
       _selectedColorArgb = initial.colorArgb;
+      // A category that predates the kind shows as an expense until the user chooses.
+      _isExpense = initial.kind != CategoryKind.CATEGORY_KIND_INCOME;
     } else {
+      _isExpense = true;
       _selectedIconKey = prudentCategoryIcons.keys.first;
       _selectedColorArgb = Colors.black.toARGB32();
     }
@@ -69,6 +74,7 @@ class _NewCategoryState extends State<NewCategory> {
       iconKey: _selectedIconKey,
       description: _descriptionController.text.trim(),
       colorArgb: _selectedColorArgb,
+      kind: _isExpense ? CategoryKind.CATEGORY_KIND_EXPENSE : CategoryKind.CATEGORY_KIND_INCOME,
     );
     Navigator.pop(context);
   }
@@ -93,6 +99,15 @@ class _NewCategoryState extends State<NewCategory> {
               label: t.categoryTitleField,
               controller: _titleController,
               maxLength: 50,
+            ),
+            const SizedBox(height: 16),
+            ZenSegmentedControl<bool>(
+              segments: [
+                ZenSegment(value: true, label: t.recordsExpense),
+                ZenSegment(value: false, label: t.recordsIncome),
+              ],
+              selected: _isExpense,
+              onChanged: (value) => setState(() => _isExpense = value),
             ),
             const SizedBox(height: 16),
             ZenTextField(

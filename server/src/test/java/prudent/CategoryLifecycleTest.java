@@ -282,6 +282,24 @@ class CategoryLifecycleTest {
 
   // --- An archived category takes nothing new ---------------------------------------------------
 
+  /** Sets the category's kind directly: 1 expense, 2 income (#229). */
+  private static void setKind(UUID category, int kind) {
+    io.quarkus.narayana.jta.QuarkusTransaction.requiringNew()
+        .run(() -> prudent.category.CategoryEntity.update("kind = ?1 where id = ?2", kind, category));
+  }
+
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void aCategoryOfOneKindRefusesARecordOfTheOther() throws Exception {
+    setKind(food, 1);
+    setKind(rent, 2);
+
+    // newRecord(...) files an expense (negative amount).
+    assertEquals(201, postRecord(newRecord(food).build()).statusCode());
+    ZenError error = refused(postRecord(newRecord(rent).build()), 400);
+    assertTrue(error.getMessage().contains("income"), error.getMessage());
+  }
+
   @Test
   @TestSecurity(user = PrudentTest.ALICE)
   void anArchivedCategoryTakesNoNewRecordAndRestoreReopensIt() throws Exception {

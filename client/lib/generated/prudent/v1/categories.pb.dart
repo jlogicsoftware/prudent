@@ -14,7 +14,11 @@ import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
 
+import 'categories.pbenum.dart';
+
 export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
+
+export 'categories.pbenum.dart';
 
 /// A spending category, as the server holds it.
 class Category extends $pb.GeneratedMessage {
@@ -25,6 +29,7 @@ class Category extends $pb.GeneratedMessage {
     $core.String? description,
     $core.int? colorArgb,
     $core.bool? archived,
+    CategoryKind? kind,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -33,6 +38,7 @@ class Category extends $pb.GeneratedMessage {
     if (description != null) result.description = description;
     if (colorArgb != null) result.colorArgb = colorArgb;
     if (archived != null) result.archived = archived;
+    if (kind != null) result.kind = kind;
     return result;
   }
 
@@ -55,6 +61,8 @@ class Category extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'description')
     ..aI(5, _omitFieldNames ? '' : 'colorArgb', fieldType: $pb.PbFieldType.OU3)
     ..aOB(6, _omitFieldNames ? '' : 'archived')
+    ..aE<CategoryKind>(7, _omitFieldNames ? '' : 'kind',
+        enumValues: CategoryKind.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -150,6 +158,16 @@ class Category extends $pb.GeneratedMessage {
   $core.bool hasArchived() => $_has(5);
   @$pb.TagNumber(6)
   void clearArchived() => $_clearField(6);
+
+  /// See CategoryKind. Changing it never touches records already filed under the category.
+  @$pb.TagNumber(7)
+  CategoryKind get kind => $_getN(6);
+  @$pb.TagNumber(7)
+  set kind(CategoryKind value) => $_setField(7, value);
+  @$pb.TagNumber(7)
+  $core.bool hasKind() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearKind() => $_clearField(7);
 }
 
 /// POST /api/v1/categories
@@ -159,12 +177,14 @@ class CreateCategoryRequest extends $pb.GeneratedMessage {
     $core.String? iconKey,
     $core.String? description,
     $core.int? colorArgb,
+    CategoryKind? kind,
   }) {
     final result = create();
     if (title != null) result.title = title;
     if (iconKey != null) result.iconKey = iconKey;
     if (description != null) result.description = description;
     if (colorArgb != null) result.colorArgb = colorArgb;
+    if (kind != null) result.kind = kind;
     return result;
   }
 
@@ -185,6 +205,8 @@ class CreateCategoryRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'iconKey')
     ..aOS(3, _omitFieldNames ? '' : 'description')
     ..aI(4, _omitFieldNames ? '' : 'colorArgb', fieldType: $pb.PbFieldType.OU3)
+    ..aE<CategoryKind>(5, _omitFieldNames ? '' : 'kind',
+        enumValues: CategoryKind.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -242,6 +264,15 @@ class CreateCategoryRequest extends $pb.GeneratedMessage {
   $core.bool hasColorArgb() => $_has(3);
   @$pb.TagNumber(4)
   void clearColorArgb() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  CategoryKind get kind => $_getN(4);
+  @$pb.TagNumber(5)
+  set kind(CategoryKind value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasKind() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearKind() => $_clearField(5);
 }
 
 /// PUT /api/v1/categories/{id} — A FULL REPLACEMENT, not a patch.
@@ -259,12 +290,14 @@ class UpdateCategoryRequest extends $pb.GeneratedMessage {
     $core.String? iconKey,
     $core.String? description,
     $core.int? colorArgb,
+    CategoryKind? kind,
   }) {
     final result = create();
     if (title != null) result.title = title;
     if (iconKey != null) result.iconKey = iconKey;
     if (description != null) result.description = description;
     if (colorArgb != null) result.colorArgb = colorArgb;
+    if (kind != null) result.kind = kind;
     return result;
   }
 
@@ -285,6 +318,8 @@ class UpdateCategoryRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'iconKey')
     ..aOS(3, _omitFieldNames ? '' : 'description')
     ..aI(4, _omitFieldNames ? '' : 'colorArgb', fieldType: $pb.PbFieldType.OU3)
+    ..aE<CategoryKind>(5, _omitFieldNames ? '' : 'kind',
+        enumValues: CategoryKind.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -344,6 +379,15 @@ class UpdateCategoryRequest extends $pb.GeneratedMessage {
   $core.bool hasColorArgb() => $_has(3);
   @$pb.TagNumber(4)
   void clearColorArgb() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  CategoryKind get kind => $_getN(4);
+  @$pb.TagNumber(5)
+  set kind(CategoryKind value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasKind() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearKind() => $_clearField(5);
 }
 
 /// GET /api/v1/categories — every category owned by the authenticated user.

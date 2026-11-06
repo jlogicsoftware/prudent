@@ -74,6 +74,12 @@ public class RecordWriter {
     if (!category.id.equals(entity.categoryId)) {
       category.requireActive();
     }
+    // The category must suit the record's direction (#229) — checked when either one changes, so
+    // an old record can still be edited in a category whose kind was set later.
+    if (!category.id.equals(entity.categoryId)
+        || Long.signum(entity.amountMinor) != Long.signum(amountMinor)) {
+      category.requireKindFor(amountMinor);
+    }
 
     String normalized = Currencies.normalize(currency);
     if (!Currencies.isValid(normalized)) {
