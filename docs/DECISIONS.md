@@ -13,6 +13,39 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-086 — Skwasm stays single-threaded while the page remains non-isolated
+
+**Date:** 2026-11-06. **Status:** accepted. **Closes:** jlogicsoftware/prudent#230. **Follows:** jZen ADR-016, ADR-035.
+
+### Decision
+
+- Prudent keeps the browser page non-isolated and accepts Flutter's single-threaded Skwasm fallback.
+  Multi-threading is a performance option; the app does not require it to function.
+- `client/web/flutter_bootstrap.js` sets Flutter's `suppressMultithreadingWarning` configuration.
+  This only silences the warning; it does not enable workers or change the renderer.
+- Prudent does not add `Cross-Origin-Embedder-Policy` itself. Those response headers belong to
+  jZen's shared HTTP security-header layer. jZen ADR-035 deliberately omits COEP until the page's
+  cross-origin resources have passed a browser compatibility check.
+- The release app and API remain same-origin, preserving the session-cookie flow. Prudent's browser
+  auth calls its own API; it does not call Supabase directly.
+
+### Why this resolves the issue
+
+Issue #230 asks whether to enable isolation or keep the fallback quiet. The release Wasm build
+reproduced the warning in Chrome while rendering the login screen. The warning reports a
+single-threaded fallback, not a failure. Adding COEP would be a page-wide framework response-header
+change, and the framework's existing security decision leaves it out pending browser verification.
+Prudent records and follows that boundary instead of opting the app into isolation on its own.
+
+### Consequence
+
+Flutter's web build consumes this bootstrap template. The page remains non-isolated and
+single-threaded, with the diagnostic suppressed. Verified in Chrome after rebuilding the Wasm
+bundle: the login screen renders and the Skwasm warning is absent. The sign-in flow itself was not
+exercised because this local browser run had no backend.
+
+---
+
 ## ADR-085 — `SUPABASE_KEY`, the publishable key, is a plain environment variable and no longer a secret
 
 **Date:** 2026-11-01. **Status:** accepted. **Refines:** ADR-070, ADR-075.
