@@ -70,7 +70,7 @@ public class CategoryEntity extends PanacheEntityBase {
 
   /** {@code CategoryKind} number: 0 either direction, 1 expense, 2 income (#229). */
   @Column(nullable = false)
-  public int kind;
+  public short kind;
 
   /** Refuses (400) a record of this direction when the category is for the other one. */
   public void requireKindFor(long amountMinor) {

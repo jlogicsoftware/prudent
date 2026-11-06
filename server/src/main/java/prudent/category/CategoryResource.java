@@ -272,7 +272,7 @@ public class CategoryResource {
     if (kind < 0 || kind > 2) {
       throw PrudentException.invalid("Unknown category kind " + kind + ".");
     }
-    entity.kind = kind;
+    entity.kind = (short) kind;
     entity.title = title.trim();
     entity.iconKey = iconKey;
     entity.description = description == null ? "" : description;
