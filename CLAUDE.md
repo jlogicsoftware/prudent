@@ -213,6 +213,12 @@ service name or URL: no environment fact is ever written into this repository (A
 themselves are real; use them rather than treating deployment as unstarted. Run them from the main checkout: `task` does not
 load from a git worktree (ADR-065).
 
+**A deploy cleans up after itself (ADR-087, #165).** `deploy:cloudrun` pins the pushed image (`deploy:pin`, jZen's
+`zen:deploy:pin`) before anything is pointed at it and ends with `deploy:cleanup` (jZen's `zen:deploy:cleanup`) once the
+service is accepted: 5 revisions / 14 days, 30 registry versions / 30 days, failure mode `fail`, passed as command-line
+variables because nothing else beats jZen's own declarations. `scripts/test_deploy_cleanup.py` (in `test:deploy-origin`)
+proves the calls and the non-zero exit. It has **not been run against the persistent environment**; that run is the owner's.
+
 **Done: the structural flattening (ADR-026).** Client code is now flat under `client/lib/` on a
 capability-folder layout (`account/ analytics/ auth/ category/ generated/ l10n/ overview/ record/`
 plus flat files) — `client/lib/src/` is gone. The server package is `prudent.*` (`prudent/server/`

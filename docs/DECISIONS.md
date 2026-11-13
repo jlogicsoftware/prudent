@@ -13,6 +13,61 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-087 — A deploy pins its image and ends by running jZen's cleanup, with Prudent's numbers and a failure mode that fails
+
+**Date:** 2026-11-13. **Status:** accepted. jlogicsoftware/prudent#165, which stays open until the persistent environment's first run. **Follows:** ADR-021, ADR-065, ADR-069, jZen ADR-074.
+
+### Decision
+
+- `deploy:cloudrun` **pins the pushed image** (`deploy:pin`, which calls jZen's `zen:deploy:pin`) right
+  after `docker push` and before the migration job or the service is pointed at it. If the pin fails the
+  deploy stops, while nothing yet depends on the image.
+- `deploy:cloudrun` **ends with `deploy:cleanup`**, which calls jZen's `zen:deploy:cleanup`, after
+  `deploy:accept-origin` — that is, once the service is accepted. Nothing follows it.
+- Prudent's numbers:
+
+  | Setting | Value | Why |
+  |---|---|---|
+  | `CLEANUP_KEEP_VERSIONS` | 30 | A deploy leaves three registry versions (a tagged index, the untagged image Cloud Run runs, an attestation), so 30 is the last ten deploys per package. Prudent deploys rarely and in bursts; a count, not an age, is what keeps a rollback target after a quiet month. |
+  | `CLEANUP_IMAGE_DAYS` | 30 | Versions younger than this are never deleted. Must exceed `CLEANUP_REVISION_DAYS` (an image is older than its revision). |
+  | `CLEANUP_KEEP_REVISIONS` | 5 | A rollback target and a few before it. Revisions cost nothing at idle; the point is that the list stays readable. |
+  | `CLEANUP_REVISION_DAYS` | 14 | A revision younger than two weeks is never deleted, whatever the count. |
+
+  Anything a revision or job still needs is pinned and kept however old; a serving revision is never
+  selected. The other `CLEANUP_*` switches keep jZen's defaults (local Docker cleaned, build cache
+  older than 168 hours).
+- **The failure mode is `fail`, and it is Prudent's, not the shell's.** The numbers and
+  `CLEANUP_ON_FAILURE=fail` are passed to jZen's task as command-line variables. Measured on
+  go-task 3.53.1: a variable the included Taskfile declares beats a `vars:` entry on the include and
+  on a `- task:` call (an include var of 5 still printed jZen's default of 3), and an exported variable
+  beats those but not a command-line one. Command-line variables are the only way in that cannot be
+  overridden by an exported `CLEANUP_ON_FAILURE=warn`. Changing a number is therefore an edit and an
+  ADR, not an environment variable. `CLEANUP=off` and `CLEANUP_DRY_RUN=1` are left to reach jZen's
+  task: one skips the cleanup deliberately and visibly, the other changes nothing.
+- A cleanup that cannot finish exits non-zero, and jZen's report says the deploy itself succeeded. It is
+  never reported as success (CLAUDE.md, "Nothing swallows a failure"). Re-run `task deploy:cleanup`
+  alone after fixing the cause.
+- The runbook's teardown (step 4) is unchanged: it is for throwaway environments and still deletes the
+  whole project. No environment fact is written into the repository (ADR-021): the wrappers read the
+  project, region, service and repository from the shell like the rest of `deploy:cloudrun`.
+
+### What is covered and what is not
+
+`scripts/test_deploy_cleanup.py` (run by `task test:deploy-origin`, in CI) runs `task deploy:pin` and
+`task deploy:cleanup` against a stub `gcloud` and `docker` that record their calls: the pin tags the
+digest of this commit, an image missing from the registry fails, the cleanup runs with 5, 14, 30 and 30,
+a failed registry listing exits non-zero and says the deploy succeeded even with an exported
+`CLEANUP_ON_FAILURE=warn`, and a dry run deletes nothing. The order inside `deploy:cloudrun` (pin after
+the push and before the first `gcloud run`, cleanup last) is read from the Taskfile text, because the
+task itself builds a native image and cannot run in a test.
+
+**Not done by this entry:** the cleanup has not been run against the persistent environment. jZen
+validated its mechanism on its own production environment on 2026-11-13 (37 to 20 versions, a rerun
+deleted none). Prudent's own run — a `CLEANUP_DRY_RUN=1` read, the real run, and the registry listed
+before and after — is the operator's, and the result belongs in this record when it exists.
+
+---
+
 ## ADR-086 — Skwasm stays single-threaded while the page remains non-isolated
 
 **Date:** 2026-11-06. **Status:** accepted. **Closes:** jlogicsoftware/prudent#230. **Follows:** jZen ADR-016, ADR-035.
