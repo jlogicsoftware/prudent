@@ -344,11 +344,19 @@ tasks:
                                       only), the five public values and the three mail values as
                                       literals on the job AND the service.
 
+        test_deploy_cleanup.py        the pin and the cleanup (ADR-087, #165): `task deploy:pin` and
+                                      `task deploy:cleanup` against a stub gcloud that records its
+                                      calls, including a cleanup that fails and must exit non-zero;
+                                      and, from the Taskfile text, that deploy:cloudrun pins after
+                                      the push and before anything runs the image, and cleans up
+                                      last, after the service is accepted.
+
       It needs python3, curl and go-task; it starts no container and touches no cloud.
     cmds:
       - python3 -m unittest discover -s scripts -p 'test_check_origin_serves.py'
       - python3 -m unittest discover -s scripts -p 'test_deploy_origin_tasks.py'
       - python3 -m unittest discover -s scripts -p 'test_public_config.py'
+      - python3 -m unittest discover -s scripts -p 'test_deploy_cleanup.py'
 
   test:admin:
     desc: Typecheck the admin panel (also typechecks the @jzen/admin-core scaffold it imports)
@@ -1154,6 +1162,19 @@ tasks:
            had also stopped appearing under the billing account's projects. Say that in the record
            rather than reporting "gone".
 
+      WHAT IT REMOVES, AND WHEN (ADR-087). It adds nothing to what a deploy needs, but it stops the
+      environment accumulating what deploys leave. Two calls into jZen's cleanup, neither
+      reimplemented here:
+        - RIGHT AFTER THE PUSH, before the migration job or the service is pointed at the image:
+          `zen:deploy:pin` tags the digest `zen-pin-<digest>`, which the cleanup never deletes. If
+          the pin fails the deploy stops, while nothing yet depends on the image.
+        - LAST, after the service is accepted (deploy:accept-origin): `deploy:cleanup` removes
+          revisions older than 14 days beyond the newest 5 that are not serving, then registry
+          versions older than 30 days, untagged or tagged with a commit, beyond the newest 30 per
+          package, then superseded local Docker state. Run `task deploy:cleanup --summary`.
+      A cleanup that cannot finish exits non-zero and says the deploy itself succeeded: the service
+      is live. It is never reported as success. Step 4's teardown is separate and unchanged.
+
       This task never touches your global gcloud config, so it cannot leave your shell pointed at
       a project you did not choose. Every call passes --project explicitly.
     vars:
@@ -1214,6 +1235,15 @@ tasks:
           -f {{.SERVER_DIR}}/src/main/docker/Dockerfile.native-micro \
           -t "${IMAGE}" {{.SERVER_DIR}}
         docker push "${IMAGE}"
+
+      # PIN BEFORE ANYTHING IS POINTED AT THE IMAGE (ADR-087). The cleanup never deletes a pinned
+      # digest; a job or revision that exists before its pin is the gap it could delete an image
+      # through. A failure stops the deploy while nothing yet depends on the image. deploy:pin
+      # derives the tag from HEAD exactly as this task does; a call var would lose to its own.
+      - task: deploy:pin
+      - |
+        set -eu
+        IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/${ARTIFACT_REPO}/prudent-server:{{.IMAGE_TAG}}"
 
         # Nine genuine secrets (#166, ADR-073, ADR-075, ADR-085): these six, the APP_DB_* pair and the
         # secret key below. The APP_DB_* pair and the key go to the SERVICE ONLY: the
@@ -1321,6 +1351,80 @@ tasks:
 
       # The deploy is not finished until the origin the bundle calls answers as Prudent.
       - task: deploy:accept-origin
+
+      # Last, and only reached once the service is accepted: what this deploy and the ones before it
+      # left behind. The service is live by now, so a failure here exits non-zero and says the
+      # deploy itself succeeded (CLEANUP_ON_FAILURE=fail, ADR-087).
+      - task: deploy:cleanup
+
+  deploy:pin:
+    desc: Protect the image deploy:cloudrun pushed from the cleanup, before anything runs it
+    silent: true
+    summary: |
+      Run by deploy:cloudrun right after the push and before the migration job or the service is
+      pointed at the image (ADR-087), and runnable alone for the image of the current commit. It is
+      jZen's `zen:deploy:pin` for `<region>-docker.pkg.dev/<project>/<repo>/prudent-server:<commit>`:
+      the digest is tagged `zen-pin-<digest>`, which deploy:cleanup never deletes, and the task
+      fails if the image is not in the registry. Needs GCP_PROJECT, GCP_REGION and ARTIFACT_REPO.
+      An image run from somewhere the cleanup cannot see needs a hold, not a pin:
+      `task zen:deploy:pin AR_REPO=... PIN_IMAGE=... PIN_HOLD=<name>`.
+    vars:
+      IMAGE_TAG:
+        sh: git rev-parse --short HEAD
+    cmds:
+      - task: zen:deploy:pin
+        vars:
+          GCP_PROJECT: '{{.GCP_PROJECT}}'
+          GCP_REGION: '{{.GCP_REGION}}'
+          AR_REPO: '{{.ARTIFACT_REPO}}'
+          PIN_IMAGE: '{{.GCP_REGION}}-docker.pkg.dev/{{.GCP_PROJECT}}/{{.ARTIFACT_REPO}}/prudent-server:{{.IMAGE_TAG}}'
+
+  deploy:cleanup:
+    desc: Remove superseded registry versions, Cloud Run revisions and local Docker state
+    silent: true
+    summary: |
+      Run last by deploy:cloudrun, once the service is accepted, and runnable alone. It is jZen's
+      `zen:deploy:cleanup` with Prudent's numbers (ADR-087); `task zen:deploy:cleanup --summary` is
+      the full contract. Needs GCP_PROJECT, GCP_REGION, SERVICE_NAME and ARTIFACT_REPO.
+
+      WHAT IS REMOVED, AND WHEN. In this order:
+        1. Cloud Run revisions older than 14 days, beyond the newest 5, that are not serving.
+        2. Artifact Registry versions older than 30 days that are untagged or tagged with a commit,
+           beyond the newest 30 per package (three versions per deploy: the last ten deploys). A
+           version a revision or job needs is pinned (`zen-pin-<digest>`) and never deleted,
+           however old; deploy:cloudrun pins the image right after pushing it.
+        3. Local Docker: dangling layers, build cache older than a week, and this project's tagged
+           images beyond the newest two.
+      No registry cleanup policy is armed; the run deletes the versions itself and lists the
+      registry before and after, which is the evidence.
+
+      WHEN IT FAILS the service is already live, so the report says the deploy itself succeeded and
+      the task exits non-zero. It never exits 0 on failure. Re-run it alone after fixing the cause.
+
+      DRY RUN. `CLEANUP_DRY_RUN=1 task deploy:cleanup` prints what it would pin, release and delete
+      and changes nothing. Read it before the first real run on an environment.
+
+      The numbers and the failure mode are fixed here and cannot be changed from the shell (ADR-087):
+      CLEANUP_KEEP_VERSIONS=30, CLEANUP_IMAGE_DAYS=30, CLEANUP_KEEP_REVISIONS=5,
+      CLEANUP_REVISION_DAYS=14, CLEANUP_ON_FAILURE=fail. CLEANUP=off and CLEANUP_DRY_RUN=1 still
+      reach jZen's task.
+      The environment's teardown (deploy:cloudrun --summary, step 4) is separate and unchanged.
+    # Prudent's numbers (ADR-087) are handed to jZen's task as command-line variables, the one way
+    # in that wins: a variable the included Taskfile declares beats a `vars:` entry on the include
+    # or on a calling task (measured: an include var of 5 still printed jZen's default 3), and an
+    # exported variable beats both of those but not this. So an exported CLEANUP_ON_FAILURE=warn
+    # cannot turn a failed cleanup into a green run (CLAUDE.md, "Nothing swallows a failure"), and
+    # a number changes by an edit here and an ADR, not a shell variable. Every deploy leaves three
+    # registry versions, so 30 versions is the last ten deploys.
+    cmds:
+      # A child `task`, not `- task:`: a call's variables lose to jZen's declarations, a command line's
+      # do not. The environment facts are read from the shell (empty stays empty, jZen's task names it).
+      - >-
+        {{.TASK_EXE}} zen:deploy:cleanup
+        AR_REPO="${ARTIFACT_REPO:-}" GCP_PROJECT="${GCP_PROJECT:-}" GCP_REGION="${GCP_REGION:-}"
+        SERVICE_NAME="${SERVICE_NAME:-}"
+        CLEANUP_KEEP_VERSIONS=30 CLEANUP_IMAGE_DAYS=30 CLEANUP_KEEP_REVISIONS=5 CLEANUP_REVISION_DAYS=14
+        CLEANUP_ON_FAILURE=fail
 
   deploy:check-origin-config:
     desc: Before the build — WEB_API_URL must be the host Cloud Run will serve

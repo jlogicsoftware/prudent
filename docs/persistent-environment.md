@@ -246,6 +246,37 @@ of the values until the service holds them. Check `gcloud secrets list` before a
   command pointed at different things. Step 4 now says so. A project lien is a cheap guard
   (section 7) and is **not required** for the POC.
 
+## 4a. What a deploy removes, and when (ADR-087)
+
+Every deploy leaves three registry versions (a tagged index, the untagged image Cloud Run runs, an
+attestation), a Cloud Run revision, and a local image with build cache. Nothing else removes them, so
+`deploy:cloudrun` does, in two places:
+
+- **Right after the push**, before the migration job or the service is pointed at the image, the image
+  is *pinned* (`task deploy:pin`): its digest is tagged `zen-pin-<digest>`, which the cleanup never
+  deletes. A failed pin stops the deploy.
+- **Last**, once the service is accepted, `task deploy:cleanup` removes, in this order: Cloud Run
+  revisions older than 14 days, beyond the newest 5, that are not serving; registry versions older than
+  30 days that are untagged or tagged with a commit, beyond the newest 30 per package (the last ten
+  deploys), and not pinned; then local Docker dangling layers, build cache older than a week and this
+  project's tagged images beyond the newest two. No registry cleanup policy is armed: the run deletes the
+  versions itself and lists the registry before and after.
+
+Whatever a revision or job still runs stays, however old. An image something runs *from outside*
+this project and region (another project, a machine) is not visible to the cleanup and needs a hold:
+`task zen:deploy:pin AR_REPO=... PIN_IMAGE=... PIN_HOLD=<name>`.
+
+If the cleanup fails the service is already live: it exits non-zero and says the deploy itself
+succeeded. Fix the cause and run `task deploy:cleanup` alone. `CLEANUP_DRY_RUN=1 task deploy:cleanup`
+prints the plan and changes nothing; read it before the first real run on an environment. The numbers
+are fixed in the Taskfile (ADR-087) and cannot be changed from the shell. The runbook's teardown
+(`deploy:cloudrun --summary`, step 4) is a different thing: it is for throwaway environments and
+deletes the whole project, and it is not used here.
+
+**Not yet done on this environment:** the first dry run, the first real run and the before/after
+listings. The environment predates the pin, so on its first cleanup the revisions and jobs that run
+today are pinned by the cleanup itself before anything is selected.
+
 ## 5. The address: a subdomain, tried; `*.run.app`, as the fallback
 
 **Taken: `*.run.app`.** The owner chose no domain for now (ADR-069), so the subdomain below was not
@@ -415,7 +446,7 @@ the app through `prudent://auth-callback`, a balance, an account created and an 
 verification flow; Cloudflare's DNS-only meaning; liens; Supabase's backup policy and default mail
 sender; `--version-destroy-ttl`.
 
-**Never done:** a notification fired on a device; the expiry and re-signing of a development build
+**Never done:** the registry cleanup against this environment (section 4a); a notification fired on a device; the expiry and re-signing of a development build
 (`docs/native-iphone-build.md`); reading back, on a second device, a record written on the first; whether the hourly Scheduler call keeps the Free
 Supabase project awake; a custom domain; a rotation on a live service; a restore of anything; a lien;
 an undelete; a deployer without Owner.
