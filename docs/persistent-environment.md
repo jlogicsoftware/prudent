@@ -273,9 +273,15 @@ are fixed in the Taskfile (ADR-087) and cannot be changed from the shell. The ru
 (`deploy:cloudrun --summary`, step 4) is a different thing: it is for throwaway environments and
 deletes the whole project, and it is not used here.
 
-**Not yet done on this environment:** the first dry run, the first real run and the before/after
-listings. The environment predates the pin, so on its first cleanup the revisions and jobs that run
-today are pinned by the cleanup itself before anything is selected.
+**Run on this environment (2026-11-13, #165):** a `CLEANUP_DRY_RUN=1` read, the real run and a dry-run
+rerun, with the registry and revisions listed before and after. Revisions went from 8 to 5 (the three
+oldest, past 14 days and beyond the newest 5); the serving revision kept all traffic. The environment
+predated the pin, so the first run pinned what its consumers need: 6 consumers (5 revisions and the
+migration job) on 5 digests, the job's tag pinned on its index. The registry held 21 versions before
+and after: all were younger than 30 days and fewer than the 30 kept, so nothing was due. A registry
+deletion has therefore **not** happened here yet; it first will once more than 30 versions accumulate
+(the mechanism was proven on jZen's own environment the same day, jZenDev/jZen#173). The rerun selected
+nothing and pinned nothing.
 
 ## 5. The address: a subdomain, tried; `*.run.app`, as the fallback
 
@@ -440,13 +446,14 @@ desktop browser, after which the screens load. **And (ADR-070):** the rebind of 
 variables on a running service and job, the deletion of the five secrets (12 before, 7 after), and
 the sign-in from a phone afterwards. **And (ADR-078):** a native iPhone build compiled against the
 deployed origin, installed on a real phone, with a registration, the confirmation mail, the return into
-the app through `prudent://auth-callback`, a balance, an account created and an expense recorded, once, by hand.
+the app through `prudent://auth-callback`, a balance, an account created and an expense recorded, once, by hand. **And (ADR-087, #165):**
+the deploy cleanup's dry run, real run and rerun: three old revisions deleted, five images pinned.
 
 **Documented by the provider, not tried here:** domain mappings and their region list; the
 verification flow; Cloudflare's DNS-only meaning; liens; Supabase's backup policy and default mail
 sender; `--version-destroy-ttl`.
 
-**Never done:** the registry cleanup against this environment (section 4a); a notification fired on a device; the expiry and re-signing of a development build
+**Never done:** a registry version deleted by the cleanup on this environment (none was due yet; section 4a); a notification fired on a device; the expiry and re-signing of a development build
 (`docs/native-iphone-build.md`); reading back, on a second device, a record written on the first; whether the hourly Scheduler call keeps the Free
 Supabase project awake; a custom domain; a rotation on a live service; a restore of anything; a lien;
 an undelete; a deployer without Owner.
