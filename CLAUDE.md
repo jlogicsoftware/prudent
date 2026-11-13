@@ -217,7 +217,8 @@ load from a git worktree (ADR-065).
 `zen:deploy:pin`) before anything is pointed at it and ends with `deploy:cleanup` (jZen's `zen:deploy:cleanup`) once the
 service is accepted: 5 revisions / 14 days, 30 registry versions / 30 days, failure mode `fail`, passed as command-line
 variables because nothing else beats jZen's own declarations. `scripts/test_deploy_cleanup.py` (in `test:deploy-origin`)
-proves the calls and the non-zero exit. It has **not been run against the persistent environment**; that run is the owner's.
+proves the calls and the non-zero exit. Run on the persistent environment on 2026-11-13 (revisions 8 to 5, five images
+pinned, no registry version yet due); `docs/persistent-environment.md` section 4a has the record.
 
 **Done: the structural flattening (ADR-026).** Client code is now flat under `client/lib/` on a
 capability-folder layout (`account/ analytics/ auth/ category/ generated/ l10n/ overview/ record/`
