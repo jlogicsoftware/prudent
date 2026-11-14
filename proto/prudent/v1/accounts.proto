@@ -111,9 +111,17 @@ message Account {
   // Only the user's choice: nothing derives it from the account's type or from the other flags.
   bool eligible_for_goals = 11;
 
+  // The bank number of this account, normalised by the server (whitespace removed, upper-cased, a
+  // leading "PL" dropped from a 26-digit number), or EMPTY when none is stored (M6,
+  // docs/DECISIONS.md ADR-090). It is what a bank statement's own account is compared with before
+  // an import may write into this account (docs/erste-csv-contract.md), and the way an
+  // own-account transfer's other leg is recognised. Personal data: never logged. At most one
+  // account per user holds a given number.
+  string account_number = 12;
+
   // NO description FIELD. It existed as an always-null field that nothing could set and
   // nothing rendered; carrying it would commit a decision nobody has made to the contract. If the
-  // product ever needs it, it arrives with the screen that sets it, at field number 12.
+  // product ever needs it, it arrives with the screen that sets it, at the next free field number.
   //
   // NO user_id FIELD, in either direction. Ownership is the JWT `sub`, resolved server-side.
 }
@@ -139,6 +147,10 @@ message CreateAccountRequest {
 
   // See Account.eligible_for_goals. Omitting it is the same as false.
   bool eligible_for_goals = 10;
+
+  // See Account.account_number. Empty stores none. A malformed number is refused (400) and a
+  // number another of the user's accounts already holds is refused (409).
+  string account_number = 11;
 }
 
 // PUT /api/v1/accounts/{id} — a FULL REPLACEMENT, for the presence reason set out in
@@ -181,6 +193,11 @@ message UpdateAccountRequest {
   // See Account.eligible_for_goals. A full replacement like every other field: a client that does
   // not send it is asking for false, and an account that was eligible stops being so.
   bool eligible_for_goals = 9;
+
+  // See Account.account_number. A full replacement like every other field: a client that does not
+  // send it is asking for the number to be removed, so a form that does not edit it must resend
+  // the one it was given.
+  string account_number = 10;
 }
 
 // GET /api/v1/accounts — every account owned by the authenticated user.

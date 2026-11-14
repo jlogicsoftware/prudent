@@ -26,17 +26,17 @@ renamed locally afterwards, so the file name carries no contract and must not be
 | Property | Observed | Parser expectation |
 |---|---|---|
 | Encoding | UTF-8, no byte-order mark, Polish letters stored directly | Decode strictly as UTF-8; a BOM, invalid bytes or another encoding is rejected, not repaired |
-| Line ending | LF, with a final LF after the last row | Accept LF; CRLF is not observed (open question) |
+| Line ending | LF, with a final LF after the last row | Accept LF; CRLF is not observed (open question). A missing final LF is rejected (`layout.no_final_newline`): the file may be cut short |
 | Delimiter | comma | Comma only |
 | Quoting | RFC 4180 double quotes, used exactly where a field contains a comma (every amount and balance) | Standard CSV quoting; no escaped quote observed |
 | Header row | **none** | The first row is data. A file whose first row looks like a header is a different variant and is rejected |
 | Fields per row | 9, on every row | Exactly 9, else the file is rejected |
 | Trailing comma | every row ends with `,`, so field 9 is always empty | Require field 9 to be empty |
-| Decimal separator | comma, always two decimals, e.g. `"-12,50"` | Parse comma; reject a dot or a different scale |
-| Thousands separator | none observed (no amount or balance reached 1000) | Open question; reject any value with a separator until it is seen |
+| Decimal separator | comma, always two decimals, e.g. `"-12,50"` | Parse comma in the amount; reject a dot or a different scale there. Balance and summary fields 6 to 8 are not read |
+| Thousands separator | none observed (no amount or balance reached 1000 in the sample) | An amount is digits only: `-?` then 1 to 11 whole digits (no leading zero except a single `0`), a comma and two decimals, so `1000,00` is read and `1.000,00` or `1 000,00` is `amount.invalid`. How a real amount of 1000 or more is written is an open question. The balance column is never read, so a separator there changes nothing |
 | Negative amounts | leading `-` (a debit); credits carry no `+` | Sign is the direction; zero is not observed |
 | Currency | only in the summary row (field 5); the transaction rows carry none | One currency per file, taken from the summary row |
-| Row order | **newest transaction date first** (dates never rise down the file), and the bank sequence number grows as the date falls: it is smallest on the newest row | Do not rely on order for correctness. The sequence number looks like a rank counted from the newest row, so it may shift when a later export adds newer rows; see the open question and #75 |
+| Row order | **newest transaction date first** (dates never rise down the file), and the bank sequence number grows as the date falls: it is smallest on the newest row | Do not rely on order for correctness, and do not reject a file for its order: one sample cannot say that another order is a different variant, and nothing downstream needs order. The sequence number looks like a rank counted from the newest row, so it may shift when a later export adds newer rows; see the open question and #75 |
 
 ## Row 1: the summary row
 
@@ -91,34 +91,30 @@ the parser must say so per row rather than guess a merchant.
 
 ## Validation expectations for the parser (#73)
 
-Reject the whole file, before any write, when:
+Reject the whole file, before any write, when (the rule code is in brackets; error messages carry the code and row numbers only):
 
-1. the bytes are not valid UTF-8, or begin with a byte-order mark;
-2. any row does not have exactly 9 fields, or field 9 is not empty;
-3. the first row's field 1 is not an ISO date, field 2 is not `DD-MM-YYYY`, field 3 does not start
-   with `'`, or field 5 is not a currency the importer supports (today: `PLN` only);
-4. the summary account does not equal the destination account the user chose (account identity,
-   compared after removing the apostrophe and spaces);
-5. a transaction row has a date that is not a real `DD-MM-YYYY` calendar day, or a booking date
-   earlier than its transaction date;
-6. an amount or balance is not a quoted comma decimal with exactly two decimals, or an amount is
-   zero;
-7. a bank sequence number is not digits, or repeats within the file;
-8. a file has no transaction row (a summary row alone is not observed, so it is not accepted
-   until confirmed).
+1. the bytes are not valid UTF-8 (`encoding.not_utf8`), contain a NUL byte (`encoding.nul_byte`) or begin with a byte-order mark (`encoding.bom`);
+2. a CR is present (`layout.line_ending`) or the last line has no LF (`layout.no_final_newline`);
+3. a line is not well-formed CSV: an unterminated quote, a quote inside an unquoted field, text after a closing quote (`csv.malformed`);
+4. the first row is a single field containing `;` or a tab (`layout.delimiter`), looks like a header (`layout.header_row`), or is a transaction instead of a summary (`layout.summary_missing`);
+5. any row, the summary row included, does not have exactly 9 fields (`row.field_count`) or field 9 is not empty (`row.trailing_field`);
+6. the summary's field 1 is not an ISO date (`summary.export_date_invalid`), field 2 is not a real `DD-MM-YYYY` day (`summary.period_start_invalid`), field 3 does not start with `'` and hold an account-number shape (`summary.account_invalid`), or field 5 is not a supported currency, today `PLN` only (`currency.unsupported`). Summary fields 4 and 6 to 8 are not read;
+7. the statement's account does not equal the destination account the user chose, compared in the one normal form (whitespace of any kind and the apostrophe removed, upper-cased, a leading `PL` dropped from a 26-digit number); an account without a stored number is refused, not guessed (`account.number_missing`, `account.identity_mismatch`; `account.identity_unverifiable` is the defensive refusal when a session carries no identity token);
+8. a transaction row has a date that is not a real `DD-MM-YYYY` calendar day (`date.invalid`), a date before 2000-01-01 or later than one year after today (`date.out_of_range`), or a booking date earlier than its transaction date (`date.booking_before_transaction`);
+9. an amount is not `-?` plus digits (1 to 11, no separator, no leading zero except a single `0`), a comma and exactly two decimals (`amount.invalid`), or is zero (`amount.zero`). The balance is not checked;
+10. a bank sequence number is not digits without a leading zero (`sequence.invalid`) or repeats within the file (`sequence.duplicate`);
+11. a card payment names a currency other than the file's (`card.foreign_currency`). This rejects the whole file, not the row: whether the amount column then holds the card currency or the account currency is not observed, so no row of such a file can be trusted to carry the right amount;
+12. a file has no transaction row (`statement.empty`).
 
-Per row, flag (do not drop silently) a description that fits none of the three shapes, a card
-payment whose embedded amount differs from field 6 or whose embedded currency is not the file's, and
-a counterparty account that is not IBAN-shaped. Never assert the running balance. Error messages
-name the row number and the rule, never the row's content, because the content is personal data.
+Per row, flag (do not drop silently; the row is returned rejected with a code and no text) a description that fits none of the three shapes, including a card payment that has a counterparty (`description.unknown_shape`); a card payment whose embedded amount differs from field 6 (`card.amount_mismatch`); a counterparty account that is not two digits then six groups of four (`counterparty_account.invalid`); a card or BLIK entry with a positive amount or an own-account transfer with a negative one (`amount.sign_unexpected`: no such row was observed); and an own-account transfer whose other account is the statement's own (`transfer.same_account`: it cannot be a transfer between two accounts). Never assert the running balance. Error messages name the row number and the rule, never the row's content, because the content is personal data.
 
 ## Unsupported and unknown variants
 
 None of these is in the sample. A parser must reject, not adapt, until each is observed and
 written here: a header row; any encoding other than UTF-8 and any BOM; CRLF line endings;
-semicolon, tab or other delimiters; a dot decimal separator or thousands separators; amounts of 1000
-or more; a currency other than `PLN` and a file mixing currencies; a card payment in a foreign
-currency (its embedded amount and currency versus field 6); outgoing own-account transfers; standing
+semicolon, tab or other delimiters; a dot decimal separator or thousands separators in an amount;
+a currency other than `PLN` and a file mixing currencies; a card payment in a foreign
+currency (the whole file is rejected, see rule 11 above); outgoing own-account transfers; standing
 orders, direct debits, fees, interest, cash withdrawals, card refunds, incoming transfers from
 other people and any other operation type; multi-account files; a different number of fields;
 a summary row that is absent or repeated; an empty statement.
@@ -139,7 +135,8 @@ These need a second export or the bank's own documentation, and are deliberately
   booking time over a wider set of entries than the file lists.
 - Why the sequence has gaps: other accounts, entries omitted from this export, or pending items.
 - Booking dates later than the export date: whether such rows can still change.
-- Thousands separators, CRLF, foreign-currency card payments, refunds, outgoing own transfers and
+- How an amount of 1000 or more is written. The importer reads digits only (`1000,00`) and treats any separator as `amount.invalid`; **a private export that contains such an amount must be checked to confirm the format** (the fixtures cannot settle it).
+- Thousands separators in the balance column (never read), CRLF, foreign-currency card payments, refunds, outgoing own transfers and
   every operation type not listed above.
 - The export steps in the bank UI (see the first section).
 

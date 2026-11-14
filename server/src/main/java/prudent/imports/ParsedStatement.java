@@ -1,11 +1,7 @@
 package prudent.imports;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
-import java.util.Locale;
+import prudent.account.AccountNumbers;
 
 /**
  * What an importer produces from one statement: the currency every row is in, the rows, and an
@@ -33,24 +29,12 @@ public record ParsedStatement(String currency, List<ParsedRow> rows, String acco
   }
 
   /**
-   * The identity token of an account number: whitespace removed, upper-cased, SHA-256, lower-case
-   * hex (64 characters). Importers and {@link StatementImporter#checkDestination} implementations
-   * use this one function so that a token compares equal exactly when the numbers do.
+   * The identity token of an account number: {@link AccountNumbers#identityOf}, the one definition
+   * (whitespace of any kind removed, upper-cased, a Polish {@code PL} prefix dropped, SHA-256,
+   * lower-case hex). Importers and {@link StatementImporter#checkDestination} implementations use
+   * it so that a token compares equal exactly when the numbers do.
    */
   public static String identityOf(String accountNumber) {
-    if (accountNumber == null) {
-      throw new IllegalArgumentException("an account number is required to derive its identity");
-    }
-    String normalised = accountNumber.replaceAll("\\s+", "").toUpperCase(Locale.ROOT);
-    if (normalised.isEmpty()) {
-      throw new IllegalArgumentException("an account number is required to derive its identity");
-    }
-    try {
-      byte[] digest =
-          MessageDigest.getInstance("SHA-256").digest(normalised.getBytes(StandardCharsets.UTF_8));
-      return HexFormat.of().formatHex(digest);
-    } catch (NoSuchAlgorithmException impossible) {
-      throw new IllegalStateException("SHA-256 is required of every Java runtime", impossible);
-    }
+    return AccountNumbers.identityOf(accountNumber);
   }
 }

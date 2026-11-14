@@ -13,6 +13,103 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-090 — The Erste importer validates the whole file against the contract before returning a row, identifies the account by a stored number and refuses an account without one
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#73, third task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- **`ErsteStatementImporter`** (`prudent.imports`, an `@ApplicationScoped` bean returning `ImportFormatIds.ERSTE_PL_CSV`) reads one
+  export per `docs/erste-csv-contract.md`, with `ErsteCsv` for the byte and delimiter layer. Bytes are decoded strictly as UTF-8;
+  a BOM (`encoding.bom`, UTF-8 or UTF-16), a NUL byte (`encoding.nul_byte`), invalid UTF-8 (`encoding.not_utf8`), any CR
+  (`layout.line_ending`, so CRLF) and a missing final LF (`layout.no_final_newline`) are refused, not repaired. Comma is the only
+  delimiter (`layout.delimiter` when row 1 is one field containing `;` or a tab), quoting is RFC 4180 on one line
+  (`csv.malformed`), a header row is `layout.header_row` and a first row that is a transaction is `layout.summary_missing`. Every
+  row has nine fields with an empty ninth (`row.field_count`, `row.trailing_field`).
+- **The summary row** needs an ISO export date (`summary.export_date_invalid`), a `DD-MM-YYYY` period start
+  (`summary.period_start_invalid`), an account that starts with `'` and has a number's shape (`summary.account_invalid`) and the currency `PLN` (`currency.unsupported`: one currency per statement, taken only from here).
+  The holder, fields 6 to 8, the balance column and the period start are never read or shape-checked: the contract says they do
+  not chain or are not understood, personal data has no use here, and no row is checked against the period.
+- **Whole-file rules, found before any row is returned**: `date.invalid` (a real `DD-MM-YYYY` day),
+  `date.booking_before_transaction`, `date.out_of_range` (before 2000-01-01 or after today plus one year, today read from an injectable `Clock`, in UTC; rows only),
+  `amount.invalid` (`-?`, 1 to 11 digits with no separator and no leading zero except a single `0`, a comma, exactly two decimals;
+  Long arithmetic, no floating point), `amount.zero`, `sequence.invalid`, `sequence.duplicate`, `card.foreign_currency` (a card payment whose embedded currency is not the file's) and `statement.empty`. A
+  failure in the layout or summary is thrown at once; row failures are collected over the whole file and thrown as the rule of the
+  first failing row, naming up to 10 rows that broke it and how many did in all. **Row numbers count transaction rows**, the
+  summary row is not row 1, as `ParsedRow.rowNumber` does. `ImportRejectedException` gained a second constructor, `rowNumbers()` and
+  `totalRows()` for this; the single-row message is unchanged and nothing else in ADR-089 moved.
+- **A row with no known meaning is returned rejected, not dropped and not a whole-file failure** (the contract's per-row clause):
+  `description.unknown_shape` (including a card payment with a counterparty), `card.amount_mismatch` (embedded amount versus the
+  column), `amount.sign_unexpected` (a card or BLIK entry that is positive, an own-account transfer that is negative: the wording of an
+  outgoing one is unknown), `counterparty_account.invalid` (two digits then six groups of four) and `transfer.same_account`. A
+  rejected row carries no text. The three shapes are card payment, BLIK purchase and own-account transfer; every other operation type
+  lands in `description.unknown_shape`.
+- **An own-account transfer is a row, not a pair, and carries no `kind` column.** It is recognised by its description,
+  `ErsteStatementImporter.OWN_TRANSFER_DESCRIPTION`, kept verbatim and tested with `isOwnAccountTransfer`; its `counterpartyAccount` is
+  the user's other account in `AccountNumbers`' normal form and its `counterparty` is empty, because that field held the holder's own
+  name and address, which nothing here needs. #76 can find the other leg with `AccountEntity.findOwnedByNumber` and decide whether
+  to book a transfer; #75 sees an ordinary positive row. Adding a column and a wire field for a kind that is one string today
+  was not needed to finish #73, and is open to #75/#76 if they want it.
+- **The bank's sequence number is `externalId`, as a hint only.** The contract does not know whether it survives a second export that
+  adds newer rows. #75 must not use it as a duplicate key unless an overlapping export proves it stable. The BLIK reference
+  (`ref:` and 11 digits) stays inside the description for #75 to consider.
+- **Account identity: `Account.account_number`** (proto field 12 and the create and update requests, `prudent_account.account_number`,
+  V20261114100000). It is optional and `AccountNumbers.normalize` fixes one form: whitespace removed, upper-cased, a leading `PL`
+  dropped from a 26-digit number, then 10 to 34 letters and digits (a shape, not an IBAN checksum, because the fixtures use check
+  digits `00`). Blank stores none; a malformed number is 400 and one another of the user's accounts already holds is 409 (and a unique
+  index per user backs it up); a PUT is a full replacement, so a form that does not edit it must resend it, which `AccountEdit` now
+  does. It is personal data on a row that already carries `user_id`, so the export (it rides on `Account`) and the eraser (it goes
+  with the account) cover it and `PrivacyExportTest` checks it. Neither the number nor the digest is ever in an error or a log.
+- **`checkDestination`** compares `ParsedStatement.identityOf(stored number)` with the statement's token, and fails closed: an account
+  with no number is `account.number_missing` (add the number first), a different one is `account.identity_mismatch`, a statement
+  without a token is `account.identity_unverifiable`. The workflow's calls (parse, preview, repeated preview, commit) are unchanged.
+
+- **Amendments to `docs/erste-csv-contract.md` made with this review** (the facts it describes are unchanged): (1) amounts of 1000
+  or more are accepted when digit-only; `amount.unsupported_magnitude` and `balance.invalid` are gone, a separator is
+  `amount.invalid`, and an open question asks for a private export with such an amount; (2) `order.not_newest_first` is gone, and
+  the row-order line says a file is not rejected for its order; (3) the validation list now names every rule the code applies, and
+  the foreign-currency card payment is stated as a whole-file rejection (the contract had said both "flag" and "reject"); (4)
+  `date.out_of_range` and the leading-zero rule are added. Each kept uncontracted rule, in one line: `layout.no_final_newline`
+  kept (a truncated file would silently lose its tail), `layout.summary_missing` kept (without it a transaction row would be read as
+  the summary), `row.field_count` on the summary row kept (the contract's "any row"), `csv.malformed` kept (a line that cannot be
+  split cannot be read), `card.foreign_currency` kept as whole-file (the amount column's currency is not observed), `amount.sign_unexpected`
+  and `transfer.same_account` kept per row (an unobserved sign, or a transfer from an account to itself, is not safe to book).
+  Dropped as speculative: `summary.holder_missing`, `summary.field_shape`, `balance.invalid`, `amount.unsupported_magnitude`,
+  `order.not_newest_first`.
+- **One normal form, one place.** `AccountNumbers` is the only definition: white space is Unicode white space (`(?U)\s`, so a
+  no-break U+00A0 or narrow U+202F space pasted from a bank page is removed), upper-casing uses `Locale.ROOT`, and
+  `ParsedStatement.identityOf` delegates to `AccountNumbers.identityOf` instead of normalising a second way (the `imports` package
+  already depends on `account`, so the direction is unchanged). A blank number is one that is only white space of any kind.
+- **Unique-number clashes are a 409 even under a race.** The resource flushes the number inside the request and maps a SQLSTATE
+  23505 to the same 409 as the pre-check; only the mapping is tested (`isUniqueViolation`), the race itself is not reproduced. An
+  archived account keeps its number, and the number stays unavailable to the user's other accounts until it is cleared or changed.
+- **Known hazard: PUT is a full replacement.** An older client build, or a client holding a stale cached account list, that PUTs an
+  account without `account_number` deletes the stored number, and the next import then fails closed with `account.number_missing`.
+  `AccountEdit` resends it (tested in `account_forms_test.dart`); nothing on the server can tell "absent" from "cleared".
+- **Privacy:** `docs/privacy-policy.md` lists the number (plaintext, same user scope, in the export, deleted with the account and
+  by erasure).
+
+### What this supersedes, and why
+
+ADR-089's statement that `Account` has no number field and that only a test importer implements the hook. Nothing else is
+replaced. The decisions that follow the contract's `Open questions` are unchanged.
+
+### Consequence
+
+Verified: `ErsteStatementImporterTest` (every rule above at least once, the three fixtures, destination checks, reporting),
+`ErsteImportSessionTest` (parse through `POST /api/v1/import-sessions` with `erste-pl-csv`, a wrong or number-less destination at
+parse and at preview, a number removed after parse, a rejected statement writing no session and no row), `AccountNumberTest`
+(normalisation, resource and schema), `PrivacyExportTest`, the Dart wire round trip, and the importer run once, locally and
+reading counts only, over one real export (it parsed with no row flagged). Not verified: any deployed run; the broad malformed,
+drift and mixed-currency suite (#77); amounts written with separators, CRLF and every operation type the contract lists
+as unseen, which are refused, not handled.
+Open: **how a real amount of 1000 or more is written** (digit-only is read, a separator is `amount.invalid`; a private export with
+such an amount must be checked); **nothing in the client sets an account number**, so no import can run until the
+account form has a field (the one-line carry-through in `AccountEdit` only stops an edit from deleting a stored number); #75 decides
+duplicates from the fields above.
+
+---
+
 ## ADR-089 — Statement imports are sessions with three enforced phases behind an importer boundary; only normalised rows are kept, never the uploaded file
 
 **Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#72, second task of the epic jlogicsoftware/prudent#41.

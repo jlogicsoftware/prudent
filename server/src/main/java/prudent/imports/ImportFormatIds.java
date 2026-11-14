@@ -6,9 +6,8 @@ public final class ImportFormatIds {
   private ImportFormatIds() {}
 
   /**
-   * Erste Polska's CSV export. <strong>Registration seam:</strong> no importer returns this id yet.
-   * jlogicsoftware/prudent#73 adds the {@link StatementImporter} bean that does, and nothing else
-   * in the workflow changes for it to be usable.
+   * Erste Polska's CSV export, read by {@link ErsteStatementImporter} (jlogicsoftware/prudent#73,
+   * ADR-090).
    */
   public static final String ERSTE_PL_CSV = "erste-pl-csv";
 }

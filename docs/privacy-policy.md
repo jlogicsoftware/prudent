@@ -19,6 +19,7 @@ On the server, for each person:
 | Your language | To show the app, and write account emails and those warnings, in it |
 | When you last signed in, and when each warning was sent | To run the schedule under "How long it is kept" |
 | Your accounts and their currencies, categories, records (title, payee, note, amount, date), transfers and balance corrections | The application: this is what it is for |
+| Optionally, the bank account number you enter for an account. It is stored as typed apart from spacing, capitals and a leading "PL" on a 26-digit number (plaintext, not a fingerprint), on the account itself, visible only to you, included in "Copy my data", and deleted with the account and by "Delete my data". An archived account keeps it, and it stays unavailable to your other accounts until you clear or change it | To check that a bank statement is being imported into the account it belongs to, and to recognise a transfer between your own accounts |
 | Your plans and their occurrences, reminder settings and whether you have read a reminder | Planned and recurring transactions |
 | Your budgets, carry-over resets and goals, and the history of money set aside for goals | Budgets and goals |
 | Your settings (main currency) | Display |

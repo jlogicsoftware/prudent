@@ -67,6 +67,7 @@ class PrivacyExportTest {
     assertEquals("EUR", data.getSettings().getMainCurrency());
 
     assertEquals(1, data.getAccountsCount());
+    assertEquals(PrivacySeed.ACCOUNT_NUMBER, data.getAccounts(0).getAccountNumber());
     assertEquals(2, data.getCategoriesCount());
     assertEquals(1, data.getRecordsCount());
     assertEquals(1, data.getPlansCount());

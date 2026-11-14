@@ -92,6 +92,15 @@ public class AccountEntity extends PanacheEntityBase {
   public boolean eligibleForGoals;
 
   /**
+   * The bank number of the account in {@link AccountNumbers}' normal form, or {@code null} when none
+   * is stored (M6, ADR-090). A statement importer compares it with the statement's own account and
+   * refuses when it is {@code null}. Personal data: never logged, never in an error message. At most
+   * one account per user holds a given value (a unique index).
+   */
+  @Column(name = "account_number")
+  public String accountNumber;
+
+  /**
    * The currencies this account holds, one entry each. Never empty — an account holding no currency
    * cannot receive a record, and the server rejects an empty list rather than creating one nothing
    * can be spent from.
@@ -130,6 +139,11 @@ public class AccountEntity extends PanacheEntityBase {
    */
   public static AccountEntity findOwned(UUID userId, UUID id) {
     return find("id = ?1 and userId = ?2", id, userId).firstResult();
+  }
+
+  /** The caller's account holding {@code accountNumber} (already normalised), or {@code null}. */
+  public static AccountEntity findOwnedByNumber(UUID userId, String accountNumber) {
+    return find("userId = ?1 and accountNumber = ?2", userId, accountNumber).firstResult();
   }
 
   /**

@@ -86,6 +86,7 @@ const Account$json = {
       '5': 8,
       '10': 'eligibleForGoals'
     },
+    {'1': 'account_number', '3': 12, '4': 1, '5': 9, '10': 'accountNumber'},
   ],
   '9': [
     {'1': 4, '2': 5},
@@ -102,7 +103,8 @@ final $typed_data.Uint8List accountDescriptor = $convert.base64Decode(
     '90YWwYCCABKAhSDmluY2x1ZGVJblRvdGFsEi4KE2luY2x1ZGVfaW5fb3ZlcnZpZXcYCSABKAhS'
     'EWluY2x1ZGVJbk92ZXJ2aWV3EjcKCGJhbGFuY2VzGAogAygLMhsucHJ1ZGVudC52MS5DdXJyZW'
     '5jeUJhbGFuY2VSCGJhbGFuY2VzEiwKEmVsaWdpYmxlX2Zvcl9nb2FscxgLIAEoCFIQZWxpZ2li'
-    'bGVGb3JHb2Fsc0oECAQQBUoECAUQBlINYmFsYW5jZV9taW5vclIIY3VycmVuY3k=');
+    'bGVGb3JHb2FscxIlCg5hY2NvdW50X251bWJlchgMIAEoCVINYWNjb3VudE51bWJlckoECAQQBU'
+    'oECAUQBlINYmFsYW5jZV9taW5vclIIY3VycmVuY3k=');
 
 @$core.Deprecated('Use createAccountRequestDescriptor instead')
 const CreateAccountRequest$json = {
@@ -142,6 +144,7 @@ const CreateAccountRequest$json = {
       '5': 8,
       '10': 'eligibleForGoals'
     },
+    {'1': 'account_number', '3': 11, '4': 1, '5': 9, '10': 'accountNumber'},
   ],
   '9': [
     {'1': 3, '2': 4},
@@ -158,7 +161,8 @@ final $typed_data.Uint8List createAccountRequestDescriptor = $convert.base64Deco
     'wYByABKAhSDmluY2x1ZGVJblRvdGFsEi4KE2luY2x1ZGVfaW5fb3ZlcnZpZXcYCCABKAhSEWlu'
     'Y2x1ZGVJbk92ZXJ2aWV3EjcKCGJhbGFuY2VzGAkgAygLMhsucHJ1ZGVudC52MS5DdXJyZW5jeU'
     'JhbGFuY2VSCGJhbGFuY2VzEiwKEmVsaWdpYmxlX2Zvcl9nb2FscxgKIAEoCFIQZWxpZ2libGVG'
-    'b3JHb2Fsc0oECAMQBEoECAQQBVINYmFsYW5jZV9taW5vclIIY3VycmVuY3k=');
+    'b3JHb2FscxIlCg5hY2NvdW50X251bWJlchgLIAEoCVINYWNjb3VudE51bWJlckoECAMQBEoECA'
+    'QQBVINYmFsYW5jZV9taW5vclIIY3VycmVuY3k=');
 
 @$core.Deprecated('Use updateAccountRequestDescriptor instead')
 const UpdateAccountRequest$json = {
@@ -198,6 +202,7 @@ const UpdateAccountRequest$json = {
       '5': 8,
       '10': 'eligibleForGoals'
     },
+    {'1': 'account_number', '3': 10, '4': 1, '5': 9, '10': 'accountNumber'},
   ],
   '9': [
     {'1': 3, '2': 4},
@@ -213,7 +218,8 @@ final $typed_data.Uint8List updateAccountRequestDescriptor = $convert.base64Deco
     'wYBiABKAhSDmluY2x1ZGVJblRvdGFsEi4KE2luY2x1ZGVfaW5fb3ZlcnZpZXcYByABKAhSEWlu'
     'Y2x1ZGVJbk92ZXJ2aWV3EjcKCGJhbGFuY2VzGAggAygLMhsucHJ1ZGVudC52MS5DdXJyZW5jeU'
     'JhbGFuY2VSCGJhbGFuY2VzEiwKEmVsaWdpYmxlX2Zvcl9nb2FscxgJIAEoCFIQZWxpZ2libGVG'
-    'b3JHb2Fsc0oECAMQBFINYmFsYW5jZV9taW5vcg==');
+    'b3JHb2FscxIlCg5hY2NvdW50X251bWJlchgKIAEoCVINYWNjb3VudE51bWJlckoECAMQBFINYm'
+    'FsYW5jZV9taW5vcg==');
 
 @$core.Deprecated('Use listAccountsResponseDescriptor instead')
 const ListAccountsResponse$json = {

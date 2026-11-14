@@ -165,6 +165,19 @@ void main() {
       expect(sent!.balances, _account().balances);
     });
 
+    testWidgets('resends the stored account number it has no field for', (tester) async {
+      // A PUT is a full replacement: leaving the number out would delete it (ADR-090).
+      UpdateAccountRequest? sent;
+      final account = _account()..accountNumber = '00000000000000000000000001';
+      await _pump(tester, AccountEdit(account: account, onSave: (request) => sent = request));
+
+      await tester.enterText(_field('Account Name'), 'Renamed');
+      await tester.tap(find.text('Save Account'));
+      await tester.pumpAndSettle();
+
+      expect(sent!.accountNumber, '00000000000000000000000001');
+    });
+
     testWidgets('does not save without a name', (tester) async {
       UpdateAccountRequest? sent;
       await _pump(tester, AccountEdit(account: _account(), onSave: (request) => sent = request));

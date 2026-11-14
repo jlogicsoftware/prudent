@@ -384,6 +384,24 @@ void main() {
         );
       });
 
+      test('the account number survives the round trip and is empty when unset (ADR-090)', () {
+        expect(roundTrip(Account(name: 'Plain'), format, Account.new).accountNumber, '');
+        expect(
+          roundTrip(Account(accountNumber: '00000000000000000000000001'), format, Account.new).accountNumber,
+          '00000000000000000000000001',
+        );
+        expect(
+          roundTrip(CreateAccountRequest(accountNumber: '00000000000000000000000001'), format, CreateAccountRequest.new)
+              .accountNumber,
+          '00000000000000000000000001',
+        );
+        expect(
+          roundTrip(UpdateAccountRequest(accountNumber: '00000000000000000000000001'), format, UpdateAccountRequest.new)
+              .accountNumber,
+          '00000000000000000000000001',
+        );
+      });
+
       test('goal progress survives the round trip, with the two derived fields absent when unset', () {
         final original = ListGoalProgressResponse(
           asOf: '2026-10-01',

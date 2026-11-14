@@ -6,10 +6,9 @@ import prudent.account.AccountEntity;
  * The importer boundary: one bank statement format (M6, jlogicsoftware/prudent#72, ADR-089).
  *
  * <p>An implementation is an {@code @ApplicationScoped} bean; {@link ImportFormats} finds it and
- * keys it by {@link #formatId()}. <strong>Erste Polska's is the first one and does not exist
- * yet:</strong> jlogicsoftware/prudent#73 adds it, as a bean returning
- * {@link ImportFormatIds#ERSTE_PL_CSV}, validating against {@code docs/erste-csv-contract.md}.
- * Until then that id is unregistered and a request naming it is refused like any unknown format.
+ * keys it by {@link #formatId()}. Erste Polska's is the first one: {@link ErsteStatementImporter}
+ * (jlogicsoftware/prudent#73, ADR-090) returns {@link ImportFormatIds#ERSTE_PL_CSV} and validates
+ * against {@code docs/erste-csv-contract.md}.
  *
  * <p><strong>The contract an importer signs:</strong>
  *
@@ -56,9 +55,9 @@ public interface StatementImporter {
    * account.identity_mismatch}; the message can carry no statement text) to refuse.
    *
    * <p><strong>The default checks nothing it could not check, and refuses what it cannot
-   * verify.</strong> {@link AccountEntity} has no account-number field yet
-   * (jlogicsoftware/prudent#73 adds it together with the Erste implementation of this method), so
-   * the default has nothing to compare a token with. For a statement that carries no identity
+   * verify.</strong> {@link AccountEntity#accountNumber} exists since ADR-090 and the Erste
+   * importer overrides this method to compare it, but a format that does not override has nothing
+   * to compare a token with. For a statement that carries no identity
    * ({@code statementIdentity == null}) it accepts. For one that does, it rejects with {@code
    * account.identity_unverifiable} rather than pass: an importer that returns a token must also say
    * what to compare it with.

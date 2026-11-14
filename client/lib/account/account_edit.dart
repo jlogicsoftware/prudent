@@ -49,6 +49,9 @@ class _AccountEditState extends State<AccountEdit> {
         includeInOverview: _includeInOverview,
         eligibleForGoals: _eligibleForGoals,
         balances: widget.account.balances,
+        // Resent unchanged for the same reason as `balances`: a PUT is a full replacement, so
+        // leaving the bank number out would delete it. There is no field for it yet (ADR-090).
+        accountNumber: widget.account.accountNumber,
       ),
     );
     Navigator.pop(context);

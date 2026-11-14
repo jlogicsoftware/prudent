@@ -196,12 +196,17 @@ stored; a session keeps only normalised rows, which are deleted when it ends, an
 overdue one at once; the hourly sweep deletes the rest). A preview can be repeated (`PREVIEWED -> PREVIEWED`) to change the
 destination account, which is validated wherever it is set and again at commit: the caller's, active, holding the session's
 currency, and accepted by `StatementImporter.checkDestination` against an opaque identity token (a digest the importer
-produces, kept only while the session is open) because `Account` has no account-number field yet, so the default hook rejects
-any statement that carries an identity rather than pass it (#73 adds the field and the Erste hook). Statements are bounded
-(rows, field length, open sessions per user, list size; `prudent.import.*`). **There is no
-Erste importer yet (#73), no duplicate detection (#75), no ledger writer (#76) and no screen (#74):** the format id
-`erste-pl-csv` is unregistered and refused, and commit answers 503 until an `ImportCommitter` bean exists. Only a
-test-only importer has run the workflow.
+produces, kept only while the session is open). Statements are bounded (rows, field length, open sessions per user, list
+size; `prudent.import.*`). The Erste importer exists (ADR-090, jlogicsoftware/prudent#73): `ErsteStatementImporter` registers
+`erste-pl-csv`, validates the whole file against the contract before returning anything (encoding, line ending, delimiter, header,
+field count, dates, decimals, currency, sequence numbers, account identity) and rejects with a rule code and bounded row
+numbers, never text; a row with no known meaning is returned rejected instead. `Account` has an optional `account_number`
+(normalised, unique per user, no form field yet), and Erste's `checkDestination` refuses an account without one
+(`account.number_missing`) or with another (`account.identity_mismatch`). An own-account transfer is a row whose description is
+`ErsteStatementImporter.OWN_TRANSFER_DESCRIPTION` and whose counterparty account is the other account's number. The bank's sequence
+number is returned as a hint only. **There is no duplicate detection (#75), no ledger writer (#76) and no screen (#74), and nothing
+in the UI sets an account number:** commit answers 503 until an `ImportCommitter` bean exists. The parser has been run on the
+synthetic fixtures and, locally and by counts only, on one real export; nothing has run it in a deployed service.
 **No real statement is ever committed.**
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**

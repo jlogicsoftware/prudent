@@ -195,7 +195,8 @@ class ImportSessionResourceTest {
 
   @Test
   void parse_withAnUnknownFormat_isRejectedAsAZenErrorAndWritesNothing() throws Exception {
-    for (String format : List.of("no-such-bank", ImportFormatIds.ERSTE_PL_CSV, "")) {
+    // erste-pl-csv is no longer in this list: the Erste importer registers it (ADR-090).
+    for (String format : List.of("no-such-bank", "")) {
       ZenError refused = error(post(SESSIONS, upload(format, statement()).build()), 400);
       assertEquals("invalid", refused.getCode());
       assertTrue(refused.getMessage().contains("Unsupported import format"));

@@ -2,6 +2,7 @@ package prudent.account;
 
 import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
+import jakarta.persistence.PersistenceException;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -108,8 +109,10 @@ public class AccountResource {
     applyScalars(entity, request.getName(), request.getType(), request.getIsDefault(),
         request.getIsActive(), request.getIncludeInTotal(), request.getIncludeInOverview(),
         request.getEligibleForGoals());
+    applyAccountNumber(userId, entity, request.getAccountNumber());
     applyBalances(entity, request.getBalancesList(), Set.of(), Set.of());
     entity.persist();
+    flushAccountNumber(entity);
     enforceSingleDefault(userId, entity);
     // No record can reference an id that did not exist until this line, so the derived balance
     // equals the opening one — Map.of() rather than a query that could only ever answer empty.
@@ -140,6 +143,8 @@ public class AccountResource {
     applyScalars(entity, request.getName(), request.getType(), request.getIsDefault(),
         request.getIsActive(), request.getIncludeInTotal(), request.getIncludeInOverview(),
         request.getEligibleForGoals());
+    applyAccountNumber(userId, entity, request.getAccountNumber());
+    flushAccountNumber(entity);
     // The currencies that must survive this update, because records or plans are denominated in
     // them.
     applyBalances(
@@ -268,6 +273,53 @@ public class AccountResource {
     entity.includeInTotal = includeInTotal;
     entity.includeInOverview = includeInOverview;
     entity.eligibleForGoals = eligibleForGoals;
+  }
+
+  /**
+   * Normalises and stores the account number (ADR-090): blank clears it, a malformed one is a 400,
+   * and one another of the caller's accounts already holds is a 409 — checked here so the unique
+   * index is a backstop and not the user's error message. Neither message carries the number.
+   */
+  private void applyAccountNumber(UUID userId, AccountEntity entity, String requested) {
+    String number = AccountNumbers.normalize(requested);
+    if (number != null) {
+      AccountEntity holder = AccountEntity.findOwnedByNumber(userId, number);
+      if (holder != null && !holder.id.equals(entity.id)) {
+        throw PrudentException.conflict("Another of your accounts already has this account number.");
+      }
+    }
+    entity.accountNumber = number;
+  }
+
+  /**
+   * Writes the number now, so that a clash with a request that committed between the check in
+   * {@link #applyAccountNumber} and this write is the same 409, not a 500 at commit.
+   */
+  private void flushAccountNumber(AccountEntity entity) {
+    if (entity.accountNumber == null) {
+      return;
+    }
+    try {
+      AccountEntity.flush();
+    } catch (PersistenceException e) {
+      if (isUniqueViolation(e)) {
+        throw PrudentException.conflict("Another of your accounts already has this account number.");
+      }
+      throw e;
+    }
+  }
+
+  /** Whether {@code failure} is, or is caused by, a database unique violation (SQLSTATE 23505). */
+  public static boolean isUniqueViolation(Throwable failure) {
+    for (Throwable t = failure; t != null; t = t.getCause()) {
+      if (t instanceof java.sql.SQLException sql && "23505".equals(sql.getSQLState())) {
+        return true;
+      }
+      if (t instanceof org.hibernate.JDBCException jdbc && "23505".equals(jdbc.getSQLState())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

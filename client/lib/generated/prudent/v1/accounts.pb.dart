@@ -116,6 +116,7 @@ class Account extends $pb.GeneratedMessage {
     $core.bool? includeInOverview,
     $core.Iterable<CurrencyBalance>? balances,
     $core.bool? eligibleForGoals,
+    $core.String? accountNumber,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -127,6 +128,7 @@ class Account extends $pb.GeneratedMessage {
     if (includeInOverview != null) result.includeInOverview = includeInOverview;
     if (balances != null) result.balances.addAll(balances);
     if (eligibleForGoals != null) result.eligibleForGoals = eligibleForGoals;
+    if (accountNumber != null) result.accountNumber = accountNumber;
     return result;
   }
 
@@ -154,6 +156,7 @@ class Account extends $pb.GeneratedMessage {
     ..pPM<CurrencyBalance>(10, _omitFieldNames ? '' : 'balances',
         subBuilder: CurrencyBalance.create)
     ..aOB(11, _omitFieldNames ? '' : 'eligibleForGoals')
+    ..aOS(12, _omitFieldNames ? '' : 'accountNumber')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -280,6 +283,21 @@ class Account extends $pb.GeneratedMessage {
   $core.bool hasEligibleForGoals() => $_has(8);
   @$pb.TagNumber(11)
   void clearEligibleForGoals() => $_clearField(11);
+
+  /// The bank number of this account, normalised by the server (whitespace removed, upper-cased, a
+  /// leading "PL" dropped from a 26-digit number), or EMPTY when none is stored (M6,
+  /// docs/DECISIONS.md ADR-090). It is what a bank statement's own account is compared with before
+  /// an import may write into this account (docs/erste-csv-contract.md), and the way an
+  /// own-account transfer's other leg is recognised. Personal data: never logged. At most one
+  /// account per user holds a given number.
+  @$pb.TagNumber(12)
+  $core.String get accountNumber => $_getSZ(9);
+  @$pb.TagNumber(12)
+  set accountNumber($core.String value) => $_setString(9, value);
+  @$pb.TagNumber(12)
+  $core.bool hasAccountNumber() => $_has(9);
+  @$pb.TagNumber(12)
+  void clearAccountNumber() => $_clearField(12);
 }
 
 /// POST /api/v1/accounts
@@ -293,6 +311,7 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
     $core.bool? includeInOverview,
     $core.Iterable<CurrencyBalance>? balances,
     $core.bool? eligibleForGoals,
+    $core.String? accountNumber,
   }) {
     final result = create();
     if (name != null) result.name = name;
@@ -303,6 +322,7 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
     if (includeInOverview != null) result.includeInOverview = includeInOverview;
     if (balances != null) result.balances.addAll(balances);
     if (eligibleForGoals != null) result.eligibleForGoals = eligibleForGoals;
+    if (accountNumber != null) result.accountNumber = accountNumber;
     return result;
   }
 
@@ -329,6 +349,7 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
     ..pPM<CurrencyBalance>(9, _omitFieldNames ? '' : 'balances',
         subBuilder: CurrencyBalance.create)
     ..aOB(10, _omitFieldNames ? '' : 'eligibleForGoals')
+    ..aOS(11, _omitFieldNames ? '' : 'accountNumber')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -419,6 +440,17 @@ class CreateAccountRequest extends $pb.GeneratedMessage {
   $core.bool hasEligibleForGoals() => $_has(7);
   @$pb.TagNumber(10)
   void clearEligibleForGoals() => $_clearField(10);
+
+  /// See Account.account_number. Empty stores none. A malformed number is refused (400) and a
+  /// number another of the user's accounts already holds is refused (409).
+  @$pb.TagNumber(11)
+  $core.String get accountNumber => $_getSZ(8);
+  @$pb.TagNumber(11)
+  set accountNumber($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(11)
+  $core.bool hasAccountNumber() => $_has(8);
+  @$pb.TagNumber(11)
+  void clearAccountNumber() => $_clearField(11);
 }
 
 /// PUT /api/v1/accounts/{id} — a FULL REPLACEMENT, for the presence reason set out in
@@ -438,6 +470,7 @@ class UpdateAccountRequest extends $pb.GeneratedMessage {
     $core.bool? includeInOverview,
     $core.Iterable<CurrencyBalance>? balances,
     $core.bool? eligibleForGoals,
+    $core.String? accountNumber,
   }) {
     final result = create();
     if (name != null) result.name = name;
@@ -448,6 +481,7 @@ class UpdateAccountRequest extends $pb.GeneratedMessage {
     if (includeInOverview != null) result.includeInOverview = includeInOverview;
     if (balances != null) result.balances.addAll(balances);
     if (eligibleForGoals != null) result.eligibleForGoals = eligibleForGoals;
+    if (accountNumber != null) result.accountNumber = accountNumber;
     return result;
   }
 
@@ -474,6 +508,7 @@ class UpdateAccountRequest extends $pb.GeneratedMessage {
     ..pPM<CurrencyBalance>(8, _omitFieldNames ? '' : 'balances',
         subBuilder: CurrencyBalance.create)
     ..aOB(9, _omitFieldNames ? '' : 'eligibleForGoals')
+    ..aOS(10, _omitFieldNames ? '' : 'accountNumber')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -577,6 +612,18 @@ class UpdateAccountRequest extends $pb.GeneratedMessage {
   $core.bool hasEligibleForGoals() => $_has(7);
   @$pb.TagNumber(9)
   void clearEligibleForGoals() => $_clearField(9);
+
+  /// See Account.account_number. A full replacement like every other field: a client that does not
+  /// send it is asking for the number to be removed, so a form that does not edit it must resend
+  /// the one it was given.
+  @$pb.TagNumber(10)
+  $core.String get accountNumber => $_getSZ(8);
+  @$pb.TagNumber(10)
+  set accountNumber($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(10)
+  $core.bool hasAccountNumber() => $_has(8);
+  @$pb.TagNumber(10)
+  void clearAccountNumber() => $_clearField(10);
 }
 
 /// GET /api/v1/accounts — every account owned by the authenticated user.
