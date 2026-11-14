@@ -25,6 +25,8 @@ import prudent.error.PrudentException;
 import prudent.proto.v1.CommitImportSessionRequest;
 import prudent.proto.v1.CreateImportSessionRequest;
 import prudent.proto.v1.PreviewImportSessionRequest;
+import prudent.proto.v1.SetImportDefaultsRequest;
+import prudent.proto.v1.UpdateImportRowRequest;
 import zen.core.http.ZenStatus;
 
 /**
@@ -173,9 +175,13 @@ public class ImportSessionResource {
   @Operation(
       summary = "Write the confirmed session to the ledger (the commit phase)",
       description =
-          "PREVIEWED → COMMITTED. Needs a destination account and confirmedAcceptedRows equal to the"
-              + " session's accepted rows. Answers 503 until the ledger writer exists"
-              + " (jlogicsoftware/prudent#76); the session then stays PREVIEWED.")
+          "PREVIEWED → COMMITTED. Needs a destination account, a category (its own or the session's"
+              + " default for its direction) on every row to be written and confirmedAcceptedRows"
+              + " equal to the session's accepted rows; zero is allowed and writes nothing. One transaction:"
+              + " any failure writes nothing and leaves the session PREVIEWED. Rows already in the"
+              + " account are not written again (committedAlreadyImported). Repeating the commit of"
+              + " a COMMITTED session with the same confirmedAcceptedRows answers with the same"
+              + " result. The response carries counts only.")
   @RequestBody(content = @Content(schema = @Schema(ref = "CommitImportSessionRequest")))
   @APIResponse(
       responseCode = ZenStatus.OK,
@@ -186,13 +192,10 @@ public class ImportSessionResource {
   @APIResponse(
       responseCode = ZenStatus.CONFLICT,
       description =
-          "The session is not PREVIEWED, has expired, has no destination account, has no accepted"
-              + " rows, the destination account no longer passes its checks, or the confirmed count"
-              + " differs from its accepted rows",
-      content = @Content(schema = @Schema(ref = "ZenError")))
-  @APIResponse(
-      responseCode = ZenStatus.SERVICE_UNAVAILABLE,
-      description = "Importing into the ledger is not available yet",
+          "The session is not PREVIEWED (or COMMITTED, for a repeat), has expired, has no"
+              + " destination account, a row to be written has neither a category nor a default for"
+              + " its direction or has one the ledger refuses, the destination account no longer passes its checks, or"
+              + " the confirmed count differs from its accepted rows",
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response commit(@PathParam("id") String id, CommitImportSessionRequest request) {
     return view(
@@ -200,6 +203,113 @@ public class ImportSessionResource {
             currentUser.id(),
             Ids.parse("import session", id),
             request.getConfirmedAcceptedRows()));
+  }
+
+  @POST
+  @Path("/{id}/rows/{rowNumber}")
+  @Operation(
+      summary = "Decide a held row: its category, note, or whether to include a duplicate",
+      description =
+          "Allowed while the session is PARSED or PREVIEWED. Only the fields present change. A"
+              + " rejected row takes no decision; includeDuplicate is for DUPLICATE rows only; a note"
+              + " is at most 500 characters. POST rather than PUT or PATCH on purpose: it is a partial"
+              + " update, PUT in this API means full replacement and there is no PATCH. The answer is"
+              + " the changed row and the session's recomputed counts, not the whole session.")
+  @RequestBody(content = @Content(schema = @Schema(ref = "UpdateImportRowRequest")))
+  @APIResponse(
+      responseCode = ZenStatus.OK,
+      content = @Content(schema = @Schema(ref = "UpdateImportRowResponse")))
+  @APIResponse(
+      responseCode = ZenStatus.BAD_REQUEST,
+      description =
+          "A category that is not the caller's or is for the other direction, a note over 500"
+              + " characters, or including a row that is not a duplicate",
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  @APIResponse(
+      responseCode = ZenStatus.NOT_FOUND,
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  @APIResponse(
+      responseCode = ZenStatus.CONFLICT,
+      description = "The session holds no rows, has expired, the category is archived, or the row"
+          + " was rejected",
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  public Response updateRow(
+      @PathParam("id") String id,
+      @PathParam("rowNumber") int rowNumber,
+      UpdateImportRowRequest request) {
+    UUID categoryId = null;
+    boolean clearCategory = false;
+    if (request.hasCategoryId()) {
+      if (request.getCategoryId().isEmpty()) {
+        clearCategory = true;
+      } else {
+        categoryId = Ids.parseInBody("category", request.getCategoryId());
+      }
+    }
+    ImportWorkflow.RowDecision decision =
+        workflow.updateRow(
+            currentUser.id(),
+            Ids.parse("import session", id),
+            rowNumber,
+            categoryId,
+            clearCategory,
+            request.hasNote() ? request.getNote() : null,
+            request.hasIncludeDuplicate() ? request.getIncludeDuplicate() : null);
+    return Response.ok(mapper.toRowResponse(decision.session(), decision.row())).build();
+  }
+
+  @POST
+  @Path("/{id}/defaults")
+  @Operation(
+      summary = "Set the session's default categories for expenses and for income",
+      description =
+          "Allowed while the session is PARSED or PREVIEWED. Only the fields present change; an"
+              + " empty string clears one. A row with no category of its own is written under the"
+              + " default for its direction. Each must be the caller's, active category able to file"
+              + " its direction, and is checked again at commit. The session is returned without its"
+              + " rows. Cleared when the session ends.")
+  @RequestBody(content = @Content(schema = @Schema(ref = "SetImportDefaultsRequest")))
+  @APIResponse(
+      responseCode = ZenStatus.OK,
+      content = @Content(schema = @Schema(ref = "ImportSession")))
+  @APIResponse(
+      responseCode = ZenStatus.BAD_REQUEST,
+      description = "A category that is not the caller's or is for the other direction",
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  @APIResponse(
+      responseCode = ZenStatus.NOT_FOUND,
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  @APIResponse(
+      responseCode = ZenStatus.CONFLICT,
+      description = "The session holds no rows, has expired, or the category is archived",
+      content = @Content(schema = @Schema(ref = "ZenError")))
+  public Response setDefaults(@PathParam("id") String id, SetImportDefaultsRequest request) {
+    UUID expense = null;
+    boolean clearExpense = false;
+    if (request.hasDefaultExpenseCategoryId()) {
+      if (request.getDefaultExpenseCategoryId().isEmpty()) {
+        clearExpense = true;
+      } else {
+        expense = Ids.parseInBody("category", request.getDefaultExpenseCategoryId());
+      }
+    }
+    UUID income = null;
+    boolean clearIncome = false;
+    if (request.hasDefaultIncomeCategoryId()) {
+      if (request.getDefaultIncomeCategoryId().isEmpty()) {
+        clearIncome = true;
+      } else {
+        income = Ids.parseInBody("category", request.getDefaultIncomeCategoryId());
+      }
+    }
+    return view(
+        workflow.setDefaults(
+            currentUser.id(),
+            Ids.parse("import session", id),
+            expense,
+            clearExpense,
+            income,
+            clearIncome));
   }
 
   @POST

@@ -22,6 +22,9 @@ import java.util.UUID;
 @Table(name = "prudent_import_row")
 public class ImportRowEntity extends PanacheEntityBase {
 
+  /** The longest a row's note may be: the limit every other note in the schema has. */
+  public static final int MAX_NOTE_CHARS = 500;
+
   @Id public UUID id;
 
   @Column(name = "session_id", nullable = false)
@@ -62,6 +65,13 @@ public class ImportRowEntity extends PanacheEntityBase {
   public String externalId;
 
   /**
+   * A stable, rule-shaped code the importer put on an accepted row ({@link
+   * ParsedRow#HINT_OWN_ACCOUNT_TRANSFER}), never content; {@code null} when there is none.
+   */
+  @Column(name = "hint_code")
+  public String hintCode;
+
+  /**
    * The row's duplicate-detection key ({@link RowKey}), set by the preview for the session's
    * destination account and {@code null} before it, on a rejected row, and when no account is
    * chosen. A digest, never statement text. The commit copies it onto the ledger record.
@@ -79,6 +89,32 @@ public class ImportRowEntity extends PanacheEntityBase {
    */
   @Column(name = "duplicate_code")
   public String duplicateCode;
+
+  /** The category the user chose for the record this row becomes; required by the commit. */
+  @Column(name = "category_id")
+  public UUID categoryId;
+
+  /** The user's own note for the record, at most {@link #MAX_NOTE_CHARS}; never from the statement. */
+  @Column(name = "note")
+  public String note;
+
+  /**
+   * The user's decision that a {@link RowStatus#DUPLICATE} row is a genuinely new operation and is
+   * to be written. Only a DUPLICATE row can carry it (CHECK) and a new preview clears it.
+   */
+  @Column(name = "include_duplicate", nullable = false)
+  public boolean includeDuplicate;
+
+  /** Whether the commit writes this row: accepted, or a duplicate the user included. */
+  public boolean isWritable() {
+    return status == RowStatus.ACCEPTED || (status == RowStatus.DUPLICATE && includeDuplicate);
+  }
+
+  /** One row of a session by its number, or {@code null}. Ownership is part of the lookup. */
+  public static ImportRowEntity findOfSession(UUID userId, UUID sessionId, int rowNumber) {
+    return find("userId = ?1 and sessionId = ?2 and rowNumber = ?3", userId, sessionId, rowNumber)
+        .firstResult();
+  }
 
   /** The rows of one session, in statement order. Ownership is part of the lookup. */
   public static List<ImportRowEntity> ofSession(UUID userId, UUID sessionId) {

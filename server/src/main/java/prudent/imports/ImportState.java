@@ -24,9 +24,9 @@ import java.util.Set;
  * are terminal, so a statement cannot be committed twice by this machine. The one edge back onto
  * itself is PREVIEWED to PREVIEWED: bytes are never kept, so a user who sees the preview and then
  * picks a different destination account would otherwise have to upload again. A preview that runs
- * again re-validates the destination and re-runs the preview stages. (Making a repeated commit an
- * idempotent success is jlogicsoftware/prudent#76's to decide; it changes the resource, not this
- * graph.)
+ * again re-validates the destination and re-runs the preview stages. A repeated commit of a COMMITTED
+ * session is not a transition: the workflow answers it with the counts the first commit stored
+ * (ADR-092), and nothing is written.
  */
 public enum ImportState {
   PARSED,

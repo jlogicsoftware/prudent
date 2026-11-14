@@ -4,8 +4,9 @@ import java.util.List;
 
 /**
  * The commit-phase seam (M6, jlogicsoftware/prudent#72, ADR-089): where accepted rows become ledger
- * records. <strong>jlogicsoftware/prudent#76 provides the real implementation</strong> — atomic,
- * idempotent, one record per accepted row, written once.
+ * records. {@link LedgerImportCommitter} (jlogicsoftware/prudent#76, ADR-092) is the implementation —
+ * atomic, idempotent, one record per writable row, written once. The seam stays so tests can
+ * substitute a committer that fails or pauses.
  *
  * <p>The workflow calls it only when the session is PREVIEWED, the caller has confirmed exactly the
  * accepted count, and a destination account is set, <em>inside the same transaction</em> that then
@@ -13,8 +14,6 @@ import java.util.List;
  * session PREVIEWED and the ledger untouched; one that returns is final. Implementations must not
  * start a transaction of their own.
  *
- * <p>Until #76 lands the only bean is {@link UnavailableImportCommitter}, which refuses. That is a
- * deliberate placeholder, not a stub that pretends: no import can reach the ledger yet.
  */
 public interface ImportCommitter {
 
@@ -32,7 +31,8 @@ public interface ImportCommitter {
    * a bug into a refused write, not a doubled ledger.
    *
    * @param session the PREVIEWED session being committed, locked by the caller
-   * @param accepted its rows whose status is {@link RowStatus#ACCEPTED}, in statement order
+   * @param accepted its writable rows ({@link ImportRowEntity#isWritable}: accepted, or a duplicate the
+   *     user included), in statement order
    * @return the rows written and the rows found already imported; they sum to
    *     {@code accepted.size()}
    */

@@ -13,6 +13,93 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-092 — A statement import is committed by one locked transaction that writes ordinary records, answers a repeat with the same result, and invents no transfer leg
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#76, sixth task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- **`LedgerImportCommitter`** replaces the 503 default (`UnavailableImportCommitter` is deleted; the committer is not format specific).
+  `ImportWorkflow.commit` locks the session, then the destination account's row (`SELECT ... FOR UPDATE`, `AccountEntity.findOwnedForUpdate`)
+  **before** re-checking the destination, so what is checked is what is written to. The committer then refuses a session in which a
+  writable row has neither a category of its own nor the session's default for its direction (409, a count and no text), re-reads `RecordEntity.importedKeys` under the lock, counts a row whose key is held
+  as `alreadyImported`, and writes every other row through `RecordWriter.apply` (the same ownership, currency, category-kind and archived
+  checks as a typed record), copying `fingerprint`/`occurrence` onto `import_fingerprint`/`import_occurrence`. The lock order is always session,
+  then account, so two commits cannot deadlock. Records an import writes differ from typed ones **only by those two key columns**: nothing else
+  was needed, because a record's title is the row's description, its payee the counterparty, its note the user's.
+- **Atomic.** Nothing in the committer opens a transaction; a refused row (409 `Row N cannot be written: ...`, no statement text) or any
+  exception rolls back every record written for the session, and the session stays PREVIEWED with its rows. Tested by injecting a failure at
+  row 1, 2 and 3 of three (and by archiving the third row's category after it was chosen), and by a later commit succeeding.
+- **Idempotent.** The session keeps `committed_written` and `committed_already_imported` (migration V20261114120000, set exactly when
+  COMMITTED, paired, non-negative; on the wire `ImportSession.committed_written` / `committed_already_imported`). A commit of a COMMITTED
+  session with the same `confirmed_accepted_rows` answers with the stored result (200, nothing written); a different number is a 409; a
+  DISCARDED or EXPIRED session stays refused. Two sessions of one file (two tabs) write it once: the second reports `alreadyImported`. The
+  unique index stays as the backstop.
+- **Per-row decisions** (`POST /api/v1/import-sessions/{id}/rows/{rowNumber}`, `UpdateImportRowRequest`, columns `category_id`, `note`,
+  `include_duplicate` on `prudent_import_row`). The verb is POST on purpose, a deliberate exception: the call is a partial update, `PUT` in
+  this API means full replacement, and the repository has no `PATCH`. A category is needed because an ordinary record always has one and nothing in a statement
+  names one; it is validated when set (the caller's, active, right direction) and again at commit. A note is at most 500 characters like every other note
+  in the schema (400 beyond, and a CHECK). The answer is the light `UpdateImportRowResponse` (the changed row and the session's three counts),
+  not the whole session: the first design returned the session with every row, so deciding n rows moved O(n²) data (5000 rows took about a minute).
+  Only the one row is read, and the counts are recomputed only when the inclusion decision changed. `GET /api/v1/import-sessions/{id}` stays the full view. `include_duplicate` is the server side of
+  ADR-091's override: only a DUPLICATE row may carry it (400 otherwise; a rejected row takes no decision, 409), such a row is counted in
+  `accepted_rows` (what the commit confirms) and not in `duplicate_rows`, it is written under the **next free occurrence** of its fingerprint
+  (`max + 1` over what the account holds plus what this commit just wrote, under the account lock), and a new preview clears the decision
+  because the row's status is recomputed. Two sessions that each force the same row both write it: that is the user's explicit choice twice.
+  Note and category are personal data held only with the row and deleted with it; the data export carries them like the other row fields.
+- **Session defaults** (`POST /api/v1/import-sessions/{id}/defaults`, `SetImportDefaultsRequest`; `ImportSession.default_expense_category_id` /
+  `default_income_category_id`, columns on `prudent_import_session`). Choosing a category for every row of a long statement is not a usable
+  flow, so a session carries one default per direction; a row with no category of its own is written under the default for the sign of
+  its amount, and a row's own category wins. Each default is validated when set exactly like a row's category (the caller's, active, able to
+  file that direction; an empty string clears it) and again when written at commit (a category archived in between refuses the commit, 409, and
+  nothing is written). Defaults are plain columns with no foreign key, a CHECK keeps them null once the session is not PARSED or PREVIEWED, and
+  the workflow clears them when the session ends. The answer is the session without its rows.
+- **Zero accepted rows is a valid commit.** A statement imported in full has only duplicates, and refusing its commit forced a discard. A
+  PREVIEWED session may be committed with `confirmed_accepted_rows = 0`: it completes as COMMITTED with `committed_written = 0` and
+  `committed_already_imported = 0`, and a repeat answers the same. (A statement with no rows at all is still refused at parse; a statement of
+  only rejected rows can likewise be committed, which writes nothing and ends the session.)
+- **Own-account transfers: imported as a plain record of the destination only; no leg is created in the other account.** Double-counting
+  analysis (corrected: an earlier version of this entry claimed the approach "never double counts", which holds only if the other side is
+  recorded as a plain expense): (a) creating a Prudent transfer would write an outgoing leg into an account whose statement the user has not imported. That
+  leg could not carry a key (the other statement's wording of the outgoing row is unseen, so its fingerprint cannot be computed), so the day
+  the other account's outgoing rows become importable, or the user types the transfer by hand, the money leaves that account twice. It
+  would also change a second account the user did not choose. (b) A plain record gives the destination the right balance and never doubles
+  anything; the cost is that the source account's balance falls only when its own outflow is recorded, and that analytics counts the
+  incoming amount as income unless the user files it under a category that says otherwise. Today an outgoing own transfer is rejected by the
+  parser (`amount.sign_unexpected`), so nothing can be imported twice; the user records the outflow by hand. Pairing is future work that
+  needs the outgoing wording (an open question of `docs/erste-csv-contract.md`).
+  **The user must record the other side as a plain expense in the source account, never as a Prudent Transfer:** the Transfer feature creates both
+  legs, so using it for the same money would credit the destination a second time. Analytics counts the imported incoming amount as income of the
+  destination (a plain expense on the source side is counted as spending), so both show unless the user files them under categories the
+  analytics leaves out. To let a client warn, the importer puts a stable code on the row, `ImportRow.hint_code = transfer.own_account`
+  (`ParsedRow.HINT_OWN_ACCOUNT_TRANSFER`, column `hint_code`, a rule-shaped code, never on a rejected row), set at parse. Tested: the incoming row writes one record, the other
+  account has none and its balance is unchanged; an outgoing row stays rejected.
+- **Titles are the bank's raw description.** A record's title is the statement row's description (its payee the counterparty), so it is noisy:
+  a card mask and the amount appear in it. That is a #74 user-experience point (shorten or let the user edit before commit), not changed here.
+- **Privacy.** The statement is still read once and dropped. After a commit no import row remains, the identity token is cleared, the response
+  and every error carry counts and rule codes only (asserted on the raw body), and the key columns were already covered by ADR-091's log filter.
+  The policy changed (`docs/privacy-policy.md`): the staging description now lists the category and note a user gives a row and the session's
+  default categories, says they are held no longer than the session's 24 hours, and lists the committed counts on the session record. An earlier
+  version of this entry said the policy was unchanged, which was wrong.
+
+### Limitations
+
+- Not run against a deployed service; no client screen sets a row's category, note or inclusion (jlogicsoftware/prudent#74), so until
+  then only the API can commit an import.
+- Every written row still needs a category, but a session default covers it; there is no automatic guess from the statement.
+- Rows are written one at a time (up to 5000), inside one transaction.
+
+### Consequence
+
+Verified: `ImportCommitTest` (tests: records written, keys, the missing-category refusal, failure at each of three rows, the HTTP 500,
+repeat commit, discarded session, two sessions of one file, a race of six sessions of one file and of one session committed twice from real
+threads, own transfers, duplicate overrides, privacy), `ImportCommitSchemaTest`, and the existing import suites adapted to substitute
+`LedgerImportCommitter`; the duplicate-detection suite (ADR-091) now runs through the real committer and defaults, not a hand-written double.
+The committer still takes the account's row lock although the workflow does too: the `ImportCommitter` contract asks every implementation to
+serialise on the account, and the second `SELECT ... FOR UPDATE` in one transaction is free. A one-off local run over the real export is recorded in the task report as counts only.
+
+---
+
 ## ADR-091 — A statement row is recognised by a versioned fingerprint plus an occurrence number, kept on the ledger record under a unique index; the bank's sequence number is not an identifier
 
 **Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#75, fifth task of the epic jlogicsoftware/prudent#41 (done before #76 and #74, because the preview shows duplicates and the commit must store what detection needs).

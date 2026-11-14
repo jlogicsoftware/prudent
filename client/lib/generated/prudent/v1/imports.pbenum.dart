@@ -74,8 +74,8 @@ class ImportRowStatus extends $pb.ProtobufEnum {
   static const ImportRowStatus IMPORT_ROW_STATUS_ACCEPTED =
       ImportRowStatus._(1, _omitEnumNames ? '' : 'IMPORT_ROW_STATUS_ACCEPTED');
 
-  /// Recognised as already imported. Set only by a preview stage (jlogicsoftware/prudent#75); never
-  /// written on commit.
+  /// Recognised as already imported. Set only by a preview stage (jlogicsoftware/prudent#75); not
+  /// written on commit unless the user included it (ImportRow.include_duplicate).
   static const ImportRowStatus IMPORT_ROW_STATUS_DUPLICATE =
       ImportRowStatus._(2, _omitEnumNames ? '' : 'IMPORT_ROW_STATUS_DUPLICATE');
 

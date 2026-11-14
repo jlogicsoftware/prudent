@@ -196,7 +196,14 @@ stored; a session keeps only normalised rows, which are deleted when it ends, an
 overdue one at once; the hourly sweep deletes the rest). A preview can be repeated (`PREVIEWED -> PREVIEWED`) to change the
 destination account, which is validated wherever it is set and again at commit: the caller's, active, holding the session's
 currency, and accepted by `StatementImporter.checkDestination` against an opaque identity token (a digest the importer
-produces, kept only while the session is open). Statements are bounded (rows, field length, open sessions per user, list
+produces, kept only while the session is open). Committing is real (ADR-092, jlogicsoftware/prudent#76): `LedgerImportCommitter` locks the destination account's row and writes one
+ordinary record per row through `RecordWriter`, in one transaction, copying the duplicate key onto it; a repeated commit of a
+committed session answers with its stored counts (`committed_written`, `committed_already_imported`), and two sessions of one file
+write it once. Each row needs a category before commit: its own, or the session's default for its direction
+(`POST /api/v1/import-sessions/{id}/defaults`); `POST .../rows/{rowNumber}` sets a row's category, note (500 characters) and
+includes a duplicate under the next free occurrence, and answers with the row and the counts only. A session with no accepted
+rows can be committed (zero written). An incoming own-account transfer becomes a plain record of the destination only and its
+row carries `hint_code = transfer.own_account` (the other side must be recorded as a plain expense, never a Transfer). No client screen for any of this exists yet (jlogicsoftware/prudent#74). Statements are bounded (rows, field length, open sessions per user, list
 size; `prudent.import.*`). The Erste importer exists (ADR-090, jlogicsoftware/prudent#73): `ErsteStatementImporter` registers
 `erste-pl-csv`, validates the whole file against the contract before returning anything (encoding, line ending, delimiter, header,
 field count, dates, decimals, currency, sequence numbers, account identity) and rejects with a rule code and bounded row
@@ -210,7 +217,7 @@ counterparty fields, plus an occurrence number for identical rows in one file), 
 destination account already holds `DUPLICATE` (`duplicate.already_imported`), and leaves the key on the import row for the
 committer to copy onto `prudent_record.import_fingerprint` / `import_occurrence`, which are unique per account. The bank's
 sequence number is not used as an identifier (`StatementImporter.stableExternalId()` is the switch, false for Erste). **There is
-no ledger writer (#76) and no screen (#74), and nothing in the UI sets an account number:** commit answers 503 until an `ImportCommitter` bean exists. The parser has been run on the
+no screen (#74), and nothing in the UI sets an account number.** The parser has been run on the
 synthetic fixtures and, locally and by counts only, on one real export; nothing has run it in a deployed service.
 **No real statement is ever committed.**
 

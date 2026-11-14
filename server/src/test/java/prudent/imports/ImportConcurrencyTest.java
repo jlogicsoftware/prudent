@@ -97,7 +97,7 @@ class ImportConcurrencyTest {
   }
 
   @Test
-  void twoCommitsOfOneSession_oneWinsAndTheLedgerIsWrittenOnce() throws Exception {
+  void twoCommitsOfOneSession_bothSucceedAndTheLedgerIsWrittenOnce() throws Exception {
     ImportTestSupport.RecordingCommitter committer = ImportTestSupport.installRecordingCommitter(300);
     UUID id = previewedSession();
 
@@ -107,8 +107,8 @@ class ImportConcurrencyTest {
                 () -> workflow.commit(ALICE, id, 2),
                 () -> workflow.commit(ALICE, id, 2)));
 
-    assertEquals(1, outcomes.stream().filter(o -> o == null).count(), outcomes.toString());
-    outcomes.stream().filter(o -> o != null).forEach(ImportConcurrencyTest::assertConflict);
+    // The loser is a retry of a commit that went through (ADR-092): the same success, not a 409.
+    assertEquals(2, outcomes.stream().filter(o -> o == null).count(), outcomes.toString());
     assertEquals(1, committer.calls.size(), "the committer must run exactly once");
     assertEquals(ImportState.COMMITTED, stateOf(id));
     assertEquals(0, ImportRowEntity.count("sessionId", id));

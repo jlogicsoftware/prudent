@@ -322,8 +322,10 @@ public class ErsteStatementImporter implements StatementImporter {
       }
       // The counterparty field holds the holder's own name and address: personal data with no use
       // here, so it is not carried. The other account is what identifies the transfer.
-      return RowResult.of(ParsedRow.accepted(
-          number, transaction, booking, amountMinor, description, null, other, sequence));
+      return RowResult.of(
+          ParsedRow.accepted(
+                  number, transaction, booking, amountMinor, description, null, other, sequence)
+              .withHint(ParsedRow.HINT_OWN_ACCOUNT_TRANSFER));
     }
     return RowResult.of(ParsedRow.rejected(number, "description.unknown_shape"));
   }

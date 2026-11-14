@@ -62,8 +62,8 @@ enum ImportRowStatus {
   IMPORT_ROW_STATUS_UNSPECIFIED = 0;
   // Well formed; will be written on commit.
   IMPORT_ROW_STATUS_ACCEPTED = 1;
-  // Recognised as already imported. Set only by a preview stage (jlogicsoftware/prudent#75); never
-  // written on commit.
+  // Recognised as already imported. Set only by a preview stage (jlogicsoftware/prudent#75); not
+  // written on commit unless the user included it (ImportRow.include_duplicate).
   IMPORT_ROW_STATUS_DUPLICATE = 2;
   // The importer could not make sense of the row. Flagged, never dropped silently; never written.
   IMPORT_ROW_STATUS_REJECTED = 3;
@@ -104,6 +104,23 @@ message ImportRow {
   // Why a row is a duplicate: a short stable code such as `duplicate.already_imported`, never row
   // content. Empty unless status is DUPLICATE (jlogicsoftware/prudent#75).
   string duplicate_code = 12;
+
+  // What the user decided for this row before confirming (jlogicsoftware/prudent#76, ADR-092). A row
+  // that will be written needs a category of its own or, failing that, the session's default for its
+  // direction; the commit refuses a session with a row that has neither. Never filled by the importer.
+  optional string category_id = 13;
+  // The user's own note for the record. Never taken from the statement.
+  optional string note = 14;
+  // True when the user decided that a DUPLICATE row is a new operation and is to be written. Only a
+  // DUPLICATE row can carry it; a new preview clears it. Such a row is counted in
+  // `ImportSession.accepted_rows`, not in `duplicate_rows`.
+  bool include_duplicate = 15;
+
+  // A short stable code the importer put on the row, never content. Empty when there is none. Today:
+  // `transfer.own_account`, an incoming transfer from another account of the user's own (ADR-092). A
+  // client should warn that the OTHER side must be recorded as a plain expense and never as a
+  // Prudent Transfer, which would credit this account a second time.
+  string hint_code = 16;
 }
 
 // A session, as the server holds it.
@@ -133,9 +150,22 @@ message ImportSession {
   int32 duplicate_rows = 10;
   int32 rejected_rows = 11;
 
-  // The held rows, in row_number order. Filled on a single-session read while the session is PARSED
-  // or PREVIEWED; empty in a list and once the session has ended.
+  // The held rows, in row_number order. Filled on a single-session read, a parse and a preview while
+  // the session is PARSED or PREVIEWED; empty in a list, in the answers to the commit, the defaults
+  // and the discard, and once the session has ended.
   repeated ImportRow rows = 12;
+
+  // Set exactly when the session is COMMITTED: how many ledger records the commit wrote, and how many
+  // of the accepted rows it found already imported (written + already_imported = accepted_rows).
+  // Counts only; they are how a repeated commit of the same session is answered (ADR-092).
+  optional int32 committed_written = 13;
+  optional int32 committed_already_imported = 14;
+
+  // The categories a row with no category of its own is written under, by the sign of its amount
+  // (ADR-092). Set with POST .../defaults; validated like a row's category; cleared when the session
+  // ends. Absent when not set.
+  optional string default_expense_category_id = 15;
+  optional string default_income_category_id = 16;
 }
 
 // POST /api/v1/import-sessions — the PARSE phase.
@@ -158,10 +188,46 @@ message PreviewImportSessionRequest {
   optional string account_id = 1;
 }
 
+// POST /api/v1/import-sessions/{id}/rows/{rowNumber} — a decision about one held row, made after the
+// preview and before the commit (ADR-092). Only the fields present change.
+message UpdateImportRowRequest {
+  // The category the row's record will be filed under; without one the session's default for the
+  // row's direction applies. Must be the caller's, active, and suit the
+  // row's direction (an expense category cannot file income). An empty string clears it.
+  optional string category_id = 1;
+  // The user's note for the record, at most 500 characters (400 beyond). An empty string clears it.
+  optional string note = 2;
+  // true: write this DUPLICATE row anyway, as a new operation. false: leave it out again. true on a
+  // row that is not a DUPLICATE is refused (400); a rejected row takes no decision at all.
+  optional bool include_duplicate = 3;
+}
+
+// The answer to a row decision: only the changed row and the session's recomputed counts, not the
+// whole session, so a client can decide many rows without each answer growing with the statement
+// (ADR-092). GET /api/v1/import-sessions/{id} stays the full view.
+message UpdateImportRowResponse {
+  ImportRow row = 1;
+  int32 accepted_rows = 2;
+  int32 duplicate_rows = 3;
+  int32 rejected_rows = 4;
+}
+
+// POST /api/v1/import-sessions/{id}/defaults — the session-wide default categories (ADR-092). Only
+// the fields present change; an empty string clears one. Each must be the caller's, active category
+// that can file its direction (an expense default cannot be an income-only category), and is checked
+// again at commit.
+message SetImportDefaultsRequest {
+  optional string default_expense_category_id = 1;
+  optional string default_income_category_id = 2;
+}
+
 // POST /api/v1/import-sessions/{id}/commit — the COMMIT phase.
 message CommitImportSessionRequest {
-  // How many accepted rows the user was shown in the preview. Refused (409) when it differs from
-  // how many the session now holds, so a commit always confirms exactly what was reviewed.
+  // How many rows the user was shown as accepted (including duplicates they chose to include); zero is
+  // allowed and commits nothing (a statement already imported in full). Refused
+  // (409) when it differs from how many the session now holds, so a commit always confirms exactly
+  // what was reviewed. Repeating a commit that already succeeded with the same number answers with the
+  // same result instead of an error.
   int32 confirmed_accepted_rows = 1;
 }
 

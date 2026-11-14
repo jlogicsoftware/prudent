@@ -65,6 +65,7 @@ import prudent.proto.v1.RecurrenceFrequency;
 import prudent.proto.v1.Reminder;
 import prudent.proto.v1.ResetBudgetCarryOverRequest;
 import prudent.proto.v1.SetBudgetRequest;
+import prudent.proto.v1.SetImportDefaultsRequest;
 import prudent.proto.v1.Settings;
 import prudent.proto.v1.SpendByCategoryResponse;
 import prudent.proto.v1.SpendByPeriodResponse;
@@ -72,6 +73,8 @@ import prudent.proto.v1.Transfer;
 import prudent.proto.v1.UpdateAccountRequest;
 import prudent.proto.v1.UpdateCategoryRequest;
 import prudent.proto.v1.UpdateGoalRequest;
+import prudent.proto.v1.UpdateImportRowRequest;
+import prudent.proto.v1.UpdateImportRowResponse;
 import prudent.proto.v1.UpdatePlanRequest;
 import prudent.proto.v1.UpdateRecordRequest;
 import prudent.proto.v1.UpdateSettingsRequest;
@@ -166,6 +169,7 @@ import prudent.proto.v1.UpdateSettingsRequest;
       Reminder.class,
       ResetBudgetCarryOverRequest.class,
       SetBudgetRequest.class,
+      SetImportDefaultsRequest.class,
       Settings.class,
       SpendByCategoryResponse.class,
       SpendByPeriodResponse.class,
@@ -173,6 +177,8 @@ import prudent.proto.v1.UpdateSettingsRequest;
       UpdateAccountRequest.class,
       UpdateCategoryRequest.class,
       UpdateGoalRequest.class,
+      UpdateImportRowRequest.class,
+      UpdateImportRowResponse.class,
       UpdatePlanRequest.class,
       UpdateRecordRequest.class,
       UpdateSettingsRequest.class,

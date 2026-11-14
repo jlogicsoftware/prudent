@@ -82,6 +82,35 @@ public class ImportSessionEntity extends PanacheEntityBase {
   public int rejectedRows;
 
   /**
+   * How many records the commit wrote, set exactly when the session is COMMITTED. Kept (with
+   * {@link #committedAlreadyImported}) so a retry of the same commit can be answered with the same
+   * result after the rows are gone (ADR-092).
+   */
+  @Column(name = "committed_written")
+  public Integer committedWritten;
+
+  /** How many accepted rows the commit found already imported; see {@link #committedWritten}. */
+  @Column(name = "committed_already_imported")
+  public Integer committedAlreadyImported;
+
+  /**
+   * The category a row of negative amount gets when it has none of its own; the caller's, active
+   * and able to file expenses when set, re-checked at commit. {@code null} when not set; cleared
+   * when the session ends. No foreign key, like {@code accountId}.
+   */
+  @Column(name = "default_expense_category_id")
+  public UUID defaultExpenseCategoryId;
+
+  /** As {@link #defaultExpenseCategoryId}, for a row of positive amount. */
+  @Column(name = "default_income_category_id")
+  public UUID defaultIncomeCategoryId;
+
+  /** The default category for a row of this sign, or {@code null}. */
+  public UUID defaultCategoryFor(long amountMinor) {
+    return amountMinor < 0 ? defaultExpenseCategoryId : defaultIncomeCategoryId;
+  }
+
+  /**
    * Moves the session to {@code target}, or refuses (409) if {@link ImportState} does not allow it
    * from the current state. The only writer of {@link #state} after creation.
    */
@@ -104,8 +133,14 @@ public class ImportSessionEntity extends PanacheEntityBase {
    * rows are first saved and after a preview stage may have reclassified some.
    */
   public void recount(List<ImportRowEntity> rows) {
-    acceptedRows = count(rows, RowStatus.ACCEPTED);
-    duplicateRows = count(rows, RowStatus.DUPLICATE);
+    // A duplicate the user chose to include is written, so it is counted with the accepted rows
+    // (what the commit confirms) and not with the duplicates left out (ADR-092).
+    acceptedRows = (int) rows.stream().filter(ImportRowEntity::isWritable).count();
+    duplicateRows =
+        (int)
+            rows.stream()
+                .filter(r -> r.status == RowStatus.DUPLICATE && !r.includeDuplicate)
+                .count();
     rejectedRows = count(rows, RowStatus.REJECTED);
   }
 

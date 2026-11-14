@@ -141,6 +141,17 @@ public class AccountEntity extends PanacheEntityBase {
     return find("id = ?1 and userId = ?2", id, userId).firstResult();
   }
 
+  /**
+   * One account, but only if the caller owns it, locked ({@code SELECT ... FOR UPDATE}) for the rest
+   * of the transaction. A statement import takes it before it checks and writes, so two commits into
+   * one account queue instead of both writing the same rows (ADR-092).
+   */
+  public static AccountEntity findOwnedForUpdate(UUID userId, UUID id) {
+    return find("id = ?1 and userId = ?2", id, userId)
+        .withLock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+        .firstResult();
+  }
+
   /** The caller's account holding {@code accountNumber} (already normalised), or {@code null}. */
   public static AccountEntity findOwnedByNumber(UUID userId, String accountNumber) {
     return find("userId = ?1 and accountNumber = ?2", userId, accountNumber).firstResult();

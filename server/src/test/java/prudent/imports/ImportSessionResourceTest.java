@@ -131,8 +131,8 @@ class ImportSessionResourceTest {
     assertEquals(0, RecordEntity.count(), "a ledger record was written");
   }
 
-  /** Records the commit instead of refusing it, so the happy path can be driven before #76. */
-  private static final class RecordingCommitter extends UnavailableImportCommitter {
+  /** Records the commit and answers it without writing, so the workflow's own phases can be driven alone. */
+  private static final class RecordingCommitter extends LedgerImportCommitter {
     final List<List<ImportRowEntity>> calls = new ArrayList<>();
     final List<ImportState> stateSeen = new ArrayList<>();
 
@@ -146,8 +146,7 @@ class ImportSessionResourceTest {
 
   private RecordingCommitter installRecordingCommitter() {
     RecordingCommitter committer = new RecordingCommitter();
-    // QuarkusMock needs an instance of the bean's own class, hence the subclass.
-    QuarkusMock.installMockForType(committer, UnavailableImportCommitter.class);
+    QuarkusMock.installMockForType(committer, LedgerImportCommitter.class);
     return committer;
   }
 
@@ -354,8 +353,14 @@ class ImportSessionResourceTest {
     assertEquals(ImportSessionState.IMPORT_SESSION_STATE_COMMITTED, reread.getState());
     assertEquals(0, reread.getRowsCount());
 
-    // Terminal: a second commit (or a discard) is refused, so the committer is not called again.
-    error(commit(parsed.getId(), 2), 409);
+    // Terminal. A repeat of the same commit (a lost response, a double click) is answered with the
+    // same result and the committer is not called again; a different confirmation, or a discard,
+    // is refused.
+    ImportSession again = session(commit(parsed.getId(), 2));
+    assertEquals(ImportSessionState.IMPORT_SESSION_STATE_COMMITTED, again.getState());
+    assertEquals(done.getCommittedWritten(), again.getCommittedWritten());
+    assertEquals(done.getCommittedAlreadyImported(), again.getCommittedAlreadyImported());
+    error(commit(parsed.getId(), 3), 409);
     error(post(SESSIONS + "/" + parsed.getId() + "/discard", PreviewImportSessionRequest.getDefaultInstance()), 409);
     assertEquals(1, committer.calls.size());
   }
@@ -384,27 +389,38 @@ class ImportSessionResourceTest {
   }
 
   @Test
-  void commit_ofASessionWithNothingAccepted_isRefused() throws Exception {
+  void commit_ofASessionWithNothingAccepted_completesWithZeroWritten() throws Exception {
+    // Rejected-only: nothing can be written, and committing it still ends the session cleanly.
     ImportSession parsed = parse("PLN\n2026-11-01;abc;TEST;x\n2026-11-02;0;TEST;x\n");
     assertEquals(0, parsed.getAcceptedRows());
     session(
         post(
             SESSIONS + "/" + parsed.getId() + "/preview",
             PreviewImportSessionRequest.newBuilder().setAccountId(alicesAccount.toString()).build()));
-    assertTrue(error(commit(parsed.getId(), 0), 409).getMessage().contains("no accepted rows"));
+
+    ImportSession done = session(commit(parsed.getId(), 0));
+
+    assertEquals(ImportSessionState.IMPORT_SESSION_STATE_COMMITTED, done.getState());
+    assertEquals(0, done.getCommittedWritten());
+    assertEquals(0, done.getCommittedAlreadyImported());
+    assertEquals(0, count("ImportRowEntity"), "the rows are gone");
+    assertEquals(0, RecordEntity.count());
+    // A wrong confirmation is still refused, and a repeat answers the same.
+    assertEquals(409, commit(parsed.getId(), 1).statusCode());
+    assertEquals(0, session(commit(parsed.getId(), 0)).getCommittedWritten());
   }
 
   @Test
-  void commit_untilTheLedgerWriterExists_answers503AndKeepsTheSessionPreviewed() throws Exception {
-    // No committer installed: the default bean is the one that ships until jlogicsoftware/prudent#76.
+  void commit_withARowThatHasNoCategory_answers409AndKeepsTheSessionPreviewed() throws Exception {
+    // The real committer: an ordinary record always has a category, and nothing here chose one.
     ImportSession parsed = parse(statement());
     session(
         post(
             SESSIONS + "/" + parsed.getId() + "/preview",
             PreviewImportSessionRequest.newBuilder().setAccountId(alicesAccount.toString()).build()));
 
-    ZenError unavailable = error(commit(parsed.getId(), 2), 503);
-    assertEquals("unavailable", unavailable.getCode());
+    ZenError refused = error(commit(parsed.getId(), 2), 409);
+    assertTrue(refused.getMessage().contains("category"), refused.getMessage());
 
     ImportSession kept = session(get(parsed.getId()));
     assertEquals(ImportSessionState.IMPORT_SESSION_STATE_PREVIEWED, kept.getState());
@@ -415,14 +431,14 @@ class ImportSessionResourceTest {
   @Test
   void aCommitterThatFails_leavesTheSessionPreviewedAndItsRowsInPlace() throws Exception {
     QuarkusMock.installMockForType(
-        new UnavailableImportCommitter() {
+        new LedgerImportCommitter() {
           @Override
           public CommitResult commit(
               ImportSessionEntity session, List<ImportRowEntity> accepted) {
             throw new IllegalStateException("the ledger write failed");
           }
         },
-        UnavailableImportCommitter.class);
+        LedgerImportCommitter.class);
     ImportSession parsed = parse(statement());
     session(
         post(

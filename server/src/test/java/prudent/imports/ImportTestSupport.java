@@ -72,6 +72,17 @@ final class ImportTestSupport {
         CommitImportSessionRequest.newBuilder().setConfirmedAcceptedRows(confirmed).build());
   }
 
+  /** Sets the session's default categories, so every row has one without deciding each. */
+  static void defaults(String id, UUID expenseCategory, UUID incomeCategory) throws Exception {
+    session(
+        post(
+            SESSIONS + "/" + id + "/defaults",
+            prudent.proto.v1.SetImportDefaultsRequest.newBuilder()
+                .setDefaultExpenseCategoryId(expenseCategory.toString())
+                .setDefaultIncomeCategoryId(incomeCategory.toString())
+                .build()));
+  }
+
   static Response get(String id) {
     return PrudentTest.request(PrudentTest.JSON).when().get(SESSIONS + "/" + id).andReturn();
   }
@@ -107,8 +118,8 @@ final class ImportTestSupport {
                     .longValue());
   }
 
-  /** Records a commit instead of refusing it, optionally slowly to widen a race window. */
-  static final class RecordingCommitter extends UnavailableImportCommitter {
+  /** Records a commit and answers it without writing, optionally slowly to widen a race window. */
+  static final class RecordingCommitter extends LedgerImportCommitter {
     final List<List<ImportRowEntity>> calls = Collections.synchronizedList(new ArrayList<>());
     private final long pauseMillis;
 
@@ -131,7 +142,7 @@ final class ImportTestSupport {
 
   static RecordingCommitter installRecordingCommitter(long pauseMillis) {
     RecordingCommitter committer = new RecordingCommitter(pauseMillis);
-    QuarkusMock.installMockForType(committer, UnavailableImportCommitter.class);
+    QuarkusMock.installMockForType(committer, LedgerImportCommitter.class);
     return committer;
   }
 }

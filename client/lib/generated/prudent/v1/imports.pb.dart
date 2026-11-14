@@ -37,6 +37,10 @@ class ImportRow extends $pb.GeneratedMessage {
     $core.String? counterpartyAccount,
     $core.String? externalId,
     $core.String? duplicateCode,
+    $core.String? categoryId,
+    $core.String? note,
+    $core.bool? includeDuplicate,
+    $core.String? hintCode,
   }) {
     final result = create();
     if (sessionId != null) result.sessionId = sessionId;
@@ -52,6 +56,10 @@ class ImportRow extends $pb.GeneratedMessage {
       result.counterpartyAccount = counterpartyAccount;
     if (externalId != null) result.externalId = externalId;
     if (duplicateCode != null) result.duplicateCode = duplicateCode;
+    if (categoryId != null) result.categoryId = categoryId;
+    if (note != null) result.note = note;
+    if (includeDuplicate != null) result.includeDuplicate = includeDuplicate;
+    if (hintCode != null) result.hintCode = hintCode;
     return result;
   }
 
@@ -81,6 +89,10 @@ class ImportRow extends $pb.GeneratedMessage {
     ..aOS(10, _omitFieldNames ? '' : 'counterpartyAccount')
     ..aOS(11, _omitFieldNames ? '' : 'externalId')
     ..aOS(12, _omitFieldNames ? '' : 'duplicateCode')
+    ..aOS(13, _omitFieldNames ? '' : 'categoryId')
+    ..aOS(14, _omitFieldNames ? '' : 'note')
+    ..aOB(15, _omitFieldNames ? '' : 'includeDuplicate')
+    ..aOS(16, _omitFieldNames ? '' : 'hintCode')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -220,6 +232,53 @@ class ImportRow extends $pb.GeneratedMessage {
   $core.bool hasDuplicateCode() => $_has(11);
   @$pb.TagNumber(12)
   void clearDuplicateCode() => $_clearField(12);
+
+  /// What the user decided for this row before confirming (jlogicsoftware/prudent#76, ADR-092). A row
+  /// that will be written needs a category of its own or, failing that, the session's default for its
+  /// direction; the commit refuses a session with a row that has neither. Never filled by the importer.
+  @$pb.TagNumber(13)
+  $core.String get categoryId => $_getSZ(12);
+  @$pb.TagNumber(13)
+  set categoryId($core.String value) => $_setString(12, value);
+  @$pb.TagNumber(13)
+  $core.bool hasCategoryId() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearCategoryId() => $_clearField(13);
+
+  /// The user's own note for the record. Never taken from the statement.
+  @$pb.TagNumber(14)
+  $core.String get note => $_getSZ(13);
+  @$pb.TagNumber(14)
+  set note($core.String value) => $_setString(13, value);
+  @$pb.TagNumber(14)
+  $core.bool hasNote() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearNote() => $_clearField(14);
+
+  /// True when the user decided that a DUPLICATE row is a new operation and is to be written. Only a
+  /// DUPLICATE row can carry it; a new preview clears it. Such a row is counted in
+  /// `ImportSession.accepted_rows`, not in `duplicate_rows`.
+  @$pb.TagNumber(15)
+  $core.bool get includeDuplicate => $_getBF(14);
+  @$pb.TagNumber(15)
+  set includeDuplicate($core.bool value) => $_setBool(14, value);
+  @$pb.TagNumber(15)
+  $core.bool hasIncludeDuplicate() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearIncludeDuplicate() => $_clearField(15);
+
+  /// A short stable code the importer put on the row, never content. Empty when there is none. Today:
+  /// `transfer.own_account`, an incoming transfer from another account of the user's own (ADR-092). A
+  /// client should warn that the OTHER side must be recorded as a plain expense and never as a
+  /// Prudent Transfer, which would credit this account a second time.
+  @$pb.TagNumber(16)
+  $core.String get hintCode => $_getSZ(15);
+  @$pb.TagNumber(16)
+  set hintCode($core.String value) => $_setString(15, value);
+  @$pb.TagNumber(16)
+  $core.bool hasHintCode() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearHintCode() => $_clearField(16);
 }
 
 /// A session, as the server holds it.
@@ -237,6 +296,10 @@ class ImportSession extends $pb.GeneratedMessage {
     $core.int? duplicateRows,
     $core.int? rejectedRows,
     $core.Iterable<ImportRow>? rows,
+    $core.int? committedWritten,
+    $core.int? committedAlreadyImported,
+    $core.String? defaultExpenseCategoryId,
+    $core.String? defaultIncomeCategoryId,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -251,6 +314,13 @@ class ImportSession extends $pb.GeneratedMessage {
     if (duplicateRows != null) result.duplicateRows = duplicateRows;
     if (rejectedRows != null) result.rejectedRows = rejectedRows;
     if (rows != null) result.rows.addAll(rows);
+    if (committedWritten != null) result.committedWritten = committedWritten;
+    if (committedAlreadyImported != null)
+      result.committedAlreadyImported = committedAlreadyImported;
+    if (defaultExpenseCategoryId != null)
+      result.defaultExpenseCategoryId = defaultExpenseCategoryId;
+    if (defaultIncomeCategoryId != null)
+      result.defaultIncomeCategoryId = defaultIncomeCategoryId;
     return result;
   }
 
@@ -281,6 +351,10 @@ class ImportSession extends $pb.GeneratedMessage {
     ..aI(11, _omitFieldNames ? '' : 'rejectedRows')
     ..pPM<ImportRow>(12, _omitFieldNames ? '' : 'rows',
         subBuilder: ImportRow.create)
+    ..aI(13, _omitFieldNames ? '' : 'committedWritten')
+    ..aI(14, _omitFieldNames ? '' : 'committedAlreadyImported')
+    ..aOS(15, _omitFieldNames ? '' : 'defaultExpenseCategoryId')
+    ..aOS(16, _omitFieldNames ? '' : 'defaultIncomeCategoryId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -408,10 +482,53 @@ class ImportSession extends $pb.GeneratedMessage {
   @$pb.TagNumber(11)
   void clearRejectedRows() => $_clearField(11);
 
-  /// The held rows, in row_number order. Filled on a single-session read while the session is PARSED
-  /// or PREVIEWED; empty in a list and once the session has ended.
+  /// The held rows, in row_number order. Filled on a single-session read, a parse and a preview while
+  /// the session is PARSED or PREVIEWED; empty in a list, in the answers to the commit, the defaults
+  /// and the discard, and once the session has ended.
   @$pb.TagNumber(12)
   $pb.PbList<ImportRow> get rows => $_getList(11);
+
+  /// Set exactly when the session is COMMITTED: how many ledger records the commit wrote, and how many
+  /// of the accepted rows it found already imported (written + already_imported = accepted_rows).
+  /// Counts only; they are how a repeated commit of the same session is answered (ADR-092).
+  @$pb.TagNumber(13)
+  $core.int get committedWritten => $_getIZ(12);
+  @$pb.TagNumber(13)
+  set committedWritten($core.int value) => $_setSignedInt32(12, value);
+  @$pb.TagNumber(13)
+  $core.bool hasCommittedWritten() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearCommittedWritten() => $_clearField(13);
+
+  @$pb.TagNumber(14)
+  $core.int get committedAlreadyImported => $_getIZ(13);
+  @$pb.TagNumber(14)
+  set committedAlreadyImported($core.int value) => $_setSignedInt32(13, value);
+  @$pb.TagNumber(14)
+  $core.bool hasCommittedAlreadyImported() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearCommittedAlreadyImported() => $_clearField(14);
+
+  /// The categories a row with no category of its own is written under, by the sign of its amount
+  /// (ADR-092). Set with POST .../defaults; validated like a row's category; cleared when the session
+  /// ends. Absent when not set.
+  @$pb.TagNumber(15)
+  $core.String get defaultExpenseCategoryId => $_getSZ(14);
+  @$pb.TagNumber(15)
+  set defaultExpenseCategoryId($core.String value) => $_setString(14, value);
+  @$pb.TagNumber(15)
+  $core.bool hasDefaultExpenseCategoryId() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearDefaultExpenseCategoryId() => $_clearField(15);
+
+  @$pb.TagNumber(16)
+  $core.String get defaultIncomeCategoryId => $_getSZ(15);
+  @$pb.TagNumber(16)
+  set defaultIncomeCategoryId($core.String value) => $_setString(15, value);
+  @$pb.TagNumber(16)
+  $core.bool hasDefaultIncomeCategoryId() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearDefaultIncomeCategoryId() => $_clearField(16);
 }
 
 /// POST /api/v1/import-sessions — the PARSE phase.
@@ -560,6 +677,263 @@ class PreviewImportSessionRequest extends $pb.GeneratedMessage {
   void clearAccountId() => $_clearField(1);
 }
 
+/// POST /api/v1/import-sessions/{id}/rows/{rowNumber} — a decision about one held row, made after the
+/// preview and before the commit (ADR-092). Only the fields present change.
+class UpdateImportRowRequest extends $pb.GeneratedMessage {
+  factory UpdateImportRowRequest({
+    $core.String? categoryId,
+    $core.String? note,
+    $core.bool? includeDuplicate,
+  }) {
+    final result = create();
+    if (categoryId != null) result.categoryId = categoryId;
+    if (note != null) result.note = note;
+    if (includeDuplicate != null) result.includeDuplicate = includeDuplicate;
+    return result;
+  }
+
+  UpdateImportRowRequest._();
+
+  factory UpdateImportRowRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory UpdateImportRowRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UpdateImportRowRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'categoryId')
+    ..aOS(2, _omitFieldNames ? '' : 'note')
+    ..aOB(3, _omitFieldNames ? '' : 'includeDuplicate')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateImportRowRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateImportRowRequest copyWith(
+          void Function(UpdateImportRowRequest) updates) =>
+      super.copyWith((message) => updates(message as UpdateImportRowRequest))
+          as UpdateImportRowRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static UpdateImportRowRequest create() => UpdateImportRowRequest._();
+  @$core.override
+  UpdateImportRowRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static UpdateImportRowRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<UpdateImportRowRequest>(create);
+  static UpdateImportRowRequest? _defaultInstance;
+
+  /// The category the row's record will be filed under; without one the session's default for the
+  /// row's direction applies. Must be the caller's, active, and suit the
+  /// row's direction (an expense category cannot file income). An empty string clears it.
+  @$pb.TagNumber(1)
+  $core.String get categoryId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set categoryId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCategoryId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCategoryId() => $_clearField(1);
+
+  /// The user's note for the record, at most 500 characters (400 beyond). An empty string clears it.
+  @$pb.TagNumber(2)
+  $core.String get note => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set note($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasNote() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNote() => $_clearField(2);
+
+  /// true: write this DUPLICATE row anyway, as a new operation. false: leave it out again. true on a
+  /// row that is not a DUPLICATE is refused (400); a rejected row takes no decision at all.
+  @$pb.TagNumber(3)
+  $core.bool get includeDuplicate => $_getBF(2);
+  @$pb.TagNumber(3)
+  set includeDuplicate($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasIncludeDuplicate() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearIncludeDuplicate() => $_clearField(3);
+}
+
+/// The answer to a row decision: only the changed row and the session's recomputed counts, not the
+/// whole session, so a client can decide many rows without each answer growing with the statement
+/// (ADR-092). GET /api/v1/import-sessions/{id} stays the full view.
+class UpdateImportRowResponse extends $pb.GeneratedMessage {
+  factory UpdateImportRowResponse({
+    ImportRow? row,
+    $core.int? acceptedRows,
+    $core.int? duplicateRows,
+    $core.int? rejectedRows,
+  }) {
+    final result = create();
+    if (row != null) result.row = row;
+    if (acceptedRows != null) result.acceptedRows = acceptedRows;
+    if (duplicateRows != null) result.duplicateRows = duplicateRows;
+    if (rejectedRows != null) result.rejectedRows = rejectedRows;
+    return result;
+  }
+
+  UpdateImportRowResponse._();
+
+  factory UpdateImportRowResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory UpdateImportRowResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UpdateImportRowResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOM<ImportRow>(1, _omitFieldNames ? '' : 'row',
+        subBuilder: ImportRow.create)
+    ..aI(2, _omitFieldNames ? '' : 'acceptedRows')
+    ..aI(3, _omitFieldNames ? '' : 'duplicateRows')
+    ..aI(4, _omitFieldNames ? '' : 'rejectedRows')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateImportRowResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateImportRowResponse copyWith(
+          void Function(UpdateImportRowResponse) updates) =>
+      super.copyWith((message) => updates(message as UpdateImportRowResponse))
+          as UpdateImportRowResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static UpdateImportRowResponse create() => UpdateImportRowResponse._();
+  @$core.override
+  UpdateImportRowResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static UpdateImportRowResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<UpdateImportRowResponse>(create);
+  static UpdateImportRowResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  ImportRow get row => $_getN(0);
+  @$pb.TagNumber(1)
+  set row(ImportRow value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRow() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRow() => $_clearField(1);
+  @$pb.TagNumber(1)
+  ImportRow ensureRow() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $core.int get acceptedRows => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set acceptedRows($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasAcceptedRows() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearAcceptedRows() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get duplicateRows => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set duplicateRows($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasDuplicateRows() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearDuplicateRows() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get rejectedRows => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set rejectedRows($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasRejectedRows() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRejectedRows() => $_clearField(4);
+}
+
+/// POST /api/v1/import-sessions/{id}/defaults — the session-wide default categories (ADR-092). Only
+/// the fields present change; an empty string clears one. Each must be the caller's, active category
+/// that can file its direction (an expense default cannot be an income-only category), and is checked
+/// again at commit.
+class SetImportDefaultsRequest extends $pb.GeneratedMessage {
+  factory SetImportDefaultsRequest({
+    $core.String? defaultExpenseCategoryId,
+    $core.String? defaultIncomeCategoryId,
+  }) {
+    final result = create();
+    if (defaultExpenseCategoryId != null)
+      result.defaultExpenseCategoryId = defaultExpenseCategoryId;
+    if (defaultIncomeCategoryId != null)
+      result.defaultIncomeCategoryId = defaultIncomeCategoryId;
+    return result;
+  }
+
+  SetImportDefaultsRequest._();
+
+  factory SetImportDefaultsRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SetImportDefaultsRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SetImportDefaultsRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'defaultExpenseCategoryId')
+    ..aOS(2, _omitFieldNames ? '' : 'defaultIncomeCategoryId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetImportDefaultsRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetImportDefaultsRequest copyWith(
+          void Function(SetImportDefaultsRequest) updates) =>
+      super.copyWith((message) => updates(message as SetImportDefaultsRequest))
+          as SetImportDefaultsRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SetImportDefaultsRequest create() => SetImportDefaultsRequest._();
+  @$core.override
+  SetImportDefaultsRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SetImportDefaultsRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SetImportDefaultsRequest>(create);
+  static SetImportDefaultsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get defaultExpenseCategoryId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set defaultExpenseCategoryId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasDefaultExpenseCategoryId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearDefaultExpenseCategoryId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get defaultIncomeCategoryId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set defaultIncomeCategoryId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDefaultIncomeCategoryId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDefaultIncomeCategoryId() => $_clearField(2);
+}
+
 /// POST /api/v1/import-sessions/{id}/commit — the COMMIT phase.
 class CommitImportSessionRequest extends $pb.GeneratedMessage {
   factory CommitImportSessionRequest({
@@ -608,8 +982,11 @@ class CommitImportSessionRequest extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<CommitImportSessionRequest>(create);
   static CommitImportSessionRequest? _defaultInstance;
 
-  /// How many accepted rows the user was shown in the preview. Refused (409) when it differs from
-  /// how many the session now holds, so a commit always confirms exactly what was reviewed.
+  /// How many rows the user was shown as accepted (including duplicates they chose to include); zero is
+  /// allowed and commits nothing (a statement already imported in full). Refused
+  /// (409) when it differs from how many the session now holds, so a commit always confirms exactly
+  /// what was reviewed. Repeating a commit that already succeeded with the same number answers with the
+  /// same result instead of an error.
   @$pb.TagNumber(1)
   $core.int get confirmedAcceptedRows => $_getIZ(0);
   @$pb.TagNumber(1)

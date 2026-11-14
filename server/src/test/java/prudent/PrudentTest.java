@@ -432,6 +432,10 @@ public final class PrudentTest {
               session.stateChangedAt = created;
               session.expiresAt = expiresAt;
               session.acceptedRows = 1;
+              if (state == ImportState.COMMITTED) {
+                session.committedWritten = 1;
+                session.committedAlreadyImported = 0;
+              }
               session.persist();
               session.flush();
               if (state.holdsRows()) {

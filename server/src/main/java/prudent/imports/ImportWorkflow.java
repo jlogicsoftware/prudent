@@ -14,6 +14,7 @@ import java.util.UUID;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import prudent.account.AccountEntity;
+import prudent.category.CategoryEntity;
 import prudent.error.PrudentException;
 
 /**
@@ -194,6 +195,7 @@ public class ImportWorkflow {
       if (row.status == RowStatus.DUPLICATE) {
         row.status = RowStatus.ACCEPTED;
         row.duplicateCode = null;
+        row.includeDuplicate = false;
       }
     }
     Map<UUID, RowStatus> before = new HashMap<>();
@@ -223,6 +225,16 @@ public class ImportWorkflow {
   public SessionView commit(UUID userId, UUID id, int confirmedAcceptedRows) {
     ImportSessionEntity session = lock(userId, id);
     Instant now = clock.instant();
+    if (session.state == ImportState.COMMITTED) {
+      // A retry of a commit that went through (a lost response, a second click): the same answer,
+      // not an error and not a second write. Only the same confirmation counts as a retry; the
+      // rows are gone, so the session's own count is what the first commit confirmed.
+      if (confirmedAcceptedRows != session.acceptedRows) {
+        throw PrudentException.conflict(
+            "This import session is already committed with a different number of rows.");
+      }
+      return new SessionView(session, List.of());
+    }
     if (session.state == ImportState.PARSED) {
       throw PrudentException.conflict("Preview the import session before committing it.");
     }
@@ -235,20 +247,23 @@ public class ImportWorkflow {
       throw PrudentException.conflict(
           "Choose a destination account for the import before committing it.");
     }
+    // The destination is locked before it is checked, so what is checked is what is written to:
+    // another request cannot rename, deactivate or re-number it in between, nor can a second commit
+    // into it start until this one ends.
+    if (AccountEntity.findOwnedForUpdate(userId, session.accountId) == null) {
+      throw PrudentException.conflict("The destination account no longer exists.");
+    }
     checkDestination(userId, session, session.accountId, true);
 
     List<ImportRowEntity> accepted =
-        ImportRowEntity.ofSession(userId, id).stream()
-            .filter(row -> row.status == RowStatus.ACCEPTED)
-            .toList();
+        ImportRowEntity.ofSession(userId, id).stream().filter(ImportRowEntity::isWritable).toList();
     if (confirmedAcceptedRows != accepted.size()) {
       throw PrudentException.conflict(
           "The confirmed row count does not match the session's accepted rows. Review the"
               + " preview again.");
     }
-    if (accepted.isEmpty()) {
-      throw PrudentException.conflict("The import session has no accepted rows to import.");
-    }
+    // Zero is a valid confirmation: a statement imported in full already has only duplicates, and
+    // committing it writes nothing and completes the session instead of forcing a discard.
 
     // Inside this transaction: if the committer throws, the session stays PREVIEWED and nothing
     // here was written. See ImportCommitter.
@@ -258,8 +273,112 @@ public class ImportWorkflow {
       throw new IllegalStateException(
           "The import committer did not account for every accepted row of session " + id + ".");
     }
+    session.committedWritten = result.written();
+    session.committedAlreadyImported = result.alreadyImported();
     end(session, ImportState.COMMITTED, now);
     return new SessionView(session, List.of());
+  }
+
+  /** The answer to a row decision: the changed row and its session, whose counts are current. */
+  public record RowDecision(ImportSessionEntity session, ImportRowEntity row) {}
+
+  /**
+   * ROW DECISION: sets the category, note or duplicate decision of one held row (ADR-092). Allowed
+   * while the session holds rows. A rejected row takes no decision; including a row that is not a
+   * duplicate is refused; the category must be the caller's, active and suit the row's direction;
+   * the note is at most {@link ImportRowEntity#MAX_NOTE_CHARS} characters. Only the one row is
+   * read, and the counts are recomputed (from all rows) only when the inclusion decision changed,
+   * so deciding many rows costs each request one row and not the whole statement.
+   */
+  @Transactional
+  public RowDecision updateRow(
+      UUID userId, UUID id, int rowNumber, UUID categoryId, boolean clearCategory, String note,
+      Boolean includeDuplicate) {
+    ImportSessionEntity session = lock(userId, id);
+    Instant now = clock.instant();
+    if (!session.state.holdsRows()) {
+      throw PrudentException.conflict(
+          "An import session that is " + session.state + " holds no rows to change.");
+    }
+    requireNotDue(session, now);
+    ImportRowEntity row = ImportRowEntity.findOfSession(userId, id, rowNumber);
+    if (row == null) {
+      throw PrudentException.notFound("import row", String.valueOf(rowNumber));
+    }
+    if (row.status == RowStatus.REJECTED) {
+      throw PrudentException.conflict("Row " + rowNumber + " was rejected and cannot be changed.");
+    }
+    String newNote = row.note;
+    if (note != null) {
+      String trimmed = note.trim();
+      if (trimmed.codePointCount(0, trimmed.length()) > ImportRowEntity.MAX_NOTE_CHARS) {
+        throw PrudentException.invalid(
+            "A note can be at most " + ImportRowEntity.MAX_NOTE_CHARS + " characters.");
+      }
+      newNote = trimmed.isEmpty() ? null : trimmed;
+    }
+    if (includeDuplicate != null
+        && includeDuplicate
+        && row.status != RowStatus.DUPLICATE) {
+      throw PrudentException.invalid(
+          "Only a row marked as a duplicate can be included; row " + rowNumber + " is not one.");
+    }
+    if (categoryId != null) {
+      row.categoryId = requireCategoryFor(userId, categoryId, row.amountMinor).id;
+    } else if (clearCategory) {
+      row.categoryId = null;
+    }
+    row.note = newNote;
+    if (includeDuplicate != null && includeDuplicate != row.includeDuplicate) {
+      row.includeDuplicate = includeDuplicate;
+      session.recount(ImportRowEntity.ofSession(userId, id));
+    }
+    return new RowDecision(session, row);
+  }
+
+  /**
+   * DEFAULTS: sets or clears the session-wide default category per direction (ADR-092). Allowed
+   * while the session holds rows; each category must be the caller's, active and able to file its
+   * direction, exactly as a row's category, and is checked again at commit.
+   */
+  @Transactional
+  public SessionView setDefaults(
+      UUID userId,
+      UUID id,
+      UUID expenseCategoryId,
+      boolean clearExpense,
+      UUID incomeCategoryId,
+      boolean clearIncome) {
+    ImportSessionEntity session = lock(userId, id);
+    Instant now = clock.instant();
+    if (!session.state.holdsRows()) {
+      throw PrudentException.conflict(
+          "An import session that is " + session.state + " holds no rows to categorise.");
+    }
+    requireNotDue(session, now);
+    if (expenseCategoryId != null) {
+      // -1 and +1 stand for "an expense" and "an income" in the kind check.
+      session.defaultExpenseCategoryId = requireCategoryFor(userId, expenseCategoryId, -1).id;
+    } else if (clearExpense) {
+      session.defaultExpenseCategoryId = null;
+    }
+    if (incomeCategoryId != null) {
+      session.defaultIncomeCategoryId = requireCategoryFor(userId, incomeCategoryId, 1).id;
+    } else if (clearIncome) {
+      session.defaultIncomeCategoryId = null;
+    }
+    return new SessionView(session, List.of());
+  }
+
+  /** The caller's active category that can file an amount of {@code amountMinor}'s sign, or a refusal. */
+  private static CategoryEntity requireCategoryFor(UUID userId, UUID categoryId, long amountMinor) {
+    CategoryEntity category = CategoryEntity.findOwned(userId, categoryId);
+    if (category == null) {
+      throw PrudentException.invalid("No such category for this user.");
+    }
+    category.requireActive();
+    category.requireKindFor(amountMinor);
+    return category;
   }
 
   /** DISCARD: the user throws the session away; allowed from any state that still holds rows. */
@@ -289,12 +408,14 @@ public class ImportWorkflow {
   }
 
   /**
-   * Ends a session: moves it to a terminal state and deletes the personal data it holds — its rows
-   * and the identity token of the statement's account.
+   * Ends a session: moves it to a terminal state and deletes what it holds — its rows, the identity
+   * token of the statement's account and the default categories.
    */
   private static void end(ImportSessionEntity session, ImportState terminal, Instant now) {
     session.transitionTo(terminal, now);
     session.statementIdentity = null;
+    session.defaultExpenseCategoryId = null;
+    session.defaultIncomeCategoryId = null;
     ImportRowEntity.deleteOf(session.userId, session.id);
   }
 
@@ -391,6 +512,7 @@ public class ImportWorkflow {
     entity.counterparty = row.counterparty();
     entity.counterpartyAccount = row.counterpartyAccount();
     entity.externalId = row.externalId();
+    entity.hintCode = row.hintCode();
     return entity;
   }
 }

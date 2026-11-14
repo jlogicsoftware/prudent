@@ -103,11 +103,19 @@ final class ParsedStatements {
           // carries would be unvalidated personal data stored for no purpose.
           throw broken(formatId, "returned a rejected row that carries content");
         }
+        if (row.hintCode() != null) {
+          throw broken(formatId, "returned a rejected row with a hint");
+        }
       } else if (row.transactionDate() == null
           || row.amountMinor() == null
           || row.amountMinor() == 0L) {
         throw broken(formatId, "returned an accepted row without a date or with no amount");
       } else {
+        if (row.hintCode() != null
+            && (row.hintCode().length() > MAX_RULE_CHARS
+                || !ImportRejectedException.RULE.matcher(row.hintCode()).matches())) {
+          throw broken(formatId, "returned a hint code that is not a rule identifier");
+        }
         for (String text :
             new String[] {
               row.description(), row.counterparty(), row.counterpartyAccount(), row.externalId()

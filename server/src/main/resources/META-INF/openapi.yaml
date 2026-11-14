@@ -1772,6 +1772,27 @@ components:
         externalId:
           type: string
           description: The bank's own identifier for the entry, when the format has one.
+        duplicateCode:
+          type: string
+          description: A short stable code such as duplicate.already_imported. Empty unless DUPLICATE.
+        categoryId:
+          type: string
+          format: uuid
+          description: The category the user chose for the record this row becomes.
+        note:
+          type: string
+          description: The user's own note for the record.
+        includeDuplicate:
+          type: boolean
+          description: >-
+            True when the user decided a DUPLICATE row is a new operation and is to be written. Such
+            a row counts in acceptedRows, not in duplicateRows.
+        hintCode:
+          type: string
+          description: >-
+            A short stable code the importer put on the row, never content; empty when none. Today
+            transfer.own_account (an incoming transfer from the user's own account): the other side
+            must be recorded as a plain expense, never as a Transfer.
     ImportSession:
       type: object
       description: >-
@@ -1823,6 +1844,23 @@ components:
             or PREVIEWED; empty in a list and after the session has ended.
           items:
             $ref: '#/components/schemas/ImportRow'
+        committedWritten:
+          type: integer
+          format: int32
+          description: Set when COMMITTED, how many ledger records the commit wrote.
+        committedAlreadyImported:
+          type: integer
+          format: int32
+          description: >-
+            Set when COMMITTED, how many accepted rows the commit found already imported.
+        defaultExpenseCategoryId:
+          type: string
+          format: uuid
+          description: The category a row with no category of its own gets when its amount is negative.
+        defaultIncomeCategoryId:
+          type: string
+          format: uuid
+          description: The category a row with no category of its own gets when its amount is positive.
     CreateImportSessionRequest:
       type: object
       description: >-
@@ -1849,6 +1887,49 @@ components:
         accountId:
           type: string
           format: uuid
+    UpdateImportRowRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/import-sessions/{id}/rows/{rowNumber}. Only the fields present
+        change; an empty categoryId or note clears it.
+      properties:
+        categoryId:
+          type: string
+          description: The category for the row's record; the caller's, active, suiting the direction.
+        note:
+          type: string
+        includeDuplicate:
+          type: boolean
+          description: True writes a DUPLICATE row anyway; false leaves it out again.
+    UpdateImportRowResponse:
+      type: object
+      description: >-
+        The answer to a row decision: the changed row and the session's recomputed counts, not the
+        whole session.
+      properties:
+        row:
+          $ref: '#/components/schemas/ImportRow'
+        acceptedRows:
+          type: integer
+          format: int32
+        duplicateRows:
+          type: integer
+          format: int32
+        rejectedRows:
+          type: integer
+          format: int32
+    SetImportDefaultsRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/import-sessions/{id}/defaults. Only the fields present change; an empty
+        string clears one.
+      properties:
+        defaultExpenseCategoryId:
+          type: string
+          description: The caller's active category that can file expenses.
+        defaultIncomeCategoryId:
+          type: string
+          description: The caller's active category that can file income.
     CommitImportSessionRequest:
       type: object
       description: >-

@@ -10,7 +10,6 @@ import static prudent.imports.ImportTestSupport.session;
 
 import com.google.protobuf.ByteString;
 import io.quarkus.narayana.jta.QuarkusTransaction;
-import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import jakarta.inject.Inject;
@@ -32,9 +31,8 @@ import prudent.record.RecordEntity;
 
 /**
  * Duplicate detection end to end (M6, jlogicsoftware/prudent#75, ADR-091): statements are imported
- * through the real parse and preview, and committed by a test-only committer that does the one
- * thing #76 must do with a key (copy it onto the record it writes). Every statement is synthetic
- * and built in memory.
+ * through the real parse, preview and commit ({@link LedgerImportCommitter}, ADR-092), which copies
+ * a row's key onto the record it writes. Every statement is synthetic and built in memory.
  */
 @QuarkusTest
 @TestSecurity(user = PrudentTest.ALICE)
@@ -45,56 +43,16 @@ class ImportDuplicateDetectionTest {
       "2026-11-14,01-01-2026,'00 0000 0000 0000 0000 0000 0001,JAN TESTOWY UL. PRZYKŁADOWA 1/2"
           + " 00-000 TESTOWO,PLN,\"0,00\",\"50,00\",999,";
 
-  /**
-   * What #76 must do with a key, minimally: lock the account's row so concurrent commits into it
-   * queue, re-read which keys the account holds under that lock, and write only the rest. Every
-   * call's result is kept so a test can see what was written and what was found already there.
-   */
-  static final class KeyCopyingCommitter extends UnavailableImportCommitter {
-    static final List<CommitResult> results = new java.util.concurrent.CopyOnWriteArrayList<>();
-
-    @Override
-    public CommitResult commit(ImportSessionEntity session, List<ImportRowEntity> accepted) {
-      AccountEntity.<AccountEntity>findById(session.accountId, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
-      java.util.Set<RowKey> held =
-          RecordEntity.importedKeys(
-              session.userId,
-              session.accountId,
-              accepted.stream().map(row -> row.fingerprint).distinct().toList());
-      int written = 0;
-      for (ImportRowEntity row : accepted) {
-        if (held.contains(new RowKey(row.fingerprint, row.occurrence))) {
-          continue;
-        }
-        RecordEntity record = new RecordEntity();
-        record.id = UUID.randomUUID();
-        record.userId = session.userId;
-        record.accountId = session.accountId;
-        record.title = "Imported";
-        record.amountMinor = row.amountMinor;
-        record.currency = session.currency;
-        record.date = row.transactionDate;
-        record.importFingerprint = row.fingerprint;
-        record.importOccurrence = row.occurrence;
-        record.persist();
-        written++;
-      }
-      CommitResult result = new CommitResult(written, accepted.size() - written);
-      results.add(result);
-      return result;
-    }
-  }
-
   @Inject EntityManager entityManager;
 
   private UUID erste;
+  private UUID category;
 
   @BeforeEach
   void seed() {
     PrudentTest.reset();
-    KeyCopyingCommitter.results.clear();
-    QuarkusMock.installMockForType(new KeyCopyingCommitter(), UnavailableImportCommitter.class);
     erste = PrudentTest.seedAccount(PrudentTest.ALICE, "Erste", "PLN");
+    category = PrudentTest.seedCategory(PrudentTest.ALICE, "Everything");
     QuarkusTransaction.requiringNew()
         .run(() -> AccountEntity.<AccountEntity>findById(erste).accountNumber = ACCOUNT_NUMBER);
   }
@@ -126,13 +84,22 @@ class ImportDuplicateDetectionTest {
     return session(preview(parsed.getId(), account));
   }
 
-  /** Imports a statement: preview, then commit what it accepted. Returns the preview. */
+  /**
+   * Imports a statement: preview, then commit what it accepted, through the real committer, with
+   * the session's default categories standing in for a category on every row. Returns the preview.
+   */
   private ImportSession importStatement(byte[] content, UUID account) throws Exception {
     ImportSession previewed = previewOf(content, account);
     if (previewed.getAcceptedRows() > 0) {
-      session(commit(previewed.getId(), previewed.getAcceptedRows()));
+      commitWithDefaults(previewed);
     }
     return previewed;
+  }
+
+  /** Commits a previewed session after giving it default categories; returns the committed one. */
+  private ImportSession commitWithDefaults(ImportSession previewed) throws Exception {
+    ImportTestSupport.defaults(previewed.getId(), category, category);
+    return session(commit(previewed.getId(), previewed.getAcceptedRows()));
   }
 
   private long records() {
@@ -378,7 +345,7 @@ class ImportDuplicateDetectionTest {
     String text = "PLN\n2026-03-10;-710;SKLEP A TESTOWY;x\n2026-03-09;-300;SKLEP B TESTOWY;x\n";
     ImportSession first = uploadTest(text, a);
     ImportSession previewedA = session(preview(first.getId(), a));
-    session(commit(first.getId(), previewedA.getAcceptedRows()));
+    commitWithDefaults(previewedA);
     assertEquals(2, records());
 
     // The same statement, again, into A: duplicates.
@@ -401,7 +368,7 @@ class ImportDuplicateDetectionTest {
     String first = "PLN\n2026-03-10;-710;SKLEP A;1001\n2026-03-09;-300;SKLEP B;1002\n";
     ImportSession one = uploadStable(first, account);
     ImportSession previewed = session(preview(one.getId(), account));
-    session(commit(one.getId(), previewed.getAcceptedRows()));
+    commitWithDefaults(previewed);
 
     // The same two operations with other dates, amounts and text but the same identifiers are the
     // same rows; a new identifier is a new row, even with identical content to another.
@@ -429,7 +396,7 @@ class ImportDuplicateDetectionTest {
 
     assertEquals(1, again.getAcceptedRows(), "only the deleted record's slot is free");
     assertEquals(1, again.getDuplicateRows());
-    session(commit(again.getId(), 1));
+    commitWithDefaults(again);
     assertEquals(2, records());
     assertEquals(0, previewOf(two, erste).getAcceptedRows());
   }
@@ -446,12 +413,14 @@ class ImportDuplicateDetectionTest {
     assertEquals(2, tabOne.getAcceptedRows());
     assertEquals(2, tabTwo.getAcceptedRows());
 
-    session(commit(tabOne.getId(), 2));
-    session(commit(tabTwo.getId(), 2));
+    ImportSession first = commitWithDefaults(tabOne);
+    ImportSession second = commitWithDefaults(tabTwo);
 
     assertEquals(2, records(), "the second commit wrote nothing");
-    assertEquals(
-        List.of(new CommitResult(2, 0), new CommitResult(0, 2)), KeyCopyingCommitter.results);
+    assertEquals(2, first.getCommittedWritten());
+    assertEquals(0, first.getCommittedAlreadyImported());
+    assertEquals(0, second.getCommittedWritten());
+    assertEquals(2, second.getCommittedAlreadyImported());
   }
 
   @Test

@@ -3466,7 +3466,7 @@ export interface paths {
         put?: never;
         /**
          * Write the confirmed session to the ledger (the commit phase)
-         * @description PREVIEWED → COMMITTED. Needs a destination account and confirmedAcceptedRows equal to the session's accepted rows. Answers 503 until the ledger writer exists (jlogicsoftware/prudent#76); the session then stays PREVIEWED.
+         * @description PREVIEWED → COMMITTED. Needs a destination account, a category (its own or the session's default for its direction) on every row to be written and confirmedAcceptedRows equal to the session's accepted rows; zero is allowed and writes nothing. One transaction: any failure writes nothing and leaves the session PREVIEWED. Rows already in the account are not written again (committedAlreadyImported). Repeating the commit of a COMMITTED session with the same confirmedAcceptedRows answers with the same result. The response carries counts only.
          */
         post: {
             parameters: {
@@ -3524,7 +3524,7 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
-                /** @description The session is not PREVIEWED, has expired, has no destination account, has no accepted rows, the destination account no longer passes its checks, or the confirmed count differs from its accepted rows */
+                /** @description The session is not PREVIEWED (or COMMITTED, for a repeat), has expired, has no destination account, a row to be written has neither a category nor a default for its direction or has one the ledger refuses, the destination account no longer passes its checks, or the confirmed count differs from its accepted rows */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -3534,8 +3534,88 @@ export interface paths {
                         "application/x-protobuf": components["schemas"]["ZenError"];
                     };
                 };
-                /** @description Importing into the ledger is not available yet */
-                503: {
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import-sessions/{id}/defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set the session's default categories for expenses and for income
+         * @description Allowed while the session is PARSED or PREVIEWED. Only the fields present change; an empty string clears one. A row with no category of its own is written under the default for its direction. Each must be the caller's, active category able to file its direction, and is checked again at commit. The session is returned without its rows. Cleared when the session ends.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetImportDefaultsRequest"];
+                    "application/x-protobuf": components["schemas"]["SetImportDefaultsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportSession"];
+                        "application/x-protobuf": components["schemas"]["ImportSession"];
+                    };
+                };
+                /** @description A category that is not the caller's or is for the other direction */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The session holds no rows, has expired, or the category is archived */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -3700,6 +3780,97 @@ export interface paths {
                     };
                 };
                 /** @description The session is not PARSED or PREVIEWED, or has expired */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import-sessions/{id}/rows/{rowNumber}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide a held row: its category, note, or whether to include a duplicate
+         * @description Allowed while the session is PARSED or PREVIEWED. Only the fields present change. A rejected row takes no decision; includeDuplicate is for DUPLICATE rows only; a note is at most 500 characters. POST rather than PUT or PATCH on purpose: it is a partial update, PUT in this API means full replacement and there is no PATCH. The answer is the changed row and the session's recomputed counts, not the whole session.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    rowNumber: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateImportRowRequest"];
+                    "application/x-protobuf": components["schemas"]["UpdateImportRowRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UpdateImportRowResponse"];
+                        "application/x-protobuf": components["schemas"]["UpdateImportRowResponse"];
+                    };
+                };
+                /** @description A category that is not the caller's or is for the other direction, a note over 500 characters, or including a row that is not a duplicate */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The session holds no rows, has expired, the category is archived, or the row was rejected */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -6346,6 +6517,19 @@ export interface components {
             counterpartyAccount?: string;
             /** @description The bank's own identifier for the entry, when the format has one. */
             externalId?: string;
+            /** @description A short stable code such as duplicate.already_imported. Empty unless DUPLICATE. */
+            duplicateCode?: string;
+            /**
+             * Format: uuid
+             * @description The category the user chose for the record this row becomes.
+             */
+            categoryId?: string;
+            /** @description The user's own note for the record. */
+            note?: string;
+            /** @description True when the user decided a DUPLICATE row is a new operation and is to be written. Such a row counts in acceptedRows, not in duplicateRows. */
+            includeDuplicate?: boolean;
+            /** @description A short stable code the importer put on the row, never content; empty when none. Today transfer.own_account (an incoming transfer from the user's own account): the other side must be recorded as a plain expense, never as a Transfer. */
+            hintCode?: string;
         };
         /** @description A statement import in progress or finished. The counts survive the deletion of the rows, which happens when the session ends. */
         ImportSession: {
@@ -6378,6 +6562,26 @@ export interface components {
             rejectedRows?: number;
             /** @description The held rows in row order. Filled on a single-session read while the session is PARSED or PREVIEWED; empty in a list and after the session has ended. */
             rows?: components["schemas"]["ImportRow"][];
+            /**
+             * Format: int32
+             * @description Set when COMMITTED, how many ledger records the commit wrote.
+             */
+            committedWritten?: number;
+            /**
+             * Format: int32
+             * @description Set when COMMITTED, how many accepted rows the commit found already imported.
+             */
+            committedAlreadyImported?: number;
+            /**
+             * Format: uuid
+             * @description The category a row with no category of its own gets when its amount is negative.
+             */
+            defaultExpenseCategoryId?: string;
+            /**
+             * Format: uuid
+             * @description The category a row with no category of its own gets when its amount is positive.
+             */
+            defaultIncomeCategoryId?: string;
         };
         /** @description Body for POST /api/v1/import-sessions — the parse phase. The content is read once, parsed and dropped; it is never stored. */
         CreateImportSessionRequest: {
@@ -6398,6 +6602,31 @@ export interface components {
         PreviewImportSessionRequest: {
             /** Format: uuid */
             accountId?: string;
+        };
+        /** @description Body for POST /api/v1/import-sessions/{id}/rows/{rowNumber}. Only the fields present change; an empty categoryId or note clears it. */
+        UpdateImportRowRequest: {
+            /** @description The category for the row's record; the caller's, active, suiting the direction. */
+            categoryId?: string;
+            note?: string;
+            /** @description True writes a DUPLICATE row anyway; false leaves it out again. */
+            includeDuplicate?: boolean;
+        };
+        /** @description The answer to a row decision: the changed row and the session's recomputed counts, not the whole session. */
+        UpdateImportRowResponse: {
+            row?: components["schemas"]["ImportRow"];
+            /** Format: int32 */
+            acceptedRows?: number;
+            /** Format: int32 */
+            duplicateRows?: number;
+            /** Format: int32 */
+            rejectedRows?: number;
+        };
+        /** @description Body for POST /api/v1/import-sessions/{id}/defaults. Only the fields present change; an empty string clears one. */
+        SetImportDefaultsRequest: {
+            /** @description The caller's active category that can file expenses. */
+            defaultExpenseCategoryId?: string;
+            /** @description The caller's active category that can file income. */
+            defaultIncomeCategoryId?: string;
         };
         /** @description Body for POST /api/v1/import-sessions/{id}/commit. */
         CommitImportSessionRequest: {

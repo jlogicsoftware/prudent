@@ -132,6 +132,24 @@ const ImportRow$json = {
       '17': true
     },
     {'1': 'duplicate_code', '3': 12, '4': 1, '5': 9, '10': 'duplicateCode'},
+    {
+      '1': 'category_id',
+      '3': 13,
+      '4': 1,
+      '5': 9,
+      '9': 7,
+      '10': 'categoryId',
+      '17': true
+    },
+    {'1': 'note', '3': 14, '4': 1, '5': 9, '9': 8, '10': 'note', '17': true},
+    {
+      '1': 'include_duplicate',
+      '3': 15,
+      '4': 1,
+      '5': 8,
+      '10': 'includeDuplicate'
+    },
+    {'1': 'hint_code', '3': 16, '4': 1, '5': 9, '10': 'hintCode'},
   ],
   '8': [
     {'1': '_transaction_date'},
@@ -141,6 +159,8 @@ const ImportRow$json = {
     {'1': '_counterparty'},
     {'1': '_counterparty_account'},
     {'1': '_external_id'},
+    {'1': '_category_id'},
+    {'1': '_note'},
   ],
 };
 
@@ -155,9 +175,12 @@ final $typed_data.Uint8List importRowDescriptor = $convert.base64Decode(
     'JwoMY291bnRlcnBhcnR5GAkgASgJSARSDGNvdW50ZXJwYXJ0eYgBARI2ChRjb3VudGVycGFydH'
     'lfYWNjb3VudBgKIAEoCUgFUhNjb3VudGVycGFydHlBY2NvdW50iAEBEiQKC2V4dGVybmFsX2lk'
     'GAsgASgJSAZSCmV4dGVybmFsSWSIAQESJQoOZHVwbGljYXRlX2NvZGUYDCABKAlSDWR1cGxpY2'
-    'F0ZUNvZGVCEwoRX3RyYW5zYWN0aW9uX2RhdGVCDwoNX2Jvb2tpbmdfZGF0ZUIPCg1fYW1vdW50'
-    'X21pbm9yQg4KDF9kZXNjcmlwdGlvbkIPCg1fY291bnRlcnBhcnR5QhcKFV9jb3VudGVycGFydH'
-    'lfYWNjb3VudEIOCgxfZXh0ZXJuYWxfaWQ=');
+    'F0ZUNvZGUSJAoLY2F0ZWdvcnlfaWQYDSABKAlIB1IKY2F0ZWdvcnlJZIgBARIXCgRub3RlGA4g'
+    'ASgJSAhSBG5vdGWIAQESKwoRaW5jbHVkZV9kdXBsaWNhdGUYDyABKAhSEGluY2x1ZGVEdXBsaW'
+    'NhdGUSGwoJaGludF9jb2RlGBAgASgJUghoaW50Q29kZUITChFfdHJhbnNhY3Rpb25fZGF0ZUIP'
+    'Cg1fYm9va2luZ19kYXRlQg8KDV9hbW91bnRfbWlub3JCDgoMX2Rlc2NyaXB0aW9uQg8KDV9jb3'
+    'VudGVycGFydHlCFwoVX2NvdW50ZXJwYXJ0eV9hY2NvdW50Qg4KDF9leHRlcm5hbF9pZEIOCgxf'
+    'Y2F0ZWdvcnlfaWRCBwoFX25vdGU=');
 
 @$core.Deprecated('Use importSessionDescriptor instead')
 const ImportSession$json = {
@@ -203,9 +226,49 @@ const ImportSession$json = {
       '6': '.prudent.v1.ImportRow',
       '10': 'rows'
     },
+    {
+      '1': 'committed_written',
+      '3': 13,
+      '4': 1,
+      '5': 5,
+      '9': 1,
+      '10': 'committedWritten',
+      '17': true
+    },
+    {
+      '1': 'committed_already_imported',
+      '3': 14,
+      '4': 1,
+      '5': 5,
+      '9': 2,
+      '10': 'committedAlreadyImported',
+      '17': true
+    },
+    {
+      '1': 'default_expense_category_id',
+      '3': 15,
+      '4': 1,
+      '5': 9,
+      '9': 3,
+      '10': 'defaultExpenseCategoryId',
+      '17': true
+    },
+    {
+      '1': 'default_income_category_id',
+      '3': 16,
+      '4': 1,
+      '5': 9,
+      '9': 4,
+      '10': 'defaultIncomeCategoryId',
+      '17': true
+    },
   ],
   '8': [
     {'1': '_account_id'},
+    {'1': '_committed_written'},
+    {'1': '_committed_already_imported'},
+    {'1': '_default_expense_category_id'},
+    {'1': '_default_income_category_id'},
   ],
 };
 
@@ -219,7 +282,14 @@ final $typed_data.Uint8List importSessionDescriptor = $convert.base64Decode(
     'MYCCABKANSC2V4cGlyZXNBdE1zEiMKDWFjY2VwdGVkX3Jvd3MYCSABKAVSDGFjY2VwdGVkUm93'
     'cxIlCg5kdXBsaWNhdGVfcm93cxgKIAEoBVINZHVwbGljYXRlUm93cxIjCg1yZWplY3RlZF9yb3'
     'dzGAsgASgFUgxyZWplY3RlZFJvd3MSKQoEcm93cxgMIAMoCzIVLnBydWRlbnQudjEuSW1wb3J0'
-    'Um93UgRyb3dzQg0KC19hY2NvdW50X2lk');
+    'Um93UgRyb3dzEjAKEWNvbW1pdHRlZF93cml0dGVuGA0gASgFSAFSEGNvbW1pdHRlZFdyaXR0ZW'
+    '6IAQESQQoaY29tbWl0dGVkX2FscmVhZHlfaW1wb3J0ZWQYDiABKAVIAlIYY29tbWl0dGVkQWxy'
+    'ZWFkeUltcG9ydGVkiAEBEkIKG2RlZmF1bHRfZXhwZW5zZV9jYXRlZ29yeV9pZBgPIAEoCUgDUh'
+    'hkZWZhdWx0RXhwZW5zZUNhdGVnb3J5SWSIAQESQAoaZGVmYXVsdF9pbmNvbWVfY2F0ZWdvcnlf'
+    'aWQYECABKAlIBFIXZGVmYXVsdEluY29tZUNhdGVnb3J5SWSIAQFCDQoLX2FjY291bnRfaWRCFA'
+    'oSX2NvbW1pdHRlZF93cml0dGVuQh0KG19jb21taXR0ZWRfYWxyZWFkeV9pbXBvcnRlZEIeChxf'
+    'ZGVmYXVsdF9leHBlbnNlX2NhdGVnb3J5X2lkQh0KG19kZWZhdWx0X2luY29tZV9jYXRlZ29yeV'
+    '9pZA==');
 
 @$core.Deprecated('Use createImportSessionRequestDescriptor instead')
 const CreateImportSessionRequest$json = {
@@ -273,6 +343,106 @@ final $typed_data.Uint8List previewImportSessionRequestDescriptor =
     $convert.base64Decode(
         'ChtQcmV2aWV3SW1wb3J0U2Vzc2lvblJlcXVlc3QSIgoKYWNjb3VudF9pZBgBIAEoCUgAUglhY2'
         'NvdW50SWSIAQFCDQoLX2FjY291bnRfaWQ=');
+
+@$core.Deprecated('Use updateImportRowRequestDescriptor instead')
+const UpdateImportRowRequest$json = {
+  '1': 'UpdateImportRowRequest',
+  '2': [
+    {
+      '1': 'category_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '9': 0,
+      '10': 'categoryId',
+      '17': true
+    },
+    {'1': 'note', '3': 2, '4': 1, '5': 9, '9': 1, '10': 'note', '17': true},
+    {
+      '1': 'include_duplicate',
+      '3': 3,
+      '4': 1,
+      '5': 8,
+      '9': 2,
+      '10': 'includeDuplicate',
+      '17': true
+    },
+  ],
+  '8': [
+    {'1': '_category_id'},
+    {'1': '_note'},
+    {'1': '_include_duplicate'},
+  ],
+};
+
+/// Descriptor for `UpdateImportRowRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List updateImportRowRequestDescriptor = $convert.base64Decode(
+    'ChZVcGRhdGVJbXBvcnRSb3dSZXF1ZXN0EiQKC2NhdGVnb3J5X2lkGAEgASgJSABSCmNhdGVnb3'
+    'J5SWSIAQESFwoEbm90ZRgCIAEoCUgBUgRub3RliAEBEjAKEWluY2x1ZGVfZHVwbGljYXRlGAMg'
+    'ASgISAJSEGluY2x1ZGVEdXBsaWNhdGWIAQFCDgoMX2NhdGVnb3J5X2lkQgcKBV9ub3RlQhQKEl'
+    '9pbmNsdWRlX2R1cGxpY2F0ZQ==');
+
+@$core.Deprecated('Use updateImportRowResponseDescriptor instead')
+const UpdateImportRowResponse$json = {
+  '1': 'UpdateImportRowResponse',
+  '2': [
+    {
+      '1': 'row',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.prudent.v1.ImportRow',
+      '10': 'row'
+    },
+    {'1': 'accepted_rows', '3': 2, '4': 1, '5': 5, '10': 'acceptedRows'},
+    {'1': 'duplicate_rows', '3': 3, '4': 1, '5': 5, '10': 'duplicateRows'},
+    {'1': 'rejected_rows', '3': 4, '4': 1, '5': 5, '10': 'rejectedRows'},
+  ],
+};
+
+/// Descriptor for `UpdateImportRowResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List updateImportRowResponseDescriptor = $convert.base64Decode(
+    'ChdVcGRhdGVJbXBvcnRSb3dSZXNwb25zZRInCgNyb3cYASABKAsyFS5wcnVkZW50LnYxLkltcG'
+    '9ydFJvd1IDcm93EiMKDWFjY2VwdGVkX3Jvd3MYAiABKAVSDGFjY2VwdGVkUm93cxIlCg5kdXBs'
+    'aWNhdGVfcm93cxgDIAEoBVINZHVwbGljYXRlUm93cxIjCg1yZWplY3RlZF9yb3dzGAQgASgFUg'
+    'xyZWplY3RlZFJvd3M=');
+
+@$core.Deprecated('Use setImportDefaultsRequestDescriptor instead')
+const SetImportDefaultsRequest$json = {
+  '1': 'SetImportDefaultsRequest',
+  '2': [
+    {
+      '1': 'default_expense_category_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '9': 0,
+      '10': 'defaultExpenseCategoryId',
+      '17': true
+    },
+    {
+      '1': 'default_income_category_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '9': 1,
+      '10': 'defaultIncomeCategoryId',
+      '17': true
+    },
+  ],
+  '8': [
+    {'1': '_default_expense_category_id'},
+    {'1': '_default_income_category_id'},
+  ],
+};
+
+/// Descriptor for `SetImportDefaultsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List setImportDefaultsRequestDescriptor = $convert.base64Decode(
+    'ChhTZXRJbXBvcnREZWZhdWx0c1JlcXVlc3QSQgobZGVmYXVsdF9leHBlbnNlX2NhdGVnb3J5X2'
+    'lkGAEgASgJSABSGGRlZmF1bHRFeHBlbnNlQ2F0ZWdvcnlJZIgBARJAChpkZWZhdWx0X2luY29t'
+    'ZV9jYXRlZ29yeV9pZBgCIAEoCUgBUhdkZWZhdWx0SW5jb21lQ2F0ZWdvcnlJZIgBAUIeChxfZG'
+    'VmYXVsdF9leHBlbnNlX2NhdGVnb3J5X2lkQh0KG19kZWZhdWx0X2luY29tZV9jYXRlZ29yeV9p'
+    'ZA==');
 
 @$core.Deprecated('Use commitImportSessionRequestDescriptor instead')
 const CommitImportSessionRequest$json = {

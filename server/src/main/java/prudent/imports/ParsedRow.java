@@ -15,6 +15,8 @@ import java.time.LocalDate;
  * @param rejectionCode a rule code ({@link ImportRejectedException#RULE}) when rejected, else
  *     {@code null}
  * @param externalId the bank's own entry identifier, when the format has one
+ * @param hintCode a stable rule-shaped code about an accepted row (never content), or {@code null};
+ *     see {@link #HINT_OWN_ACCOUNT_TRANSFER}
  */
 public record ParsedRow(
     int rowNumber,
@@ -25,7 +27,54 @@ public record ParsedRow(
     String counterparty,
     String counterpartyAccount,
     String externalId,
-    String rejectionCode) {
+    String rejectionCode,
+    String hintCode) {
+
+  /**
+   * The row is an incoming transfer from another account of the user's own (ADR-092). It is written
+   * as a plain record of the destination only; the user must record the other side as a plain
+   * expense, never as a Prudent Transfer, which would credit this account a second time.
+   */
+  public static final String HINT_OWN_ACCOUNT_TRANSFER = "transfer.own_account";
+
+  /** A row without a hint. */
+  public ParsedRow(
+      int rowNumber,
+      LocalDate transactionDate,
+      LocalDate bookingDate,
+      Long amountMinor,
+      String description,
+      String counterparty,
+      String counterpartyAccount,
+      String externalId,
+      String rejectionCode) {
+    this(
+        rowNumber,
+        transactionDate,
+        bookingDate,
+        amountMinor,
+        description,
+        counterparty,
+        counterpartyAccount,
+        externalId,
+        rejectionCode,
+        null);
+  }
+
+  /** This row with {@code code} as its hint. */
+  public ParsedRow withHint(String code) {
+    return new ParsedRow(
+        rowNumber,
+        transactionDate,
+        bookingDate,
+        amountMinor,
+        description,
+        counterparty,
+        counterpartyAccount,
+        externalId,
+        rejectionCode,
+        code);
+  }
 
   /** A row that can be written on commit. */
   public static ParsedRow accepted(
