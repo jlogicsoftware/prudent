@@ -50,6 +50,18 @@ final class ParsedStatements {
 
   /** As {@link #validate(String, ParsedStatement)}, with an explicit row limit. */
   static void validate(String formatId, ParsedStatement statement, int maxRows) {
+    validate(formatId, statement, maxRows, false);
+  }
+
+  /**
+   * As above; with {@code stableExternalId} (the importer's declaration, see {@link
+   * StatementImporter#stableExternalId()}) every non-rejected row must also carry a distinct
+   * identifier, because the identifier is then the row's whole key. A violation is the file's
+   * doing, so a rule on a row number and no text: {@code identifier.missing},
+   * {@code identifier.duplicate}.
+   */
+  static void validate(
+      String formatId, ParsedStatement statement, int maxRows, boolean stableExternalId) {
     if (statement == null || statement.rows() == null) {
       throw broken(formatId, "returned no result");
     }
@@ -73,6 +85,7 @@ final class ParsedStatements {
               + " import can hold.");
     }
     Set<Integer> seen = new HashSet<>();
+    Set<String> identifiers = new HashSet<>();
     for (ParsedRow row : statement.rows()) {
       if (row == null || row.rowNumber() < 1 || !seen.add(row.rowNumber())) {
         throw broken(formatId, "returned a missing, non-positive or repeated row number");
@@ -101,6 +114,14 @@ final class ParsedStatements {
             }) {
           if (text != null && text.length() > MAX_FIELD_CHARS) {
             throw new ImportRejectedException("field.too_long", row.rowNumber());
+          }
+        }
+        if (stableExternalId) {
+          if (row.externalId() == null || row.externalId().isBlank()) {
+            throw new ImportRejectedException("identifier.missing", row.rowNumber());
+          }
+          if (!identifiers.add(row.externalId().strip())) {
+            throw new ImportRejectedException("identifier.duplicate", row.rowNumber());
           }
         }
       }

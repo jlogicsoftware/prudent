@@ -100,6 +100,10 @@ message ImportRow {
   // The bank's own identifier for the entry, when the format has one. Whether it is stable enough to
   // be a duplicate key is the format's contract to say (jlogicsoftware/prudent#75).
   optional string external_id = 11;
+
+  // Why a row is a duplicate: a short stable code such as `duplicate.already_imported`, never row
+  // content. Empty unless status is DUPLICATE (jlogicsoftware/prudent#75).
+  string duplicate_code = 12;
 }
 
 // A session, as the server holds it.

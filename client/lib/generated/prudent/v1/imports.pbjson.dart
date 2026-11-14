@@ -131,6 +131,7 @@ const ImportRow$json = {
       '10': 'externalId',
       '17': true
     },
+    {'1': 'duplicate_code', '3': 12, '4': 1, '5': 9, '10': 'duplicateCode'},
   ],
   '8': [
     {'1': '_transaction_date'},
@@ -153,9 +154,10 @@ final $typed_data.Uint8List importRowDescriptor = $convert.base64Decode(
     'ILYW1vdW50TWlub3KIAQESJQoLZGVzY3JpcHRpb24YCCABKAlIA1ILZGVzY3JpcHRpb26IAQES'
     'JwoMY291bnRlcnBhcnR5GAkgASgJSARSDGNvdW50ZXJwYXJ0eYgBARI2ChRjb3VudGVycGFydH'
     'lfYWNjb3VudBgKIAEoCUgFUhNjb3VudGVycGFydHlBY2NvdW50iAEBEiQKC2V4dGVybmFsX2lk'
-    'GAsgASgJSAZSCmV4dGVybmFsSWSIAQFCEwoRX3RyYW5zYWN0aW9uX2RhdGVCDwoNX2Jvb2tpbm'
-    'dfZGF0ZUIPCg1fYW1vdW50X21pbm9yQg4KDF9kZXNjcmlwdGlvbkIPCg1fY291bnRlcnBhcnR5'
-    'QhcKFV9jb3VudGVycGFydHlfYWNjb3VudEIOCgxfZXh0ZXJuYWxfaWQ=');
+    'GAsgASgJSAZSCmV4dGVybmFsSWSIAQESJQoOZHVwbGljYXRlX2NvZGUYDCABKAlSDWR1cGxpY2'
+    'F0ZUNvZGVCEwoRX3RyYW5zYWN0aW9uX2RhdGVCDwoNX2Jvb2tpbmdfZGF0ZUIPCg1fYW1vdW50'
+    'X21pbm9yQg4KDF9kZXNjcmlwdGlvbkIPCg1fY291bnRlcnBhcnR5QhcKFV9jb3VudGVycGFydH'
+    'lfYWNjb3VudEIOCgxfZXh0ZXJuYWxfaWQ=');
 
 @$core.Deprecated('Use importSessionDescriptor instead')
 const ImportSession$json = {

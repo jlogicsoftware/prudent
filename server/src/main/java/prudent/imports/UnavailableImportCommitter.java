@@ -19,7 +19,7 @@ import prudent.error.PrudentException;
 public class UnavailableImportCommitter implements ImportCommitter {
 
   @Override
-  public void commit(ImportSessionEntity session, List<ImportRowEntity> accepted) {
+  public CommitResult commit(ImportSessionEntity session, List<ImportRowEntity> accepted) {
     throw PrudentException.unavailable("Importing a statement into the ledger is not available yet.");
   }
 }

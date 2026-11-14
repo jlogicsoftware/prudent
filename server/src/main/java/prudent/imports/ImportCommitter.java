@@ -21,8 +21,20 @@ public interface ImportCommitter {
   /**
    * Writes {@code accepted} to the ledger of {@code session.userId} in {@code session.accountId}.
    *
+   * <p><strong>Idempotence is the committer's job, and the preview's duplicate marks are not
+   * enough for it</strong> (ADR-091): they were computed at preview time, and another session of
+   * the same file can commit in between. Inside the workflow's single transaction a failed
+   * {@code INSERT} aborts the whole Postgres transaction and cannot be caught and continued, so a
+   * unique-index violation is not a way to say "already imported". An implementation must
+   * serialise on the account (lock its row, {@code SELECT ... FOR UPDATE}), then re-read
+   * {@code RecordEntity.importedKeys} and write only the rows whose key is still absent, or use
+   * {@code INSERT ... ON CONFLICT DO NOTHING}. The unique index stays as the backstop that turns
+   * a bug into a refused write, not a doubled ledger.
+   *
    * @param session the PREVIEWED session being committed, locked by the caller
    * @param accepted its rows whose status is {@link RowStatus#ACCEPTED}, in statement order
+   * @return the rows written and the rows found already imported; they sum to
+   *     {@code accepted.size()}
    */
-  void commit(ImportSessionEntity session, List<ImportRowEntity> accepted);
+  CommitResult commit(ImportSessionEntity session, List<ImportRowEntity> accepted);
 }

@@ -107,7 +107,7 @@ public class ImportWorkflow {
     ParsedStatement parsed;
     try {
       parsed = importer.parse(content, new ImportContext(userId, accountId));
-      ParsedStatements.validate(importer.formatId(), parsed, maxRows);
+      ParsedStatements.validate(importer.formatId(), parsed, maxRows, importer.stableExternalId());
       if (accountId != null) {
         // The statement is parsed, so the currency is known and the destination can be checked in
         // full. Preview checks it again whenever it changes.
@@ -193,6 +193,7 @@ public class ImportWorkflow {
     for (ImportRowEntity row : rows) {
       if (row.status == RowStatus.DUPLICATE) {
         row.status = RowStatus.ACCEPTED;
+        row.duplicateCode = null;
       }
     }
     Map<UUID, RowStatus> before = new HashMap<>();
@@ -251,7 +252,12 @@ public class ImportWorkflow {
 
     // Inside this transaction: if the committer throws, the session stays PREVIEWED and nothing
     // here was written. See ImportCommitter.
-    committer.commit(session, accepted);
+    CommitResult result = committer.commit(session, accepted);
+    if (result == null || result.written() + result.alreadyImported() != accepted.size()) {
+      // A committer that cannot account for every row has lost or invented one; roll back.
+      throw new IllegalStateException(
+          "The import committer did not account for every accepted row of session " + id + ".");
+    }
     end(session, ImportState.COMMITTED, now);
     return new SessionView(session, List.of());
   }

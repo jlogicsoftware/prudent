@@ -47,6 +47,9 @@ public class ImportMapper {
     if (entity.rejectionCode != null) {
       builder.setRejectionCode(entity.rejectionCode);
     }
+    if (entity.duplicateCode != null) {
+      builder.setDuplicateCode(entity.duplicateCode);
+    }
     if (entity.transactionDate != null) {
       builder.setTransactionDate(entity.transactionDate.toString());
     }

@@ -117,7 +117,7 @@ final class ImportTestSupport {
     }
 
     @Override
-    public void commit(ImportSessionEntity session, List<ImportRowEntity> accepted) {
+    public CommitResult commit(ImportSessionEntity session, List<ImportRowEntity> accepted) {
       calls.add(new ArrayList<>(accepted));
       try {
         Thread.sleep(pauseMillis);
@@ -125,6 +125,7 @@ final class ImportTestSupport {
         Thread.currentThread().interrupt();
         throw new IllegalStateException(interrupted);
       }
+      return new CommitResult(accepted.size(), 0);
     }
   }
 

@@ -61,6 +61,25 @@ public class ImportRowEntity extends PanacheEntityBase {
   @Column(name = "external_id")
   public String externalId;
 
+  /**
+   * The row's duplicate-detection key ({@link RowKey}), set by the preview for the session's
+   * destination account and {@code null} before it, on a rejected row, and when no account is
+   * chosen. A digest, never statement text. The commit copies it onto the ledger record.
+   */
+  @Column(name = "fingerprint")
+  public String fingerprint;
+
+  /** The second half of the key: which of the rows with this fingerprint this one is (1-based). */
+  @Column(name = "occurrence")
+  public Integer occurrence;
+
+  /**
+   * Why a row is a duplicate: a stable code ({@link ImportDuplicateStage#ALREADY_IMPORTED}), never
+   * content. Set only on a {@link RowStatus#DUPLICATE} row, and cleared when the row stops being one.
+   */
+  @Column(name = "duplicate_code")
+  public String duplicateCode;
+
   /** The rows of one session, in statement order. Ownership is part of the lookup. */
   public static List<ImportRowEntity> ofSession(UUID userId, UUID sessionId) {
     return list("userId = ?1 and sessionId = ?2 order by rowNumber", userId, sessionId);

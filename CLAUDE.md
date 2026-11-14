@@ -204,8 +204,13 @@ numbers, never text; a row with no known meaning is returned rejected instead. `
 (normalised, unique per user, no form field yet), and Erste's `checkDestination` refuses an account without one
 (`account.number_missing`) or with another (`account.identity_mismatch`). An own-account transfer is a row whose description is
 `ErsteStatementImporter.OWN_TRANSFER_DESCRIPTION` and whose counterparty account is the other account's number. The bank's sequence
-number is returned as a hint only. **There is no duplicate detection (#75), no ledger writer (#76) and no screen (#74), and nothing
-in the UI sets an account number:** commit answers 503 until an `ImportCommitter` bean exists. The parser has been run on the
+number is returned as a hint only. Duplicate detection exists (ADR-091, jlogicsoftware/prudent#75): `ImportDuplicateStage` keys each row with
+`RowFingerprints` (a versioned SHA-256 of account, format, currency, date, signed amount and normalised description and
+counterparty fields, plus an occurrence number for identical rows in one file), marks rows whose key a ledger record of the
+destination account already holds `DUPLICATE` (`duplicate.already_imported`), and leaves the key on the import row for the
+committer to copy onto `prudent_record.import_fingerprint` / `import_occurrence`, which are unique per account. The bank's
+sequence number is not used as an identifier (`StatementImporter.stableExternalId()` is the switch, false for Erste). **There is
+no ledger writer (#76) and no screen (#74), and nothing in the UI sets an account number:** commit answers 503 until an `ImportCommitter` bean exists. The parser has been run on the
 synthetic fixtures and, locally and by counts only, on one real export; nothing has run it in a deployed service.
 **No real statement is ever committed.**
 

@@ -137,9 +137,10 @@ class ImportSessionResourceTest {
     final List<ImportState> stateSeen = new ArrayList<>();
 
     @Override
-    public void commit(ImportSessionEntity session, List<ImportRowEntity> accepted) {
+    public CommitResult commit(ImportSessionEntity session, List<ImportRowEntity> accepted) {
       stateSeen.add(session.state);
       calls.add(new ArrayList<>(accepted));
+      return new CommitResult(accepted.size(), 0);
     }
   }
 
@@ -416,7 +417,8 @@ class ImportSessionResourceTest {
     QuarkusMock.installMockForType(
         new UnavailableImportCommitter() {
           @Override
-          public void commit(ImportSessionEntity session, List<ImportRowEntity> accepted) {
+          public CommitResult commit(
+              ImportSessionEntity session, List<ImportRowEntity> accepted) {
             throw new IllegalStateException("the ledger write failed");
           }
         },

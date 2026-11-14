@@ -72,4 +72,23 @@ public interface StatementImporter {
       throw new ImportRejectedException("account.identity_unverifiable");
     }
   }
+
+  /**
+   * Whether this format's own entry identifier ({@link ParsedRow#externalId}) is known to name the
+   * same operation in every export that contains it, however the exports overlap. When it does,
+   * duplicate detection keys a row by it ({@link RowFingerprints#stableIdKey}); when it does not,
+   * the row is recognised by its content ({@link RowFingerprints#fingerprint}).
+   *
+   * <p><strong>The default is false, and Erste's stays false.</strong> Its sequence number looks
+   * like a rank from the newest row of one export, so a later export that adds newer rows could
+   * renumber the older ones, and one export cannot show otherwise (docs/erste-csv-contract.md,
+   * ADR-091). Overriding this to true needs evidence from two overlapping exports of the same
+   * account where the same operation keeps the same identifier, and ADR text that records it. Rows
+   * already imported under the old scheme are not re-keyed: they keep their {@code v1} key, so
+   * flipping the switch makes the first overlapping import after it treat them as new. A format
+   * that flips it must say how it handles that.
+   */
+  default boolean stableExternalId() {
+    return false;
+  }
 }

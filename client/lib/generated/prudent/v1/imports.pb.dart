@@ -36,6 +36,7 @@ class ImportRow extends $pb.GeneratedMessage {
     $core.String? counterparty,
     $core.String? counterpartyAccount,
     $core.String? externalId,
+    $core.String? duplicateCode,
   }) {
     final result = create();
     if (sessionId != null) result.sessionId = sessionId;
@@ -50,6 +51,7 @@ class ImportRow extends $pb.GeneratedMessage {
     if (counterpartyAccount != null)
       result.counterpartyAccount = counterpartyAccount;
     if (externalId != null) result.externalId = externalId;
+    if (duplicateCode != null) result.duplicateCode = duplicateCode;
     return result;
   }
 
@@ -78,6 +80,7 @@ class ImportRow extends $pb.GeneratedMessage {
     ..aOS(9, _omitFieldNames ? '' : 'counterparty')
     ..aOS(10, _omitFieldNames ? '' : 'counterpartyAccount')
     ..aOS(11, _omitFieldNames ? '' : 'externalId')
+    ..aOS(12, _omitFieldNames ? '' : 'duplicateCode')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -206,6 +209,17 @@ class ImportRow extends $pb.GeneratedMessage {
   $core.bool hasExternalId() => $_has(10);
   @$pb.TagNumber(11)
   void clearExternalId() => $_clearField(11);
+
+  /// Why a row is a duplicate: a short stable code such as `duplicate.already_imported`, never row
+  /// content. Empty unless status is DUPLICATE (jlogicsoftware/prudent#75).
+  @$pb.TagNumber(12)
+  $core.String get duplicateCode => $_getSZ(11);
+  @$pb.TagNumber(12)
+  set duplicateCode($core.String value) => $_setString(11, value);
+  @$pb.TagNumber(12)
+  $core.bool hasDuplicateCode() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearDuplicateCode() => $_clearField(12);
 }
 
 /// A session, as the server holds it.

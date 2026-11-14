@@ -13,6 +13,153 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-091 — A statement row is recognised by a versioned fingerprint plus an occurrence number, kept on the ledger record under a unique index; the bank's sequence number is not an identifier
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#75, fifth task of the epic jlogicsoftware/prudent#41 (done before #76 and #74, because the preview shows duplicates and the commit must store what detection needs).
+
+### Decision
+
+- **The key of a row is `(fingerprint, occurrence)`** (`RowKey`, computed by the pure `RowFingerprints`). The fingerprint is
+  `v1:` and the SHA-256 (64 lower-case hex) of: a scheme tag, the destination account's id, the format id, the statement's
+  currency, the transaction date, the signed amount in minor units, and the description, counterparty and counterparty account
+  after `normalise` (Unicode NFC, any white space run one space, trimmed, upper-cased in the root locale, null is empty). Each
+  field is written with its length, so shifting text between fields changes the input.
+- **Deliberately excluded:** the bank's sequence number and the row's position (the contract says it looks like a rank from the
+  newest row of one export, so a later export that adds newer rows can renumber older ones), the booking date (not monotonic, can
+  be later than the export date, whether it can still change is unknown), and the balance (does not chain; not even read). The BLIK
+  `ref:` number stays inside the description and so is part of the fingerprint, which is why two BLIK payments for one amount to one
+  merchant on one day differ even before the occurrence number. `normalise` finishes with a second NFC pass so it is idempotent for code points that recompose when upper-cased. Punctuation, letters and word order are **not** normalised away:
+  each such fold would also merge two genuinely different operations.
+- **The sequence number is a hint only, as ADR-088/090 said.** The switch is `StatementImporter.stableExternalId()`
+  (default false; Erste's stays false). A format returning true is keyed by `RowFingerprints.stableIdKey` (`e1:` prefix, occurrence
+  1, account-scoped) and its rows must then carry `externalId`. Flipping it needs a second export of the same account whose overlap
+  shows the same operation keeping the same identifier, and an ADR that says so. Records imported earlier keep their `v1` key and
+  are not re-keyed, so the first overlapping import after a flip would offer them again; the ADR that flips it must say how that is
+  handled. `TestStableIdImporter` proves the switch works; nothing proves any real format deserves it.
+- **Occurrence numbers keep genuine repeats.** The n-th row of one statement with a given fingerprint gets occurrence n, over all
+  its non-rejected rows in statement order (rows another stage already marked keep their slot). Rows with one fingerprint are
+  interchangeable, so only how many there are matters, not which is called 1. A row is a duplicate exactly when a ledger record of
+  the destination account already holds its `(fingerprint, occurrence)`. Hard cases, all tested: the same file twice (everything is a
+  duplicate, nothing is written); a later export with newer rows, other sequence numbers, other positions and a moved booking date
+  (exactly the new rows); an overlap that cuts through identical rows (the older file ends with 2 of 3, the newer has 3: one new);
+  the same file in another row order (same keys); an amount, date or description that differs (another row).
+- **Digest, and what that does not buy.** A key goes into a ledger column nothing displays, so it is a digest rather than statement
+  text again. It is **not secret**: the input is a date, an amount and a short string, so anyone who can read the table can test
+  guesses (the account id only stops one table of precomputed digests serving every account). It is stored as personal data on rows
+  that already carry `user_id` (RLS, the eraser, the account delete cover it), is never on the wire (`ImportRow` gains only
+  `duplicate_code`, field 12, a code such as `duplicate.already_imported`), is kept out of the logs (see Limitations), and is not in the data export: it is derived
+  from fields the export already carries, and it is not something the person can read.
+- **Persistence** (V20261114110000): `prudent_import_row.fingerprint`, `occurrence`, `duplicate_code` (CHECKs: shape, paired,
+  occurrence positive, no key on a rejected row, a code only on a DUPLICATE row) and `prudent_record.import_fingerprint`,
+  `import_occurrence` (CHECKs: shape, paired, positive). **`prudent_record_import_key_unique` is UNIQUE** over
+  `(account_id, import_fingerprint, import_occurrence)` where the fingerprint is not null, not a plain index. The preview is advice;
+  two commits of overlapping sessions can both pass it (two tabs, a retry after a timeout), and only a unique index makes the second
+  writer fail rather than double the ledger; it is the backstop, and #76's idempotence comes from the lock and re-read below. Deleting an imported record frees its key, so
+  importing the statement again brings that row back; a record the user typed by hand carries no key and is never matched.
+- **`ImportDuplicateStage`** (an `ImportPreviewStage`) clears every key, stops if the session has no destination account, keys every
+  non-rejected row, then marks each still-ACCEPTED row whose key a record of `session.accountId` holds as `DUPLICATE` with code
+  `duplicate.already_imported`. The workflow's existing reset (DUPLICATE to ACCEPTED before stages run) now also clears the code, so a
+  repeated preview for another account starts clean, and the key is recomputed because the account is part of the digest.
+  `RecordEntity.importedKeys` is one chunked query over the fingerprints the statement carries.
+
+### What #76 must do with it
+
+Copy `row.fingerprint` and `row.occurrence` of each accepted row onto the `RecordEntity` it writes (`importFingerprint`,
+`importOccurrence`) and refuse a row whose key is null (a PREVIEWED session always has them when it has a destination, which commit
+requires). **Idempotence is #76's job and a unique-index violation is not the way to say "already imported"**: the workflow runs
+the committer inside one `@Transactional`, a failed `INSERT` or flush aborts the Postgres transaction, and it cannot be caught and
+continued. #76 must instead **lock the destination account's row** (`SELECT ... FOR UPDATE`; chosen over a pg advisory lock because it
+needs no invented lock key, is scoped to exactly the resource being written, is released with the workflow's transaction and is
+covered by the same row-level security as the data), then re-run `RecordEntity.importedKeys` for the accepted rows' fingerprints and
+write only those whose key is still absent. `INSERT ... ON CONFLICT DO NOTHING` on the unique index is the acceptable alternative; either
+way the index stays as the backstop that makes a bug a refused write, not a doubled ledger. **The seam now says so**: `ImportCommitter.commit`
+returns a `CommitResult(written, alreadyImported)`, the two must sum to the accepted rows it was given (the workflow rolls back
+otherwise), and `UnavailableImportCommitter` still refuses. The test committer in `ImportDuplicateDetectionTest` does exactly the lock,
+re-read and write, and the test of two sessions of one file previewed before either commits proves the second writes nothing. What
+that proves is the algorithm and the seam, sequentially; it is not a concurrent race, and the real committer is #76's. The committed
+rows' keys live on the records, not on the import rows, which are deleted.
+
+### Requirements handed to #74 (the review screen)
+
+**A row marked DUPLICATE can be a genuinely new operation, and the user must be able to say so.** Nothing in this ADR's server work
+provides that; #74 must give the user a per-row way to include a DUPLICATE-marked row in the commit, and the server must then accept
+it. The seam for it is not built, deliberately: it needs an `include_duplicate` decision on the row (proto, entity, migration),
+the committer writing that row with the **next free occurrence** of its fingerprint in the account (`max(import_occurrence) + 1` over
+the account's records with that fingerprint, computed under the same account lock, because the unique index forbids a second record with
+the key the row would otherwise carry), and tests for it, none of which could be half-built here. Until #74 ships it, a wrongly marked
+row cannot be imported from a statement; it can be entered by hand.
+
+### Limitations, stated rather than implied
+
+- **LOSS mode: a new row can be silently marked DUPLICATE.** The booking date is not part of the key and a card row carries no unique
+  reference. Two exports that do not overlap by transaction date, for example adjacent exports cut by booking date, can therefore hold a
+  genuinely new row with the same transaction date, signed amount and text as an already imported row that was booked on another day; it
+  gets the same fingerprint and, being the only such row in its file, occurrence 1, so it is marked DUPLICATE and is not offered.
+  Nothing tells the user. `ImportDuplicateDetectionTest` pins this behaviour. Whether the bank's range is by transaction date or by
+  booking date is **not known**; the contract's open questions now ask for a second export to settle it. This is an accepted risk of
+  fingerprinting without a bank identifier, and the remedy is the per-row override above.
+- **A row pending in one export and booked in the next** is unknown: if its description or date changes it is a different
+  fingerprint and is imported again; if only its booking date changes it is the same row. The contract has no example either way.
+- **A description the bank rewrites between exports** has the same effect. The only remedy is deleting the extra record.
+- **Overlap is judged by counts.** If an export drops one of three identical rows (a pending one disappearing) and the record is
+  already in the ledger, nothing notices. Detection never deletes.
+- **A record the user entered by hand for the same bank transaction is not a duplicate** of the statement row.
+- **One account is checked, not the ledger.** The same statement imported into another account of the user (possible only for a format
+  whose identity check allows it) is not a duplicate there, by design: the account is part of the key.
+- **The digest scopes to the account's id, not its stored number.** The number can be cleared, changed or moved to another account,
+  and a key that followed it would change meaning under records already written. The id is permanent, and the key only has to answer
+  "is this row already in this account's records", a question that has no meaning outside that account. The consequence: clearing the
+  number on account A and setting it on a new account A2 makes a re-import into A2 offer every row again, because A2 holds none.
+- **Editing and moving an imported record.** Editing its date, amount, text, category or note keeps the key on purpose: the key names
+  the statement row the record came from, not the record's current content, so correcting a typo does not make the next overlapping
+  import offer the row again. **Moving the record to another account clears the key** (`RecordWriter`), because the key means "this
+  row is in this account": left in place it would keep the old account's slot occupied for a record no longer there, and a second such
+  move could collide on the unique index. Tested in `RecordImportKeyTest`. After a move, re-importing offers the row into the old account
+  again, which is correct.
+- **The key is kept out of the server's logs by a filter.** Postgres puts the offending values in a unique-violation message, and
+  Hibernate (`org.hibernate.orm.jdbc.error`) and Narayana (`ARJUNA012125`, with the cause chain) both log it; a first test run showed
+  the digest in those lines. `StatementKeyLogFilter` (a Quarkus `@LoggingFilter`, wired by `quarkus.log.console.filter`) drops exactly
+  the records whose message, parameters or causes name the `import_fingerprint` column, rather than silencing a logger, so other
+  database and transaction warnings stay. The failure still reaches the caller, and `UnhandledExceptionMapper` logs one line without
+  the message. `ImportKeyLoggingTest` proves the violation is still refused, that the filter drops each shape the key arrives in and
+  keeps unrelated records, and that the config names it; it does **not** run a log line through the live console handler, so that last
+  hop is Quarkus's contract, not something proven here. A log shipped by any handler other than the console (none is configured)
+  would need the same filter property.
+- **The stable-identifier path refuses a file that cannot be keyed.** For a format that declares `stableExternalId()`, a non-rejected row
+  with no identifier is the rule `identifier.missing` and two with one identifier are `identifier.duplicate` (400, row number, no text;
+  `ParsedStatements.validate`), because both rows would otherwise take occurrence 1 and collide at commit.
+- **Not run against a second real export**; the scheme was checked on one real export, counts only (below), and on synthetic overlaps.
+
+### Limitations, stated rather than implied
+
+- **A row pending in one export and booked in the next** is unknown: if its description or date changes it is a different
+  fingerprint and is imported again; if only its booking date changes it is the same row. The contract has no example either way.
+- **A description the bank rewrites between exports** has the same effect. The only remedy is deleting the extra record.
+- **Overlap is judged by counts.** If an export drops one of three identical rows (a pending one disappearing) and the record is
+  already in the ledger, nothing notices. Detection never deletes.
+- **A record the user entered by hand for the same bank transaction is not a duplicate** of the statement row.
+- **One account is checked, not the ledger.** The same statement imported into another account of the user (possible only for a format
+  whose identity check allows it) is not a duplicate there, by design: the account is part of the key.
+- **Not run against a second real export**; the scheme was checked on one real export, counts only (below), and on synthetic overlaps.
+
+### What this supersedes, and why
+
+Nothing earlier. It uses ADR-089's `ImportPreviewStage` and `RowStatus.DUPLICATE` as designed and ADR-088/090's decision to treat the
+sequence number as a hint. `docs/erste-csv-contract.md` found no mistake; one open question was added to it (whether the bank's range is by transaction or booking date).
+
+### Consequence
+
+Verified: `RowFingerprintsTest` (scheme properties, normalisation, boundaries, occurrences, the cut-through-identical-rows overlap),
+`ImportDuplicateDetectionTest` (the same statement twice, repeats not collapsed, overlap with other sequence numbers and positions, the
+cut group, changed fields, a deleted record, a hand-typed record, no account, wire without keys, rejected rows, a repeated preview for
+another account and back, the stable-identifier switch) with a test-only committer that copies the key, and `ImportFingerprintSchemaTest`
+(the unique index and every CHECK by name). Run once, locally, counts only, over one real export: 39 rows, 39 distinct fingerprints
+(so no identical-looking rows in it, and the repeated-row path is proven on synthetic rows only), a second import yields 0 new rows, and
+for every cut of the file into an older part and a whole one exactly the rows outside the older part are new. Not verified: any
+deployed run, a second real export, and concurrent commits hitting the unique index (#76).
+
+---
+
 ## ADR-090 — The Erste importer validates the whole file against the contract before returning a row, identifies the account by a stored number and refuses an account without one
 
 **Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#73, third task of the epic jlogicsoftware/prudent#41.

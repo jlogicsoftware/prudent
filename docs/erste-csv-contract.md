@@ -131,6 +131,11 @@ These need a second export or the bank's own documentation, and are deliberately
   date falls, a newer export that adds rows above would renumber the older ones if it is a rank from
   the newest row. **#75 must not use it as a duplicate key unless a second export covering an
   overlapping range shows the same operation keeping the same number.**
+- Whether the bank's date range selects rows by transaction date or by booking date. If by booking date, two exports can be adjacent
+  by booking date and still both hold rows of one transaction date, and a genuinely new row can look identical to an imported one
+  (same transaction date, amount and text, another booking day), which duplicate detection (ADR-091) marks as a duplicate. A second
+  export taken for an adjacent or overlapping range, compared by both dates, would settle it. Until then the review screen (#74) must
+  let the user include a row marked as a duplicate.
 - What the balance column is. It does not chain in either order tried (file and reversed), so it may be a balance at
   booking time over a wider set of entries than the file lists.
 - Why the sequence has gaps: other accounts, entries omitted from this export, or pending items.

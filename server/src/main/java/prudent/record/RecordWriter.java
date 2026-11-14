@@ -99,6 +99,14 @@ public class RecordWriter {
     entity.currency = normalized;
     entity.date = parseDate(date);
     entity.categoryId = category.id;
+    if (!account.id.equals(entity.accountId)) {
+      // A statement key means "this row is in THIS account" (ADR-091). A record moved elsewhere no
+      // longer is, so it must not keep occupying the old account's slot, nor collide with the key
+      // of another record moved to the same account. Editing date, amount or text keeps the key on
+      // purpose: it names the statement row the record came from, not the record's current content.
+      entity.importFingerprint = null;
+      entity.importOccurrence = null;
+    }
     entity.accountId = account.id;
     entity.payee = blankToNull(payee);
     entity.note = blankToNull(note);
