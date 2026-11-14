@@ -10,6 +10,8 @@ import com.google.protobuf.util.JsonFormat;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -24,6 +26,10 @@ import prudent.goal.AllocationKind;
 import prudent.goal.GoalAllocationEntity;
 import prudent.goal.GoalEntity;
 import prudent.goal.GoalState;
+import prudent.imports.ImportRowEntity;
+import prudent.imports.ImportSessionEntity;
+import prudent.imports.ImportState;
+import prudent.imports.RowStatus;
 import prudent.plan.Frequency;
 import prudent.plan.OccurrenceState;
 import prudent.plan.PlanEntity;
@@ -74,6 +80,8 @@ public final class PrudentTest {
     QuarkusTransaction.requiringNew()
         .run(
             () -> {
+              ImportRowEntity.deleteAll();
+              ImportSessionEntity.deleteAll();
               RecordEntity.deleteAll();
               PlanOccurrenceEntity.deleteAll();
               PlanEntity.deleteAll();
@@ -373,7 +381,7 @@ public final class PrudentTest {
                     currency,
                     discarded,
                     "",
-                    java.time.Instant.now()));
+                    Instant.now()));
     return id;
   }
 
@@ -394,9 +402,50 @@ public final class PrudentTest {
               goal.currency = currency;
               goal.targetAmountMinor = targetAmountMinor;
               goal.status = GoalState.ACTIVE;
-              goal.createdAt = java.time.Instant.now();
+              goal.createdAt = Instant.now();
               goal.statusChangedAt = goal.createdAt;
               goal.persist();
+            });
+    return id;
+  }
+
+  /**
+   * Persists an import session in {@code state} with one accepted row, directly — for suites
+   * asserting something other than {@code ImportSessionResource} itself. The row is held only when
+   * the state holds rows, as the workflow would leave it. All text is synthetic.
+   */
+  public static UUID seedImportSession(
+      String userId, ImportState state, Instant expiresAt) {
+    UUID id = UUID.randomUUID();
+    QuarkusTransaction.requiringNew()
+        .run(
+            () -> {
+              Instant created = expiresAt.minus(Duration.ofHours(1));
+              ImportSessionEntity session =
+                  new ImportSessionEntity();
+              session.id = id;
+              session.userId = UUID.fromString(userId);
+              session.formatId = "test-format";
+              session.state = state;
+              session.currency = "PLN";
+              session.createdAt = created;
+              session.stateChangedAt = created;
+              session.expiresAt = expiresAt;
+              session.acceptedRows = 1;
+              session.persist();
+              session.flush();
+              if (state.holdsRows()) {
+                ImportRowEntity row = new ImportRowEntity();
+                row.id = UUID.randomUUID();
+                row.sessionId = id;
+                row.userId = session.userId;
+                row.rowNumber = 1;
+                row.status = RowStatus.ACCEPTED;
+                row.transactionDate = LocalDate.of(2026, 11, 1);
+                row.amountMinor = -12_34L;
+                row.description = "TEST row of " + userId;
+                row.persist();
+              }
             });
     return id;
   }
@@ -419,7 +468,7 @@ public final class PrudentTest {
               entry.currency = currency;
               entry.amountMinor = amountMinor;
               entry.note = "";
-              entry.createdAt = java.time.Instant.now();
+              entry.createdAt = Instant.now();
               entry.createdBy = UUID.fromString(userId);
               entry.persist();
             });

@@ -10,6 +10,7 @@ import prudent.budget.BudgetCarryResetEntity;
 import prudent.category.CategoryEntity;
 import prudent.goal.GoalEntity;
 import prudent.goal.GoalState;
+import prudent.imports.ImportState;
 
 /**
  * Gives one user a row in <strong>every</strong> table Prudent keeps per user, including the
@@ -36,7 +37,9 @@ final class PrivacySeed {
       UUID archivedGoal,
       UUID allocation,
       UUID liveReset,
-      UUID revokedReset) {}
+      UUID revokedReset,
+      UUID importSession,
+      UUID endedImportSession) {}
 
   static Seeded everythingFor(String userId) {
     UUID user = UUID.fromString(userId);
@@ -64,6 +67,14 @@ final class PrivacySeed {
         PrudentTest.seedCarryReset(userId, category, YearMonth.of(2026, 10), "PLN", 50_00L);
     QuarkusTransaction.requiringNew()
         .run(() -> BudgetCarryResetEntity.revoke(user, revokedReset, Instant.now()));
+    // One session still holding a row and one that has ended and holds none, because the export and
+    // the erasure meet different tables for each (ADR-089).
+    UUID importSession =
+        PrudentTest.seedImportSession(
+            userId, ImportState.PREVIEWED, Instant.now().plusSeconds(3600));
+    UUID endedImportSession =
+        PrudentTest.seedImportSession(
+            userId, ImportState.DISCARDED, Instant.now().plusSeconds(3600));
     return new Seeded(
         account,
         category,
@@ -75,6 +86,8 @@ final class PrivacySeed {
         archivedGoal,
         allocation,
         liveReset,
-        revokedReset);
+        revokedReset,
+        importSession,
+        endedImportSession);
   }
 }

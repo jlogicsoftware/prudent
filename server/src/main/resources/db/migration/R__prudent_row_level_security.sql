@@ -90,6 +90,8 @@ BEGIN
         'prudent_category',
         'prudent_goal',
         'prudent_goal_allocation',
+        'prudent_import_row',
+        'prudent_import_session',
         'prudent_plan',
         'prudent_plan_occurrence',
         'prudent_record',

@@ -193,6 +193,7 @@ pkill -f GradleDaemon
 |---|---|
 | [`docs/zen-architecture.md`](docs/zen-architecture.md) | **Prudent's cornerstone** — the design philosophy this product is built on. Read it before non-trivial work. |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Prudent's own decision log, numbered from ADR-001, append-only |
+| [`docs/erste-csv-contract.md`](docs/erste-csv-contract.md) | The Erste Polska CSV statement format as observed, what the importer must validate, and the synthetic fixtures (M6) |
 | [`docs/privacy-policy.md`](docs/privacy-policy.md) | What Prudent keeps, how to copy it, how to erase it, and what erasure does not remove |
 | [`docs/prudent-migration-plan.md`](docs/prudent-migration-plan.md) | The approved plan, and the phase sequence |
 | [`docs/jzen/README.md`](docs/jzen/README.md) | Where jZen's rules live — pointers into `../jZen`, never copies |

@@ -127,6 +127,22 @@ const DataExport$json = {
       '6': '.prudent.v1.GoalAllocation',
       '10': 'goalAllocations'
     },
+    {
+      '1': 'import_sessions',
+      '3': 14,
+      '4': 3,
+      '5': 11,
+      '6': '.prudent.v1.ImportSession',
+      '10': 'importSessions'
+    },
+    {
+      '1': 'import_rows',
+      '3': 15,
+      '4': 3,
+      '5': 11,
+      '6': '.prudent.v1.ImportRow',
+      '10': 'importRows'
+    },
   ],
 };
 
@@ -144,7 +160,9 @@ final $typed_data.Uint8List dataExportDescriptor = $convert.base64Decode(
     '92ZXJfcmVzZXRzGAsgAygLMiAucHJ1ZGVudC52MS5CdWRnZXRDYXJyeU92ZXJSZXNldFIPY2Fy'
     'cnlPdmVyUmVzZXRzEiYKBWdvYWxzGAwgAygLMhAucHJ1ZGVudC52MS5Hb2FsUgVnb2FscxJFCh'
     'Bnb2FsX2FsbG9jYXRpb25zGA0gAygLMhoucHJ1ZGVudC52MS5Hb2FsQWxsb2NhdGlvblIPZ29h'
-    'bEFsbG9jYXRpb25z');
+    'bEFsbG9jYXRpb25zEkIKD2ltcG9ydF9zZXNzaW9ucxgOIAMoCzIZLnBydWRlbnQudjEuSW1wb3'
+    'J0U2Vzc2lvblIOaW1wb3J0U2Vzc2lvbnMSNgoLaW1wb3J0X3Jvd3MYDyADKAsyFS5wcnVkZW50'
+    'LnYxLkltcG9ydFJvd1IKaW1wb3J0Um93cw==');
 
 @$core.Deprecated('Use eraseAccountRequestDescriptor instead')
 const EraseAccountRequest$json = {

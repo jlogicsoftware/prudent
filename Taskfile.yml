@@ -262,6 +262,32 @@ tasks:
       - python3 -m unittest discover -s scripts -p 'test_verify_no_cocoapods.py'
       - python3 scripts/verify_no_cocoapods.py
 
+  verify:import-fixtures:
+    desc: Fail if an import fixture or the Erste contract document looks like real banking data
+    summary: |
+      THE GATE BEHIND "no real statement in the repository" (jlogicsoftware/prudent#41, #42,
+      docs/erste-csv-contract.md). Runs scripts/verify_import_fixtures.py over every file under
+      server/src/test/resources/import/ (each must be a lowercase statement-*.csv in import/erste/),
+      over any other *.csv anywhere under server/src/test/resources/ (always a failure), and over
+      docs/erste-csv-contract.md. It fails on a number of 13 or more digits or mask characters
+      (separated by space, hyphen, dot or no-break space; asterisk and bullet masks included) that is
+      not the fictional IBAN (22 zeros then 4 digits) or the card mask 000000******0000, a run of 9
+      to 12 digits, a ref: number not starting 000, a row that is not exactly 9 fields with an empty
+      9th, a line break inside a field, a field that does not fit its pattern (dates, quoted comma
+      decimals, sequence, grouped fictional IBAN, currency), a description, counterparty or holder
+      without a whole word TEST, TESTOWY/TESTOWA/TESTOWE/TESTOWO, EXAMPLE, PRÓB, PRÓBNA or PRÓBNY, a
+      non-UTF-8 fixture, and a scope with no fixture at all.
+
+      It is deliberately narrow and WEAK: a real name next to a marker word passes, digit runs
+      shorter than 9 pass, amounts, dates and balances are checked for shape and never for content,
+      ref:000 may be followed by any digits, and .DS_Store is skipped by name. It narrows the room
+      for a leak, it does not prove anonymity, so a fixture change is still read by a person.
+
+      scripts/test_verify_import_fixtures.py runs first and is what proves the gate can fail.
+    cmds:
+      - python3 -m unittest discover -s scripts -p 'test_verify_import_fixtures.py'
+      - python3 scripts/verify_import_fixtures.py
+
   verify:mail-templates:
     desc: Fail if a sign-up or recovery mail template carries a placeholder, host or remote content it should not
     summary: |

@@ -184,6 +184,26 @@ done (#159). For a person who cannot sign in, `POST /api/v1/admin/privacy/users/
 jlogicsoftware/prudent#172) runs the same eraser, anonymiser and sign-in deletion for an `admin`-role session (401/403 otherwise, 404 for an id with nothing
 behind it, 400 for the caller's own); it has not been run against a deployed service.
 
+M6 (Erste Polska CSV import, epic jlogicsoftware/prudent#41) has begun with its contract only (ADR-088,
+jlogicsoftware/prudent#42): `docs/erste-csv-contract.md` records the format of one real export, kept outside the
+repository, with its open questions, and `server/src/test/resources/import/erste/` holds synthetic fixtures.
+`task verify:import-fixtures` (CI) refuses values that cannot be synthetic and is weak by design (see its summary).
+The bank's own export steps are not captured, so jlogicsoftware/prudent#42 stays open and must not be auto-closed.
+The workflow is built (ADR-089, jlogicsoftware/prudent#72): `ImportSessionResource` at `/api/v1/import-sessions` over
+`prudent.imports` parses, previews and commits as three enforced phases (`PARSED -> PREVIEWED -> COMMITTED`, plus
+`DISCARDED` and `EXPIRED`), behind a `StatementImporter` boundary keyed by format id. A statement is read once and never
+stored; a session keeps only normalised rows, which are deleted when it ends, and expires after 24 hours (a read ends an
+overdue one at once; the hourly sweep deletes the rest). A preview can be repeated (`PREVIEWED -> PREVIEWED`) to change the
+destination account, which is validated wherever it is set and again at commit: the caller's, active, holding the session's
+currency, and accepted by `StatementImporter.checkDestination` against an opaque identity token (a digest the importer
+produces, kept only while the session is open) because `Account` has no account-number field yet, so the default hook rejects
+any statement that carries an identity rather than pass it (#73 adds the field and the Erste hook). Statements are bounded
+(rows, field length, open sessions per user, list size; `prudent.import.*`). **There is no
+Erste importer yet (#73), no duplicate detection (#75), no ledger writer (#76) and no screen (#74):** the format id
+`erste-pl-csv` is unregistered and refused, and commit answers 503 until an `ImportCommitter` bean exists. Only a
+test-only importer has run the workflow.
+**No real statement is ever committed.**
+
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
 (ADR-065, #45) they were run against a real GCP project and a real Supabase project made for the

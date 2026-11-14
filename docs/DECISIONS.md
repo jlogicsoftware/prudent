@@ -13,6 +13,164 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-089 — Statement imports are sessions with three enforced phases behind an importer boundary; only normalised rows are kept, never the uploaded file
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#72, second task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- **The importer boundary.** `prudent.imports.StatementImporter` is one bank format: `formatId()` and a pure
+  `parse(bytes, ImportContext)` returning a `ParsedStatement` (one currency, normalised `ParsedRow`s). Importers are
+  `@ApplicationScoped` beans and `ImportFormats` indexes them by id; two importers claiming one id, or an id that is
+  not a plain identifier, fail the boot. An unknown id is a 400 `ZenError` that lists the supported ids and does
+  not echo the request's. **The Erste importer does not exist yet** (jlogicsoftware/prudent#73): `ImportFormatIds.ERSTE_PL_CSV` is its registration seam,
+  and until a bean returns that id the format is refused like any unknown one. An importer rejects a whole statement
+  with `ImportRejectedException`, whose message is built from a rule code (`date.invalid`) and a row number and nothing
+  else, so no statement text reaches an error body or a log. A variant outside a format's contract is rejected, not
+  adapted (ADR-088); the workflow's own checks (`ParsedStatements`) only add to an importer's, never relax them, so
+  a format cannot weaken another's validation by sharing the workflow.
+- **Three phases, three requests, enforced by the server** (`ImportWorkflow`, over `ImportState`):
+  `PARSED -> PREVIEWED -> COMMITTED`, with `DISCARDED` and `EXPIRED` reachable from either open state, all three
+  ends terminal, and one edge onto itself, `PREVIEWED -> PREVIEWED` (below). A session exists only after a parse that succeeded (importer first, writes after, one transaction), so a
+  rejected statement, an unknown format or an importer failure writes no session, no row and no ledger record.
+  `POST /api/v1/import-sessions` parses; `.../{id}/preview` needs PARSED or PREVIEWED, validates the destination account, runs every
+  `ImportPreviewStage` bean and fixes the account; `.../{id}/commit` needs PREVIEWED, a destination account, and a body repeating how many
+  rows were accepted, refused (409) when that differs, so a commit confirms what was reviewed. Every phase change locks
+  the session row, and another user's session is a 404. A read takes the same lock, so it never sees a PREVIEWED
+  session without its rows while a commit is in flight, and expires an overdue session itself.
+- **A preview can be repeated.** Bytes are never kept, so a user who sees the preview and then chooses a different
+  destination account would otherwise have to upload again. `PREVIEWED -> PREVIEWED` re-validates the destination and
+  re-runs the stages; the workflow first sets every `DUPLICATE` row back to `ACCEPTED`, so a stage's result never
+  carries over from a preview for another account.
+- **The destination account is validated wherever it is set or replaced, and again at commit.** It must be the caller's,
+  active (stricter than `RecordWriter`, which does not look at `is_active`: staging money into an account kept only for
+  its history is refused), and hold the session's currency (`AccountEntity.holds`, the rule `RecordWriter`,
+  `TransferResource` and `CorrectionResource` share); a failure is a 400 when the account came in a request and a 409
+  at commit. **The statement's own account is checked by a hook, not at parse.** `ParsedStatement` still carries no
+  account number, but it carries an opaque identity token (`ParsedStatement.identityOf`: whitespace removed, upper-cased,
+  SHA-256, 64 hex characters; `null` for a format with no identity). The session keeps it (`statement_identity`), and
+  `StatementImporter.checkDestination(token, account)` runs on every assignment (parse, preview, repeated preview) and at
+  commit, rejecting with a rule code (`account.identity_mismatch`) that never echoes statement text. Without the hook, a
+  statement parsed into account A could be previewed into B and committed unchecked, because the importer only sees the
+  statement at parse. **What the hook can and cannot do today:** `Account` has no account-number field, so the default
+  implementation has nothing to compare with; it accepts a statement with no identity and rejects one that has an
+  identity with `account.identity_unverifiable` (fail closed) rather than pass it. jlogicsoftware/prudent#73 adds the
+  field and the Erste implementation; until then only a test importer implements it, and the suite uses the account's name
+  as its stand-in for a number. The token is a digest, not encryption (an unsalted digest of a short structured number can
+  be guessed), so it is personal data: kept only while the session is open, cleared when it ends, never sent over the wire,
+  never logged, and not part of the data export.
+- **Bounds.** A statement is at most 5 MiB, `prudent.import.max-rows` transaction rows (default 5000) and, per text
+  field, 1024 characters; exceeding either is a 400 naming the limit or a rule code and row number, never content. A user
+  has at most `prudent.import.max-open-sessions` (default 10) open sessions that have not yet run out of time; one more is
+  a 409 (the check precedes the parse, so requests racing each other can overshoot by the number in flight). The list
+  route returns the newest `limit` sessions (default 50, at most 100; the data export is the unbounded view).
+- **Storage and privacy: the statement is read once and dropped.** Two tables, `prudent_import_session` and
+  `prudent_import_row` (V20261114090000, RLS enabled and `zen_runtime` policies added in the same change), have no
+  binary column and nothing a workflow method is handed the bytes for. A row holds the importer's normalised fields (dates,
+  a signed minor-unit amount, description, counterparty, counterparty account, the bank's entry id, a status
+  `ACCEPTED`/`DUPLICATE`/`REJECTED` and, for rejected rows only, a rule code). **Personal data lives only in rows, and rows live only while the
+  session is PARSED or PREVIEWED:** committing, discarding and expiring a session delete its rows in the same transaction
+  and keep the session row with its three counts (and, for the rows, the identity token is cleared). Holder name and the statement's own account number are compared by
+  the importer and never part of `ParsedStatement`. `account_id` is a plain column with no foreign key, so an account delete
+  (ADR-081) is not blocked by staging data; commit re-checks it.
+- **Retention.** A session expires `prudent.import.session-ttl` after creation (default 24 hours). A read of an overdue session
+  expires it, preview and commit refuse it (409), and `ImportSessionExpiryJob` (a `ZenJob`, interval one hour, run when the
+  external scheduler triggers `/api/v1/jobs/trigger`) calls `ImportWorkflow.expireDue()`. So the bound on how long rows
+  survive is the time-to-live plus however late the sweep runs (an hour with the scheduler as configured), and a read ends an
+  overdue session at once; the privacy policy says this and not "24 hours at the latest". The short session record (state,
+  counts, format, account id, timestamps) stays until the person's data is erased. Both tables carry `user_id`, so `PrudentDataEraser` deletes them (rows first, no cascade, ADR-010), the
+  data export carries `import_sessions` and `import_rows` (`DataExport` fields 14 and 15, the rows naming their session), and
+  `PrivacyCoverageTest` covers both tables.
+- **The extension points the next tasks fill, without reshaping this one.** #73: an `StatementImporter` bean for
+  `erste-pl-csv`. #75: an `ImportPreviewStage` that marks rows `DUPLICATE` (the status, its wire value and its CHECK
+  value already exist; a stage may move a row between ACCEPTED and DUPLICATE and nothing else, which the workflow
+  checks). #76: an `ImportCommitter` bean; `UnavailableImportCommitter` is the `@DefaultBean` until then and answers 503
+  `unavailable` with the session left PREVIEWED, so no import can claim to have worked. The committer runs inside the
+  transaction that marks the session COMMITTED, so its failure leaves the session PREVIEWED and its rows in place.
+  #76 also decides whether a repeated commit becomes an idempotent success (today it is a 409 from the state graph).
+  #74: the screens, plus a per-row edit route and `category_id` / `note` columns when it needs them.
+
+### What this supersedes, and why
+
+Nothing earlier. It builds on ADR-088 (the contract the Erste importer validates against) and on the backlog line
+"discard the uploaded statement after parsing by default": discarding is not a default that can be switched off here, it is the shape, because
+there is nowhere to put the bytes.
+
+### Consequence
+
+Verified: the new suites in `server/src/test/java/prudent/imports/` (state graph, registry, the resource end to end in JSON and
+protobuf, the sweep, ownership between two users, destination checks on every assignment path and at commit, bounds, two
+commits / commit against discard / sweep against read driven concurrently, and the expiry job's discovery and boot registration), `ImportSessionSchemaTest` (constraints by name), `PrivacyCoverageTest`,
+`PrivacyExportTest`, `PrivacyErasureTest`, `PrudentRowLevelSecurityTest` and `HibernateSchemaValidationTest`, and the whole backend
+suite (`task test:server`, 850 tests, 0 failures, PMD included); `task verify:reflection` and `task verify:import-fixtures`. `task generate` was run and
+produced the Dart messages and the admin schema; `verify:contracts` discovers protos with `git ls-files`, so it passes only once `imports.proto` and
+the generated `imports.*.dart` files are tracked. Not verified: any real importer (none exists), the committer (none exists), the Dart client (generated messages only, no
+screen), and the expiry job's schedule inside a running `zen-jobs` scheduler (its registration and the sweep it calls are tested; a tick is not).
+Open: whether the destination account is chosen at parse or at preview (both are accepted); that `Account` has no account-number field, so the
+identity check the Erste contract asks for is only a hook with a fail-closed default until #73 adds the field and implements it; and that the
+open-session cap is checked, not locked, so concurrent uploads can overshoot it slightly.
+
+---
+
+## ADR-088 — The Erste CSV contract is what one real export showed, written down with synthetic fixtures and a gate; no real statement enters the repository
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#42, first task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- `docs/erste-csv-contract.md` is the contract the Erste importer (#73) validates against. It was derived
+  from **one** real export that stays outside the repository; the document says what that file showed
+  (UTF-8 without a BOM, LF, comma delimiter, no header row, nine fields with a trailing empty one, a
+  summary row first, transactions newest first with the bank sequence number growing down the file, comma decimals always quoted, a balance column that does not chain, `DD-MM-YYYY` dates with an ISO export date in the
+  summary row, three description shapes) and lists what one file cannot show as open questions, not as
+  facts.
+- The parser's stance follows: **a variant not in the contract is rejected, not adapted.** The bank's
+  own export steps are not written down because they were not captured; the document marks them as to be
+  confirmed in the bank's UI.
+- Fixtures are synthetic only, under `server/src/test/resources/import/erste/`. Every free-text field carries
+  a whole-word marker (TEST, TESTOWY, TESTOWA, TESTOWE, TESTOWO, EXAMPLE, PRÓB, PRÓBNA or PRÓBNY), accounts
+  have IBAN check digits `00` (which no real IBAN has) and card masks are `000000******0000`.
+- `task verify:import-fixtures` (`scripts/verify_import_fixtures.py`, run in CI) has this scope: every file
+  under `server/src/test/resources/import/` must be a lowercase `statement-*.csv` inside `import/erste/`, and
+  any `*.csv` (any case) anywhere under `server/src/test/resources/` fails unless it is one of those
+  (other file types outside `import/` are not read). `.DS_Store` is skipped by name. It refuses: a long number
+  (13 or more digits or mask characters, with space, hyphen, dot or no-break-space separators, asterisk and
+  bullet masks included) that is not the fictional IBAN (22 zeros then 4 digits) or the fictional card mask;
+  another card mask; a `ref` number that does not start `000`; a run of 9 to 12 digits in a CSV field; a row
+  that does not have exactly 9 fields, a non-empty 9th field, a line break inside a field, or a field that
+  does not match its pattern (dates, quoted two-place comma decimals, sequence digits, a grouped fictional
+  IBAN, a three-letter currency, the summary row's apostrophe-prefixed account); and a description or
+  counterparty (the holder, on the summary row) without a whole-word marker (the fixed own-transfer phrase
+  is exempt). The contract document is scanned for the same numbers.
+  It is **weak by design** and still passes: a real name next to a marker word in one field; digit runs
+  shorter than 9; amounts, dates and balances (their shape is checked, never their content); `ref:000`
+  followed by arbitrary digits; any sequence number; runs broken by three or more separator characters or
+  by letters; a `.DS_Store`. It narrows the room for a leak; a reviewer still reads every fixture change.
+  Every `*.csv` is gitignored (the bank names its export `history*.csv`, and people rename it), with only
+  the `statement-*.csv` fixtures under `server/src/test/resources/import/erste/` let back in, so a real
+  export cannot be staged by accident.
+- Fixtures are newest first and their balances deliberately do not chain, as in the real export, so a parser
+  that asserts a running balance fails on them.
+- The bank sequence number is **not** assumed to be a stable duplicate key. It grows as the date falls, so it
+  looks like a rank from the newest row and may shift between exports. #75 must not use it unless a second,
+  overlapping export shows it stable, and otherwise uses a documented fingerprint.
+- #42 is only partly done: the bank's export steps are user-supplied and still missing, so the issue stays open.
+
+### What this supersedes, and why
+
+Nothing earlier. It settles the blocker recorded in `docs/github-backlog.md` (M6): "The exact parser
+contract is blocked until an anonymised Erste export is available". The export was available and was
+inspected locally; the anonymised copy that the backlog expected is replaced by synthetic fixtures,
+because a hand-anonymised real statement keeps the shape of a real person's life and is easy to get wrong.
+
+### Consequence
+
+Verified: `task verify:import-fixtures` passes, and its tests plant each violation in a throwaway
+tree and require it to fail. Not verified: any parser (none exists yet), the balance column's meaning, the
+sequence number's stability across exports, and every variant listed as unsupported in the contract.
+
+---
+
 ## ADR-087 — A deploy pins its image and ends by running jZen's cleanup, with Prudent's numbers and a failure mode that fails
 
 **Date:** 2026-11-13. **Status:** accepted. jlogicsoftware/prudent#165, which stays open until the persistent environment's first run. **Follows:** ADR-021, ADR-065, ADR-069, jZen ADR-074.

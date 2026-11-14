@@ -22,6 +22,7 @@ On the server, for each person:
 | Your plans and their occurrences, reminder settings and whether you have read a reminder | Planned and recurring transactions |
 | Your budgets, carry-over resets and goals, and the history of money set aside for goals | Budgets and goals |
 | Your settings (main currency) | Display |
+| While you review a bank statement import: the rows read from it (dates, amounts, descriptions, counterparties), a one-way fingerprint of the statement's own account number (when the format has one), and a short record of the session. The uploaded file itself is never kept. The rows and the fingerprint are deleted when you confirm or discard the import, or when it expires 24 hours after the upload (an expired import is deleted when you next open it, or by a cleanup that runs about every hour, so deletion can follow expiry by up to about an hour). The short session record (its state, how many rows it held, the format, the chosen account, timestamps; no row content) is kept until your data is erased | Showing you what would be imported before anything is written |
 
 On your device: your sign-in session, the reminder notifications the app has scheduled (their text
 carries no amount), and one flag recording that the notification permission was already asked for.

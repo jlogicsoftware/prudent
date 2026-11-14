@@ -56,6 +56,8 @@ class PrivacyCoverageTest {
           Map.entry("prudent_budget_carry_reset", "carryOverResets"),
           Map.entry("prudent_goal", "goals"),
           Map.entry("prudent_goal_allocation", "goalAllocations"),
+          Map.entry("prudent_import_session", "importSessions"),
+          Map.entry("prudent_import_row", "importRows"),
           Map.entry("prudent_settings", "settings"));
 
   @Inject EntityManager entityManager;

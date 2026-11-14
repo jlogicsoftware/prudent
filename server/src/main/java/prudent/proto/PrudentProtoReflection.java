@@ -10,6 +10,7 @@ import prudent.proto.v1.Category;
 import prudent.proto.v1.CategoryBudgetSummary;
 import prudent.proto.v1.CategoryKind;
 import prudent.proto.v1.CategorySpend;
+import prudent.proto.v1.CommitImportSessionRequest;
 import prudent.proto.v1.ConfirmOccurrenceRequest;
 import prudent.proto.v1.ConfirmOccurrenceResponse;
 import prudent.proto.v1.CreateAccountRequest;
@@ -17,6 +18,7 @@ import prudent.proto.v1.CreateCategoryRequest;
 import prudent.proto.v1.CreateCorrectionRequest;
 import prudent.proto.v1.CreateGoalAllocationRequest;
 import prudent.proto.v1.CreateGoalRequest;
+import prudent.proto.v1.CreateImportSessionRequest;
 import prudent.proto.v1.CreatePlanRequest;
 import prudent.proto.v1.CreateRecordRequest;
 import prudent.proto.v1.CreateTransferRequest;
@@ -35,6 +37,10 @@ import prudent.proto.v1.GoalGuidance;
 import prudent.proto.v1.GoalProgress;
 import prudent.proto.v1.GoalStatus;
 import prudent.proto.v1.Granularity;
+import prudent.proto.v1.ImportRow;
+import prudent.proto.v1.ImportRowStatus;
+import prudent.proto.v1.ImportSession;
+import prudent.proto.v1.ImportSessionState;
 import prudent.proto.v1.ListAccountsResponse;
 import prudent.proto.v1.ListBudgetCarryOverResetsResponse;
 import prudent.proto.v1.ListBudgetsResponse;
@@ -43,6 +49,7 @@ import prudent.proto.v1.ListGoalAllocationsResponse;
 import prudent.proto.v1.ListGoalEnvelopesResponse;
 import prudent.proto.v1.ListGoalProgressResponse;
 import prudent.proto.v1.ListGoalsResponse;
+import prudent.proto.v1.ListImportSessionsResponse;
 import prudent.proto.v1.ListOccurrencesResponse;
 import prudent.proto.v1.ListPlansResponse;
 import prudent.proto.v1.ListRecordsResponse;
@@ -50,6 +57,7 @@ import prudent.proto.v1.ListRemindersResponse;
 import prudent.proto.v1.OccurrenceStatus;
 import prudent.proto.v1.PeriodSpend;
 import prudent.proto.v1.Plan;
+import prudent.proto.v1.PreviewImportSessionRequest;
 import prudent.proto.v1.PlanOccurrence;
 import prudent.proto.v1.Record;
 import prudent.proto.v1.Recurrence;
@@ -103,6 +111,7 @@ import prudent.proto.v1.UpdateSettingsRequest;
       CategoryBudgetSummary.class,
       CategoryKind.class,
       CategorySpend.class,
+      CommitImportSessionRequest.class,
       ConfirmOccurrenceRequest.class,
       ConfirmOccurrenceResponse.class,
       CreateAccountRequest.class,
@@ -110,6 +119,7 @@ import prudent.proto.v1.UpdateSettingsRequest;
       CreateCorrectionRequest.class,
       CreateGoalAllocationRequest.class,
       CreateGoalRequest.class,
+      CreateImportSessionRequest.class,
       CreatePlanRequest.class,
       CreateRecordRequest.class,
       CreateTransferRequest.class,
@@ -128,6 +138,10 @@ import prudent.proto.v1.UpdateSettingsRequest;
       GoalProgress.class,
       GoalStatus.class,
       Granularity.class,
+      ImportRow.class,
+      ImportRowStatus.class,
+      ImportSession.class,
+      ImportSessionState.class,
       ListAccountsResponse.class,
       ListBudgetCarryOverResetsResponse.class,
       ListBudgetsResponse.class,
@@ -136,6 +150,7 @@ import prudent.proto.v1.UpdateSettingsRequest;
       ListGoalEnvelopesResponse.class,
       ListGoalProgressResponse.class,
       ListGoalsResponse.class,
+      ListImportSessionsResponse.class,
       ListOccurrencesResponse.class,
       ListPlansResponse.class,
       ListRecordsResponse.class,
@@ -144,6 +159,7 @@ import prudent.proto.v1.UpdateSettingsRequest;
       PeriodSpend.class,
       Plan.class,
       PlanOccurrence.class,
+      PreviewImportSessionRequest.class,
       Record.class,
       Recurrence.class,
       RecurrenceFrequency.class,

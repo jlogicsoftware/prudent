@@ -22,6 +22,7 @@ import "prudent/v1/budgets.proto";
 import "prudent/v1/categories.proto";
 import "prudent/v1/goal_allocations.proto";
 import "prudent/v1/goals.proto";
+import "prudent/v1/imports.proto";
 import "prudent/v1/plans.proto";
 import "prudent/v1/records.proto";
 import "prudent/v1/settings.proto";
@@ -83,6 +84,11 @@ message DataExport {
   repeated Goal goals = 12;
   // The append-only envelope history; a goal's envelope is the sum of these.
   repeated GoalAllocation goal_allocations = 13;
+  // Import sessions in any state, without their rows (M6, ADR-089).
+  repeated ImportSession import_sessions = 14;
+  // The rows still held by sessions that have not ended; each names its session. Normally empty or
+  // short: a session's rows are deleted when it ends.
+  repeated ImportRow import_rows = 15;
 }
 
 // POST /api/v1/privacy/erase.

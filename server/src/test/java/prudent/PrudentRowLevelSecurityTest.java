@@ -11,11 +11,13 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Instant;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import prudent.imports.ImportState;
 
 /**
  * Proves that Prudent's tables have row-level security <em>and</em> that the policies actually admit
@@ -44,7 +46,7 @@ class PrudentRowLevelSecurityTest {
 
   private static final String[] PRUDENT_TABLES = {
     "prudent_account", "prudent_account_balance", "prudent_budget", "prudent_budget_carry_reset",
-    "prudent_category", "prudent_goal", "prudent_goal_allocation", "prudent_plan", "prudent_plan_occurrence", "prudent_record",
+    "prudent_category", "prudent_goal", "prudent_goal_allocation", "prudent_import_row", "prudent_import_session", "prudent_plan", "prudent_plan_occurrence", "prudent_record",
     "prudent_settings"
   };
 
@@ -68,6 +70,10 @@ class PrudentRowLevelSecurityTest {
         PrudentTest.ALICE, categoryId, java.time.YearMonth.of(2026, 9), "PLN", 100_00L);
     UUID goalId = PrudentTest.seedGoal(PrudentTest.ALICE, "Holiday", "PLN", 5_000_00L);
     PrudentTest.seedAllocation(PrudentTest.ALICE, goalId, "PLN", 100_00L);
+    PrudentTest.seedImportSession(
+        PrudentTest.ALICE,
+        ImportState.PARSED,
+        Instant.now().plusSeconds(3600));
     PrudentTest.seedSettings(PrudentTest.ALICE, "PLN");
 
     try (Connection owner = dataSource.getConnection();
@@ -125,6 +131,8 @@ class PrudentRowLevelSecurityTest {
       assertRowCount(runtime, "prudent_category", 1);
       assertRowCount(runtime, "prudent_goal", 1);
       assertRowCount(runtime, "prudent_goal_allocation", 1);
+      assertRowCount(runtime, "prudent_import_row", 1);
+      assertRowCount(runtime, "prudent_import_session", 1);
       assertRowCount(runtime, "prudent_plan", 1);
       assertRowCount(runtime, "prudent_plan_occurrence", 1);
       assertRowCount(runtime, "prudent_record", 1);
