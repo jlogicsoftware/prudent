@@ -122,6 +122,8 @@ Widget _app({
         ...extra,
         ...PrudentLocalizations.localizationsDelegates,
         identityLocaleDelegate,
+        // LoginScreen's password toggle reads its wording from here.
+        zenWidgetsLocaleDelegate,
       ],
       supportedLocales: const [Locale('en'), Locale('uk'), Locale('pl')],
       home: home,
@@ -154,7 +156,7 @@ void main() {
       await tester.pumpWidget(
         _app(
           locale: 'pl',
-          extra: const [prudentPlIdentityDelegate],
+          extra: const [prudentPlIdentityDelegate, prudentPlWidgetsDelegate],
           home: const LoginScreen(),
         ),
       );
@@ -186,6 +188,7 @@ void main() {
             localizationsDelegates: const [
               identityLocaleDelegate,
               _PlIdentityDelegateComposedLast(),
+              zenWidgetsLocaleDelegate,
               GlobalMaterialLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,

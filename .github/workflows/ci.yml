@@ -53,7 +53,7 @@ env:
   # it). The tasks this workflow calls (verify:contracts, the all-tier zen:deps) do not exist
   # before #74; the later bumps keep CI's jZen in step with the run:* tasks Prudent now delegates
   # wholesale and with what the committed contracts actually reflect.
-  JZEN_REF: 475e57259ef70270379832783d31a965c8995066
+  JZEN_REF: 9b12490001fb10a3dab59f4aeea4b847e01c0d81
 
 jobs:
   # Contract drift, the boundary gate, the Dart/Flutter suites, and the admin typecheck. Needs the
