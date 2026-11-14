@@ -18,7 +18,7 @@ permissions:
 env:
   # Same pin as ci.yml's — see that file's header for why jZen is pinned rather than checked out
   # at main. Bump both together.
-  JZEN_REF: 9b12490001fb10a3dab59f4aeea4b847e01c0d81
+  JZEN_REF: 3313b40d59b9820a036a35f07494de63ff6a9477
 
 jobs:
   audit:
