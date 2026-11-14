@@ -23,4 +23,10 @@ class PlWidgetsLocalizations extends ZenWidgetsLocalizationsEn {
 
   @override
   String get done => 'Gotowe';
+
+  @override
+  String get showPassword => 'Pokaż hasło';
+
+  @override
+  String get hidePassword => 'Ukryj hasło';
 }
