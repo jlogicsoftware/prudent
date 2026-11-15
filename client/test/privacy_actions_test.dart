@@ -13,7 +13,7 @@ import 'package:prudent/notification/notification_providers.dart';
 import 'package:prudent/notification/reminder_notification.dart';
 import 'package:prudent/privacy/privacy_actions.dart';
 import 'package:prudent/providers.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_identity/zen_identity.dart';
 import 'package:zen_transport/zen_transport.dart' hide ZenError;
@@ -151,7 +151,7 @@ void main() {
     );
     container = ProviderContainer(
       overrides: [
-        prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
+        prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
         identityRepositoryProvider.overrideWithValue(identity),
         localNotificationGatewayProvider.overrideWithValue(device),
       ],
@@ -179,7 +179,7 @@ void main() {
     final failing = ProviderContainer(
       overrides: [
         prudentRepositoryProvider.overrideWithValue(
-          PrudentRepository(
+          ServerPrudentRepository(
             client: ZenClient(
               baseUrl: 'https://example.test',
               format: ZenTransportFormat.json,

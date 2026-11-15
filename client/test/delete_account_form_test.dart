@@ -13,7 +13,7 @@ import 'package:prudent/account/account_tile.dart';
 import 'package:prudent/account/delete_account_form.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 import 'package:prudent/providers.dart';
 import 'package:zen_transport/zen_transport.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
@@ -59,7 +59,7 @@ void main() {
     );
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client))],
+        overrides: [prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client))],
         child: MaterialApp(
           localizationsDelegates: [
             ...PrudentLocalizations.localizationsDelegates,
@@ -163,7 +163,7 @@ void main() {
         return http.Response('', 204, headers: const {'X-Zen-Transport': 'json'});
       }),
     );
-    final repository = PrudentRepository(client: client);
+    final repository = ServerPrudentRepository(client: client);
     await repository.deleteAccount('a');
     await repository.deleteAccount('b', deleteRecords: true);
 

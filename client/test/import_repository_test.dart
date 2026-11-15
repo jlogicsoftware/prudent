@@ -14,6 +14,7 @@ import 'package:prudent/generated/prudent/v1/imports.pb.dart';
 import 'package:prudent/imports/import_failure.dart';
 import 'package:prudent/imports/import_providers.dart';
 import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 import 'package:prudent/providers.dart';
 import 'package:protobuf/protobuf.dart';
 import 'package:zen_transport/zen_transport.dart';
@@ -27,7 +28,7 @@ class _Call {
 }
 
 PrudentRepository _repository(List<_Call> calls, Map<String, Object?> answer, {int status = 200}) =>
-    PrudentRepository(
+    ServerPrudentRepository(
       client: ZenClient(
         baseUrl: 'https://example.test',
         format: ZenTransportFormat.json,
@@ -65,14 +66,14 @@ void main() {
         ),
       );
       final c = ProviderContainer(
-        overrides: [prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client))],
+        overrides: [prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client))],
       );
       addTearDown(c.dispose);
       return c;
     }
 
     test('the transport message does quote the body (why this matters)', () async {
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: ZenClient(
           baseUrl: 'https://example.test',
           format: ZenTransportFormat.json,

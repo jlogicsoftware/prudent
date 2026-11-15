@@ -11,7 +11,7 @@ import 'package:http/testing.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/generated/prudent/v1/goal_allocations.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 import 'package:prudent/providers.dart';
 import 'package:zen_transport/zen_transport.dart';
 
@@ -49,7 +49,7 @@ void main() {
     );
     container = ProviderContainer(
       overrides: [
-        prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
+        prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
         goalProgressAsOfProvider.overrideWithValue('2026-10-02'),
       ],
     );

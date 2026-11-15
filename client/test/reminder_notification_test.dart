@@ -19,7 +19,7 @@ import 'package:prudent/notification/plan_reminder_notifications.dart';
 import 'package:prudent/notification/reminder_notification.dart';
 import 'package:prudent/notification/reminder_notification_outcome.dart';
 import 'package:prudent/notification/reminder_notification_scheduler.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 import 'package:prudent/providers.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:zen_transport/zen_transport.dart';
@@ -481,7 +481,7 @@ void main() {
         // Riverpod retries a failed provider with backoff; a test of the failure wants the first one.
         retry: (_, _) => null,
         overrides: [
-          prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
+          prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
           localNotificationGatewayProvider.overrideWithValue(gateway),
           reminderNotificationClockProvider.overrideWithValue(() => now),
         ],
@@ -555,7 +555,7 @@ void main() {
       c = ProviderContainer(
         retry: (_, _) => null,
         overrides: [
-          prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
+          prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
           localNotificationGatewayProvider.overrideWithValue(gateway),
           reminderNotificationClockProvider.overrideWithValue(() => now),
         ],

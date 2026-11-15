@@ -13,6 +13,41 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-105 — Screens depend on an abstract `PrudentRepository`; the server's HTTP version is `ServerPrudentRepository`
+
+**Date:** 2026-11-15. **Status:** accepted. **Plan:** unit 1 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
+**Builds on:** ADR-101 (the four packages; the abstract `PrudentRepository` lives in the shared package, the server version in `client/`).
+
+### Decision
+
+- `client/lib/prudent_repository.dart` is now an `abstract interface class PrudentRepository` — the 65 methods screens, providers and
+  notification code call, with the server's method contracts (refusals included) as its documentation. It imports `zen_core`
+  (`ZenResult`, `ZenError`) and the generated messages, and nothing from `zen_transport` or `zen_identity`.
+- `client/lib/server_prudent_repository.dart` is `ServerPrudentRepository implements PrudentRepository` over `ZenClient`: every path,
+  query string and `ZenClient` call moved there unchanged. Only `main.dart` — the composition root — names it.
+- `prudentRepositoryProvider` is typed as the interface. **No behaviour change:** no request, header, path or result differs; the
+  existing suites are untouched except that those which built the repository now build `ServerPrudentRepository` (the construction,
+  never an assertion).
+- `test/fake_prudent_repository.dart` is an in-memory implementation (a `Fake`, so a method it was not given throws), and
+  `test/category/categories_screen_fake_test.dart` runs the real categories screen on it with no HTTP mock.
+
+### Where the server still leaks through (input for units 2 and 4, not solved here)
+
+- `RecordFilter.toQueryParameters()` is a REST concern on a type that the interface's `listRecords` takes; the Local implementation must
+  ignore it and filter by the fields.
+- Screens read `ZenTransportError` (HTTP status, rule code) to choose a sentence: `imports/import_result.dart`,
+  `imports/import_failure.dart`, `account/account_save_error.dart`. A Local implementation must either produce the same error type or
+  these three move to a transport-neutral error in `zen_core`.
+- `lib/auth/` and the sign-in screens use `zen_identity` directly; they stay in `client/` (unit 4).
+- Methods whose meaning is server-only — `eraseAccount`, `exportData` (the server's view of the user) and the import-session methods —
+  are on the interface because screens call them; whether Local keeps the same shape is unit 4's and unit 10's decision.
+
+### Not verified
+
+The Local implementation does not exist; that the interface is *sufficient* for it is shown only by a fake that holds categories.
+
+---
+
 ## ADR-104 — `task verify:analyze` runs `flutter analyze` with infos fatal in CI, so the analyzer and `riverpod_lint` are a gate
 
 **Date:** 2026-11-15. **Status:** accepted. Follows ADR-099, which is not edited.
@@ -34,6 +69,7 @@ A scratch commit added a `Notifier` with a public field; the gate went red on `a
 ### Consequences
 
 A new analyzer finding fails the build. Fix it; there is no ignore list, and an exclusion must say what the excluded content carries.
+
 
 ---
 

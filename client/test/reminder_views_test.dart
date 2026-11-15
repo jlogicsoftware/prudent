@@ -12,7 +12,7 @@ import 'package:http/testing.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/generated/prudent/v1/categories.pb.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 import 'package:prudent/providers.dart';
 import 'package:prudent/reminder/reminder_bell.dart';
 import 'package:prudent/reminder/reminders_screen.dart';
@@ -172,7 +172,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
+          prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
           accountsProvider.overrideWith(_FixedAccounts.new),
           categoriesProvider.overrideWith(_FixedCategories.new),
         ],
@@ -245,7 +245,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
+            prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
           ],
           child: MaterialApp(
             localizationsDelegates: [

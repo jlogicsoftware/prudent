@@ -9,7 +9,7 @@ import 'package:zen_ui_identity/zen_ui_identity.dart';
 
 import 'app.dart';
 import 'auth/auth_deep_links.dart';
-import 'prudent_repository.dart';
+import 'server_prudent_repository.dart';
 import 'providers.dart';
 
 /// Wires Prudent to the real backend. One session [http.Client] ([createSessionClient], the
@@ -62,7 +62,7 @@ void main() async {
       recoverSession: recoverSession,
     ),
   );
-  final prudentRepository = PrudentRepository(
+  final prudentRepository = ServerPrudentRepository(
     client: ZenClient(
       baseUrl: zenApiUrl,
       httpClient: session,

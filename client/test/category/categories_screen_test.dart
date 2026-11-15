@@ -14,7 +14,8 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 class _FixedCategories extends CategoriesNotifier {
   @override
   Future<List<Category>> build() async => [
-    for (var i = 0; i < 6; i++) Category(id: 'c$i', title: 'Category $i', iconKey: 'work'),
+    for (var i = 0; i < 6; i++)
+      Category(id: 'c$i', title: 'Category $i', iconKey: 'work'),
   ];
 }
 
@@ -27,7 +28,11 @@ void main() {
       ProviderScope(
         overrides: [categoriesProvider.overrideWith(_FixedCategories.new)],
         child: MaterialApp(
-          localizationsDelegates: [...PrudentLocalizations.localizationsDelegates, ...GlobalMaterialLocalizations.delegates, zenWidgetsLocaleDelegate],
+          localizationsDelegates: [
+            ...PrudentLocalizations.localizationsDelegates,
+            ...GlobalMaterialLocalizations.delegates,
+            zenWidgetsLocaleDelegate,
+          ],
           supportedLocales: PrudentLocalizations.supportedLocales,
           home: const CategoriesScreen(),
         ),
@@ -47,19 +52,24 @@ void main() {
     expect(delegateOf(tester).mainAxisExtent, 150);
   });
 
-  testWidgets('a wide width gets three roomy columns, whatever the platform', (tester) async {
+  testWidgets('a wide width gets three roomy columns, whatever the platform', (
+    tester,
+  ) async {
     await pumpAt(tester, 1200);
 
     expect(delegateOf(tester).crossAxisCount, 3);
     expect(delegateOf(tester).mainAxisExtent, 200);
   });
 
-  testWidgets('the breakpoint is zenNarrowWidth itself, and resizing re-sizes the grid', (tester) async {
-    await pumpAt(tester, zenNarrowWidth.toDouble());
-    expect(delegateOf(tester).crossAxisCount, 3);
+  testWidgets(
+    'the breakpoint is zenNarrowWidth itself, and resizing re-sizes the grid',
+    (tester) async {
+      await pumpAt(tester, zenNarrowWidth.toDouble());
+      expect(delegateOf(tester).crossAxisCount, 3);
 
-    tester.view.physicalSize = Size(zenNarrowWidth - 1, 900);
-    await tester.pumpAndSettle();
-    expect(delegateOf(tester).crossAxisCount, 2);
-  });
+      tester.view.physicalSize = Size(zenNarrowWidth - 1, 900);
+      await tester.pumpAndSettle();
+      expect(delegateOf(tester).crossAxisCount, 2);
+    },
+  );
 }

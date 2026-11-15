@@ -1,5 +1,4 @@
 import 'package:zen_core/zen_core.dart' show ZenResult;
-import 'package:zen_transport/zen_transport.dart';
 
 import 'generated/prudent/v1/accounts.pb.dart';
 import 'generated/prudent/v1/analytics.pb.dart';
@@ -9,170 +8,101 @@ import 'generated/prudent/v1/goal_allocations.pb.dart';
 import 'generated/prudent/v1/goals.pb.dart';
 import 'generated/prudent/v1/imports.pb.dart';
 import 'generated/prudent/v1/plans.pb.dart';
+import 'generated/prudent/v1/privacy.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
 import 'generated/prudent/v1/reminders.pb.dart';
-import 'generated/prudent/v1/privacy.pb.dart';
 import 'generated/prudent/v1/settings.pb.dart';
 import 'record/record_filter.dart';
 
-/// Prudent's server surface, typed over [ZenClient]. Every call returns [ZenResult] — success or
-/// a [ZenError] the caller can render — never a bare value and never a null standing in for
-/// "the server said nothing" (docs/DECISIONS.md ADR-004, "the client talks to one server").
+/// Everything a screen, view model or provider asks of Prudent's data: the one seam between the
+/// shared UI and where the data lives (jlogicsoftware/prudent#245, ADR-105). Every call returns
+/// [ZenResult] — success or an error the caller can render — never a bare value and never a null
+/// standing in for "nothing came back" (ADR-004).
 ///
-/// One [ZenClient] is enough here: unlike the demo, Prudent never forces a transport mode per
-/// call, so the client negotiates its own default rather than the app pinning JSON/Protobuf
-/// instances side by side.
-class PrudentRepository {
-  PrudentRepository({required this._client});
-
-  final ZenClient _client;
-
-  static const String _recordsPath = '/api/v1/records';
-  static const String _transfersPath = '/api/v1/transfers';
-  static const String _correctionsPath = '/api/v1/corrections';
-  static const String _accountsPath = '/api/v1/accounts';
-  static const String _categoriesPath = '/api/v1/categories';
-  static const String _settingsPath = '/api/v1/settings';
-  static const String _privacyPath = '/api/v1/privacy';
-  static const String _budgetsPath = '/api/v1/budgets';
-  static const String _goalsPath = '/api/v1/goals';
-  static const String _goalAllocationsPath = '/api/v1/goal-allocations';
-  static const String _carryOverResetsPath = '/api/v1/budget-carry-over-resets';
-  static const String _plansPath = '/api/v1/plans';
-  static const String _occurrencesPath = '/api/v1/occurrences';
-  static const String _remindersPath = '/api/v1/reminders';
-  static const String _importSessionsPath = '/api/v1/import-sessions';
-  static const String _spendByCategoryPath =
-      '/api/v1/analytics/spend-by-category';
-  static const String _spendByPeriodPath = '/api/v1/analytics/spend-by-period';
-
-  // --- Records --------------------------------------------------------------------------------
-
+/// Prudent Server implements it over HTTP (`ServerPrudentRepository`, the only place that knows
+/// paths and the transport); a Local implementation will answer from the device. Method contracts
+/// below are the server's, which a second implementation must reproduce — refusals included.
+abstract interface class PrudentRepository {
   /// [filter] is optional and independently composable per criterion (jlogicsoftware/prudent#52);
   /// omitting it, or passing [RecordFilter.empty], is exactly today's unfiltered call.
-  Future<ZenResult<ListRecordsResponse>> listRecords({RecordFilter? filter}) {
-    final query = filter?.toQueryParameters() ?? const <String, String>{};
-    final path =
-        query.isEmpty ? _recordsPath : '$_recordsPath?${_encodeQuery(query)}';
-    return _client.get<ListRecordsResponse>(ListRecordsResponse.new, path);
-  }
+  Future<ZenResult<ListRecordsResponse>> listRecords({RecordFilter? filter});
 
-  Future<ZenResult<Record>> createRecord(CreateRecordRequest request) =>
-      _client.post<Record>(Record.new, _recordsPath, body: request);
+  Future<ZenResult<Record>> createRecord(CreateRecordRequest request);
 
   Future<ZenResult<Record>> updateRecord(
     String id,
     UpdateRecordRequest request,
-  ) => _client.put<Record>(Record.new, '$_recordsPath/$id', body: request);
+  );
 
-  Future<ZenResult<Record>> deleteRecord(String id) =>
-      _client.delete<Record>(Record.new, '$_recordsPath/$id');
+  Future<ZenResult<Record>> deleteRecord(String id);
 
-  // --- Transfers (same currency only, jlogicsoftware/prudent#32) ------------------------------
+  Future<ZenResult<Transfer>> createTransfer(CreateTransferRequest request);
 
-  Future<ZenResult<Transfer>> createTransfer(CreateTransferRequest request) =>
-      _client.post<Transfer>(Transfer.new, _transfersPath, body: request);
+  Future<ZenResult<Transfer>> deleteTransfer(String transferId);
 
-  Future<ZenResult<Transfer>> deleteTransfer(String transferId) =>
-      _client.delete<Transfer>(Transfer.new, '$_transfersPath/$transferId');
+  Future<ZenResult<Record>> createCorrection(CreateCorrectionRequest request);
 
-  // --- Balance corrections (M1, jlogicsoftware/prudent#53) -------------------------------------
+  Future<ZenResult<Record>> deleteCorrection(String id);
 
-  Future<ZenResult<Record>> createCorrection(CreateCorrectionRequest request) =>
-      _client.post<Record>(Record.new, _correctionsPath, body: request);
+  Future<ZenResult<ListAccountsResponse>> listAccounts();
 
-  Future<ZenResult<Record>> deleteCorrection(String id) =>
-      _client.delete<Record>(Record.new, '$_correctionsPath/$id');
-
-  // --- Accounts ---------------------------------------------------------------------------------
-
-  Future<ZenResult<ListAccountsResponse>> listAccounts() => _client
-      .get<ListAccountsResponse>(ListAccountsResponse.new, _accountsPath);
-
-  Future<ZenResult<Account>> createAccount(CreateAccountRequest request) =>
-      _client.post<Account>(Account.new, _accountsPath, body: request);
+  Future<ZenResult<Account>> createAccount(CreateAccountRequest request);
 
   Future<ZenResult<Account>> updateAccount(
     String id,
     UpdateAccountRequest request,
-  ) => _client.put<Account>(Account.new, '$_accountsPath/$id', body: request);
+  );
 
   /// Deletes an account. By default the server refuses while any record remains; with
   /// [deleteRecords] it deletes every record of the account in the same transaction
   /// (jlogicsoftware/prudent#201) — both legs of a transfer, so another account's balance moves.
   /// Plans still refuse either way.
-  Future<ZenResult<Account>> deleteAccount(String id, {bool deleteRecords = false}) =>
-      _client.delete<Account>(
-        Account.new,
-        '$_accountsPath/$id${deleteRecords ? '?deleteRecords=true' : ''}',
-      );
+  Future<ZenResult<Account>> deleteAccount(
+    String id, {
+    bool deleteRecords = false,
+  });
 
-  // --- Categories -------------------------------------------------------------------------------
+  Future<ZenResult<ListCategoriesResponse>> listCategories();
 
-  Future<ZenResult<ListCategoriesResponse>> listCategories() => _client
-      .get<ListCategoriesResponse>(ListCategoriesResponse.new, _categoriesPath);
-
-  Future<ZenResult<Category>> createCategory(CreateCategoryRequest request) =>
-      _client.post<Category>(Category.new, _categoriesPath, body: request);
+  Future<ZenResult<Category>> createCategory(CreateCategoryRequest request);
 
   Future<ZenResult<Category>> updateCategory(
     String id,
     UpdateCategoryRequest request,
-  ) => _client.put<Category>(
-    Category.new,
-    '$_categoriesPath/$id',
-    body: request,
   );
 
   /// Refused (409) while anything — a record, plan, budget or carry-over reset — still points at
   /// the category; [archiveCategory] is how a used category is taken out of use.
-  Future<ZenResult<Category>> deleteCategory(String id) =>
-      _client.delete<Category>(Category.new, '$_categoriesPath/$id');
+  Future<ZenResult<Category>> deleteCategory(String id);
 
   /// Retires a category (M3, jlogicsoftware/prudent#62): it stays listed and keeps all its history,
   /// and accepts no new record, plan or budget until [restoreCategory]. Refused (409) if it is
   /// already archived.
-  Future<ZenResult<Category>> archiveCategory(String id) =>
-      _client.post<Category>(Category.new, '$_categoriesPath/$id/archive');
+  Future<ZenResult<Category>> archiveCategory(String id);
 
   /// Returns an archived category to use. Refused (409) if it is not archived.
-  Future<ZenResult<Category>> restoreCategory(String id) =>
-      _client.post<Category>(Category.new, '$_categoriesPath/$id/restore');
-
-  // --- Statement import (M6, jlogicsoftware/prudent#41, ADR-089 to ADR-092) ----------------------
-  //
-  // Three phases, each its own request: create (parse), preview (classify, fix the destination),
-  // commit. Row decisions and defaults are made between the last two. The uploaded bytes are sent
-  // once, in [createImportSession]; nothing here keeps or logs them.
+  Future<ZenResult<Category>> restoreCategory(String id);
 
   /// The caller's import sessions, newest first, without rows. [state] narrows the list.
-  Future<ZenResult<ListImportSessionsResponse>> listImportSessions({ImportSessionState? state}) {
-    final path =
-        state == null
-            ? _importSessionsPath
-            : '$_importSessionsPath?${_encodeQuery({'state': _importStateName(state)})}';
-    return _client.get<ListImportSessionsResponse>(ListImportSessionsResponse.new, path);
-  }
+  Future<ZenResult<ListImportSessionsResponse>> listImportSessions({
+    ImportSessionState? state,
+  });
 
   /// One session with its held rows (while it is parsed or previewed). Expires a session whose time
   /// has run out, so a stale session reads as EXPIRED rather than lingering.
-  Future<ZenResult<ImportSession>> getImportSession(String id) =>
-      _client.get<ImportSession>(ImportSession.new, '$_importSessionsPath/$id');
+  Future<ZenResult<ImportSession>> getImportSession(String id);
 
   /// Parses a statement and opens a session. The server refuses a statement it cannot read as a
   /// whole, with a rule code and row numbers in the message and never the statement's content.
-  Future<ZenResult<ImportSession>> createImportSession(CreateImportSessionRequest request) =>
-      _client.post<ImportSession>(ImportSession.new, _importSessionsPath, body: request);
+  Future<ZenResult<ImportSession>> createImportSession(
+    CreateImportSessionRequest request,
+  );
 
   /// Classifies the rows and fixes the destination account; calling it again with another account is
   /// how the destination is changed without uploading the statement again.
   Future<ZenResult<ImportSession>> previewImportSession(
     String id,
     PreviewImportSessionRequest request,
-  ) => _client.post<ImportSession>(
-    ImportSession.new,
-    '$_importSessionsPath/$id/preview',
-    body: request,
   );
 
   /// A decision about one row (category, note, include a duplicate). A POST on purpose: it is a
@@ -181,10 +111,6 @@ class PrudentRepository {
     String id,
     int rowNumber,
     UpdateImportRowRequest request,
-  ) => _client.post<UpdateImportRowResponse>(
-    UpdateImportRowResponse.new,
-    '$_importSessionsPath/$id/rows/$rowNumber',
-    body: request,
   );
 
   /// The categories a row with none of its own is written under, by direction. The answer is the
@@ -192,10 +118,6 @@ class PrudentRepository {
   Future<ZenResult<ImportSession>> setImportDefaults(
     String id,
     SetImportDefaultsRequest request,
-  ) => _client.post<ImportSession>(
-    ImportSession.new,
-    '$_importSessionsPath/$id/defaults',
-    body: request,
   );
 
   /// Writes the confirmed session to the ledger in one transaction. Repeating it with the same count
@@ -203,61 +125,33 @@ class PrudentRepository {
   Future<ZenResult<ImportSession>> commitImportSession(
     String id,
     CommitImportSessionRequest request,
-  ) => _client.post<ImportSession>(
-    ImportSession.new,
-    '$_importSessionsPath/$id/commit',
-    body: request,
   );
 
   /// Throws the session and its rows away. Nothing is written.
-  Future<ZenResult<ImportSession>> discardImportSession(String id) =>
-      _client.post<ImportSession>(ImportSession.new, '$_importSessionsPath/$id/discard');
-
-  static String _importStateName(ImportSessionState state) => switch (state) {
-    ImportSessionState.IMPORT_SESSION_STATE_PARSED => 'PARSED',
-    ImportSessionState.IMPORT_SESSION_STATE_PREVIEWED => 'PREVIEWED',
-    ImportSessionState.IMPORT_SESSION_STATE_COMMITTED => 'COMMITTED',
-    ImportSessionState.IMPORT_SESSION_STATE_DISCARDED => 'DISCARDED',
-    ImportSessionState.IMPORT_SESSION_STATE_EXPIRED => 'EXPIRED',
-    _ => throw ArgumentError.value(state, 'state', 'not a session state'),
-  };
-
-  // --- Goals (M4, jlogicsoftware/prudent#38) — something saved for, never a transaction -----------
+  Future<ZenResult<ImportSession>> discardImportSession(String id);
 
   /// The user's goals, oldest first, optionally narrowed to one [status]. Archived and completed
   /// goals are listed too: a goal is retired, never deleted.
-  Future<ZenResult<ListGoalsResponse>> listGoals({GoalStatus? status}) {
-    final path =
-        status == null
-            ? _goalsPath
-            : '$_goalsPath?${_encodeQuery({'status': _goalStatusName(status)})}';
-    return _client.get<ListGoalsResponse>(ListGoalsResponse.new, path);
-  }
+  Future<ZenResult<ListGoalsResponse>> listGoals({GoalStatus? status});
 
-  Future<ZenResult<Goal>> getGoal(String id) =>
-      _client.get<Goal>(Goal.new, '$_goalsPath/$id');
+  Future<ZenResult<Goal>> getGoal(String id);
 
   /// Creates an active goal. The target must be positive; the currency cannot be changed later.
-  Future<ZenResult<Goal>> createGoal(CreateGoalRequest request) =>
-      _client.post<Goal>(Goal.new, _goalsPath, body: request);
+  Future<ZenResult<Goal>> createGoal(CreateGoalRequest request);
 
   /// Replaces the goal's name, target amount and target date (an absent date clears it). Refused
   /// (409) while the goal is archived.
-  Future<ZenResult<Goal>> updateGoal(String id, UpdateGoalRequest request) =>
-      _client.put<Goal>(Goal.new, '$_goalsPath/$id', body: request);
+  Future<ZenResult<Goal>> updateGoal(String id, UpdateGoalRequest request);
 
   /// Active → completed. Refused (409) if the goal is not active.
-  Future<ZenResult<Goal>> completeGoal(String id) =>
-      _client.post<Goal>(Goal.new, '$_goalsPath/$id/complete');
+  Future<ZenResult<Goal>> completeGoal(String id);
 
   /// Active or completed → archived, keeping every bit of history. Refused (409) if already
   /// archived. There is no delete: this is how a goal is retired.
-  Future<ZenResult<Goal>> archiveGoal(String id) =>
-      _client.post<Goal>(Goal.new, '$_goalsPath/$id/archive');
+  Future<ZenResult<Goal>> archiveGoal(String id);
 
   /// Completed or archived → active. Refused (409) if the goal is already active.
-  Future<ZenResult<Goal>> reactivateGoal(String id) =>
-      _client.post<Goal>(Goal.new, '$_goalsPath/$id/reactivate');
+  Future<ZenResult<Goal>> reactivateGoal(String id);
 
   /// How far each goal is, and what to set aside monthly to reach it (M4,
   /// jlogicsoftware/prudent#66, ADR-052): allocated, remaining and a whole percent per goal and, for an
@@ -265,33 +159,7 @@ class PrudentRepository {
   /// spread over. Calculated by the server on every call — the client re-derives none of it. [asOf]
   /// (`YYYY-MM-DD`) is the day to calculate for; omitted, the server uses its UTC date. Never summed
   /// across currencies.
-  Future<ZenResult<ListGoalProgressResponse>> getGoalProgress({String? asOf}) =>
-      _client.get<ListGoalProgressResponse>(
-        ListGoalProgressResponse.new,
-        asOf == null
-            ? '$_goalsPath/progress'
-            : '$_goalsPath/progress?${_encodeQuery({'asOf': asOf})}',
-      );
-
-  /// The name the server's `status` query takes — the constant without the proto prefix.
-  static String _goalStatusName(GoalStatus status) {
-    switch (status) {
-      case GoalStatus.GOAL_STATUS_ACTIVE:
-        return 'ACTIVE';
-      case GoalStatus.GOAL_STATUS_COMPLETED:
-        return 'COMPLETED';
-      case GoalStatus.GOAL_STATUS_ARCHIVED:
-        return 'ARCHIVED';
-      default:
-        throw ArgumentError.value(
-          status,
-          'status',
-          'is not a goal state a list can be filtered by',
-        );
-    }
-  }
-
-  // --- Goal envelopes (M4, jlogicsoftware/prudent#64) — money set aside, never a transaction -----
+  Future<ZenResult<ListGoalProgressResponse>> getGoalProgress({String? asOf});
 
   /// Allocates, withdraws or moves money between goal envelopes — one immutable history entry
   /// (ADR-050). [CreateGoalAllocationRequest.kind] decides which goal ids it needs: a target for
@@ -300,63 +168,31 @@ class PrudentRepository {
   /// goal's state does not allow the entry. No account balance moves.
   Future<ZenResult<GoalAllocation>> createGoalAllocation(
     CreateGoalAllocationRequest request,
-  ) => _client.post<GoalAllocation>(
-    GoalAllocation.new,
-    _goalAllocationsPath,
-    body: request,
   );
 
   /// The envelope history, newest first, optionally narrowed to the entries that put money into or
   /// took it out of one goal. Entries are never edited or deleted.
   Future<ZenResult<ListGoalAllocationsResponse>> listGoalAllocations({
     String? goalId,
-  }) {
-    final path =
-        goalId == null
-            ? _goalAllocationsPath
-            : '$_goalAllocationsPath?${_encodeQuery({'goalId': goalId})}';
-    return _client.get<ListGoalAllocationsResponse>(
-      ListGoalAllocationsResponse.new,
-      path,
-    );
-  }
+  });
 
-  Future<ZenResult<GoalAllocation>> getGoalAllocation(String id) => _client
-      .get<GoalAllocation>(GoalAllocation.new, '$_goalAllocationsPath/$id');
+  Future<ZenResult<GoalAllocation>> getGoalAllocation(String id);
 
   /// What each goal's envelope holds right now, one per goal (zero included). Calculated by the
   /// server from the history on every call; it is money set aside, not part of any account balance.
-  Future<ZenResult<ListGoalEnvelopesResponse>> listGoalEnvelopes() =>
-      _client.get<ListGoalEnvelopesResponse>(
-        ListGoalEnvelopesResponse.new,
-        '$_goalAllocationsPath/envelopes',
-      );
+  Future<ZenResult<ListGoalEnvelopesResponse>> listGoalEnvelopes();
 
   /// What may still be set aside for goals, per currency (ADR-051): the eligible money (active
   /// accounts marked `eligibleForGoals`), what the envelopes already hold, and the difference.
   /// `freeMinor` is negative when the envelopes hold more than the eligible accounts do. Calculated
   /// by the server on every call; an `ALLOCATE` above it is refused with a 409.
-  Future<ZenResult<GetFreeMoneyResponse>> getFreeMoney() =>
-      _client.get<GetFreeMoneyResponse>(
-        GetFreeMoneyResponse.new,
-        '$_goalAllocationsPath/free-money',
-      );
-
-  // --- Budgets (M3, jlogicsoftware/prudent#36) — the amount that may be spent, never a transaction
+  Future<ZenResult<GetFreeMoneyResponse>> getFreeMoney();
 
   /// The user's budgets, optionally narrowed to one [month] (`YYYY-MM`) and/or one [categoryId].
   Future<ZenResult<ListBudgetsResponse>> listBudgets({
     String? month,
     String? categoryId,
-  }) {
-    final query = <String, String>{
-      'month': ?month,
-      'categoryId': ?categoryId,
-    };
-    final path =
-        query.isEmpty ? _budgetsPath : '$_budgetsPath?${_encodeQuery(query)}';
-    return _client.get<ListBudgetsResponse>(ListBudgetsResponse.new, path);
-  }
+  });
 
   /// Plan, actual and remaining amount of every category budgeted for [month] (`YYYY-MM`) in
   /// [currency] (M3, jlogicsoftware/prudent#59). Both are required and the currency is never
@@ -365,10 +201,7 @@ class PrudentRepository {
   Future<ZenResult<BudgetSummaryResponse>> getBudgetSummary({
     required String month,
     required String currency,
-  }) => _client.get<BudgetSummaryResponse>(
-    BudgetSummaryResponse.new,
-    '$_budgetsPath/summary?${_encodeQuery({'month': month, 'currency': currency})}',
-  );
+  });
 
   /// Sets the budget for one category, [month] (`YYYY-MM`) and [currency], creating it or replacing
   /// its amount — a slot holds at most one. The amount must be positive; to have no budget for the
@@ -378,21 +211,14 @@ class PrudentRepository {
     required String month,
     required String currency,
     required SetBudgetRequest request,
-  }) => _client.put<Budget>(
-    Budget.new,
-    _budgetPath(categoryId, month, currency),
-    body: request,
-  );
+  });
 
   /// Removes the budget for one category, [month] and [currency]. Refused (404) if there is none.
   Future<ZenResult<Budget>> deleteBudget({
     required String categoryId,
     required String month,
     required String currency,
-  }) => _client.delete<Budget>(
-    Budget.new,
-    _budgetPath(categoryId, month, currency),
-  );
+  });
 
   /// Resets one category's carry-over in [currency] from [month] (`YYYY-MM`) onward (M3,
   /// jlogicsoftware/prudent#61): carry-over into that month becomes zero. No budget is deleted and no
@@ -400,95 +226,43 @@ class PrudentRepository {
   /// (409) if that slot already has a reset in effect.
   Future<ZenResult<BudgetCarryOverReset>> resetBudgetCarryOver(
     ResetBudgetCarryOverRequest request,
-  ) => _client.post<BudgetCarryOverReset>(
-    BudgetCarryOverReset.new,
-    _carryOverResetsPath,
-    body: request,
   );
 
   /// The whole reset history, revoked entries included, newest first, optionally narrowed to one
   /// [categoryId] and/or [currency].
   Future<ZenResult<ListBudgetCarryOverResetsResponse>>
-  listBudgetCarryOverResets({String? categoryId, String? currency}) {
-    final query = <String, String>{
-      'categoryId': ?categoryId,
-      'currency': ?currency,
-    };
-    final path =
-        query.isEmpty
-            ? _carryOverResetsPath
-            : '$_carryOverResetsPath?${_encodeQuery(query)}';
-    return _client.get<ListBudgetCarryOverResetsResponse>(
-      ListBudgetCarryOverResetsResponse.new,
-      path,
-    );
-  }
+  listBudgetCarryOverResets({String? categoryId, String? currency});
 
   /// Takes a reset back. The entry stays in the history, marked revoked with who and when, and
   /// the carry-over it bounded is counted in full again. Refused (409) if already revoked.
-  Future<ZenResult<BudgetCarryOverReset>> revokeBudgetCarryOverReset(
-    String id,
-  ) => _client.post<BudgetCarryOverReset>(
-    BudgetCarryOverReset.new,
-    '$_carryOverResetsPath/${Uri.encodeComponent(id)}/revoke',
-  );
+  Future<ZenResult<BudgetCarryOverReset>> revokeBudgetCarryOverReset(String id);
 
-  static String _budgetPath(String categoryId, String month, String currency) =>
-      '$_budgetsPath/${Uri.encodeComponent(categoryId)}/${Uri.encodeComponent(month)}'
-      '/${Uri.encodeComponent(currency)}';
-
-  // --- Plans (M2, jlogicsoftware/prudent#34) — expected money, never a transaction ------------
-
-  Future<ZenResult<ListPlansResponse>> listPlans() =>
-      _client.get<ListPlansResponse>(ListPlansResponse.new, _plansPath);
+  Future<ZenResult<ListPlansResponse>> listPlans();
 
   /// A plan's `reminder` is a setting only (M5, jlogicsoftware/prudent#40): absent means disabled,
   /// one day ahead; a lead time outside the supported set is refused (400), never rounded.
-  Future<ZenResult<Plan>> createPlan(CreatePlanRequest request) =>
-      _client.post<Plan>(Plan.new, _plansPath, body: request);
+  Future<ZenResult<Plan>> createPlan(CreatePlanRequest request);
 
   /// A full replacement: a request without a `reminder` resets it to the default, so send back the
   /// one that was read.
-  Future<ZenResult<Plan>> updatePlan(String id, UpdatePlanRequest request) =>
-      _client.put<Plan>(Plan.new, '$_plansPath/$id', body: request);
+  Future<ZenResult<Plan>> updatePlan(String id, UpdatePlanRequest request);
 
-  Future<ZenResult<Plan>> deletePlan(String id) =>
-      _client.delete<Plan>(Plan.new, '$_plansPath/$id');
-
-  // --- Planned occurrences (M2, jlogicsoftware/prudent#56) — expected, not yet a transaction ---
+  Future<ZenResult<Plan>> deletePlan(String id);
 
   /// Occurrences from today (in each plan's time zone) to [days] ahead, in any state, so what was
   /// skipped or confirmed early stays visible. The server defaults to 30 and accepts 1-366.
   Future<ZenResult<ListOccurrencesResponse>> listUpcomingOccurrences({
     int? days,
-  }) {
-    final path =
-        days == null
-            ? '$_occurrencesPath/upcoming'
-            : '$_occurrencesPath/upcoming?${_encodeQuery({'days': '$days'})}';
-    return _client.get<ListOccurrencesResponse>(
-      ListOccurrencesResponse.new,
-      path,
-    );
-  }
+  });
 
   /// Occurrences still planned whose date has passed in their plan's time zone.
-  Future<ZenResult<ListOccurrencesResponse>> listOverdueOccurrences() =>
-      _client.get<ListOccurrencesResponse>(
-        ListOccurrencesResponse.new,
-        '$_occurrencesPath/overdue',
-      );
+  Future<ZenResult<ListOccurrencesResponse>> listOverdueOccurrences();
 
   /// The user decided this occurrence will not happen. Refused (409) unless it is planned.
-  Future<ZenResult<PlanOccurrence>> skipOccurrence(String id) => _client
-      .post<PlanOccurrence>(PlanOccurrence.new, '$_occurrencesPath/$id/skip');
+  Future<ZenResult<PlanOccurrence>> skipOccurrence(String id);
 
   /// Reopens a skipped occurrence as planned. Refused (409) unless it is skipped.
-  Future<ZenResult<PlanOccurrence>> restoreOccurrence(String id) =>
-      _client.post<PlanOccurrence>(
-        PlanOccurrence.new,
-        '$_occurrencesPath/$id/restore',
-      );
+  Future<ZenResult<PlanOccurrence>> restoreOccurrence(String id);
 
   /// Says this occurrence happened, and creates the actual transaction (M2,
   /// jlogicsoftware/prudent#57). Every field of [request] is optional and an absent one takes the
@@ -498,47 +272,30 @@ class PrudentRepository {
   Future<ZenResult<ConfirmOccurrenceResponse>> confirmOccurrence(
     String id, [
     ConfirmOccurrenceRequest? request,
-  ]) => _client.post<ConfirmOccurrenceResponse>(
-    ConfirmOccurrenceResponse.new,
-    '$_occurrencesPath/$id/confirm',
-    body: request ?? ConfirmOccurrenceRequest(),
-  );
-
-  // --- Reminders (M5, jlogicsoftware/prudent#68) — calculated on read; only "read" is stored ------
+  ]);
 
   /// Every reminder due or overdue now — a still-planned occurrence of a plan whose reminder is on,
   /// within its lead time or past its date — oldest date first, with each one's read state.
-  Future<ZenResult<ListRemindersResponse>> listReminders() =>
-      _client.get<ListRemindersResponse>(ListRemindersResponse.new, _remindersPath);
+  Future<ZenResult<ListRemindersResponse>> listReminders();
 
   /// Marks one reminder read, addressed by its occurrence's id. Refused (409) for an occurrence
   /// that has no reminder right now, so a client that is behind refetches rather than guesses.
-  Future<ZenResult<DueReminder>> markReminderRead(String occurrenceId) =>
-      _client.post<DueReminder>(DueReminder.new, '$_remindersPath/$occurrenceId/read');
+  Future<ZenResult<DueReminder>> markReminderRead(String occurrenceId);
 
   /// Marks one reminder unread again. Refused (409) like [markReminderRead].
-  Future<ZenResult<DueReminder>> markReminderUnread(String occurrenceId) =>
-      _client.post<DueReminder>(DueReminder.new, '$_remindersPath/$occurrenceId/unread');
+  Future<ZenResult<DueReminder>> markReminderUnread(String occurrenceId);
 
   /// Marks every current reminder read and answers with the list as it now stands.
-  Future<ZenResult<ListRemindersResponse>> markAllRemindersRead() =>
-      _client.post<ListRemindersResponse>(ListRemindersResponse.new, '$_remindersPath/read-all');
+  Future<ZenResult<ListRemindersResponse>> markAllRemindersRead();
 
-  // --- Settings -----------------------------------------------------------------------------------
+  Future<ZenResult<Settings>> getSettings();
 
-  Future<ZenResult<Settings>> getSettings() =>
-      _client.get<Settings>(Settings.new, _settingsPath);
-
-  Future<ZenResult<Settings>> updateSettings(UpdateSettingsRequest request) =>
-      _client.put<Settings>(Settings.new, _settingsPath, body: request);
-
-  // --- Privacy (M0, jlogicsoftware/prudent#48) — what the server holds about the user ----------
+  Future<ZenResult<Settings>> updateSettings(UpdateSettingsRequest request);
 
   /// Everything the server stores for the user, as one document: every account, category, record,
   /// plan, occurrence, budget, carry-over reset, goal and envelope entry, in any lifecycle state,
   /// plus the settings and profile. Complete rather than view-shaped; see `privacy.proto`.
-  Future<ZenResult<DataExport>> exportData() =>
-      _client.get<DataExport>(DataExport.new, '$_privacyPath/export');
+  Future<ZenResult<DataExport>> exportData();
 
   /// Erases every Prudent row the user owns, anonymises their profile and deletes their sign-in
   /// record at the identity provider — IRREVERSIBLE. Refused (400) unless
@@ -548,30 +305,14 @@ class PrudentRepository {
   /// the missing body, as [deleteAccount]'s does.
   Future<ZenResult<EraseAccountRequest>> eraseAccount(
     EraseAccountRequest request,
-  ) => _client.post<EraseAccountRequest>(
-    EraseAccountRequest.new,
-    '$_privacyPath/erase',
-    body: request,
   );
-
-  // --- Analytics — read-only, always scoped to one currency (analytics.proto) --------------------
 
   /// [year] required; [month] optional (1-12) — a single month, or the whole year when omitted.
   Future<ZenResult<SpendByCategoryResponse>> spendByCategory({
     required String currency,
     required int year,
     int? month,
-  }) {
-    final query = {
-      'currency': currency,
-      'year': '$year',
-      if (month != null) 'month': '$month',
-    };
-    return _client.get<SpendByCategoryResponse>(
-      SpendByCategoryResponse.new,
-      '$_spendByCategoryPath?${_encodeQuery(query)}',
-    );
-  }
+  });
 
   /// [granularity] is `MONTH` or `YEAR`; [count] is the number of trailing buckets (1-60), ending
   /// at the current period as the server resolves it in UTC.
@@ -579,22 +320,5 @@ class PrudentRepository {
     required String currency,
     required String granularity,
     required int count,
-  }) {
-    final query = {
-      'currency': currency,
-      'granularity': granularity,
-      'count': '$count',
-    };
-    return _client.get<SpendByPeriodResponse>(
-      SpendByPeriodResponse.new,
-      '$_spendByPeriodPath?${_encodeQuery(query)}',
-    );
-  }
-
-  static String _encodeQuery(Map<String, String> query) => query.entries
-      .map(
-        (e) =>
-            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}',
-      )
-      .join('&');
+  });
 }
