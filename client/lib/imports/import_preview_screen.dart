@@ -23,13 +23,19 @@ import 'import_row_form.dart';
 /// and note for each row; and the confirmation. After the commit the same page shows the result.
 ///
 /// Leaving an open import by the page's own Back, the system's back gesture or the browser's asks
-/// first and discards it: a session holds rows for 24 hours and only a few may be open, and an
+/// first and discards it (`PopScope` below). When the import is the ROOT page of a side pane, jZen
+/// asks that `PopScope` for the pane's Close, Escape and a second detail replacing the pane too
+/// (jZen#222, ADR-096). The real path is not that case: Accounts is the pane root and opens the
+/// import from inside it, so the import is a nested page, and only Back reaches this guard; Escape
+/// and a second detail dismiss the pane without asking and there is no Close button (jZenDev/jZen#226).
+/// The prompt exists because a session holds rows for 24 hours and only a few may be open, and an
 /// import nobody can find again is worse than one that was thrown away.
 ///
-/// A side pane's Close button and Escape, and switching to another tab, dismiss the pane without
-/// asking: `ZenDetailPane` calls its owner directly and gives the page no hook (a framework gap).
-/// The session is then simply left open, and is found again under "Unfinished imports" on the first
-/// step, as one left open by closing the app is (ADR-093).
+/// Whatever leaves without asking (those exits, and switching to another tab, which no guard can
+/// stop) leaves the session open. Nothing is
+/// discarded in `dispose` either: that would send a network call the user never agreed to, from a
+/// widget that may have just committed. The session is left open and is found again under
+/// "Unfinished imports" on the first step, as one left open by closing the app is (ADR-093, ADR-096).
 class ImportPreviewScreen extends ConsumerStatefulWidget {
   const ImportPreviewScreen({super.key, required this.sessionId, required this.onBackToImport});
 
