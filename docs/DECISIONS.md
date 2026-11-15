@@ -13,6 +13,75 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-100 — Prudent Local's threat model: what a ledger on the person's own devices refuses, warns about, and accepts
+
+**Date:** 2026-11-15. **Status:** accepted; reviewed again before plan unit 9 lands. **Plan:** decision 0.5 of
+`docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245); the analysis of 0.1–0.4 is in
+`docs/plans/prudent-local-phase0.md`. **Depends on:** jZen ADR-065, 073, 075–081. **Not verified:** everything here that rests on
+jZen behaviour jZenDev/jZen#231 has not yet checked on a device (marked **#231** below). The number may change when this entry is
+merged beside ADR-099 (decision 0.6).
+
+### Decision
+
+Prudent Local keeps a person's whole financial history on their own devices with no server: no operator can read it, and no
+operator can recover it. The threat model is the list below. Each row says what the app **refuses** (will not do, whatever is asked),
+**warns** (says in words, before the step, and lets the person go on) or **accepts** (a residual risk, stated in the app's privacy text
+and here), and which plan unit makes it true. A row is done only when unit 9's suite has a test for it or the row is a written refusal.
+
+Assets: the ledger (records, balances, account numbers, payees, notes, plans, goals); the store key (`zen_store_key`, per device);
+the sync key (shared by paired devices on Android, Windows and Linux); a statement file; a data copy (export).
+
+| # | Threat | Answer | Unit | Rests on unverified jZen |
+|---|---|---|---|---|
+| T1 | A lost or stolen device, locked | **Accept**: the store is AES-256-GCM files with a key in the platform's secret storage; iOS adds Data Protection `complete` | 4, 9 | **#231** (store key off Apple, ADR-075 is a desk study) |
+| T2 | A lost device that is unlocked, or has no PIN | **Warn**: on first launch, offer a PIN (off by default, as jZen ADR-065), saying that without one anyone holding the unlocked device sees everything; the lifecycle lock relocks in the background | 9 | **#231** (`inactive`/`hidden` on Windows, Linux, Android, ADR-078) |
+| T3 | A lost device still paired keeps receiving new data and, on the folder transport, holds a key that can write valid records | **Warn**: Settings → Sync says how to cut it off today (remove it from the Apple ID; for a folder, stop sharing the folder with it, start a new folder and re-pair); **refuse** to call a device "removed" while no rekey exists | 9 | jZen has no rekey (issue J6); CloudKit not verified (**#231**) |
+| T4 | A forgotten PIN | Owner check where it exists (iOS, macOS, Android); erase this device's copy and re-sync on Linux and Windows (ADR-078/081). **Warn** before turning a PIN on where there is no owner check **and** no other paired device: "If you forget this PIN, this device's data is erased and nothing else holds a copy — save a copy first" | 9 | **#231** ("Forgot PIN?" on real Android, Windows, Linux) |
+| T5 | Every device lost, or the iCloud Keychain lost | **Accept and warn**: the data cannot be recovered by anyone. Said at first run, in Settings → Sync, and in the privacy text; "Save a copy" is offered there | 9, 13 | — |
+| T6 | A shared cloud folder holds the ledger's ciphertext | **Accept**: the service sees the number of devices and records, sizes and times, never content (jZen ADR-076). **Warn** when a folder is chosen: choose one only you can open; a folder shared with others shows them when and how much you edit. **Refuse** a folder inside the app's own data directory | 9 | **#231** (real Syncthing, Dropbox, OneDrive; Android SAF) |
+| T7 | Apple sees CloudKit metadata | **Accept, closing later**: record names are `<collection>:<id>` in plaintext (`ZenCloudKitBridge.swift:12`), so Apple sees collection names and counts. **Refuse** to derive any id from an amount, a title, a payee or an account number; ids derived from slots (category + month + currency, plan + date) expose which months and dates exist until jZen keys the names | 4 | jZen issue J5; real CloudKit **#231** |
+| T8 | A Linux desktop with no secret service, or a locked keyring | **Refuse** to open: no key in a file, no plaintext fallback, no new key over existing data (ADR-075). Show what to install or unlock; offer nothing that erases | 9, 11 (`libsecret-1` in the Linux package) | **#231** (no-secret-service desktop) |
+| T9 | Windows answers a failed key read with "nothing stored" | **Refuse** to make a key beside existing files (ADR-075's directory check); offer "erase this device's copy and re-sync", never automatically | 9 | **#231** |
+| T10 | An OS backup restores the store files without their key (iCloud backup, Time Machine, Android Auto Backup, File History) | **Refuse** to open and explain; offer erase and re-sync. Android: the app's manifest sets `android:allowBackup="false"` (or excludes the store and secret storage), and a gate checks it | 9, 11 | **#231** (Keystore behaviour after restore) |
+| T11 | A statement file left in Downloads | **Warn** after a commit or a discard: "Prudent did not keep the statement file; it is still where you picked it — delete it if you no longer need it." **Refuse** to copy, cache or log the file's bytes; it is read once (ADR-089). Prudent cannot and does not delete the person's own file | 8b, 9 | — |
+| T12 | Import session rows (descriptions, counterparties) spread to other devices and the sync service | **Refuse** to sync them: sessions live in a second, unsynced, encrypted store and end after 24 hours, at commit or discard (phase-0 doc, 0.2) | 8b | — |
+| T13 | Two devices import one statement | **Accept**: deterministic record ids make each row one record; differing category or note choices become conflicts the person settles | 4, 8b | — |
+| T14 | A data copy (export) is plaintext | **Warn** before saving that the file is not encrypted and should be deleted after use. **Refuse** the clipboard as the Local app's export channel (clipboard managers, Universal Clipboard, Windows cloud clipboard history); the copy is a file the person picks | 9, 10 | — |
+| T15 | Balances in the app switcher, Android's recents or a screen recording | `zen_ui_lock`'s cover on `inactive`. **Accept for now** that Android's `FLAG_SECURE` is not set (ADR-078); not patched in Prudent | 9 | jZen issue J9; recents timing **#231** |
+| T16 | Reminder notifications on a lock screen | **Refuse** amounts in notification text (ADR-056); the plan's title is shown. **Warn** in the reminder setting that titles appear on the lock screen | 6b, 9 | — |
+| T17 | A pairing code photographed or overlooked | **Accept** jZen ADR-077's answer: shown on request, five minutes, hidden in the background, never in a log, URL or clipboard | 9 | QR camera scanning **#231** |
+| T18 | A release build syncing through `ZenFolderCloud`, which stores payloads unencrypted | **Refuse**: the Local app's release tasks and CI fail when `ZEN_SYNC` is set for a release build | 11 | jZen issue J7 (the framework does not refuse it) |
+| T19 | Someone with write access to the folder but no key | **Accept**: AES-GCM with the file path bound in, so a file cannot be forged, renamed or replayed into something else; deleting files only delays sync (ADR-076) | — | **#231** |
+| T20 | An older app version re-saves a record and drops fields a newer version added | **Refuse** whole-record saves from forms: a form applies only what the person changed onto the record as stored now (jZen ADR-080's rule), so unknown fields survive | 4, 9 | — |
+| T21 | Data in logs | **Refuse** amounts, titles, payees, notes, account numbers, statement text, the sync key and pairing codes in any log line; a failure is one line of classes and codes (ADR-072, ADR-094) | 9 | — |
+| T22 | Account numbers | Kept only inside the encrypted store; **refuse** them in ids, logs, notifications and file names | 4, 5 | — |
+| T23 | A merge breaks a rule across records (an envelope below zero, a record on a deleted account) | **Refuse** to fix it silently; listed as an integrity issue with actions (phase-0 doc, 0.2 D6) | 4–8 | jZen issue J2 (no place in `zen_ui_store` for app issues) |
+| T24 | "Delete my data" has no server to delete from | **Refuse** to say "deleted everywhere": "Erase this device's copy" says what remains (other devices, the folder, iCloud) | 9 | jZen issue J8 |
+| T25 | One OS account shared by two people | **Accept**: one ledger per OS user; the PIN is a door, not a key (jZen ADR-065). Said in the privacy text | 13 | — |
+| T26 | A wrong device clock | **Accept**: time decides nothing in a merge; it shows dates, expires pairing codes on an honest device, and dates reminders and import expiry | — | — |
+
+### What this supersedes, and why
+
+- **"Lost device, a PIN that is forgotten, a shared cloud folder…, a Linux desktop with no secret service, a statement file left in
+  Downloads. Output: ADR and a list of what the app must refuse or warn about."** (`docs/plans/PRUDENT-LOCAL-PLAN.md`, 0.5) →
+  **answered.** *Why:* the five named threats are rows T1–T4, T6, T8 and T11; working them through found the others — the clipboard
+  as an export channel (T14), CloudKit's plaintext record names (T7), a release build on the unencrypted development transport (T18),
+  backups restored without keys (T10), and a paired device that can never be removed (T3) — which are the ones a reviewer would not
+  have listed and an attacker would find.
+- **ADR-071's "the clipboard is the export's only destination for now"** → **unchanged for Prudent Server; refused for Prudent
+  Local** (T14). *Why:* the server app's copy existed to avoid a platform package per target; a Local app's copy is the only copy of
+  the data outside its devices, and the clipboard reaches other machines.
+
+### Consequence
+
+- Unit 9's "done when" gains a test or a written refusal per row; units 4, 5, 6b, 8b, 10, 11 and 13 carry the rows named for them.
+- Nine jZen limitations are listed for filing in `docs/plans/prudent-local-phase0.md` (J1–J9); T3, T7, T15, T18, T23 and T24 change
+  when they land. None is patched around here.
+- Rows T1–T4, T6–T10, T15, T17 and T19 cannot be more verified than jZenDev/jZen#231; Prudent Local is not released before unit 12.
+- Nothing was built or run for this entry.
+
+---
+
 ## ADR-099 — Prudent moves to Flutter 3.50 and Dart 3.14 with jZen pinned at `fdef7e8`, imports Material and Cupertino from `material_ui` and `cupertino_ui`, appends their localization delegates, and drops `custom_lint`
 
 **Date:** 2026-11-15. **Status:** accepted. jlogicsoftware/prudent#235; jZenDev/jZen#212 (jZen PR #229, its ADR-082). Follows ADR-097 and ADR-098, which are not edited.
