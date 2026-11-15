@@ -188,7 +188,7 @@ M6 (Erste Polska CSV import, epic jlogicsoftware/prudent#41) is built through it
 jlogicsoftware/prudent#42): `docs/erste-csv-contract.md` records the format of one real export, kept outside the
 repository, with its open questions, and `server/src/test/resources/import/erste/` holds synthetic fixtures.
 `task verify:import-fixtures` (CI) refuses values that cannot be synthetic and is weak by design (see its summary).
-The bank's own export steps are not captured, so jlogicsoftware/prudent#42 stays open and must not be auto-closed.
+The bank's export steps are recorded in the contract (ADR-095: reported by the user from the bank's web UI on 2026-11-15, comma separator required), which completes #42.
 The workflow is built (ADR-089, jlogicsoftware/prudent#72): `ImportSessionResource` at `/api/v1/import-sessions` over
 `prudent.imports` parses, previews and commits as three enforced phases (`PARSED -> PREVIEWED -> COMMITTED`, plus
 `DISCARDED` and `EXPIRED`), behind a `StatementImporter` boundary keyed by format id. A statement is read once and never
@@ -237,7 +237,7 @@ as it was; `ImportCommitFailureTest` does the same for a category, account, sess
 `commit.category_unavailable`, `commit.account_unavailable` and `commit.row_refused`, replace a "Row N cannot be written" that explained nothing); `ErsteFormatDriftTest` pins the
 fixtures to their exact parsed rows and the contract's rules to the importer's; `ImportRuleCatalogueTest` fails when the importer's sources can emit a rule that no case
 proves. A file whose amount column has moved (a positive card or BLIK row, or the column disagreeing with the card text on half or more of at least two card rows) is refused whole as `layout.amount_column`, never read through the balance column; an empty or oversized upload, too many rows and an unknown destination are rule codes too (`statement.empty_upload`, `statement.too_large`, `statement.too_many_rows`, `account.not_found`). **Never seen:** a real second export (overlap, whether the bank sequence number is stable), amounts of 1000 or more, the wording of an outgoing own-account transfer, a
-real change of the bank's format, the bank's UI steps for exporting (user-supplied), a run on a device or with the native file picker, the client against the real server, and any
+real change of the bank's format, the export steps beyond what the user reported (whether a file can hold several accounts and the filters' effect on it are open), a run on a device or with the native file picker, the client against the real server, and any
 Polish or Ukrainian string reviewed by a native speaker.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**

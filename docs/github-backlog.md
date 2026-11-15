@@ -162,8 +162,8 @@ features, not hidden scope in these tasks.
 **Outcome:** the same statement can be reviewed and imported repeatedly without duplicates or loss.
 
 **Depends on:** M1.  The parser contract was blocked until an Erste export was available; ADR-088
-records it from one local export plus synthetic fixtures (the bank's export steps in task 1 are still
-to be supplied). No real statement may be committed to the repository.
+records it from one local export plus synthetic fixtures, and ADR-095 records the user-reported
+export steps. No real statement may be committed to the repository.
 
 **Epic acceptance:** a representative statement previews validation results, commits atomically and
 is idempotent; malformed or changed formats fail safely with actionable feedback.

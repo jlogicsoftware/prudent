@@ -12,14 +12,53 @@ fact is listed under [Open questions](#open-questions), not stated.
 
 ## How the export is produced
 
-Not documented here. The bank's screens and menu names were not captured, and inventing them would
-be worse than leaving them out.
+Everything in this section was **reported by the user from the bank's web UI on 2026-11-15**, from
+four screenshots of the Polish interface. It was not read from a bank document and it was not
+re-checked against a download made for this repository; UI labels are quoted as the bank shows them.
 
-**To be confirmed by the user in the bank UI** and then written down in this section: where the CSV
-is requested, which account and date range are chosen, which format, delimiter, encoding and
-"header" options (if any) are offered, and what the downloaded file is called. What is known is
-only the file the bank produced: the bank names it `history*.csv`, and the observed sample was
-renamed locally afterwards, so the file name carries no contract and must not be parsed.
+1. In the bank's web banking, open the top menu **"Historia"**, then the sub-tab **"Historia"** (the
+   other sub-tab is "Przegląd wydatków").
+2. Set the filter panel above the list. It offers a search box ("Wpisz odbiorcę, nadawcę, tytuł lub
+   nr konta, min. 3 znaki"), "Okres" (the period; the default shown is "Bieżący rok (2026)"), "Kwota
+   transakcji" (from and to), "Wydatki i wpływy" (expenses and inflows), "Status" ("Wszystkie") and a
+   radio "Widoczne w tabeli" with the options "Data transakcji" and "Data księgowania i saldo". Period,
+   amount, type, status and what is visible in the table are chosen here; the download dialog offers
+   none of them. That the filter also decides what the download holds is assumed, not seen. The
+   account the page shows is chosen in the page header (reported by the user, not visible in the
+   screenshots). The "Widoczne w tabeli" radio changes only what the table shows, not the CSV
+   (reported by the user), so the file has the same columns whichever option is selected.
+3. Under **"Pobierz listę transakcji"** press **"CSV"** (the other button is "PDF").
+4. In the small dialog, leave the dropdown **"Separator"** on **"przecinek - ,"** (comma, the default
+   shown). It is the only option the dialog has; the others it lists are "średnik - ;", "pipe - |" and
+   "tabulator - tab". Press **"POBIERZ"**.
+5. The bank downloads `history_YYYYMMDD.csv`, where `YYYYMMDD` is the export date without hyphens
+   (the user's example: `history_20261115.csv`). Import the file as it is: do not open and save it in
+   a spreadsheet or edit it.
+
+**The importer requires the comma separator.** A file in another separator is refused whole, before
+any write, and nothing is repaired. What the importer actually emits is decided by the file's shape,
+not by a delimiter guess: a first line that has no comma and no double quote but contains a
+semicolon or a tab is `layout.delimiter`; a first line with a double quote inside an unquoted field is
+`csv.malformed`, whatever the separator; a first line that holds both a comma (a decimal comma is
+enough) and the other separator, and a file separated by a pipe, are not recognised as separator
+mistakes and surface as `row.field_count`. All of these refuse the file. A real semicolon download
+most likely keeps decimal commas, so it would not give `layout.delimiter`. What a real semicolon, pipe
+or tab download looks like was not seen.
+
+The file name carries no contract and is never parsed: the importer reads the bytes only; the export
+date is the one inside the summary row. The pattern above is what the user saw, not something the
+importer relies on.
+
+### Still unconfirmed
+
+- Whether one "Historia" page can hold several accounts' transactions in a single CSV. The account
+  is chosen in the page header (reported by the user), so a file is expected to hold one account,
+  and the summary row names it; the importer checks that name against the destination account.
+- Whether the filter applies to the download at all (assumed, not seen), and whether its limits (for
+  example "Okres") change anything in the file beyond which rows it holds, such as the summary row's
+  period start.
+- The maximum period or number of rows one export holds.
+- The exact content of a download made with a non-default separator.
 
 ## File-level format
 
@@ -148,7 +187,7 @@ These need a second export or the bank's own documentation, and are deliberately
 - How an amount of 1000 or more is written. The importer reads digits only (`1000,00`) and treats any separator as `amount.invalid`; **a private export that contains such an amount must be checked to confirm the format** (the fixtures cannot settle it).
 - Thousands separators in the balance column (never read), CRLF, foreign-currency card payments, refunds, outgoing own transfers and
   every operation type not listed above.
-- The export steps in the bank UI (see the first section).
+- The parts of the export procedure listed as unconfirmed under [How the export is produced](#how-the-export-is-produced).
 
 ## Synthetic fixtures
 
@@ -176,6 +215,5 @@ refused is derived in memory from a synthetic base statement by the failure matr
 `ErsteFormatDriftTest` pins these three fixtures to their exact parsed rows and holds the rule codes named
 in the validation list above to the ones the importer can emit.
 
-**Issue #42 stays open.** This document and the fixtures are its inspection and fixtures halves; the
-export steps in the bank UI are user-supplied and still missing. Do not close #42 from a PR
-that merges this work.
+**Issue #42** is complete with this document: the inspection, the fixtures and the export steps
+(ADR-095) are all recorded. What stays unconfirmed is listed in the section on the export.
