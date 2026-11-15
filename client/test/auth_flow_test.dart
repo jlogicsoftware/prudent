@@ -2,7 +2,7 @@
 // trimmed before it is validated on sign-in, registration and password restore, so the form never
 // refuses what its submit would have sent. The validator is jZen's (jZenDev/jZen#143); this proves
 // Prudent consumes it, through the delegates the app itself registers.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/auth/auth_flow.dart';
@@ -88,8 +88,9 @@ void main() {
         child: MaterialApp(
           // The delegates PrudentApp registers, in its order (Prudent's Polish ahead of the
           // framework's fallback).
-          localizationsDelegates: const [
+          localizationsDelegates: [
             ...PrudentLocalizations.localizationsDelegates,
+            ...GlobalMaterialLocalizations.delegates,
             prudentPlIdentityDelegate,
             identityLocaleDelegate,
             prudentPlNavigationDelegate,

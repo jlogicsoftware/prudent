@@ -26,8 +26,9 @@ void main() {
       httpClient: MockClient((request) async {
         calls.add('${request.method} ${request.url.path}');
         const headers = {'X-Zen-Transport': 'json'};
-        if (request.method == 'DELETE')
+        if (request.method == 'DELETE') {
           return http.Response('', 204, headers: headers);
+        }
         if (request.url.path == '/api/v1/accounts') {
           return http.Response(
             jsonEncode({'accounts': []}),

@@ -4,8 +4,7 @@
 //   - the delegate ordering is pinned (composed first, SynchronousFuture) — the failure mode
 //     jZen ADR-044 found by testing rather than by reading.
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
@@ -121,6 +120,7 @@ Widget _app({
       localizationsDelegates: [
         ...extra,
         ...PrudentLocalizations.localizationsDelegates,
+        ...GlobalMaterialLocalizations.delegates,
         identityLocaleDelegate,
         // LoginScreen's password toggle reads its wording from here.
         zenWidgetsLocaleDelegate,
@@ -185,13 +185,11 @@ void main() {
           ],
           child: MaterialApp(
             locale: const Locale('pl'),
-            localizationsDelegates: const [
+            localizationsDelegates: [
               identityLocaleDelegate,
               _PlIdentityDelegateComposedLast(),
               zenWidgetsLocaleDelegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
+              ...GlobalMaterialLocalizations.delegates,
             ],
             supportedLocales: const [Locale('en'), Locale('uk'), Locale('pl')],
             home: const LoginScreen(),
@@ -255,12 +253,10 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('pl'),
-          localizationsDelegates: const [
+          localizationsDelegates: [
             zenWidgetsLocaleDelegate,
             _PlWidgetsDelegateComposedLast(),
-            GlobalMaterialLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
           ],
           supportedLocales: const [Locale('en'), Locale('uk'), Locale('pl')],
           home: const Scaffold(

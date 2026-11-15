@@ -5,7 +5,7 @@
 import 'zen_fields.dart';
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -38,7 +38,7 @@ Map<String, Object?> _goal(
   'currency': currency,
   'targetAmountMinor': '$target',
   'status': status,
-  if (date != null) 'targetDate': date,
+  'targetDate': ?date,
 };
 
 Map<String, Object?> _progress(
@@ -58,7 +58,7 @@ Map<String, Object?> _progress(
   'progressPercent': allocated * 100 ~/ target > 100 ? 100 : allocated * 100 ~/ target,
   'guidance': guidance,
   if (monthly != null) 'monthlyContributionMinor': '$monthly',
-  if (months != null) 'monthsRemaining': months,
+  'monthsRemaining': ?months,
 };
 
 /// A server holding a few goals, answering what the goal views read and recording what they write.
@@ -230,6 +230,7 @@ void main() {
         child: const MaterialApp(
           localizationsDelegates: [
             ...PrudentLocalizations.localizationsDelegates,
+            ...GlobalMaterialLocalizations.delegates,
             zenWidgetsLocaleDelegate,
           ],
           supportedLocales: PrudentLocalizations.supportedLocales,

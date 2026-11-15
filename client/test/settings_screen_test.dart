@@ -2,8 +2,8 @@
 // navigation/session actions are ZenButtons and the language choice is a ZenSelect whose options
 // are each language's own name. Which widget draws a control is zen_ui_widgets' test; what is
 // asserted here is that the screen offers the right ones and that choosing a language takes effect.
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/content_width.dart';
@@ -41,6 +41,7 @@ void main() {
                 locale: ref.watch(localeProvider),
                 localizationsDelegates: [
                   ...PrudentLocalizations.localizationsDelegates,
+                  ...GlobalMaterialLocalizations.delegates,
                   zenWidgetsLocaleDelegate,
                 ],
                 supportedLocales: PrudentLocalizations.supportedLocales,

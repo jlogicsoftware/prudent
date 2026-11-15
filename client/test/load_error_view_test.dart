@@ -4,7 +4,7 @@
 // whatever the language. The detail is logged, not shown.
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -21,7 +21,7 @@ Widget _app(Widget home, {List<Override> overrides = const [], Locale? locale}) 
   overrides: overrides,
   child: MaterialApp(
     locale: locale,
-    localizationsDelegates: [...PrudentLocalizations.localizationsDelegates, zenWidgetsLocaleDelegate],
+    localizationsDelegates: [...PrudentLocalizations.localizationsDelegates, ...GlobalMaterialLocalizations.delegates, zenWidgetsLocaleDelegate],
     supportedLocales: PrudentLocalizations.supportedLocales,
     home: Scaffold(body: home),
   ),

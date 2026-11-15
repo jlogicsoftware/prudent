@@ -32,8 +32,8 @@ plugins {
     //
     // After changing the distribution, kill the daemon: one started under the old distribution
     // survives a wrapper change and keeps serving the old Gradle.
-    id("com.android.application") version "9.0.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.3.20" apply false
+    id("com.android.application") version "9.3.1" apply false
+    id("org.jetbrains.kotlin.android") version "2.4.20" apply false
 }
 
 include(":app")

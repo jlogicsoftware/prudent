@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One category in the spend chart's legend: its colour, name, share of the total and amount.
 class LegendRow extends StatelessWidget {

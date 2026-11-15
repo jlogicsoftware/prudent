@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One labelled figure on a goal or free-money card: the label on the left, the value — plain
 /// text, or an [EnvelopeAmount] for money set aside — on the right.
