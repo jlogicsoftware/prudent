@@ -13,6 +13,37 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-097 — jZen is pinned at `c1a4e22` to consume the nested-page guard (jZen#226), so the import's leave prompt now answers Escape and a replacing detail on the real path through Accounts
+
+**Date:** 2026-11-15. **Status:** accepted. jZenDev/jZen#226 (Prudent's report), jZen PR #227. Follows ADR-096, which is not edited.
+
+### Decision
+
+- **The pin moves** from `3a820b2` to `c1a4e22` ("Guard nested detail pages on close") in `.github/workflows/ci.yml` and `.github/workflows/audit.yml`.
+  The only commit between them is #227, which touches `zen_detail_pane.dart` and its test and nothing else.
+- **The framework's change.** `ZenDetailPaneState.requestClose` asks every page on the pane's stack, topmost first, and stops at the first
+  page that vetoes with `canPop: false`; a `NavigatorObserver` keeps the stack. Escape and a second detail replacing the pane use it. The Close button
+  is still offered only by the pane's first page: a nested page shows Back, which asks that page's guard as it always did. A tab switch is still
+  not guarded, by design.
+- **Prudent's code did not change.** `ImportPreviewScreen`'s `PopScope` was already the guard; the framework now reaches it on the real path
+  (Overview or Settings, Accounts as the pane root, the import a nested page). Only comments changed.
+- **Tests flipped, as their comment required.** In `client/test/import_flow_test.dart` the group "real flow: Accounts pane, then Import" no longer
+  pins Escape and a replacing detail as not asking: each now asks "Leave this import?", Stay keeps the review open and discards nothing,
+  "Discard and leave" discards once. The pin that the nested page has no Close button stays, now as jZen's design rather than a defect.
+  Back's two tests are unchanged.
+
+### What this supersedes
+
+ADR-096's statement that on the real path Escape and a second detail do not ask, and that this is jZen#226. It no longer holds. The rest of ADR-096 stands:
+nothing is discarded in `dispose`, a tab switch leaves the session open and listed.
+
+### Checked
+
+The whole client suite against a copy of jZen at `c1a4e22`, in a scratch copy without `custom_lint` and `riverpod_lint` (530 pass); `verify:controls`,
+`verify:import-fixtures`, `zen:verify:widget-files`. Not run: the server suite (nothing under `server/` changed), CI on the new pin, and any real window or device.
+
+---
+
 ## ADR-096 — jZen is pinned at `3a820b2` to consume the detail-pane guard (jZen#222), the import's leave prompt answers Close, Escape and a replacing detail only when the import is the pane's root (not on the real path through Accounts, jZen#226), and a tab switch still discards nothing
 
 **Date:** 2026-11-15. **Status:** accepted. jZenDev/jZen#222 (Prudent's report), jZen PR #224; the nested case it leaves open is jZenDev/jZen#226.

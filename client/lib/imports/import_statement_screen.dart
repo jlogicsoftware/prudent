@@ -12,7 +12,7 @@ import 'import_upload_step.dart';
 /// "Check statement" (ADR-093). So the upload step hands the new session's id up and this widget
 /// swaps in the review, and the review hands "back to import" up to swap the upload step back in.
 /// Leaving the page altogether (Back, the result's button, or, when it is a pane's root, the pane's Close)
-/// pops this one route; from Accounts it is a nested page above the pane's root (jZenDev/jZen#226, ADR-096).
+/// pops this one route; from Accounts it is a nested page above the pane's root, which jZen's pane guard also asks (jZen#226, ADR-097).
 class ImportStatementScreen extends StatefulWidget {
   const ImportStatementScreen({super.key});
 
