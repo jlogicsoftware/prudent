@@ -13,6 +13,30 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-104 — `task verify:analyze` runs `flutter analyze` with infos fatal in CI, so the analyzer and `riverpod_lint` are a gate
+
+**Date:** 2026-11-15. **Status:** accepted. Follows ADR-099, which is not edited.
+
+### Context
+
+`client/analysis_options.yaml` includes `flutter_lints` and loads `riverpod_lint` as an analyzer plugin, and no task or CI job ran `flutter analyze` (true before ADR-099 too). Both were configuration nothing enforced, and the independent review of ADR-099 found it.
+
+### Decision
+
+- `task verify:analyze` runs `flutter gen-l10n` and then `flutter analyze --fatal-infos --fatal-warnings` in `client/`, the only Dart package in the repository. Infos are fatal because that is the level `riverpod_lint` and most `flutter_lints` rules report at. `ci.yml`'s `gates` job runs it after the contract gate and before the client suites.
+- Three findings existed and each was handled: one in code, two in generated output. `test/load_error_view_test.dart` no longer exposes a public field on a `Notifier` (`avoid_public_notifier_properties`) — fixed. The other two are `deprecated_member_use` on `GlobalMaterialLocalizations` and `GlobalCupertinoLocalizations` in `lib/l10n/generated/prudent_localizations.dart` — handled by the exclusion below.
+- `lib/l10n/generated/**` joins `lib/generated/**` in `analyzer.exclude`. What it carries: the output of `flutter gen-l10n`, gitignored and rebuilt on every checkout, whose only findings were the SDK's own two delegate deprecations written by the generator. A fix would be an edit the next build overwrites; the ARB sources and every call site stay analyzed, and ADR-099's `GlobalMaterialLocalizations.delegates` append is the actual fix and is checked in the app's code.
+
+### Proof the plugin loads
+
+A scratch commit added a `Notifier` with a public field; the gate went red on `avoid_public_notifier_properties`, a `riverpod_lint` rule, locally and in CI (run recorded in the pull request), and the file was then removed. No check re-proves this on every run: if the plugin stopped loading, the gate would still pass on the rules that remain.
+
+### Consequences
+
+A new analyzer finding fails the build. Fix it; there is no ignore list, and an exclusion must say what the excluded content carries.
+
+---
+
 ## ADR-103 — Existing data moves into Prudent Local once, by a file, into an empty store, and only if every balance matches to the cent
 
 **Date:** 2026-11-15. **Status:** accepted (decided by the user on the phase-0 analysis). **Plan:** decision 0.4 of

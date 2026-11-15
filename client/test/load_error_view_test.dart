@@ -29,12 +29,15 @@ Widget _app(Widget home, {List<Override> overrides = const [], Locale? locale}) 
 
 /// Fails on the first build, answers an empty list on every later one.
 class _FlakyAccounts extends AccountsNotifier {
-  int builds = 0;
+  int _builds = 0;
+
+  /// How many times `build` ran. A function, not a getter: this is a test probe.
+  int buildCount() => _builds;
 
   @override
   Future<List<Account>> build() async {
-    builds++;
-    if (builds == 1) throw StateError(_rawError);
+    _builds++;
+    if (_builds == 1) throw StateError(_rawError);
     return const [];
   }
 }
@@ -116,7 +119,7 @@ void main() {
     await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
 
-    expect(notifier.builds, 2);
+    expect(notifier.buildCount(), 2);
     expect(find.text('No accounts added yet.'), findsOneWidget);
     expect(find.byType(LoadErrorView), findsNothing);
   });
