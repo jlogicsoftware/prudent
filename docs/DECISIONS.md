@@ -51,6 +51,38 @@ as in jZen's migration.
 
 ---
 
+## ADR-098 — The import is driven through the compiled app on a device by `integration_test/app_import_test.dart`, which CI does not run, and the native file panel is still only seen by hand
+
+**Date:** 2026-11-15. **Status:** accepted. Follows ADR-093 and ADR-097, which are not edited.
+
+### Decision
+
+- **A device-level test exists.** `client/integration_test/app_import_test.dart` runs *inside* the built app (`flutter test integration_test/app_import_test.dart -d macos`, or an
+  iOS simulator) against a live Quarkus server and Supabase. It signs up a throwaway user, creates an account with a bank number, imports a synthetic nine-row
+  statement through the real screens, asserts the six records and the derived balance, imports the file again and expects six duplicates and no second write, then
+  leaves through the leave prompt (Escape on a wide host, Back on a narrow one; jZen#226, ADR-097). Run on 2026-11-15 on macOS and on an iPhone 17 Pro simulator.
+- **`statementPickerProvider` is overridden with the file's bytes.** A native dialog cannot be driven from inside the app. The statement is a synthetic literal in the
+  test (amounts of 1000 or more included, which the one real export never had); no real statement is involved.
+- **It is not a CI gate.** `task test:client` runs `test/`, and `task test:e2e` names `integration_test/e2e_test.dart`, a pure-Dart VM suite, so neither picks the new file up.
+  It needs a running stack and a device, which no CI runner here has, and it leaves its test user in the local database.
+- **`integration_test` (SDK) joins the dev dependencies.** `client/pubspec.lock` was extended **by hand** with the six entries it brings (`integration_test`, `flutter_driver`,
+  `fuchsia_remote_debug_protocol`, `process`, `sync_http`, `webdriver`), copied from a resolution that succeeded in a copy without `custom_lint`: the checkout's own
+  `pub get` cannot resolve under the local Flutter 3.50 (`custom_lint` against `test`, as before). Whoever next runs `pub get` under the pinned Flutter 3.44.2 should check
+  that it leaves the lock unchanged.
+
+### Seen by hand, not by the test
+
+On the iOS simulator the real app's "Choose CSV file" opened the system file picker, the CSV in "On My iPhone" was selectable, was read, and checked to the same review
+(6 to import, 3 not readable); Back asked "Leave this import?". **The macOS file panel (`NSOpenPanel`) has not been seen**, nor a physical device.
+
+### Found on the way
+
+A local Supabase database migrated on 2026-10-28 refused the server because the checksum of jZen's migration `V200` had changed since it was applied. Starting the server
+once with `QUARKUS_FLYWAY_REPAIR_AT_START=true` repaired the history and applied the import migrations; nothing else was touched. In the same macOS run a second Escape, sent right after "Stay" closed the leave prompt, showed no prompt again; the first Escape had. Whether focus is not restored to the pane after the dialog, or only the test's key event is affected, was not investigated. On a phone-sized screen the review page gives most
+of its height to the default-category selects, and the rows are visible three at a time.
+
+---
+
 ## ADR-097 — jZen is pinned at `c1a4e22` to consume the nested-page guard (jZen#226), so the import's leave prompt now answers Escape and a replacing detail on the real path through Accounts
 
 **Date:** 2026-11-15. **Status:** accepted. jZenDev/jZen#226 (Prudent's report), jZen PR #227. Follows ADR-096, which is not edited.

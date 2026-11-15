@@ -102,6 +102,11 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # Drives the app itself on a device: integration_test/app_import_test.dart (not run by CI, see
+  # its header). The pure-Dart e2e_test.dart beside it stays under package:test.
+  integration_test:
+    sdk: flutter
+
   # The pure-Dart end-to-end suite (integration_test/) runs on the VM via `dart test`, hitting
   # the live Supabase + Quarkus stack. It uses package:test (not flutter_test) so it stays
   # headless and its import graph never reaches dart:ui — see task test:e2e.
