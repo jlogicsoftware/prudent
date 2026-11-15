@@ -3258,6 +3258,636 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/import-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the authenticated user's import sessions
+         * @description Newest first, optionally narrowed by state, at most limit sessions (default 50, at most 100). Rows are not included; read one session for them.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description How many of the newest sessions to return, 1 to 100. */
+                    limit?: number;
+                    /** @description Only sessions in this state: PARSED, PREVIEWED, COMMITTED, DISCARDED or EXPIRED. Omit for all states. */
+                    state?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListImportSessionsResponse"];
+                        "application/x-protobuf": components["schemas"]["ListImportSessionsResponse"];
+                    };
+                };
+                /** @description A state that is not a session state, or a limit outside 1 to 100 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Parse a statement and open an import session (the parse phase)
+         * @description Runs the importer named by formatId over content. Nothing is written unless it accepts the statement; then one PARSED session and its rows are. The content is never stored.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateImportSessionRequest"];
+                    "application/x-protobuf": components["schemas"]["CreateImportSessionRequest"];
+                };
+            };
+            responses: {
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportSession"];
+                        "application/x-protobuf": components["schemas"]["ImportSession"];
+                    };
+                };
+                /** @description An unknown format, an empty, oversized or too long statement, an account that is not the caller's, inactive, lacks the statement's currency or is not the account the statement is for, or a statement the importer rejects (the message names a rule and a row number, never content) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description The caller already has the most open import sessions allowed */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import-sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one import session with its held rows
+         * @description The rows are included while the session is PARSED or PREVIEWED. A session whose time has run out is expired by this read.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportSession"];
+                        "application/x-protobuf": components["schemas"]["ImportSession"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No such session for this user */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import-sessions/{id}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write the confirmed session to the ledger (the commit phase)
+         * @description PREVIEWED → COMMITTED. Needs a destination account, a category (its own or the session's default for its direction) on every row to be written and confirmedAcceptedRows equal to the session's accepted rows; zero is allowed and writes nothing. One transaction: any failure writes nothing and leaves the session PREVIEWED. Rows already in the account are not written again (committedAlreadyImported). Repeating the commit of a COMMITTED session with the same confirmedAcceptedRows answers with the same result. The response carries counts only.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CommitImportSessionRequest"];
+                    "application/x-protobuf": components["schemas"]["CommitImportSessionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportSession"];
+                        "application/x-protobuf": components["schemas"]["ImportSession"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The session is not PREVIEWED (or COMMITTED, for a repeat), has expired, has no destination account, a row to be written has neither a category nor a default for its direction or has one the ledger refuses, the destination account no longer passes its checks, or the confirmed count differs from its accepted rows */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import-sessions/{id}/defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set the session's default categories for expenses and for income
+         * @description Allowed while the session is PARSED or PREVIEWED. Only the fields present change; an empty string clears one. A row with no category of its own is written under the default for its direction. Each must be the caller's, active category able to file its direction, and is checked again at commit. The session is returned without its rows. Cleared when the session ends.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetImportDefaultsRequest"];
+                    "application/x-protobuf": components["schemas"]["SetImportDefaultsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportSession"];
+                        "application/x-protobuf": components["schemas"]["ImportSession"];
+                    };
+                };
+                /** @description A category that is not the caller's or is for the other direction */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The session holds no rows, has expired, or the category is archived */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import-sessions/{id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Throw an import session away
+         * @description Allowed while the session is PARSED or PREVIEWED. Deletes its rows.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportSession"];
+                        "application/x-protobuf": components["schemas"]["ImportSession"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The session has already ended */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import-sessions/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Classify the rows and fix the destination account (the preview phase)
+         * @description PARSED or PREVIEWED → PREVIEWED. Omitting accountId keeps the one already chosen. The destination is validated on every call (the caller's, active, holds the session's currency, is the account the statement is for), so previewing again with another account is how to change it without uploading the statement again.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PreviewImportSessionRequest"];
+                    "application/x-protobuf": components["schemas"]["PreviewImportSessionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportSession"];
+                        "application/x-protobuf": components["schemas"]["ImportSession"];
+                    };
+                };
+                /** @description An account that is not the caller's, is inactive, lacks the session's currency or is not the account the statement is for */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The session is not PARSED or PREVIEWED, or has expired */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import-sessions/{id}/rows/{rowNumber}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide a held row: its category, note, or whether to include a duplicate
+         * @description Allowed while the session is PARSED or PREVIEWED. Only the fields present change. A rejected row takes no decision; includeDuplicate is for DUPLICATE rows only; a note is at most 500 characters. POST rather than PUT or PATCH on purpose: it is a partial update, PUT in this API means full replacement and there is no PATCH. The answer is the changed row and the session's recomputed counts, not the whole session.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    rowNumber: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateImportRowRequest"];
+                    "application/x-protobuf": components["schemas"]["UpdateImportRowRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UpdateImportRowResponse"];
+                        "application/x-protobuf": components["schemas"]["UpdateImportRowResponse"];
+                    };
+                };
+                /** @description A category that is not the caller's or is for the other direction, a note over 500 characters, or including a row that is not a duplicate */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+                /** @description The session holds no rows, has expired, the category is archived, or the row was rejected */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ZenError"];
+                        "application/x-protobuf": components["schemas"]["ZenError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/trigger": {
         parameters: {
             query?: never;
@@ -5113,6 +5743,8 @@ export interface components {
             includeInOverview?: boolean;
             /** @description Whether money in this account may be set aside for goals (ADR-051). Counts only while the account is also active; the sum of those accounts' balances in a currency is that currency's eligible money (GET /api/v1/goal-allocations/free-money). False by default. */
             eligibleForGoals?: boolean;
+            /** @description The bank number of this account, normalised by the server (whitespace removed, upper-cased, a leading PL dropped from a 26-digit number), or empty when none is stored (ADR-090). A statement's own account is compared with it before an import may write into this account. Personal data; at most one account per user holds a given number. */
+            accountNumber?: string;
             /** @description The currencies this account holds, one entry each, in the order the server stores them. NEVER EMPTY and at most one entry per currency — both rejected server-side. The set is DECLARED rather than inferred, which is what lets the server reject a record in a currency the account does not hold instead of silently opening a new balance. */
             balances?: components["schemas"]["CurrencyBalance"][];
         };
@@ -5126,6 +5758,8 @@ export interface components {
             includeInOverview?: boolean;
             /** @description See Account.eligibleForGoals. Omitting it is the same as false; on a PUT, which is a full replacement, an account that was eligible stops being so. */
             eligibleForGoals?: boolean;
+            /** @description See Account.accountNumber. Empty stores none; a malformed number is refused (400) and a number another of the caller's accounts holds is refused (409). */
+            accountNumber?: string;
             balances?: components["schemas"]["CurrencyBalance"][];
         };
         /**
@@ -5141,6 +5775,8 @@ export interface components {
             includeInOverview?: boolean;
             /** @description See Account.eligibleForGoals. Omitting it is the same as false; on a PUT, which is a full replacement, an account that was eligible stops being so. */
             eligibleForGoals?: boolean;
+            /** @description See Account.accountNumber. On a PUT, a full replacement: omitting it removes the stored number, so a form that does not edit it must resend it. */
+            accountNumber?: string;
             balances?: components["schemas"]["CurrencyBalance"][];
         };
         /** @description GET /api/v1/accounts — every account owned by the caller. */
@@ -5842,6 +6478,168 @@ export interface components {
              */
             createdAtMs?: number;
         };
+        /**
+         * @description Where an import session is in its life. PARSED is the state a session is created in; PREVIEWED is classified and waiting for confirmation; COMMITTED, DISCARDED and EXPIRED are terminal and hold no rows. IMPORT_SESSION_STATE_UNSPECIFIED is what proto3 decodes an omitted field to and is never stored.
+         * @enum {string}
+         */
+        ImportSessionState: "IMPORT_SESSION_STATE_UNSPECIFIED" | "IMPORT_SESSION_STATE_PARSED" | "IMPORT_SESSION_STATE_PREVIEWED" | "IMPORT_SESSION_STATE_COMMITTED" | "IMPORT_SESSION_STATE_DISCARDED" | "IMPORT_SESSION_STATE_EXPIRED";
+        /**
+         * @description What the workflow decided about a row. ACCEPTED rows are written on commit; DUPLICATE is set only by a preview stage and never written; REJECTED rows are flagged, never dropped silently, and never written.
+         * @enum {string}
+         */
+        ImportRowStatus: "IMPORT_ROW_STATUS_UNSPECIFIED" | "IMPORT_ROW_STATUS_ACCEPTED" | "IMPORT_ROW_STATUS_DUPLICATE" | "IMPORT_ROW_STATUS_REJECTED";
+        /** @description One normalised statement row, held only while its session is PARSED or PREVIEWED. Carries personal data (a description and a counterparty). */
+        ImportRow: {
+            /** Format: uuid */
+            sessionId?: string;
+            /**
+             * Format: int32
+             * @description 1-based position among the statement's transaction rows.
+             */
+            rowNumber?: number;
+            status?: components["schemas"]["ImportRowStatus"];
+            /** @description A short stable rule code such as amount.not_decimal, never row content. Empty unless the row is rejected. */
+            rejectionCode?: string;
+            /**
+             * Format: date
+             * @description YYYY-MM-DD. Absent only on a rejected row.
+             */
+            transactionDate?: string;
+            /** Format: date */
+            bookingDate?: string;
+            /**
+             * Format: int64
+             * @description Signed minor units, negative for money out. Absent only on a rejected row.
+             */
+            amountMinor?: string;
+            description?: string;
+            counterparty?: string;
+            counterpartyAccount?: string;
+            /** @description The bank's own identifier for the entry, when the format has one. */
+            externalId?: string;
+            /** @description A short stable code such as duplicate.already_imported. Empty unless DUPLICATE. */
+            duplicateCode?: string;
+            /**
+             * Format: uuid
+             * @description The category the user chose for the record this row becomes.
+             */
+            categoryId?: string;
+            /** @description The user's own note for the record. */
+            note?: string;
+            /** @description True when the user decided a DUPLICATE row is a new operation and is to be written. Such a row counts in acceptedRows, not in duplicateRows. */
+            includeDuplicate?: boolean;
+            /** @description A short stable code the importer put on the row, never content; empty when none. Today transfer.own_account (an incoming transfer from the user's own account): the other side must be recorded as a plain expense, never as a Transfer. */
+            hintCode?: string;
+        };
+        /** @description A statement import in progress or finished. The counts survive the deletion of the rows, which happens when the session ends. */
+        ImportSession: {
+            /** Format: uuid */
+            id?: string;
+            /** @description The format that parsed it, for example erste-pl-csv. */
+            formatId?: string;
+            state?: components["schemas"]["ImportSessionState"];
+            /**
+             * Format: uuid
+             * @description The destination account, once chosen. A commit needs it.
+             */
+            accountId?: string;
+            /** @description ISO-4217. One currency per session. */
+            currency?: string;
+            /** Format: int64 */
+            createdAtMs?: string;
+            /** Format: int64 */
+            stateChangedAtMs?: string;
+            /**
+             * Format: int64
+             * @description After this instant the session can no longer be previewed or committed and its rows are deleted.
+             */
+            expiresAtMs?: string;
+            /** Format: int32 */
+            acceptedRows?: number;
+            /** Format: int32 */
+            duplicateRows?: number;
+            /** Format: int32 */
+            rejectedRows?: number;
+            /** @description The held rows in row order. Filled on a single-session read while the session is PARSED or PREVIEWED; empty in a list and after the session has ended. */
+            rows?: components["schemas"]["ImportRow"][];
+            /**
+             * Format: int32
+             * @description Set when COMMITTED, how many ledger records the commit wrote.
+             */
+            committedWritten?: number;
+            /**
+             * Format: int32
+             * @description Set when COMMITTED, how many accepted rows the commit found already imported.
+             */
+            committedAlreadyImported?: number;
+            /**
+             * Format: uuid
+             * @description The category a row with no category of its own gets when its amount is negative.
+             */
+            defaultExpenseCategoryId?: string;
+            /**
+             * Format: uuid
+             * @description The category a row with no category of its own gets when its amount is positive.
+             */
+            defaultIncomeCategoryId?: string;
+        };
+        /** @description Body for POST /api/v1/import-sessions — the parse phase. The content is read once, parsed and dropped; it is never stored. */
+        CreateImportSessionRequest: {
+            /** @description Names the importer. An unknown id is a 400. */
+            formatId?: string;
+            /**
+             * Format: byte
+             * @description The statement exactly as downloaded (base64 in JSON).
+             */
+            content?: string;
+            /**
+             * Format: uuid
+             * @description The destination account, if already chosen. Must be the caller's.
+             */
+            accountId?: string;
+        };
+        /** @description Body for POST /api/v1/import-sessions/{id}/preview. An absent accountId keeps the one the session already has. */
+        PreviewImportSessionRequest: {
+            /** Format: uuid */
+            accountId?: string;
+        };
+        /** @description Body for POST /api/v1/import-sessions/{id}/rows/{rowNumber}. Only the fields present change; an empty categoryId or note clears it. */
+        UpdateImportRowRequest: {
+            /** @description The category for the row's record; the caller's, active, suiting the direction. */
+            categoryId?: string;
+            note?: string;
+            /** @description True writes a DUPLICATE row anyway; false leaves it out again. */
+            includeDuplicate?: boolean;
+        };
+        /** @description The answer to a row decision: the changed row and the session's recomputed counts, not the whole session. */
+        UpdateImportRowResponse: {
+            row?: components["schemas"]["ImportRow"];
+            /** Format: int32 */
+            acceptedRows?: number;
+            /** Format: int32 */
+            duplicateRows?: number;
+            /** Format: int32 */
+            rejectedRows?: number;
+        };
+        /** @description Body for POST /api/v1/import-sessions/{id}/defaults. Only the fields present change; an empty string clears one. */
+        SetImportDefaultsRequest: {
+            /** @description The caller's active category that can file expenses. */
+            defaultExpenseCategoryId?: string;
+            /** @description The caller's active category that can file income. */
+            defaultIncomeCategoryId?: string;
+        };
+        /** @description Body for POST /api/v1/import-sessions/{id}/commit. */
+        CommitImportSessionRequest: {
+            /**
+             * Format: int32
+             * @description How many accepted rows the user reviewed. Refused (409) when it differs from the session's accepted rows.
+             */
+            confirmedAcceptedRows?: number;
+        };
+        /** @description GET /api/v1/import-sessions — the caller's sessions, newest first, without rows. */
+        ListImportSessionsResponse: {
+            sessions?: components["schemas"]["ImportSession"][];
+        };
         /** @description GET /api/v1/privacy/export response — EVERYTHING Prudent stores for the authenticated user, as one document, in the wire shapes the rest of the API already speaks. Complete rather than view-shaped: each list is every row the user owns, in any lifecycle state, and is empty rather than absent when there are none. Calculated figures (balances, budget summaries, goal progress, envelope sums, analytics) are not included — they are computed from these rows on every read. */
         DataExport: {
             /**
@@ -5865,6 +6663,10 @@ export interface components {
             carryOverResets?: components["schemas"]["BudgetCarryOverReset"][];
             goals?: components["schemas"]["Goal"][];
             goalAllocations?: components["schemas"]["GoalAllocation"][];
+            /** @description Import sessions in any state, without their rows. */
+            importSessions?: components["schemas"]["ImportSession"][];
+            /** @description The rows still held by sessions that have not ended; each names its session. */
+            importRows?: components["schemas"]["ImportRow"][];
         };
         /** @description Body for POST /api/v1/privacy/erase. IRREVERSIBLE: it deletes every record, account, category, plan, budget and goal the caller owns. Refused unless the caller repeats the address the account signs in with. */
         EraseAccountRequest: {

@@ -400,6 +400,13 @@ components:
             Whether money in this account may be set aside for goals (ADR-051). Counts only while
             the account is also active; the sum of those accounts' balances in a currency is that
             currency's eligible money (GET /api/v1/goal-allocations/free-money). False by default.
+        accountNumber:
+          type: string
+          description: >-
+            The bank number of this account, normalised by the server (whitespace removed,
+            upper-cased, a leading PL dropped from a 26-digit number), or empty when none is stored
+            (ADR-090). A statement's own account is compared with it before an import may write into
+            this account. Personal data; at most one account per user holds a given number.
         balances:
           type: array
           minItems: 1
@@ -431,6 +438,11 @@ components:
           description: >-
             See Account.eligibleForGoals. Omitting it is the same as false; on a PUT, which is a
             full replacement, an account that was eligible stops being so.
+        accountNumber:
+          type: string
+          description: >-
+            See Account.accountNumber. Empty stores none; a malformed number is refused (400) and a
+            number another of the caller's accounts holds is refused (409).
         balances:
           type: array
           minItems: 1
@@ -466,6 +478,11 @@ components:
           description: >-
             See Account.eligibleForGoals. Omitting it is the same as false; on a PUT, which is a
             full replacement, an account that was eligible stops being so.
+        accountNumber:
+          type: string
+          description: >-
+            See Account.accountNumber. On a PUT, a full replacement: omitting it removes the stored
+            number, so a form that does not edit it must resend it.
         balances:
           type: array
           minItems: 1
@@ -1685,6 +1702,255 @@ components:
           format: int64
           description: When the profile was first created, ms since the Unix epoch.
 
+    # -----------------------------------------------------------------------------------------
+    # Statement import sessions (M6, jlogicsoftware/prudent#72, ADR-089). A staging area, NEVER a
+    # transaction: nothing here moves a balance until the commit phase writes the ledger. The
+    # uploaded statement is read once and never stored.
+    # -----------------------------------------------------------------------------------------
+    ImportSessionState:
+      type: string
+      description: >-
+        Where an import session is in its life. PARSED is the state a session is created in;
+        PREVIEWED is classified and waiting for confirmation; COMMITTED, DISCARDED and EXPIRED are
+        terminal and hold no rows. IMPORT_SESSION_STATE_UNSPECIFIED is what proto3 decodes an
+        omitted field to and is never stored.
+      enum:
+        - IMPORT_SESSION_STATE_UNSPECIFIED
+        - IMPORT_SESSION_STATE_PARSED
+        - IMPORT_SESSION_STATE_PREVIEWED
+        - IMPORT_SESSION_STATE_COMMITTED
+        - IMPORT_SESSION_STATE_DISCARDED
+        - IMPORT_SESSION_STATE_EXPIRED
+    ImportRowStatus:
+      type: string
+      description: >-
+        What the workflow decided about a row. ACCEPTED rows are written on commit; DUPLICATE is set
+        only by a preview stage and never written; REJECTED rows are flagged, never dropped silently,
+        and never written.
+      enum:
+        - IMPORT_ROW_STATUS_UNSPECIFIED
+        - IMPORT_ROW_STATUS_ACCEPTED
+        - IMPORT_ROW_STATUS_DUPLICATE
+        - IMPORT_ROW_STATUS_REJECTED
+    ImportRow:
+      type: object
+      description: >-
+        One normalised statement row, held only while its session is PARSED or PREVIEWED. Carries
+        personal data (a description and a counterparty).
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        rowNumber:
+          type: integer
+          format: int32
+          description: 1-based position among the statement's transaction rows.
+        status:
+          $ref: '#/components/schemas/ImportRowStatus'
+        rejectionCode:
+          type: string
+          description: >-
+            A short stable rule code such as amount.not_decimal, never row content. Empty unless the
+            row is rejected.
+        transactionDate:
+          type: string
+          format: date
+          description: YYYY-MM-DD. Absent only on a rejected row.
+        bookingDate:
+          type: string
+          format: date
+        amountMinor:
+          type: string
+          format: int64
+          description: Signed minor units, negative for money out. Absent only on a rejected row.
+        description:
+          type: string
+        counterparty:
+          type: string
+        counterpartyAccount:
+          type: string
+        externalId:
+          type: string
+          description: The bank's own identifier for the entry, when the format has one.
+        duplicateCode:
+          type: string
+          description: A short stable code such as duplicate.already_imported. Empty unless DUPLICATE.
+        categoryId:
+          type: string
+          format: uuid
+          description: The category the user chose for the record this row becomes.
+        note:
+          type: string
+          description: The user's own note for the record.
+        includeDuplicate:
+          type: boolean
+          description: >-
+            True when the user decided a DUPLICATE row is a new operation and is to be written. Such
+            a row counts in acceptedRows, not in duplicateRows.
+        hintCode:
+          type: string
+          description: >-
+            A short stable code the importer put on the row, never content; empty when none. Today
+            transfer.own_account (an incoming transfer from the user's own account): the other side
+            must be recorded as a plain expense, never as a Transfer.
+    ImportSession:
+      type: object
+      description: >-
+        A statement import in progress or finished. The counts survive the deletion of the rows,
+        which happens when the session ends.
+      properties:
+        id:
+          type: string
+          format: uuid
+        formatId:
+          type: string
+          description: The format that parsed it, for example erste-pl-csv.
+        state:
+          $ref: '#/components/schemas/ImportSessionState'
+        accountId:
+          type: string
+          format: uuid
+          description: The destination account, once chosen. A commit needs it.
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: ISO-4217. One currency per session.
+        createdAtMs:
+          type: string
+          format: int64
+        stateChangedAtMs:
+          type: string
+          format: int64
+        expiresAtMs:
+          type: string
+          format: int64
+          description: >-
+            After this instant the session can no longer be previewed or committed and its rows are
+            deleted.
+        acceptedRows:
+          type: integer
+          format: int32
+        duplicateRows:
+          type: integer
+          format: int32
+        rejectedRows:
+          type: integer
+          format: int32
+        rows:
+          type: array
+          description: >-
+            The held rows in row order. Filled on a single-session read while the session is PARSED
+            or PREVIEWED; empty in a list and after the session has ended.
+          items:
+            $ref: '#/components/schemas/ImportRow'
+        committedWritten:
+          type: integer
+          format: int32
+          description: Set when COMMITTED, how many ledger records the commit wrote.
+        committedAlreadyImported:
+          type: integer
+          format: int32
+          description: >-
+            Set when COMMITTED, how many accepted rows the commit found already imported.
+        defaultExpenseCategoryId:
+          type: string
+          format: uuid
+          description: The category a row with no category of its own gets when its amount is negative.
+        defaultIncomeCategoryId:
+          type: string
+          format: uuid
+          description: The category a row with no category of its own gets when its amount is positive.
+    CreateImportSessionRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/import-sessions — the parse phase. The content is read once, parsed and
+        dropped; it is never stored.
+      properties:
+        formatId:
+          type: string
+          description: Names the importer. An unknown id is a 400.
+        content:
+          type: string
+          format: byte
+          description: The statement exactly as downloaded (base64 in JSON).
+        accountId:
+          type: string
+          format: uuid
+          description: The destination account, if already chosen. Must be the caller's.
+    PreviewImportSessionRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/import-sessions/{id}/preview. An absent accountId keeps the one the
+        session already has.
+      properties:
+        accountId:
+          type: string
+          format: uuid
+    UpdateImportRowRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/import-sessions/{id}/rows/{rowNumber}. Only the fields present
+        change; an empty categoryId or note clears it.
+      properties:
+        categoryId:
+          type: string
+          description: The category for the row's record; the caller's, active, suiting the direction.
+        note:
+          type: string
+        includeDuplicate:
+          type: boolean
+          description: True writes a DUPLICATE row anyway; false leaves it out again.
+    UpdateImportRowResponse:
+      type: object
+      description: >-
+        The answer to a row decision: the changed row and the session's recomputed counts, not the
+        whole session.
+      properties:
+        row:
+          $ref: '#/components/schemas/ImportRow'
+        acceptedRows:
+          type: integer
+          format: int32
+        duplicateRows:
+          type: integer
+          format: int32
+        rejectedRows:
+          type: integer
+          format: int32
+    SetImportDefaultsRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/import-sessions/{id}/defaults. Only the fields present change; an empty
+        string clears one.
+      properties:
+        defaultExpenseCategoryId:
+          type: string
+          description: The caller's active category that can file expenses.
+        defaultIncomeCategoryId:
+          type: string
+          description: The caller's active category that can file income.
+    CommitImportSessionRequest:
+      type: object
+      description: >-
+        Body for POST /api/v1/import-sessions/{id}/commit.
+      properties:
+        confirmedAcceptedRows:
+          type: integer
+          format: int32
+          description: >-
+            How many accepted rows the user reviewed. Refused (409) when it differs from the
+            session's accepted rows.
+    ListImportSessionsResponse:
+      type: object
+      description: >-
+        GET /api/v1/import-sessions — the caller's sessions, newest first, without rows.
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportSession'
+
     DataExport:
       type: object
       description: >-
@@ -1745,6 +2011,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GoalAllocation'
+        importSessions:
+          type: array
+          description: Import sessions in any state, without their rows.
+          items:
+            $ref: '#/components/schemas/ImportSession'
+        importRows:
+          type: array
+          description: The rows still held by sessions that have not ended; each names its session.
+          items:
+            $ref: '#/components/schemas/ImportRow'
 
     EraseAccountRequest:
       type: object

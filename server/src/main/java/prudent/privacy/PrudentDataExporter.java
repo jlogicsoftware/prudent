@@ -19,6 +19,9 @@ import prudent.goal.GoalAllocationEntity;
 import prudent.goal.GoalAllocationMapper;
 import prudent.goal.GoalEntity;
 import prudent.goal.GoalMapper;
+import prudent.imports.ImportMapper;
+import prudent.imports.ImportRowEntity;
+import prudent.imports.ImportSessionEntity;
 import prudent.plan.OccurrenceMapper;
 import prudent.plan.PlanClock;
 import prudent.plan.PlanEntity;
@@ -62,6 +65,7 @@ public class PrudentDataExporter {
   @Inject BudgetMapper budgets;
   @Inject GoalMapper goals;
   @Inject GoalAllocationMapper allocations;
+  @Inject ImportMapper imports;
   @Inject SettingsMapper settings;
   @Inject PlanClock planClock;
   @Inject Clock clock;
@@ -126,6 +130,12 @@ public class PrudentDataExporter {
     GoalEntity.listOwnedBy(userId, null).forEach(g -> export.addGoals(goals.toProto(g)));
     GoalAllocationEntity.history(userId, null)
         .forEach(a -> export.addGoalAllocations(allocations.toProto(a)));
+
+    // Sessions in every state, without rows; the rows still held are a list of their own, each
+    // naming its session (ADR-089).
+    ImportSessionEntity.listOwnedBy(userId, null)
+        .forEach(s -> export.addImportSessions(imports.toProto(s)));
+    ImportRowEntity.listOwnedBy(userId).forEach(r -> export.addImportRows(imports.toProto(r)));
 
     return export.build();
   }

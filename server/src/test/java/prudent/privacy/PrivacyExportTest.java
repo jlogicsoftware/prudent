@@ -67,6 +67,7 @@ class PrivacyExportTest {
     assertEquals("EUR", data.getSettings().getMainCurrency());
 
     assertEquals(1, data.getAccountsCount());
+    assertEquals(PrivacySeed.ACCOUNT_NUMBER, data.getAccounts(0).getAccountNumber());
     assertEquals(2, data.getCategoriesCount());
     assertEquals(1, data.getRecordsCount());
     assertEquals(1, data.getPlansCount());
@@ -75,6 +76,9 @@ class PrivacyExportTest {
     assertEquals(2, data.getCarryOverResetsCount());
     assertEquals(2, data.getGoalsCount());
     assertEquals(1, data.getGoalAllocationsCount());
+    // A session in any state is exported; its row only while the session still holds it (ADR-089).
+    assertEquals(2, data.getImportSessionsCount());
+    assertEquals(1, data.getImportRowsCount());
 
     // Figures survive the trip exactly: money is minor units, never a float.
     assertEquals(-12_34L, data.getRecords(0).getAmountMinor());

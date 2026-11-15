@@ -176,6 +176,12 @@ jobs:
         working-directory: prudent
         run: task verify:mail-templates
 
+      # No real statement may enter the repository (#41, #42). Narrow by design: it refuses values that
+      # cannot be synthetic, and says so in its own header.
+      - name: Import fixtures are synthetic
+        working-directory: prudent
+        run: task verify:import-fixtures
+
       # The deploy ends by probing the origin the web bundle calls, and nothing runs a deploy in
       # CI. This is what proves that probe can fail, so a bundle built for a host that never
       # serves keeps being caught by the deploy and not by a user (#151).

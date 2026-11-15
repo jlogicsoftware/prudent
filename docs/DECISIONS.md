@@ -13,6 +13,651 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-094 — The import's failures are a catalogue that runs through the real API and proves "nothing was written", every rule the importer can emit must have a case, and a commit that fails now says which rule and which rows
+
+**Date:** 2026-11-15. **Status:** accepted. jlogicsoftware/prudent#77, last task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- **The epic's safety claim is a test, not a sentence.** `ImportFailureCatalogue` (test sources, `prudent.imports`) is data: 180 statements the Erste import must
+  refuse as a whole and 41 it must accept as a file and flag row by row, each with the rule code, the bounded row numbers or the exact message it must produce. Every file is built in memory from one
+  synthetic base statement (`ImportTestSupport.Erste`: a summary row and five rows holding each description shape); none is a copy of a real export and none needs a fixture file or a pass
+  through `verify:import-fixtures`. The classes: empty and one-newline files; encoding (UTF-8, UTF-16 and UTF-32 with and without a BOM, Windows-1250, ISO 8859-2, NUL, a lone lead byte, an
+  overlong sequence); line endings and a missing or doubled final newline; a header added above, below or instead of the summary row; the summary row missing, repeated, moved or alone; columns
+  added, dropped, shifted or swapped, on every row or on transaction rows alone; delimiters (semicolon, tab, pipe), quote styles; the summary's dates, account (including `ß` and a dotless `ı`), currency; mixed
+  currency (a summary in another currency, card payments in euro or dollars, an amount with a currency suffix, a destination that does not hold PLN); dates in other formats, impossible days, out-of-range years;
+  amounts with separators, other decimals, signs, other digit sets, 12 digits; an amount column that has moved (a positive card or BLIK row, amount and balance swapped, card rows that disagree with their own text); sequence numbers; descriptions in new wordings, a card mask or currency that changed; counterparty accounts; oversized (5001 rows, 5 MiB + 1,
+  a field of 1100 characters); files cut mid-row, mid-quote and mid-letter; a PDF, PNG, zip, gzip, random bytes, JSON, XML, HTML, prose, another bank's CSV of the same shape; and every wrong destination (another number, no
+  number, inactive, another user's, unknown).
+- **Every case proves both halves.** `ImportFailureMatrixTest` uploads each through `POST /api/v1/import-sessions` with `erste-pl-csv` and asserts the status, that the message is exactly the contract's one shape (rule, rows,
+  "and k more"), that it holds only words of the fixed vocabulary, and that no value of the file, no `0000` and none of the synthetic marker words appears in the body, and that no log line the server wrote meanwhile (a JUL handler on the root logger) holds a free-text value, a number of the file (every date, account number, amount of four or more digits, compared after stripping everything but letters and digits, so an account number without its spaces is found) or any amount in its comma or dot spelling, whatever its size, after only UUIDs, timestamps and durations are removed; the check was proved by planting a `log.warn` of an account number and the amount of an `amount.zero` row in a scratch copy of the importer, which failed three matrix cases, and a self-test holds the same plants and the allowed shapes. It then compares a **snapshot of everything a refused import could touch, for both users** — every record
+  with its key, every account with its number, balances and net, every session and row — taken before and after, and finally uploads a good statement to show nothing was left poisoned. A flagged file is held to the
+  same standard, then previewed and committed: exactly the accepted rows reach the ledger and the account's net moves by exactly their sum.
+- **Exactly once.** The same statement imported twice, two tabs that previewed before either committed, a commit repeated after a lost answer, overlapping exports with different sequence numbers, identical rows in one file
+  (and again), and a statement of only flagged rows each leave the ledger with the effect of one import.
+- **The commit phase.** `ImportCommitFailureTest` changes the world between the preview and the commit and asserts the same four things — a rule and its rows, no text, an unchanged ledger, the session still open — and then that the retry after the fix writes the
+  statement once: a default or a row category deleted, archived or made the wrong direction; an account renumbered, unnumbered, deactivated, stripped of PLN, or deleted together with its records (ADR-081); an expired session; two tabs;
+  a discard and a commit in either order; a failure injected at the parse, at the preview and at each of the five rows of the commit; a ledger refusal that quotes its input; another user's session and ledger.
+- **A commit that failed used to explain nothing.** `LedgerImportCommitter` answered a refused row with `Row N cannot be written: <the writer's own sentence>`, and the client could only say "that could not be done in the import's current state".
+  Three rule codes replace it, in the contract's message shape so the client already knows how to read them: `commit.category_unavailable` (checked **before the first write**, naming up to ten rows and how many more: a category that is gone, archived or for the other
+  direction), `commit.account_unavailable` (the destination is gone, inactive or no longer holds the statement's currency, at the commit only; before it the 400 keeps its plain sentence) and `commit.row_refused` (the backstop for
+  any other ledger refusal, which no longer echoes the writer's sentence, since a writer can quote a value it was given and a row's values come from the statement). The client has a sentence for each in en, pl and uk, shows the rows a commit refusal names, and no longer
+  says "may not have been written" over a refusal that wrote nothing. Rule codes the client knows: 45 in all (the 40 of the catalogue, the amount-column rule and the four below).
+- **The amount column is checked without the balance column.** A swap of the amount and balance columns used to be accepted for an incoming own-account transfer (the balance became its amount) because only the sign of card and BLIK rows gave it away. `layout.amount_column` now refuses the **whole file** on either of two witnesses:
+  any card or BLIK row with a positive amount (a real export has none, so one is enough), or the amount column disagreeing with the amount written in the card description on **half or more of at least two card rows**. A lone disagreeing card row in an otherwise consistent file is not systematic and stays the per-row flag
+  `card.amount_mismatch`; so does a file with a single card row. The balance column is still never read (it does not chain, contract). Residual limit: a file with no card or BLIK row at all (own-account transfers only) cannot witness the swap, and is not refused. `amount.sign_unexpected` now remains for an outgoing own-account transfer only.
+- **Upload bounds are rule codes too.** An empty upload, a file over 5 MiB, more than 5000 rows and a destination account that is not the caller's used to answer plain sentences that the client could only meet with "check that the account is active and holds the currency", which is false advice for a long export. They are now `statement.empty_upload`, `statement.too_large`, `statement.too_many_rows` and `account.not_found` (status codes unchanged), with a client sentence each in en, pl and uk that says what to do (a shorter period, another file, choose the account again). The inactive and wrong-currency destinations keep their plain sentences.
+- **New rules cannot ship untested.** `ImportRuleCatalogueTest` reads every dotted lower-case string literal in `src/main/java/prudent/imports` (comments dropped, the way the client's `import_failure_test` does) and fails when a rule is emitted that no case in the catalogue names
+  and no test named in `coveredElsewhere` proves (eight rules owned by another stage: the duplicate code, the own-transfer hint, the identity hook, two identifier rules and the three commit rules); it fails the other way when a case names a rule nothing emits, when a named test method does not exist or its body does not mention its rule, and when
+  the matrix has shrunk below a floor. The client holds its own sentences to the same scan, and `ErsteFormatDriftTest` holds the rule codes written in the contract's validation list to the ones `ErsteStatementImporter` and `ErsteCsv` can emit, both ways.
+- **Format drift fails closed.** `ErsteFormatDriftTest` pins each committed fixture to its exact parsed rows (golden values typed from the synthetic fixtures, 1 + 2 + 8 rows, field by field) and derives from each fixture, programmatically, a column dropped or added at every position,
+  columns shifted either way, dates swapped, a header, no summary, a repeated summary, a changed currency, semicolons, another encoding, CRLF, a cut, a new wording of every description, a first row with each field emptied or broken. All 3 fixtures x all mutations are refused with a specific rule
+  or, where the file stays well-formed and a row loses its meaning, flagged on every row; a guard test shows each mutation changes the bytes.
+- **The account-number nit.** `AccountNumbers` upper-cased with `Locale.ROOT` before the shape check, so `ß` became `SS`, `ı` became `I` and `ſ` became `S`: two different typed strings were one stored number and passed. It now upper-cases `a` to `z` only; such a character stays what it is and the
+  shape check refuses it, for the account form and for the Erste summary row (`summary.account_invalid`), which share the one function.
+
+### Findings, stated rather than smoothed
+
+- The matrix found **no partial write, no leaked text, no 500 and no accepted file that should have been refused** in the importer, the workflow or the resource. Three checks first failed because my expectation or harness was wrong, not the code (a `DD-MM-YYYY` export date reads as a transaction, so
+  `layout.summary_missing`; every column shifted right puts the sequence number in the field that must be empty, so `row.trailing_field`; a follow-up upload to an account the case had emptied); no importer rule changed. The defects were the commit-phase ones above and the account number's case folding.
+- **The first version of this ADR left a swapped amount and balance column accepted for an incoming own-account transfer, as a "known limit".** The audit showed that was money-unsafe, and it is closed by `layout.amount_column` (above). The remaining unwitnessed case is a file made only of own-account transfers.
+- UTF-8 text that was decoded as Windows-1250 and saved again (mojibake) is valid UTF-8, so it is refused only per row: every row with a Polish letter in a description is flagged, a BLIK row in plain ASCII survives. A file with every field in quotes is accepted, as RFC 4180 and the contract's "standard CSV quoting" allow.
+  A semicolon file whose amounts are still quoted is reported as `csv.malformed` and not `layout.delimiter`, because the quote is found first; the sentence still tells the user to download the statement again. A statement of only flagged rows previews and commits as "nothing imported".
+- Another user's **account** named in an upload body is a 400 ("no such account for this user", the id arrived in a body); another user's **session** in a URL is a 404.
+
+### Verified, and not
+
+Server: the full `./mvnw test` (1256 pass: 231 matrix, which is 180 refusals, 41 flagged and 10 others, 15 commit-phase, 18 drift, 6 catalogue, the rest as before); `task verify:import-fixtures`, `task verify:reflection`, `task verify:controls`, `flutter gen-l10n`. Client, in a scratch copy without
+`custom_lint`/`riverpod_lint` (the repository's own `pub get` fails first on this machine): 511 pass and 2 fail, the two `prudent_l10n_test.dart` cases that fail identically on HEAD; the new ones are widget tests and sentence checks (every failure class at upload, at commit, at a row decision, on opening; a dropped connection; 5000 rows built lazily from a builder delegate, under 60 row widgets, before and
+after a long scroll). No proto or generated contract changed (only `docs/erste-csv-contract.md`), so `task generate` was not run. The plant proof of the log check ran in a scratch copy of the server.
+
+**Not covered, and not claimed:** a real second export (so overlap and whether the bank sequence number is stable are still only what the fingerprint assumes, ADR-091); a real change of the bank's format (a bank's next format is not in any list a test can hold, only the changes thought of here); amounts of 1000 or more in a real export;
+the wording of an outgoing own-account transfer; the bank's UI steps; a run on a device or with the native file picker; the client against the real server rather than a stand-in; native-speaker review of the pl and uk sentences; load (the 5000-row bound is tested, not its time on a phone); two real browsers racing one session (the race is
+driven from threads in `ImportConcurrencyTest`, not through two clients). The matrix is as good as the failures someone thought to write: the catalogue forces a case for every rule that exists, not a rule for every way a bank can change.
+
+---
+
+## ADR-093 — The client reviews an import in one flow of three pages on the framework's controls, turns every server refusal into a localized sentence from its rule code, and picks the file with `file_selector`
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#74, fourth task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- **Where it starts and how it moves.** The Accounts page has an "Import a statement" action in its bar (`ImportStatementScreen`), opened with
+  `showZenDetail` like every other page reached from Accounts (ADR-062, ADR-063), so it stacks inside the destination's own `Navigator` and the
+  sidebar stays. `ImportStatementScreen` is ONE page whose two steps are state, not routes: `ImportUploadStep` (account, file, upload) hands the session id up
+  and the page swaps in `ImportPreviewScreen` (review, and after the commit the result), which hands "back to import" up to swap the upload step in again.
+  It must not navigate between them: opened with `showZenDetail` on a host of 720 px or more the page is the *root route* of a `ZenDetailPane`, and a root
+  route that is replaced or popped closes the pane, so a `pushReplacement` made the pane vanish after "Check statement" and left an open session behind.
+  Leaving the page altogether (Back, the result's "Back to accounts", a pane's Close) pops that one route. All code is in `client/lib/imports/`, one widget per file.
+- **State.** `importReviewProvider(sessionId)` (a family `AsyncNotifier`) holds the session and its held rows and sends every decision to the server;
+  nothing is tallied on the client. A row decision takes the row and the three counts from `UpdateImportRowResponse`; a destination change takes the
+  session the server re-classified; defaults take the session without rows; the commit sends `confirmed_accepted_rows` equal to the **server's last
+  `accepted_rows`**, never a client count. A method that fails throws the server's error and leaves the state as it was. The provider has **no automatic
+  retry** (`retry: null`): Riverpod's default back-off would keep a 404 or a rule refusal spinning where it should explain.
+- **What confirm needs.** The button is enabled only when the session has a destination, every row that would be written has a category of its own or the
+  session's default for its sign, and the writable rows held equal the server's `accepted_rows`. When the counts disagree it says so and offers a reload
+  (the server would answer 409). Zero accepted rows is a valid confirmation ("Finish without importing", ADR-092).
+- **Three groups, one at a time.** To import (accepted), Duplicates (every duplicate, including those the user chose to include), Not readable (rejected),
+  chosen with a `ZenSegmentedControl`. A row is edited through `showAdaptivePresentation` (`ImportRowForm`: `ZenSelect` category, `ZenTextField` note up to
+  500 characters); only categories that can file the row's direction are offered (`selectableCategories(expense:)`, archived ones excluded) and only fields
+  that changed are sent. A duplicate carries a visible **Import anyway** `ZenSwitchRow` that says in words the row will be counted twice if it is the same
+  operation (ADR-091). A rejected row shows its row number and its reason and has **no control at all** (the server takes no decision on it). A row whose
+  `hint_code` is `transfer.own_account` carries a warning box that the other side must be a plain expense and never a Transfer (ADR-092).
+  The rows show the bank's own description and the amount (`formatMinorUnits`, never a `double`), because without them nobody can decide a category; that is
+  the only place statement text is shown, and it is the user's own data on their own screen.
+- **Failures are sentences, not server text.** `ImportFailure.from` classifies a refusal by the wire `code` of the `ZenError` (`invalid`, `conflict`,
+  `not_found`, `unavailable`, `network_error`) and, only when the **whole** message matches the one shape the importer produces
+  (`The statement was rejected [at row(s) n, n and k more] (rule.code).`), lifts out the rule code and the row numbers. Everything else in a message is
+  discarded, so nothing but a code and numbers can reach the screen or a log. `importRuleMessage` maps 37 rule codes (the contract's, the importer's, the
+  duplicate code and the own-transfer hint) to one sentence each in en, uk and pl: what is wrong and what to do. An unknown code gets "rejected (code x.y)" and
+  the generic advice. `import_failure_test.dart` reads every `*.java` in `server/.../prudent/imports` (comments dropped) for any string literal shaped like a rule code
+  (the server builds codes as an exception's argument, a failure's, a row's, a returned name and a constant, in several files, so no list of files or call patterns is
+  kept; `jakarta.`/`java.`/`prudent.` configuration keys are not codes) and fails when the server can emit a code the client has no sentence for, or the reverse.
+  There are 37 codes (counted from the list, no repeats; a test holds that); a planted literal in a new file is reported. A 409 or 404 after an action reloads the session and shows a generic localized sentence: the cause may be an expired session,
+  and the screen then shows the ended state (expired, discarded, gone) with a way back.
+- **The account number.** `AccountNew` and `AccountEdit` have the bank account number `ZenTextField` (ADR-090). `AccountEdit` fills it with the stored number and
+  sends what it holds, so leaving it alone keeps it and emptying it clears it. Both forms now `await` their save and, on a refusal, stay open with a localized
+  line (409 "another account has this number" and 400 "not an account number" only when the server's fixed message says so, since a 400 can also be a missing name or an
+  unknown currency; otherwise "not saved", which is also what a failure that is not a server answer says, and the spinner always ends); until now a refused save closed the form over an error nobody
+  saw. The upload page offers only active accounts and, for one without a number, shows a notice with a button that opens `AccountEdit`.
+- **Leaving.** Leaving an open import by the page's own Back, the system back or the browser back (`PopScope`) asks and then discards it (a session holds its rows
+  for 24 hours and only a few may be open). **A side pane's Close button and Escape, switching to another tab, and a second detail replacing the pane do NOT ask**:
+  `ZenDetailPane` calls its owner directly, `ZenDetailScope` is not exported and `ZenPageScaffold` gives no hook for Close, so the page cannot intercept them (a jZen gap to
+  report; not worked around, because `onBack` would turn Close into a Back arrow). The session is then simply left open, which is safe: it is listed under
+  "Unfinished imports" on the first page, each with Continue and Discard, as one left open by closing the app is, and it is the way out of "too many open imports".
+  A test closes the pane with an open session and continues it.
+- **Commit and destination.** After any failed commit other than a rule refusal (a lost answer may mean it went through) the session is read again, and the message
+  says it may not have been written and was reloaded; a repeat of a commit that did go through answers with the same result (ADR-092), so sending it again is safe. The
+  destination field says beforehand that choosing another account checks duplicates again and resets "Import anyway" choices (categories and notes are kept; the server
+  resets only the duplicate decisions). Dates are shown in the app's locale, as a record's are.
+- **No statement text in a log.** The transport's decode-failure message ends with the decoder's text, which for a JSON body quotes the part it choked on, i.e. statement
+  rows, and `LoadErrorView` logs the error it is given. Every import request goes through `unwrapImportResult`, which replaces that message by a fixed sentence and keeps
+  the type and code; a test shows the transport's message does quote the body and the import providers' errors do not.
+- **An empty preview.** The client previews a fresh session with an empty request: `{}` in JSON, zero bytes in Protobuf. Verified on the server
+  (`ImportSessionResourceTest.preview_withAnEmptyRequest_isAcceptedInBothModes`, both content types, 20 of 20 in the class pass); no change was needed.
+- **File picking: `file_selector ^1.1.0`** (flutter.dev, federated). Neither the client nor jZen had a picker. It is first party, its iOS and macOS implementations
+  ship Swift packages (checked in the pub cache: `file_selector_ios`, `file_selector_macos`), so the runners stay free of CocoaPods (ADR-083). The macOS runner needed
+  `com.apple.security.files.user-selected.read-only` in both entitlement files (the app is sandboxed). The picker is reached through `statementPickerProvider`, so tests
+  replace it. A file over 5 MiB is refused before it is read, an empty one after, with a localized sentence; a read failure logs only the exception's type, never its text.
+  The `pubspec.lock` stanzas for the new packages were taken from a resolution run in a scratch copy (the repository's own `pub get` fails here on the pre-existing SDK mismatch:
+  local Flutter 3.50, CI pins 3.44.2, which is not installed on this machine). The first attempt resolved under 3.50 and picked `file_selector_ios` 0.5.3+7 and `file_selector_macos`
+  0.9.5+2, which need Flutter 3.47 and Dart 3.13 and so cannot resolve under CI's 3.44.2. The lock therefore pins the newest releases whose own constraints admit 3.44
+  (read from their pubspecs): `file_selector_ios` 0.5.3+6 and `file_selector_macos` 0.9.5+1 (both ship `Package.swift`), with `file_selector_android` 0.5.2+11,
+  `_linux` 0.9.4+1, `_windows` 0.9.3+6, `_web` 0.9.5, `_platform_interface` 2.7.0 and `cross_file` 0.3.5+5; the lock's `sdks:` line is unchanged. This is an emulation, not a
+  resolution under 3.44.2: it has not been run under that SDK. The tracked generated plugin registrants for macOS, Linux and Windows were regenerated by `flutter pub get` in
+  that copy and carry only the `file_selector` entries (iOS and Android track none).
+- **No framework gap found.** Every control is one `zen_ui_widgets` has: `ZenPageScaffold`, `ZenSelect`, `ZenTextField`, `ZenButton`, `ZenSwitchRow`,
+  `ZenSegmentedControl`, `ZenListRow`, `ZenIconButton`, `ZenProgressIndicator`, `showAdaptivePresentation`, `showZenMessage`; the confirmations are `AlertDialog`s with
+  `ZenButton`s. `task verify:controls` passes.
+
+### What this supersedes, and why
+
+Nothing earlier. It completes what ADR-091 ("Requirements handed to #74") and ADR-092 ("no client screen sets a row's category, note or inclusion") left to the client, and
+it changes `AccountEdit`'s comment that the bank number "has no field yet" (ADR-090): it has one now.
+
+### Consequence
+
+Verified: `import_flow_test.dart` (widget tests over a mock HTTP server that follows the server's rules, including its per-account duplicate classification and a lost network), `import_failure_test.dart`, `import_repository_test.dart`
+(routes, bodies, both wire formats, decode failures), `account_forms_test.dart`; the flow is also driven through `showZenDetail` in a real `ZenDetailHost` at 1000 px
+(a pane) and 500 px (a push), upload to result; the client suite in a scratch copy without `custom_lint`/`riverpod_lint` (the repository's own
+`pub get` fails first on this machine): 479 pass and 2 fail, the two being `prudent_l10n_test.dart` cases that fail identically on HEAD; `task verify:controls`, `task verify:swiftpm`, `task zen:verify:widget-files`. Not verified: a build of the iOS or macOS runner
+with the new plugin (so that SwiftPM resolves `file_selector` is established from the packages' own `Package.swift`, not from a build), the native file picker on any
+device, an import against the real server and database end to end, and anything on Android, Windows or Linux. The Polish and Ukrainian strings were written without a native
+review. Open for #77 (the failure suite): a statement that arrives while the session limit is reached, a very long statement (5000 rows) in the list, a commit refused
+at the ledger (`Row N cannot be written`), and two tabs reviewing one session.
+
+---
+
+## ADR-092 — A statement import is committed by one locked transaction that writes ordinary records, answers a repeat with the same result, and invents no transfer leg
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#76, sixth task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- **`LedgerImportCommitter`** replaces the 503 default (`UnavailableImportCommitter` is deleted; the committer is not format specific).
+  `ImportWorkflow.commit` locks the session, then the destination account's row (`SELECT ... FOR UPDATE`, `AccountEntity.findOwnedForUpdate`)
+  **before** re-checking the destination, so what is checked is what is written to. The committer then refuses a session in which a
+  writable row has neither a category of its own nor the session's default for its direction (409, a count and no text), re-reads `RecordEntity.importedKeys` under the lock, counts a row whose key is held
+  as `alreadyImported`, and writes every other row through `RecordWriter.apply` (the same ownership, currency, category-kind and archived
+  checks as a typed record), copying `fingerprint`/`occurrence` onto `import_fingerprint`/`import_occurrence`. The lock order is always session,
+  then account, so two commits cannot deadlock. Records an import writes differ from typed ones **only by those two key columns**: nothing else
+  was needed, because a record's title is the row's description, its payee the counterparty, its note the user's.
+- **Atomic.** Nothing in the committer opens a transaction; a refused row (409 `Row N cannot be written: ...`, no statement text) or any
+  exception rolls back every record written for the session, and the session stays PREVIEWED with its rows. Tested by injecting a failure at
+  row 1, 2 and 3 of three (and by archiving the third row's category after it was chosen), and by a later commit succeeding.
+- **Idempotent.** The session keeps `committed_written` and `committed_already_imported` (migration V20261114120000, set exactly when
+  COMMITTED, paired, non-negative; on the wire `ImportSession.committed_written` / `committed_already_imported`). A commit of a COMMITTED
+  session with the same `confirmed_accepted_rows` answers with the stored result (200, nothing written); a different number is a 409; a
+  DISCARDED or EXPIRED session stays refused. Two sessions of one file (two tabs) write it once: the second reports `alreadyImported`. The
+  unique index stays as the backstop.
+- **Per-row decisions** (`POST /api/v1/import-sessions/{id}/rows/{rowNumber}`, `UpdateImportRowRequest`, columns `category_id`, `note`,
+  `include_duplicate` on `prudent_import_row`). The verb is POST on purpose, a deliberate exception: the call is a partial update, `PUT` in
+  this API means full replacement, and the repository has no `PATCH`. A category is needed because an ordinary record always has one and nothing in a statement
+  names one; it is validated when set (the caller's, active, right direction) and again at commit. A note is at most 500 characters like every other note
+  in the schema (400 beyond, and a CHECK). The answer is the light `UpdateImportRowResponse` (the changed row and the session's three counts),
+  not the whole session: the first design returned the session with every row, so deciding n rows moved O(n²) data (5000 rows took about a minute).
+  Only the one row is read, and the counts are recomputed only when the inclusion decision changed. `GET /api/v1/import-sessions/{id}` stays the full view. `include_duplicate` is the server side of
+  ADR-091's override: only a DUPLICATE row may carry it (400 otherwise; a rejected row takes no decision, 409), such a row is counted in
+  `accepted_rows` (what the commit confirms) and not in `duplicate_rows`, it is written under the **next free occurrence** of its fingerprint
+  (`max + 1` over what the account holds plus what this commit just wrote, under the account lock), and a new preview clears the decision
+  because the row's status is recomputed. Two sessions that each force the same row both write it: that is the user's explicit choice twice.
+  Note and category are personal data held only with the row and deleted with it; the data export carries them like the other row fields.
+- **Session defaults** (`POST /api/v1/import-sessions/{id}/defaults`, `SetImportDefaultsRequest`; `ImportSession.default_expense_category_id` /
+  `default_income_category_id`, columns on `prudent_import_session`). Choosing a category for every row of a long statement is not a usable
+  flow, so a session carries one default per direction; a row with no category of its own is written under the default for the sign of
+  its amount, and a row's own category wins. Each default is validated when set exactly like a row's category (the caller's, active, able to
+  file that direction; an empty string clears it) and again when written at commit (a category archived in between refuses the commit, 409, and
+  nothing is written). Defaults are plain columns with no foreign key, a CHECK keeps them null once the session is not PARSED or PREVIEWED, and
+  the workflow clears them when the session ends. The answer is the session without its rows.
+- **Zero accepted rows is a valid commit.** A statement imported in full has only duplicates, and refusing its commit forced a discard. A
+  PREVIEWED session may be committed with `confirmed_accepted_rows = 0`: it completes as COMMITTED with `committed_written = 0` and
+  `committed_already_imported = 0`, and a repeat answers the same. (A statement with no rows at all is still refused at parse; a statement of
+  only rejected rows can likewise be committed, which writes nothing and ends the session.)
+- **Own-account transfers: imported as a plain record of the destination only; no leg is created in the other account.** Double-counting
+  analysis (corrected: an earlier version of this entry claimed the approach "never double counts", which holds only if the other side is
+  recorded as a plain expense): (a) creating a Prudent transfer would write an outgoing leg into an account whose statement the user has not imported. That
+  leg could not carry a key (the other statement's wording of the outgoing row is unseen, so its fingerprint cannot be computed), so the day
+  the other account's outgoing rows become importable, or the user types the transfer by hand, the money leaves that account twice. It
+  would also change a second account the user did not choose. (b) A plain record gives the destination the right balance and never doubles
+  anything; the cost is that the source account's balance falls only when its own outflow is recorded, and that analytics counts the
+  incoming amount as income unless the user files it under a category that says otherwise. Today an outgoing own transfer is rejected by the
+  parser (`amount.sign_unexpected`), so nothing can be imported twice; the user records the outflow by hand. Pairing is future work that
+  needs the outgoing wording (an open question of `docs/erste-csv-contract.md`).
+  **The user must record the other side as a plain expense in the source account, never as a Prudent Transfer:** the Transfer feature creates both
+  legs, so using it for the same money would credit the destination a second time. Analytics counts the imported incoming amount as income of the
+  destination (a plain expense on the source side is counted as spending), so both show unless the user files them under categories the
+  analytics leaves out. To let a client warn, the importer puts a stable code on the row, `ImportRow.hint_code = transfer.own_account`
+  (`ParsedRow.HINT_OWN_ACCOUNT_TRANSFER`, column `hint_code`, a rule-shaped code, never on a rejected row), set at parse. Tested: the incoming row writes one record, the other
+  account has none and its balance is unchanged; an outgoing row stays rejected.
+- **Titles are the bank's raw description.** A record's title is the statement row's description (its payee the counterparty), so it is noisy:
+  a card mask and the amount appear in it. That is a #74 user-experience point (shorten or let the user edit before commit), not changed here.
+- **Privacy.** The statement is still read once and dropped. After a commit no import row remains, the identity token is cleared, the response
+  and every error carry counts and rule codes only (asserted on the raw body), and the key columns were already covered by ADR-091's log filter.
+  The policy changed (`docs/privacy-policy.md`): the staging description now lists the category and note a user gives a row and the session's
+  default categories, says they are held no longer than the session's 24 hours, and lists the committed counts on the session record. An earlier
+  version of this entry said the policy was unchanged, which was wrong.
+
+### Limitations
+
+- Not run against a deployed service; no client screen sets a row's category, note or inclusion (jlogicsoftware/prudent#74), so until
+  then only the API can commit an import.
+- Every written row still needs a category, but a session default covers it; there is no automatic guess from the statement.
+- Rows are written one at a time (up to 5000), inside one transaction.
+
+### Consequence
+
+Verified: `ImportCommitTest` (tests: records written, keys, the missing-category refusal, failure at each of three rows, the HTTP 500,
+repeat commit, discarded session, two sessions of one file, a race of six sessions of one file and of one session committed twice from real
+threads, own transfers, duplicate overrides, privacy), `ImportCommitSchemaTest`, and the existing import suites adapted to substitute
+`LedgerImportCommitter`; the duplicate-detection suite (ADR-091) now runs through the real committer and defaults, not a hand-written double.
+The committer still takes the account's row lock although the workflow does too: the `ImportCommitter` contract asks every implementation to
+serialise on the account, and the second `SELECT ... FOR UPDATE` in one transaction is free. A one-off local run over the real export is recorded in the task report as counts only.
+
+---
+
+## ADR-091 — A statement row is recognised by a versioned fingerprint plus an occurrence number, kept on the ledger record under a unique index; the bank's sequence number is not an identifier
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#75, fifth task of the epic jlogicsoftware/prudent#41 (done before #76 and #74, because the preview shows duplicates and the commit must store what detection needs).
+
+### Decision
+
+- **The key of a row is `(fingerprint, occurrence)`** (`RowKey`, computed by the pure `RowFingerprints`). The fingerprint is
+  `v1:` and the SHA-256 (64 lower-case hex) of: a scheme tag, the destination account's id, the format id, the statement's
+  currency, the transaction date, the signed amount in minor units, and the description, counterparty and counterparty account
+  after `normalise` (Unicode NFC, any white space run one space, trimmed, upper-cased in the root locale, null is empty). Each
+  field is written with its length, so shifting text between fields changes the input.
+- **Deliberately excluded:** the bank's sequence number and the row's position (the contract says it looks like a rank from the
+  newest row of one export, so a later export that adds newer rows can renumber older ones), the booking date (not monotonic, can
+  be later than the export date, whether it can still change is unknown), and the balance (does not chain; not even read). The BLIK
+  `ref:` number stays inside the description and so is part of the fingerprint, which is why two BLIK payments for one amount to one
+  merchant on one day differ even before the occurrence number. `normalise` finishes with a second NFC pass so it is idempotent for code points that recompose when upper-cased. Punctuation, letters and word order are **not** normalised away:
+  each such fold would also merge two genuinely different operations.
+- **The sequence number is a hint only, as ADR-088/090 said.** The switch is `StatementImporter.stableExternalId()`
+  (default false; Erste's stays false). A format returning true is keyed by `RowFingerprints.stableIdKey` (`e1:` prefix, occurrence
+  1, account-scoped) and its rows must then carry `externalId`. Flipping it needs a second export of the same account whose overlap
+  shows the same operation keeping the same identifier, and an ADR that says so. Records imported earlier keep their `v1` key and
+  are not re-keyed, so the first overlapping import after a flip would offer them again; the ADR that flips it must say how that is
+  handled. `TestStableIdImporter` proves the switch works; nothing proves any real format deserves it.
+- **Occurrence numbers keep genuine repeats.** The n-th row of one statement with a given fingerprint gets occurrence n, over all
+  its non-rejected rows in statement order (rows another stage already marked keep their slot). Rows with one fingerprint are
+  interchangeable, so only how many there are matters, not which is called 1. A row is a duplicate exactly when a ledger record of
+  the destination account already holds its `(fingerprint, occurrence)`. Hard cases, all tested: the same file twice (everything is a
+  duplicate, nothing is written); a later export with newer rows, other sequence numbers, other positions and a moved booking date
+  (exactly the new rows); an overlap that cuts through identical rows (the older file ends with 2 of 3, the newer has 3: one new);
+  the same file in another row order (same keys); an amount, date or description that differs (another row).
+- **Digest, and what that does not buy.** A key goes into a ledger column nothing displays, so it is a digest rather than statement
+  text again. It is **not secret**: the input is a date, an amount and a short string, so anyone who can read the table can test
+  guesses (the account id only stops one table of precomputed digests serving every account). It is stored as personal data on rows
+  that already carry `user_id` (RLS, the eraser, the account delete cover it), is never on the wire (`ImportRow` gains only
+  `duplicate_code`, field 12, a code such as `duplicate.already_imported`), is kept out of the logs (see Limitations), and is not in the data export: it is derived
+  from fields the export already carries, and it is not something the person can read.
+- **Persistence** (V20261114110000): `prudent_import_row.fingerprint`, `occurrence`, `duplicate_code` (CHECKs: shape, paired,
+  occurrence positive, no key on a rejected row, a code only on a DUPLICATE row) and `prudent_record.import_fingerprint`,
+  `import_occurrence` (CHECKs: shape, paired, positive). **`prudent_record_import_key_unique` is UNIQUE** over
+  `(account_id, import_fingerprint, import_occurrence)` where the fingerprint is not null, not a plain index. The preview is advice;
+  two commits of overlapping sessions can both pass it (two tabs, a retry after a timeout), and only a unique index makes the second
+  writer fail rather than double the ledger; it is the backstop, and #76's idempotence comes from the lock and re-read below. Deleting an imported record frees its key, so
+  importing the statement again brings that row back; a record the user typed by hand carries no key and is never matched.
+- **`ImportDuplicateStage`** (an `ImportPreviewStage`) clears every key, stops if the session has no destination account, keys every
+  non-rejected row, then marks each still-ACCEPTED row whose key a record of `session.accountId` holds as `DUPLICATE` with code
+  `duplicate.already_imported`. The workflow's existing reset (DUPLICATE to ACCEPTED before stages run) now also clears the code, so a
+  repeated preview for another account starts clean, and the key is recomputed because the account is part of the digest.
+  `RecordEntity.importedKeys` is one chunked query over the fingerprints the statement carries.
+
+### What #76 must do with it
+
+Copy `row.fingerprint` and `row.occurrence` of each accepted row onto the `RecordEntity` it writes (`importFingerprint`,
+`importOccurrence`) and refuse a row whose key is null (a PREVIEWED session always has them when it has a destination, which commit
+requires). **Idempotence is #76's job and a unique-index violation is not the way to say "already imported"**: the workflow runs
+the committer inside one `@Transactional`, a failed `INSERT` or flush aborts the Postgres transaction, and it cannot be caught and
+continued. #76 must instead **lock the destination account's row** (`SELECT ... FOR UPDATE`; chosen over a pg advisory lock because it
+needs no invented lock key, is scoped to exactly the resource being written, is released with the workflow's transaction and is
+covered by the same row-level security as the data), then re-run `RecordEntity.importedKeys` for the accepted rows' fingerprints and
+write only those whose key is still absent. `INSERT ... ON CONFLICT DO NOTHING` on the unique index is the acceptable alternative; either
+way the index stays as the backstop that makes a bug a refused write, not a doubled ledger. **The seam now says so**: `ImportCommitter.commit`
+returns a `CommitResult(written, alreadyImported)`, the two must sum to the accepted rows it was given (the workflow rolls back
+otherwise), and `UnavailableImportCommitter` still refuses. The test committer in `ImportDuplicateDetectionTest` does exactly the lock,
+re-read and write, and the test of two sessions of one file previewed before either commits proves the second writes nothing. What
+that proves is the algorithm and the seam, sequentially; it is not a concurrent race, and the real committer is #76's. The committed
+rows' keys live on the records, not on the import rows, which are deleted.
+
+### Requirements handed to #74 (the review screen)
+
+**A row marked DUPLICATE can be a genuinely new operation, and the user must be able to say so.** Nothing in this ADR's server work
+provides that; #74 must give the user a per-row way to include a DUPLICATE-marked row in the commit, and the server must then accept
+it. The seam for it is not built, deliberately: it needs an `include_duplicate` decision on the row (proto, entity, migration),
+the committer writing that row with the **next free occurrence** of its fingerprint in the account (`max(import_occurrence) + 1` over
+the account's records with that fingerprint, computed under the same account lock, because the unique index forbids a second record with
+the key the row would otherwise carry), and tests for it, none of which could be half-built here. Until #74 ships it, a wrongly marked
+row cannot be imported from a statement; it can be entered by hand.
+
+### Limitations, stated rather than implied
+
+- **LOSS mode: a new row can be silently marked DUPLICATE.** The booking date is not part of the key and a card row carries no unique
+  reference. Two exports that do not overlap by transaction date, for example adjacent exports cut by booking date, can therefore hold a
+  genuinely new row with the same transaction date, signed amount and text as an already imported row that was booked on another day; it
+  gets the same fingerprint and, being the only such row in its file, occurrence 1, so it is marked DUPLICATE and is not offered.
+  Nothing tells the user. `ImportDuplicateDetectionTest` pins this behaviour. Whether the bank's range is by transaction date or by
+  booking date is **not known**; the contract's open questions now ask for a second export to settle it. This is an accepted risk of
+  fingerprinting without a bank identifier, and the remedy is the per-row override above.
+- **A row pending in one export and booked in the next** is unknown: if its description or date changes it is a different
+  fingerprint and is imported again; if only its booking date changes it is the same row. The contract has no example either way.
+- **A description the bank rewrites between exports** has the same effect. The only remedy is deleting the extra record.
+- **Overlap is judged by counts.** If an export drops one of three identical rows (a pending one disappearing) and the record is
+  already in the ledger, nothing notices. Detection never deletes.
+- **A record the user entered by hand for the same bank transaction is not a duplicate** of the statement row.
+- **One account is checked, not the ledger.** The same statement imported into another account of the user (possible only for a format
+  whose identity check allows it) is not a duplicate there, by design: the account is part of the key.
+- **The digest scopes to the account's id, not its stored number.** The number can be cleared, changed or moved to another account,
+  and a key that followed it would change meaning under records already written. The id is permanent, and the key only has to answer
+  "is this row already in this account's records", a question that has no meaning outside that account. The consequence: clearing the
+  number on account A and setting it on a new account A2 makes a re-import into A2 offer every row again, because A2 holds none.
+- **Editing and moving an imported record.** Editing its date, amount, text, category or note keeps the key on purpose: the key names
+  the statement row the record came from, not the record's current content, so correcting a typo does not make the next overlapping
+  import offer the row again. **Moving the record to another account clears the key** (`RecordWriter`), because the key means "this
+  row is in this account": left in place it would keep the old account's slot occupied for a record no longer there, and a second such
+  move could collide on the unique index. Tested in `RecordImportKeyTest`. After a move, re-importing offers the row into the old account
+  again, which is correct.
+- **The key is kept out of the server's logs by a filter.** Postgres puts the offending values in a unique-violation message, and
+  Hibernate (`org.hibernate.orm.jdbc.error`) and Narayana (`ARJUNA012125`, with the cause chain) both log it; a first test run showed
+  the digest in those lines. `StatementKeyLogFilter` (a Quarkus `@LoggingFilter`, wired by `quarkus.log.console.filter`) drops exactly
+  the records whose message, parameters or causes name the `import_fingerprint` column, rather than silencing a logger, so other
+  database and transaction warnings stay. The failure still reaches the caller, and `UnhandledExceptionMapper` logs one line without
+  the message. `ImportKeyLoggingTest` proves the violation is still refused, that the filter drops each shape the key arrives in and
+  keeps unrelated records, and that the config names it; it does **not** run a log line through the live console handler, so that last
+  hop is Quarkus's contract, not something proven here. A log shipped by any handler other than the console (none is configured)
+  would need the same filter property.
+- **The stable-identifier path refuses a file that cannot be keyed.** For a format that declares `stableExternalId()`, a non-rejected row
+  with no identifier is the rule `identifier.missing` and two with one identifier are `identifier.duplicate` (400, row number, no text;
+  `ParsedStatements.validate`), because both rows would otherwise take occurrence 1 and collide at commit.
+- **Not run against a second real export**; the scheme was checked on one real export, counts only (below), and on synthetic overlaps.
+
+### Limitations, stated rather than implied
+
+- **A row pending in one export and booked in the next** is unknown: if its description or date changes it is a different
+  fingerprint and is imported again; if only its booking date changes it is the same row. The contract has no example either way.
+- **A description the bank rewrites between exports** has the same effect. The only remedy is deleting the extra record.
+- **Overlap is judged by counts.** If an export drops one of three identical rows (a pending one disappearing) and the record is
+  already in the ledger, nothing notices. Detection never deletes.
+- **A record the user entered by hand for the same bank transaction is not a duplicate** of the statement row.
+- **One account is checked, not the ledger.** The same statement imported into another account of the user (possible only for a format
+  whose identity check allows it) is not a duplicate there, by design: the account is part of the key.
+- **Not run against a second real export**; the scheme was checked on one real export, counts only (below), and on synthetic overlaps.
+
+### What this supersedes, and why
+
+Nothing earlier. It uses ADR-089's `ImportPreviewStage` and `RowStatus.DUPLICATE` as designed and ADR-088/090's decision to treat the
+sequence number as a hint. `docs/erste-csv-contract.md` found no mistake; one open question was added to it (whether the bank's range is by transaction or booking date).
+
+### Consequence
+
+Verified: `RowFingerprintsTest` (scheme properties, normalisation, boundaries, occurrences, the cut-through-identical-rows overlap),
+`ImportDuplicateDetectionTest` (the same statement twice, repeats not collapsed, overlap with other sequence numbers and positions, the
+cut group, changed fields, a deleted record, a hand-typed record, no account, wire without keys, rejected rows, a repeated preview for
+another account and back, the stable-identifier switch) with a test-only committer that copies the key, and `ImportFingerprintSchemaTest`
+(the unique index and every CHECK by name). Run once, locally, counts only, over one real export: 39 rows, 39 distinct fingerprints
+(so no identical-looking rows in it, and the repeated-row path is proven on synthetic rows only), a second import yields 0 new rows, and
+for every cut of the file into an older part and a whole one exactly the rows outside the older part are new. Not verified: any
+deployed run, a second real export, and concurrent commits hitting the unique index (#76).
+
+---
+
+## ADR-090 — The Erste importer validates the whole file against the contract before returning a row, identifies the account by a stored number and refuses an account without one
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#73, third task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- **`ErsteStatementImporter`** (`prudent.imports`, an `@ApplicationScoped` bean returning `ImportFormatIds.ERSTE_PL_CSV`) reads one
+  export per `docs/erste-csv-contract.md`, with `ErsteCsv` for the byte and delimiter layer. Bytes are decoded strictly as UTF-8;
+  a BOM (`encoding.bom`, UTF-8 or UTF-16), a NUL byte (`encoding.nul_byte`), invalid UTF-8 (`encoding.not_utf8`), any CR
+  (`layout.line_ending`, so CRLF) and a missing final LF (`layout.no_final_newline`) are refused, not repaired. Comma is the only
+  delimiter (`layout.delimiter` when row 1 is one field containing `;` or a tab), quoting is RFC 4180 on one line
+  (`csv.malformed`), a header row is `layout.header_row` and a first row that is a transaction is `layout.summary_missing`. Every
+  row has nine fields with an empty ninth (`row.field_count`, `row.trailing_field`).
+- **The summary row** needs an ISO export date (`summary.export_date_invalid`), a `DD-MM-YYYY` period start
+  (`summary.period_start_invalid`), an account that starts with `'` and has a number's shape (`summary.account_invalid`) and the currency `PLN` (`currency.unsupported`: one currency per statement, taken only from here).
+  The holder, fields 6 to 8, the balance column and the period start are never read or shape-checked: the contract says they do
+  not chain or are not understood, personal data has no use here, and no row is checked against the period.
+- **Whole-file rules, found before any row is returned**: `date.invalid` (a real `DD-MM-YYYY` day),
+  `date.booking_before_transaction`, `date.out_of_range` (before 2000-01-01 or after today plus one year, today read from an injectable `Clock`, in UTC; rows only),
+  `amount.invalid` (`-?`, 1 to 11 digits with no separator and no leading zero except a single `0`, a comma, exactly two decimals;
+  Long arithmetic, no floating point), `amount.zero`, `sequence.invalid`, `sequence.duplicate`, `card.foreign_currency` (a card payment whose embedded currency is not the file's) and `statement.empty`. A
+  failure in the layout or summary is thrown at once; row failures are collected over the whole file and thrown as the rule of the
+  first failing row, naming up to 10 rows that broke it and how many did in all. **Row numbers count transaction rows**, the
+  summary row is not row 1, as `ParsedRow.rowNumber` does. `ImportRejectedException` gained a second constructor, `rowNumbers()` and
+  `totalRows()` for this; the single-row message is unchanged and nothing else in ADR-089 moved.
+- **A row with no known meaning is returned rejected, not dropped and not a whole-file failure** (the contract's per-row clause):
+  `description.unknown_shape` (including a card payment with a counterparty), `card.amount_mismatch` (embedded amount versus the
+  column), `amount.sign_unexpected` (a card or BLIK entry that is positive, an own-account transfer that is negative: the wording of an
+  outgoing one is unknown), `counterparty_account.invalid` (two digits then six groups of four) and `transfer.same_account`. A
+  rejected row carries no text. The three shapes are card payment, BLIK purchase and own-account transfer; every other operation type
+  lands in `description.unknown_shape`.
+- **An own-account transfer is a row, not a pair, and carries no `kind` column.** It is recognised by its description,
+  `ErsteStatementImporter.OWN_TRANSFER_DESCRIPTION`, kept verbatim and tested with `isOwnAccountTransfer`; its `counterpartyAccount` is
+  the user's other account in `AccountNumbers`' normal form and its `counterparty` is empty, because that field held the holder's own
+  name and address, which nothing here needs. #76 can find the other leg with `AccountEntity.findOwnedByNumber` and decide whether
+  to book a transfer; #75 sees an ordinary positive row. Adding a column and a wire field for a kind that is one string today
+  was not needed to finish #73, and is open to #75/#76 if they want it.
+- **The bank's sequence number is `externalId`, as a hint only.** The contract does not know whether it survives a second export that
+  adds newer rows. #75 must not use it as a duplicate key unless an overlapping export proves it stable. The BLIK reference
+  (`ref:` and 11 digits) stays inside the description for #75 to consider.
+- **Account identity: `Account.account_number`** (proto field 12 and the create and update requests, `prudent_account.account_number`,
+  V20261114100000). It is optional and `AccountNumbers.normalize` fixes one form: whitespace removed, upper-cased, a leading `PL`
+  dropped from a 26-digit number, then 10 to 34 letters and digits (a shape, not an IBAN checksum, because the fixtures use check
+  digits `00`). Blank stores none; a malformed number is 400 and one another of the user's accounts already holds is 409 (and a unique
+  index per user backs it up); a PUT is a full replacement, so a form that does not edit it must resend it, which `AccountEdit` now
+  does. It is personal data on a row that already carries `user_id`, so the export (it rides on `Account`) and the eraser (it goes
+  with the account) cover it and `PrivacyExportTest` checks it. Neither the number nor the digest is ever in an error or a log.
+- **`checkDestination`** compares `ParsedStatement.identityOf(stored number)` with the statement's token, and fails closed: an account
+  with no number is `account.number_missing` (add the number first), a different one is `account.identity_mismatch`, a statement
+  without a token is `account.identity_unverifiable`. The workflow's calls (parse, preview, repeated preview, commit) are unchanged.
+
+- **Amendments to `docs/erste-csv-contract.md` made with this review** (the facts it describes are unchanged): (1) amounts of 1000
+  or more are accepted when digit-only; `amount.unsupported_magnitude` and `balance.invalid` are gone, a separator is
+  `amount.invalid`, and an open question asks for a private export with such an amount; (2) `order.not_newest_first` is gone, and
+  the row-order line says a file is not rejected for its order; (3) the validation list now names every rule the code applies, and
+  the foreign-currency card payment is stated as a whole-file rejection (the contract had said both "flag" and "reject"); (4)
+  `date.out_of_range` and the leading-zero rule are added. Each kept uncontracted rule, in one line: `layout.no_final_newline`
+  kept (a truncated file would silently lose its tail), `layout.summary_missing` kept (without it a transaction row would be read as
+  the summary), `row.field_count` on the summary row kept (the contract's "any row"), `csv.malformed` kept (a line that cannot be
+  split cannot be read), `card.foreign_currency` kept as whole-file (the amount column's currency is not observed), `amount.sign_unexpected`
+  and `transfer.same_account` kept per row (an unobserved sign, or a transfer from an account to itself, is not safe to book).
+  Dropped as speculative: `summary.holder_missing`, `summary.field_shape`, `balance.invalid`, `amount.unsupported_magnitude`,
+  `order.not_newest_first`.
+- **One normal form, one place.** `AccountNumbers` is the only definition: white space is Unicode white space (`(?U)\s`, so a
+  no-break U+00A0 or narrow U+202F space pasted from a bank page is removed), upper-casing uses `Locale.ROOT`, and
+  `ParsedStatement.identityOf` delegates to `AccountNumbers.identityOf` instead of normalising a second way (the `imports` package
+  already depends on `account`, so the direction is unchanged). A blank number is one that is only white space of any kind.
+- **Unique-number clashes are a 409 even under a race.** The resource flushes the number inside the request and maps a SQLSTATE
+  23505 to the same 409 as the pre-check; only the mapping is tested (`isUniqueViolation`), the race itself is not reproduced. An
+  archived account keeps its number, and the number stays unavailable to the user's other accounts until it is cleared or changed.
+- **Known hazard: PUT is a full replacement.** An older client build, or a client holding a stale cached account list, that PUTs an
+  account without `account_number` deletes the stored number, and the next import then fails closed with `account.number_missing`.
+  `AccountEdit` resends it (tested in `account_forms_test.dart`); nothing on the server can tell "absent" from "cleared".
+- **Privacy:** `docs/privacy-policy.md` lists the number (plaintext, same user scope, in the export, deleted with the account and
+  by erasure).
+
+### What this supersedes, and why
+
+ADR-089's statement that `Account` has no number field and that only a test importer implements the hook. Nothing else is
+replaced. The decisions that follow the contract's `Open questions` are unchanged.
+
+### Consequence
+
+Verified: `ErsteStatementImporterTest` (every rule above at least once, the three fixtures, destination checks, reporting),
+`ErsteImportSessionTest` (parse through `POST /api/v1/import-sessions` with `erste-pl-csv`, a wrong or number-less destination at
+parse and at preview, a number removed after parse, a rejected statement writing no session and no row), `AccountNumberTest`
+(normalisation, resource and schema), `PrivacyExportTest`, the Dart wire round trip, and the importer run once, locally and
+reading counts only, over one real export (it parsed with no row flagged). Not verified: any deployed run; the broad malformed,
+drift and mixed-currency suite (#77); amounts written with separators, CRLF and every operation type the contract lists
+as unseen, which are refused, not handled.
+Open: **how a real amount of 1000 or more is written** (digit-only is read, a separator is `amount.invalid`; a private export with
+such an amount must be checked); **nothing in the client sets an account number**, so no import can run until the
+account form has a field (the one-line carry-through in `AccountEdit` only stops an edit from deleting a stored number); #75 decides
+duplicates from the fields above.
+
+---
+
+## ADR-089 — Statement imports are sessions with three enforced phases behind an importer boundary; only normalised rows are kept, never the uploaded file
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#72, second task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- **The importer boundary.** `prudent.imports.StatementImporter` is one bank format: `formatId()` and a pure
+  `parse(bytes, ImportContext)` returning a `ParsedStatement` (one currency, normalised `ParsedRow`s). Importers are
+  `@ApplicationScoped` beans and `ImportFormats` indexes them by id; two importers claiming one id, or an id that is
+  not a plain identifier, fail the boot. An unknown id is a 400 `ZenError` that lists the supported ids and does
+  not echo the request's. **The Erste importer does not exist yet** (jlogicsoftware/prudent#73): `ImportFormatIds.ERSTE_PL_CSV` is its registration seam,
+  and until a bean returns that id the format is refused like any unknown one. An importer rejects a whole statement
+  with `ImportRejectedException`, whose message is built from a rule code (`date.invalid`) and a row number and nothing
+  else, so no statement text reaches an error body or a log. A variant outside a format's contract is rejected, not
+  adapted (ADR-088); the workflow's own checks (`ParsedStatements`) only add to an importer's, never relax them, so
+  a format cannot weaken another's validation by sharing the workflow.
+- **Three phases, three requests, enforced by the server** (`ImportWorkflow`, over `ImportState`):
+  `PARSED -> PREVIEWED -> COMMITTED`, with `DISCARDED` and `EXPIRED` reachable from either open state, all three
+  ends terminal, and one edge onto itself, `PREVIEWED -> PREVIEWED` (below). A session exists only after a parse that succeeded (importer first, writes after, one transaction), so a
+  rejected statement, an unknown format or an importer failure writes no session, no row and no ledger record.
+  `POST /api/v1/import-sessions` parses; `.../{id}/preview` needs PARSED or PREVIEWED, validates the destination account, runs every
+  `ImportPreviewStage` bean and fixes the account; `.../{id}/commit` needs PREVIEWED, a destination account, and a body repeating how many
+  rows were accepted, refused (409) when that differs, so a commit confirms what was reviewed. Every phase change locks
+  the session row, and another user's session is a 404. A read takes the same lock, so it never sees a PREVIEWED
+  session without its rows while a commit is in flight, and expires an overdue session itself.
+- **A preview can be repeated.** Bytes are never kept, so a user who sees the preview and then chooses a different
+  destination account would otherwise have to upload again. `PREVIEWED -> PREVIEWED` re-validates the destination and
+  re-runs the stages; the workflow first sets every `DUPLICATE` row back to `ACCEPTED`, so a stage's result never
+  carries over from a preview for another account.
+- **The destination account is validated wherever it is set or replaced, and again at commit.** It must be the caller's,
+  active (stricter than `RecordWriter`, which does not look at `is_active`: staging money into an account kept only for
+  its history is refused), and hold the session's currency (`AccountEntity.holds`, the rule `RecordWriter`,
+  `TransferResource` and `CorrectionResource` share); a failure is a 400 when the account came in a request and a 409
+  at commit. **The statement's own account is checked by a hook, not at parse.** `ParsedStatement` still carries no
+  account number, but it carries an opaque identity token (`ParsedStatement.identityOf`: whitespace removed, upper-cased,
+  SHA-256, 64 hex characters; `null` for a format with no identity). The session keeps it (`statement_identity`), and
+  `StatementImporter.checkDestination(token, account)` runs on every assignment (parse, preview, repeated preview) and at
+  commit, rejecting with a rule code (`account.identity_mismatch`) that never echoes statement text. Without the hook, a
+  statement parsed into account A could be previewed into B and committed unchecked, because the importer only sees the
+  statement at parse. **What the hook can and cannot do today:** `Account` has no account-number field, so the default
+  implementation has nothing to compare with; it accepts a statement with no identity and rejects one that has an
+  identity with `account.identity_unverifiable` (fail closed) rather than pass it. jlogicsoftware/prudent#73 adds the
+  field and the Erste implementation; until then only a test importer implements it, and the suite uses the account's name
+  as its stand-in for a number. The token is a digest, not encryption (an unsalted digest of a short structured number can
+  be guessed), so it is personal data: kept only while the session is open, cleared when it ends, never sent over the wire,
+  never logged, and not part of the data export.
+- **Bounds.** A statement is at most 5 MiB, `prudent.import.max-rows` transaction rows (default 5000) and, per text
+  field, 1024 characters; exceeding either is a 400 naming the limit or a rule code and row number, never content. A user
+  has at most `prudent.import.max-open-sessions` (default 10) open sessions that have not yet run out of time; one more is
+  a 409 (the check precedes the parse, so requests racing each other can overshoot by the number in flight). The list
+  route returns the newest `limit` sessions (default 50, at most 100; the data export is the unbounded view).
+- **Storage and privacy: the statement is read once and dropped.** Two tables, `prudent_import_session` and
+  `prudent_import_row` (V20261114090000, RLS enabled and `zen_runtime` policies added in the same change), have no
+  binary column and nothing a workflow method is handed the bytes for. A row holds the importer's normalised fields (dates,
+  a signed minor-unit amount, description, counterparty, counterparty account, the bank's entry id, a status
+  `ACCEPTED`/`DUPLICATE`/`REJECTED` and, for rejected rows only, a rule code). **Personal data lives only in rows, and rows live only while the
+  session is PARSED or PREVIEWED:** committing, discarding and expiring a session delete its rows in the same transaction
+  and keep the session row with its three counts (and, for the rows, the identity token is cleared). Holder name and the statement's own account number are compared by
+  the importer and never part of `ParsedStatement`. `account_id` is a plain column with no foreign key, so an account delete
+  (ADR-081) is not blocked by staging data; commit re-checks it.
+- **Retention.** A session expires `prudent.import.session-ttl` after creation (default 24 hours). A read of an overdue session
+  expires it, preview and commit refuse it (409), and `ImportSessionExpiryJob` (a `ZenJob`, interval one hour, run when the
+  external scheduler triggers `/api/v1/jobs/trigger`) calls `ImportWorkflow.expireDue()`. So the bound on how long rows
+  survive is the time-to-live plus however late the sweep runs (an hour with the scheduler as configured), and a read ends an
+  overdue session at once; the privacy policy says this and not "24 hours at the latest". The short session record (state,
+  counts, format, account id, timestamps) stays until the person's data is erased. Both tables carry `user_id`, so `PrudentDataEraser` deletes them (rows first, no cascade, ADR-010), the
+  data export carries `import_sessions` and `import_rows` (`DataExport` fields 14 and 15, the rows naming their session), and
+  `PrivacyCoverageTest` covers both tables.
+- **The extension points the next tasks fill, without reshaping this one.** #73: an `StatementImporter` bean for
+  `erste-pl-csv`. #75: an `ImportPreviewStage` that marks rows `DUPLICATE` (the status, its wire value and its CHECK
+  value already exist; a stage may move a row between ACCEPTED and DUPLICATE and nothing else, which the workflow
+  checks). #76: an `ImportCommitter` bean; `UnavailableImportCommitter` is the `@DefaultBean` until then and answers 503
+  `unavailable` with the session left PREVIEWED, so no import can claim to have worked. The committer runs inside the
+  transaction that marks the session COMMITTED, so its failure leaves the session PREVIEWED and its rows in place.
+  #76 also decides whether a repeated commit becomes an idempotent success (today it is a 409 from the state graph).
+  #74: the screens, plus a per-row edit route and `category_id` / `note` columns when it needs them.
+
+### What this supersedes, and why
+
+Nothing earlier. It builds on ADR-088 (the contract the Erste importer validates against) and on the backlog line
+"discard the uploaded statement after parsing by default": discarding is not a default that can be switched off here, it is the shape, because
+there is nowhere to put the bytes.
+
+### Consequence
+
+Verified: the new suites in `server/src/test/java/prudent/imports/` (state graph, registry, the resource end to end in JSON and
+protobuf, the sweep, ownership between two users, destination checks on every assignment path and at commit, bounds, two
+commits / commit against discard / sweep against read driven concurrently, and the expiry job's discovery and boot registration), `ImportSessionSchemaTest` (constraints by name), `PrivacyCoverageTest`,
+`PrivacyExportTest`, `PrivacyErasureTest`, `PrudentRowLevelSecurityTest` and `HibernateSchemaValidationTest`, and the whole backend
+suite (`task test:server`, 850 tests, 0 failures, PMD included); `task verify:reflection` and `task verify:import-fixtures`. `task generate` was run and
+produced the Dart messages and the admin schema; `verify:contracts` discovers protos with `git ls-files`, so it passes only once `imports.proto` and
+the generated `imports.*.dart` files are tracked. Not verified: any real importer (none exists), the committer (none exists), the Dart client (generated messages only, no
+screen), and the expiry job's schedule inside a running `zen-jobs` scheduler (its registration and the sweep it calls are tested; a tick is not).
+Open: whether the destination account is chosen at parse or at preview (both are accepted); that `Account` has no account-number field, so the
+identity check the Erste contract asks for is only a hook with a fail-closed default until #73 adds the field and implements it; and that the
+open-session cap is checked, not locked, so concurrent uploads can overshoot it slightly.
+
+---
+
+## ADR-088 — The Erste CSV contract is what one real export showed, written down with synthetic fixtures and a gate; no real statement enters the repository
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#42, first task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- `docs/erste-csv-contract.md` is the contract the Erste importer (#73) validates against. It was derived
+  from **one** real export that stays outside the repository; the document says what that file showed
+  (UTF-8 without a BOM, LF, comma delimiter, no header row, nine fields with a trailing empty one, a
+  summary row first, transactions newest first with the bank sequence number growing down the file, comma decimals always quoted, a balance column that does not chain, `DD-MM-YYYY` dates with an ISO export date in the
+  summary row, three description shapes) and lists what one file cannot show as open questions, not as
+  facts.
+- The parser's stance follows: **a variant not in the contract is rejected, not adapted.** The bank's
+  own export steps are not written down because they were not captured; the document marks them as to be
+  confirmed in the bank's UI.
+- Fixtures are synthetic only, under `server/src/test/resources/import/erste/`. Every free-text field carries
+  a whole-word marker (TEST, TESTOWY, TESTOWA, TESTOWE, TESTOWO, EXAMPLE, PRÓB, PRÓBNA or PRÓBNY), accounts
+  have IBAN check digits `00` (which no real IBAN has) and card masks are `000000******0000`.
+- `task verify:import-fixtures` (`scripts/verify_import_fixtures.py`, run in CI) has this scope: every file
+  under `server/src/test/resources/import/` must be a lowercase `statement-*.csv` inside `import/erste/`, and
+  any `*.csv` (any case) anywhere under `server/src/test/resources/` fails unless it is one of those
+  (other file types outside `import/` are not read). `.DS_Store` is skipped by name. It refuses: a long number
+  (13 or more digits or mask characters, with space, hyphen, dot or no-break-space separators, asterisk and
+  bullet masks included) that is not the fictional IBAN (22 zeros then 4 digits) or the fictional card mask;
+  another card mask; a `ref` number that does not start `000`; a run of 9 to 12 digits in a CSV field; a row
+  that does not have exactly 9 fields, a non-empty 9th field, a line break inside a field, or a field that
+  does not match its pattern (dates, quoted two-place comma decimals, sequence digits, a grouped fictional
+  IBAN, a three-letter currency, the summary row's apostrophe-prefixed account); and a description or
+  counterparty (the holder, on the summary row) without a whole-word marker (the fixed own-transfer phrase
+  is exempt). The contract document is scanned for the same numbers.
+  It is **weak by design** and still passes: a real name next to a marker word in one field; digit runs
+  shorter than 9; amounts, dates and balances (their shape is checked, never their content); `ref:000`
+  followed by arbitrary digits; any sequence number; runs broken by three or more separator characters or
+  by letters; a `.DS_Store`. It narrows the room for a leak; a reviewer still reads every fixture change.
+  Every `*.csv` is gitignored (the bank names its export `history*.csv`, and people rename it), with only
+  the `statement-*.csv` fixtures under `server/src/test/resources/import/erste/` let back in, so a real
+  export cannot be staged by accident.
+- Fixtures are newest first and their balances deliberately do not chain, as in the real export, so a parser
+  that asserts a running balance fails on them.
+- The bank sequence number is **not** assumed to be a stable duplicate key. It grows as the date falls, so it
+  looks like a rank from the newest row and may shift between exports. #75 must not use it unless a second,
+  overlapping export shows it stable, and otherwise uses a documented fingerprint.
+- #42 is only partly done: the bank's export steps are user-supplied and still missing, so the issue stays open.
+
+### What this supersedes, and why
+
+Nothing earlier. It settles the blocker recorded in `docs/github-backlog.md` (M6): "The exact parser
+contract is blocked until an anonymised Erste export is available". The export was available and was
+inspected locally; the anonymised copy that the backlog expected is replaced by synthetic fixtures,
+because a hand-anonymised real statement keeps the shape of a real person's life and is easy to get wrong.
+
+### Consequence
+
+Verified: `task verify:import-fixtures` passes, and its tests plant each violation in a throwaway
+tree and require it to fail. Not verified: any parser (none exists yet), the balance column's meaning, the
+sequence number's stability across exports, and every variant listed as unsupported in the contract.
+
+---
+
 ## ADR-087 — A deploy pins its image and ends by running jZen's cleanup, with Prudent's numbers and a failure mode that fails
 
 **Date:** 2026-11-13. **Status:** accepted. jlogicsoftware/prudent#165, which stays open until the persistent environment's first run. **Follows:** ADR-021, ADR-065, ADR-069, jZen ADR-074.

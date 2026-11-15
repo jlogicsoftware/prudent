@@ -1,15 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
+import 'account_save_error.dart';
 
 /// Opens an account with a single starting currency and balance. An account can hold several
 /// currencies at once (docs/DECISIONS.md ADR-008); adding a second one is an edit, not part of
 /// creation.
 class AccountNew extends StatefulWidget {
-  final void Function(CreateAccountRequest request) onAddAccount;
+  /// Sends the account to the server. May be asynchronous: when it throws the server's error the
+  /// form stays open and says why, instead of closing over a refusal nobody sees.
+  final FutureOr<void> Function(CreateAccountRequest request) onAddAccount;
 
   const AccountNew({super.key, required this.onAddAccount});
 
@@ -23,6 +28,9 @@ class _AccountNewState extends State<AccountNew> {
   final _balance = TextEditingController(text: '0');
   var _balanceInvalid = false;
   final _currencyController = TextEditingController(text: 'PLN');
+  final _accountNumber = TextEditingController();
+  String? _numberError;
+  var _saving = false;
   var _selectedType = AccountType.ACCOUNT_TYPE_CARD;
   var _isDefault = false;
   var _isActive = true;
@@ -35,10 +43,11 @@ class _AccountNewState extends State<AccountNew> {
     _nameController.dispose();
     _currencyController.dispose();
     _balance.dispose();
+    _accountNumber.dispose();
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final formValid = _formKey.currentState!.validate();
     // The field's canonical text is read through normalizeAmount; what it means in minor units is
     // money.dart's. An empty or malformed amount is refused here, not left to parse as zero.
@@ -46,19 +55,33 @@ class _AccountNewState extends State<AccountNew> {
     final minor = canonical == null ? null : parseMinorUnits(canonical);
     setState(() => _balanceInvalid = minor == null);
     if (!formValid || minor == null) return;
-    widget.onAddAccount(
-      CreateAccountRequest(
-        name: _nameController.text,
-        type: _selectedType,
-        isDefault: _isDefault,
-        isActive: _isActive,
-        includeInTotal: _includeInTotal,
-        includeInOverview: _includeInOverview,
-        eligibleForGoals: _eligibleForGoals,
-        balances: [CurrencyBalance(currency: _currencyController.text.toUpperCase(), amountMinor: minor)],
-      ),
-    );
-    Navigator.pop(context);
+    setState(() {
+      _saving = true;
+      _numberError = null;
+    });
+    try {
+      await widget.onAddAccount(
+        CreateAccountRequest(
+          name: _nameController.text,
+          type: _selectedType,
+          isDefault: _isDefault,
+          isActive: _isActive,
+          includeInTotal: _includeInTotal,
+          includeInOverview: _includeInOverview,
+          eligibleForGoals: _eligibleForGoals,
+          balances: [CurrencyBalance(currency: _currencyController.text.toUpperCase(), amountMinor: minor)],
+          accountNumber: _accountNumber.text.trim().isEmpty ? null : _accountNumber.text.trim(),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _numberError = accountSaveErrorText(PrudentLocalizations.of(context), error);
+      });
+      return;
+    }
+    if (mounted) Navigator.pop(context);
   }
 
   String _typeLabel(PrudentLocalizations t, AccountType type) => switch (type) {
@@ -148,11 +171,29 @@ class _AccountNewState extends State<AccountNew> {
               value: _eligibleForGoals,
               onChanged: (value) => setState(() => _eligibleForGoals = value),
             ),
+            ZenTextField(
+              label: t.accountNumberField,
+              controller: _accountNumber,
+              hint: t.accountNumberHint,
+              textCapitalization: TextCapitalization.characters,
+              enabled: !_saving,
+            ),
+            if (_numberError != null)
+              Semantics(
+                liveRegion: true,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _numberError!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                ),
+              ),
             const SizedBox(height: 32.0),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                ZenButton(label: t.accountAdd, onPressed: _submit),
+                ZenButton(label: t.accountAdd, isLoading: _saving, onPressed: _submit),
                 ZenButton(
                   label: t.cancel,
                   onPressed: () => Navigator.pop(context),

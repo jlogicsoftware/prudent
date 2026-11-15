@@ -1,16 +1,20 @@
 // The account forms (jlogicsoftware/prudent#101) on the framework's controls. What is asserted is
 // what reaches the form's callback — the request the repository would send — for the input typed,
 // not how a control draws itself; that is zen_ui_widgets' own test.
+import 'dart:io';
+
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/account/account_edit.dart';
 import 'package:prudent/account/account_new.dart';
+import 'package:prudent/account/account_save_error.dart';
 import 'package:prudent/account/reconcile_account.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
 import 'package:zen_core/zen_core.dart';
+import 'package:zen_transport/zen_transport.dart' as transport;
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 import 'zen_fields.dart';
 
@@ -69,6 +73,23 @@ void main() {
       expect(sent!.isActive, isFalse);
       expect(sent!.includeInTotal, isFalse);
       expect(sent!.includeInOverview, isFalse);
+    });
+
+    testWidgets('sends the bank account number when one is typed', (tester) async {
+      await open(tester);
+      await tester.enterText(_field('Account Name'), 'Wallet');
+      await tester.enterText(_field('Bank account number (optional)'), ' PL00000000000000000000000001 ');
+      await tester.tap(find.text('Add Account'));
+      await tester.pumpAndSettle();
+      expect(sent!.accountNumber, 'PL00000000000000000000000001');
+    });
+
+    testWidgets('sends no number when none is typed', (tester) async {
+      await open(tester);
+      await tester.enterText(_field('Account Name'), 'Wallet');
+      await tester.tap(find.text('Add Account'));
+      await tester.pumpAndSettle();
+      expect(sent!.hasAccountNumber(), isFalse);
     });
 
     testWidgets('sends the typed name and the balance in minor units', (tester) async {
@@ -163,6 +184,125 @@ void main() {
       expect(sent!.name, 'Renamed');
       expect(sent!.type, AccountType.ACCOUNT_TYPE_CARD);
       expect(sent!.balances, _account().balances);
+    });
+
+    testWidgets('resends the stored account number when it is left alone', (tester) async {
+      // A PUT is a full replacement: leaving the number out would delete it (ADR-090), so the field
+      // starts with the stored number and the form sends whatever it holds.
+      UpdateAccountRequest? sent;
+      final account = _account()..accountNumber = '00000000000000000000000001';
+      await _pump(tester, AccountEdit(account: account, onSave: (request) => sent = request));
+
+      expect(textOf(tester, _field('Bank account number (optional)')), '00000000000000000000000001');
+      await tester.enterText(_field('Account Name'), 'Renamed');
+      await tester.tap(find.text('Save Account'));
+      await tester.pumpAndSettle();
+
+      expect(sent!.accountNumber, '00000000000000000000000001');
+    });
+
+    testWidgets('sends an edited number', (tester) async {
+      final sent = <UpdateAccountRequest>[];
+      final account = _account()..accountNumber = '00000000000000000000000001';
+      await _pump(tester, AccountEdit(account: account, onSave: sent.add));
+
+      await tester.enterText(_field('Bank account number (optional)'), ' 00000000000000000000000002 ');
+      await tester.tap(find.text('Save Account'));
+      await tester.pumpAndSettle();
+      expect(sent.single.accountNumber, '00000000000000000000000002');
+    });
+
+    testWidgets('an emptied number is sent empty, which clears it', (tester) async {
+      final sent = <UpdateAccountRequest>[];
+      final account = _account()..accountNumber = '00000000000000000000000001';
+      await _pump(tester, AccountEdit(account: account, onSave: sent.add));
+
+      await tester.enterText(_field('Bank account number (optional)'), '');
+      await tester.tap(find.text('Save Account'));
+      await tester.pumpAndSettle();
+      expect(sent.single.accountNumber, '');
+    });
+
+    testWidgets('a refused number keeps the form open and says why', (tester) async {
+      await _pump(
+        tester,
+        AccountEdit(
+          account: _account(),
+          onSave: (request) async => throw transport.ZenTransportError(
+            transport.ZenError(code: 'conflict', message: accountNumberTakenMessage),
+          ),
+        ),
+      );
+
+      await tester.enterText(_field('Bank account number (optional)'), '00000000000000000000000002');
+      await tester.tap(find.text('Save Account'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Another of your accounts already has this number.'), findsOneWidget);
+      // The form is still there, with what was typed, so nothing is lost to a refusal.
+      expect(find.text('Save Account'), findsOneWidget);
+      expect(textOf(tester, _field('Bank account number (optional)')), '00000000000000000000000002');
+    });
+
+    testWidgets('a malformed number is reported as one', (tester) async {
+      await _pump(
+        tester,
+        AccountEdit(
+          account: _account(),
+          onSave: (request) async => throw transport.ZenTransportError(
+            transport.ZenError(
+              code: 'invalid',
+              message: '$accountNumberInvalidMessage 10 to 34 letters and digits; spaces are ignored.',
+            ),
+          ),
+        ),
+      );
+      await tester.enterText(_field('Bank account number (optional)'), '!!');
+      await tester.tap(find.text('Save Account'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('This does not look like an account number.'), findsOneWidget);
+      expect(find.textContaining('letters and digits'), findsNothing);
+    });
+
+    testWidgets('a 400 about something else is not called an account number', (tester) async {
+      await _pump(
+        tester,
+        AccountEdit(
+          account: _account(),
+          onSave: (request) async => throw transport.ZenTransportError(
+            transport.ZenError(code: 'invalid', message: 'An account needs a name.'),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Save Account'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('The account was not saved. Try again.'), findsOneWidget);
+      expect(find.text('This does not look like an account number.'), findsNothing);
+    });
+
+    testWidgets('a failure that is not a server answer ends the spinner and says it was not saved', (tester) async {
+      await _pump(
+        tester,
+        AccountEdit(account: _account(), onSave: (request) async => throw StateError('TEST SECRET TYPED TEXT')),
+      );
+      await tester.tap(find.text('Save Account'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('The account was not saved. Try again.'), findsOneWidget);
+      expect(find.textContaining('SECRET'), findsNothing);
+      expect(tester.widget<ZenButton>(find.widgetWithText(ZenButton, 'Save Account')).isLoading, isFalse);
+    });
+
+    test('the messages the form recognises are the ones the server sends', () {
+      final server = Directory('../server/src/main/java/prudent/account');
+      final text = [
+        for (final f in server.listSync().whereType<File>().where((f) => f.path.endsWith('.java')))
+          f.readAsStringSync().replaceAll(RegExp(r'"\s*\+\s*\n\s*"'), ''),
+      ].join('\n');
+      expect(text, contains('"$accountNumberTakenMessage"'));
+      expect(text, contains('"$accountNumberInvalidMessage 10 to 34 letters'));
     });
 
     testWidgets('does not save without a name', (tester) async {

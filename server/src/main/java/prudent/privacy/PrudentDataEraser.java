@@ -11,6 +11,8 @@ import prudent.budget.BudgetEntity;
 import prudent.category.CategoryEntity;
 import prudent.goal.GoalAllocationEntity;
 import prudent.goal.GoalEntity;
+import prudent.imports.ImportRowEntity;
+import prudent.imports.ImportSessionEntity;
 import prudent.plan.PlanEntity;
 import prudent.plan.PlanOccurrenceEntity;
 import prudent.record.RecordEntity;
@@ -33,7 +35,7 @@ import prudent.settings.SettingsEntity;
  * carries no {@code ON DELETE CASCADE} on either the account or category reference — ADR-010 — so a
  * record row must go before the rows it points to), then plan occurrences and plans for the same
  * reason (ADR-037, ADR-038), then budgets (ADR-043) and carry-over resets (ADR-046), then envelope
- * entries and goals (ADR-049, ADR-050), then accounts and categories, then the singleton settings
+ * entries and goals (ADR-049, ADR-050), then import rows and sessions (ADR-089), then accounts and categories, then the singleton settings
  * row. Accounts are deleted entity-by-entity rather than by a bulk query so Hibernate cascades the
  * {@code @ElementCollection} balances ({@code prudent_account_balance}) it owns; a bulk HQL delete
  * bypasses the persistence context and would leave orphaned balance rows.
@@ -62,6 +64,8 @@ public class PrudentDataEraser {
       long carryOverResets,
       long envelopeEntries,
       long goals,
+      long importRows,
+      long importSessions,
       long accounts,
       long categories,
       long settings) {
@@ -75,6 +79,8 @@ public class PrudentDataEraser {
           || carryOverResets > 0
           || envelopeEntries > 0
           || goals > 0
+          || importRows > 0
+          || importSessions > 0
           || accounts > 0
           || categories > 0
           || settings > 0;
@@ -105,6 +111,10 @@ public class PrudentDataEraser {
     // and references goals with no cascade (ADR-050), so it goes first.
     long allocations = GoalAllocationEntity.delete("userId", userId);
     long goals = GoalEntity.delete("userId", userId);
+    // Statement import staging (ADR-089): rows reference their session without a cascade, so rows
+    // first. Neither table references accounts, so their place relative to accounts is free.
+    long importRows = ImportRowEntity.delete("userId", userId);
+    long importSessions = ImportSessionEntity.delete("userId", userId);
 
     List<AccountEntity> accounts = AccountEntity.list("userId", userId);
     accounts.forEach(AccountEntity::delete);
@@ -121,6 +131,8 @@ public class PrudentDataEraser {
             resets,
             allocations,
             goals,
+            importRows,
+            importSessions,
             accounts.size(),
             categories,
             settings);
@@ -129,10 +141,10 @@ public class PrudentDataEraser {
       // is the very thing being erased.
       LOG.infof(
           "Erased Prudent data for %s: %d record(s), %d occurrence(s), %d plan(s), %d budget(s),"
-              + " %d carry-over reset(s), %d envelope entry(ies), %d goal(s), %d account(s),"
+              + " %d carry-over reset(s), %d envelope entry(ies), %d goal(s), %d import row(s), %d import session(s), %d account(s),"
               + " %d category(ies), %d settings row(s)",
-          userId, records, occurrences, plans, budgets, resets, allocations, goals,
-          accounts.size(), categories, settings);
+          userId, records, occurrences, plans, budgets, resets, allocations, goals, importRows,
+          importSessions, accounts.size(), categories, settings);
     }
     return erased;
   }

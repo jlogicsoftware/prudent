@@ -6,10 +6,12 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.UUID;
 import prudent.PrudentTest;
+import prudent.account.AccountEntity;
 import prudent.budget.BudgetCarryResetEntity;
 import prudent.category.CategoryEntity;
 import prudent.goal.GoalEntity;
 import prudent.goal.GoalState;
+import prudent.imports.ImportState;
 
 /**
  * Gives one user a row in <strong>every</strong> table Prudent keeps per user, including the
@@ -21,6 +23,9 @@ import prudent.goal.GoalState;
  * PrudentTest} gives: the suites using this are asserting the privacy routes, not the resources.
  */
 final class PrivacySeed {
+
+  /** A fictional number (check digits 00), the same for every seeded user: the index is per user. */
+  static final String ACCOUNT_NUMBER = "00000000000000000000000077";
 
   private PrivacySeed() {}
 
@@ -36,11 +41,17 @@ final class PrivacySeed {
       UUID archivedGoal,
       UUID allocation,
       UUID liveReset,
-      UUID revokedReset) {}
+      UUID revokedReset,
+      UUID importSession,
+      UUID endedImportSession) {}
 
   static Seeded everythingFor(String userId) {
     UUID user = UUID.fromString(userId);
     UUID account = PrudentTest.seedAccount(userId, "Checking of " + userId, "PLN", "EUR");
+    // The bank number is personal data on the account row (ADR-090); the export carries it and the
+    // erasure deletes it with the account.
+    QuarkusTransaction.requiringNew()
+        .run(() -> AccountEntity.<AccountEntity>findById(account).accountNumber = ACCOUNT_NUMBER);
     UUID category = PrudentTest.seedCategory(userId, "Food of " + userId);
     UUID archivedCategory = PrudentTest.seedCategory(userId, "Old of " + userId);
     QuarkusTransaction.requiringNew()
@@ -64,6 +75,14 @@ final class PrivacySeed {
         PrudentTest.seedCarryReset(userId, category, YearMonth.of(2026, 10), "PLN", 50_00L);
     QuarkusTransaction.requiringNew()
         .run(() -> BudgetCarryResetEntity.revoke(user, revokedReset, Instant.now()));
+    // One session still holding a row and one that has ended and holds none, because the export and
+    // the erasure meet different tables for each (ADR-089).
+    UUID importSession =
+        PrudentTest.seedImportSession(
+            userId, ImportState.PREVIEWED, Instant.now().plusSeconds(3600));
+    UUID endedImportSession =
+        PrudentTest.seedImportSession(
+            userId, ImportState.DISCARDED, Instant.now().plusSeconds(3600));
     return new Seeded(
         account,
         category,
@@ -75,6 +94,8 @@ final class PrivacySeed {
         archivedGoal,
         allocation,
         liveReset,
-        revokedReset);
+        revokedReset,
+        importSession,
+        endedImportSession);
   }
 }

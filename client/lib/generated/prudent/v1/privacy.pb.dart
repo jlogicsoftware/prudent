@@ -20,6 +20,7 @@ import 'budgets.pb.dart' as $5;
 import 'categories.pb.dart' as $2;
 import 'goal_allocations.pb.dart' as $7;
 import 'goals.pb.dart' as $6;
+import 'imports.pb.dart' as $8;
 import 'plans.pb.dart' as $4;
 import 'records.pb.dart' as $3;
 import 'settings.pb.dart' as $0;
@@ -165,6 +166,8 @@ class DataExport extends $pb.GeneratedMessage {
     $core.Iterable<$5.BudgetCarryOverReset>? carryOverResets,
     $core.Iterable<$6.Goal>? goals,
     $core.Iterable<$7.GoalAllocation>? goalAllocations,
+    $core.Iterable<$8.ImportSession>? importSessions,
+    $core.Iterable<$8.ImportRow>? importRows,
   }) {
     final result = create();
     if (formatVersion != null) result.formatVersion = formatVersion;
@@ -180,6 +183,8 @@ class DataExport extends $pb.GeneratedMessage {
     if (carryOverResets != null) result.carryOverResets.addAll(carryOverResets);
     if (goals != null) result.goals.addAll(goals);
     if (goalAllocations != null) result.goalAllocations.addAll(goalAllocations);
+    if (importSessions != null) result.importSessions.addAll(importSessions);
+    if (importRows != null) result.importRows.addAll(importRows);
     return result;
   }
 
@@ -220,6 +225,10 @@ class DataExport extends $pb.GeneratedMessage {
         subBuilder: $6.Goal.create)
     ..pPM<$7.GoalAllocation>(13, _omitFieldNames ? '' : 'goalAllocations',
         subBuilder: $7.GoalAllocation.create)
+    ..pPM<$8.ImportSession>(14, _omitFieldNames ? '' : 'importSessions',
+        subBuilder: $8.ImportSession.create)
+    ..pPM<$8.ImportRow>(15, _omitFieldNames ? '' : 'importRows',
+        subBuilder: $8.ImportRow.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -313,6 +322,15 @@ class DataExport extends $pb.GeneratedMessage {
   /// The append-only envelope history; a goal's envelope is the sum of these.
   @$pb.TagNumber(13)
   $pb.PbList<$7.GoalAllocation> get goalAllocations => $_getList(12);
+
+  /// Import sessions in any state, without their rows (M6, ADR-089).
+  @$pb.TagNumber(14)
+  $pb.PbList<$8.ImportSession> get importSessions => $_getList(13);
+
+  /// The rows still held by sessions that have not ended; each names its session. Normally empty or
+  /// short: a session's rows are deleted when it ends.
+  @$pb.TagNumber(15)
+  $pb.PbList<$8.ImportRow> get importRows => $_getList(14);
 }
 
 /// POST /api/v1/privacy/erase.

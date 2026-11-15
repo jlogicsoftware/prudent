@@ -81,3 +81,10 @@ server/src/main/resources/META-INF/resources/
 
 # Python bytecode from the .claude/hooks guards
 __pycache__/
+
+# A real bank export must never be committed (jlogicsoftware/prudent#41, #42).
+# The bank names it history*.csv and people rename it, so every CSV is ignored;
+# only the synthetic statement fixtures are let back in.
+*.csv
+!server/src/test/resources/import/erste/
+!server/src/test/resources/import/erste/statement-*.csv

@@ -184,6 +184,62 @@ done (#159). For a person who cannot sign in, `POST /api/v1/admin/privacy/users/
 jlogicsoftware/prudent#172) runs the same eraser, anonymiser and sign-in deletion for an `admin`-role session (401/403 otherwise, 404 for an id with nothing
 behind it, 400 for the caller's own); it has not been run against a deployed service.
 
+M6 (Erste Polska CSV import, epic jlogicsoftware/prudent#41) is built through its failure matrix; it began with its contract (ADR-088,
+jlogicsoftware/prudent#42): `docs/erste-csv-contract.md` records the format of one real export, kept outside the
+repository, with its open questions, and `server/src/test/resources/import/erste/` holds synthetic fixtures.
+`task verify:import-fixtures` (CI) refuses values that cannot be synthetic and is weak by design (see its summary).
+The bank's own export steps are not captured, so jlogicsoftware/prudent#42 stays open and must not be auto-closed.
+The workflow is built (ADR-089, jlogicsoftware/prudent#72): `ImportSessionResource` at `/api/v1/import-sessions` over
+`prudent.imports` parses, previews and commits as three enforced phases (`PARSED -> PREVIEWED -> COMMITTED`, plus
+`DISCARDED` and `EXPIRED`), behind a `StatementImporter` boundary keyed by format id. A statement is read once and never
+stored; a session keeps only normalised rows, which are deleted when it ends, and expires after 24 hours (a read ends an
+overdue one at once; the hourly sweep deletes the rest). A preview can be repeated (`PREVIEWED -> PREVIEWED`) to change the
+destination account, which is validated wherever it is set and again at commit: the caller's, active, holding the session's
+currency, and accepted by `StatementImporter.checkDestination` against an opaque identity token (a digest the importer
+produces, kept only while the session is open). Committing is real (ADR-092, jlogicsoftware/prudent#76): `LedgerImportCommitter` locks the destination account's row and writes one
+ordinary record per row through `RecordWriter`, in one transaction, copying the duplicate key onto it; a repeated commit of a
+committed session answers with its stored counts (`committed_written`, `committed_already_imported`), and two sessions of one file
+write it once. Each row needs a category before commit: its own, or the session's default for its direction
+(`POST /api/v1/import-sessions/{id}/defaults`); `POST .../rows/{rowNumber}` sets a row's category, note (500 characters) and
+includes a duplicate under the next free occurrence, and answers with the row and the counts only. A session with no accepted
+rows can be committed (zero written). An incoming own-account transfer becomes a plain record of the destination only and its
+row carries `hint_code = transfer.own_account` (the other side must be recorded as a plain expense, never a Transfer). Statements are bounded (rows, field length, open sessions per user, list
+size; `prudent.import.*`). The Erste importer exists (ADR-090, jlogicsoftware/prudent#73): `ErsteStatementImporter` registers
+`erste-pl-csv`, validates the whole file against the contract before returning anything (encoding, line ending, delimiter, header,
+field count, dates, decimals, currency, sequence numbers, account identity) and rejects with a rule code and bounded row
+numbers, never text; a row with no known meaning is returned rejected instead. `Account` has an optional `account_number`
+(normalised, unique per user; `AccountNew` and `AccountEdit` have the field), and Erste's `checkDestination` refuses an account without one
+(`account.number_missing`) or with another (`account.identity_mismatch`). An own-account transfer is a row whose description is
+`ErsteStatementImporter.OWN_TRANSFER_DESCRIPTION` and whose counterparty account is the other account's number. The bank's sequence
+number is returned as a hint only. Duplicate detection exists (ADR-091, jlogicsoftware/prudent#75): `ImportDuplicateStage` keys each row with
+`RowFingerprints` (a versioned SHA-256 of account, format, currency, date, signed amount and normalised description and
+counterparty fields, plus an occurrence number for identical rows in one file), marks rows whose key a ledger record of the
+destination account already holds `DUPLICATE` (`duplicate.already_imported`), and leaves the key on the import row for the
+committer to copy onto `prudent_record.import_fingerprint` / `import_occurrence`, which are unique per account. The bank's
+sequence number is not used as an identifier (`StatementImporter.stableExternalId()` is the switch, false for Erste). The parser has been run on the
+synthetic fixtures and, locally and by counts only, on one real export; nothing has run it in a deployed service.
+**No real statement is ever committed.**
+
+The client's import flow exists (ADR-093, jlogicsoftware/prudent#74), in `client/lib/imports/`: an "Import a statement" action on the Accounts
+page opens `ImportStatementScreen` (active account, CSV file through `file_selector`, upload; an account without a bank number is refused with a
+button that opens `AccountEdit`, and unfinished sessions are listed to continue or discard), which is replaced by `ImportPreviewScreen`
+(destination, default categories, three groups of rows with a per-row category and note, an explicit "Import anyway" switch on duplicates, rejected
+rows explained and not editable, the `transfer.own_account` warning, confirm that sends the server's own accepted count, then the result). Every
+server refusal is shown as a localized sentence chosen by its rule code and row numbers (`ImportFailure`, `importRuleMessage`; never the server's text,
+unknown codes get a generic sentence naming the code). It is covered by widget tests over a mock server and has **been seen only in a browser, over an
+in-memory stand-in for the server with synthetic rows**: not against the real server, not on a device, no native file picker, and the iOS and macOS
+runners have not been built with the new plugin.
+
+M6's backlog is complete in code (ADR-094, jlogicsoftware/prudent#77): a failure and drift matrix of about 220 statements (45 rule codes the client has a sentence for) (`ImportFailureCatalogue`, run by
+`ImportFailureMatrixTest` through the real HTTP API) proves each malformed, structurally changed, mixed-currency, oversized, misdirected or flagged file is refused
+or flagged with a rule code and bounded row numbers, quotes no statement text in an answer or a log line, and leaves every record, session, row and account of both users
+as it was; `ImportCommitFailureTest` does the same for a category, account, session or phase that fails between the preview and the commit (three rule codes,
+`commit.category_unavailable`, `commit.account_unavailable` and `commit.row_refused`, replace a "Row N cannot be written" that explained nothing); `ErsteFormatDriftTest` pins the
+fixtures to their exact parsed rows and the contract's rules to the importer's; `ImportRuleCatalogueTest` fails when the importer's sources can emit a rule that no case
+proves. A file whose amount column has moved (a positive card or BLIK row, or the column disagreeing with the card text on half or more of at least two card rows) is refused whole as `layout.amount_column`, never read through the balance column; an empty or oversized upload, too many rows and an unknown destination are rule codes too (`statement.empty_upload`, `statement.too_large`, `statement.too_many_rows`, `account.not_found`). **Never seen:** a real second export (overlap, whether the bank sequence number is stable), amounts of 1000 or more, the wording of an outgoing own-account transfer, a
+real change of the bank's format, the bank's UI steps for exporting (user-supplied), a run on a device or with the native file picker, the client against the real server, and any
+Polish or Ukrainian string reviewed by a native speaker.
+
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
 (ADR-065, #45) they were run against a real GCP project and a real Supabase project made for the
@@ -265,6 +321,14 @@ is deleted as part of it, since a versioned dependency's documentation travels w
 (`apps/zen_demo/*` is the reference application), but never write to it, and never copy framework
 source into this repository. If Prudent needs a framework change, that change is made in jZen and
 consumed — say so explicitly rather than forking a copy here.
+
+**A limitation met in jZen is an issue in jZen, filed when it is met.** Whenever work here runs into a
+framework limitation — a control, hook, export or behaviour `zen_ui_widgets`, `zen_transport`,
+`zen-identity` or any other jZen library lacks or gets wrong — open an issue in `jZenDev/jZen`
+(English, as `konter-dev`, with what was tried, why it matters here and an acceptance test), add a row
+to the table in [`docs/jzen/README.md`](docs/jzen/README.md), and name the issue in the workaround's
+comment and ADR. Do not leave it as a sentence in an ADR or a code comment alone, and do not fork the
+framework to get around it. A found limitation with no issue number is unfinished work.
 
 ## Target structure
 

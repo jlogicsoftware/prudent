@@ -7,13 +7,17 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import prudent.imports.RowKey;
 import prudent.plan.OccurrenceState;
 
 /**
@@ -131,6 +135,49 @@ public class RecordEntity extends PanacheEntityBase {
   /** The one occurrence this record confirmed; unique across the table. See {@link #planId}. */
   @Column(name = "plan_occurrence_id")
   public UUID planOccurrenceId;
+
+  /**
+   * Set only when a statement import wrote this record (M6, jlogicsoftware/prudent#75, ADR-091):
+   * the row's fingerprint, a scheme prefix and 64 hex characters. A digest, not statement text, and
+   * never on the wire. Always set together with {@link #importOccurrence}; unique per account with
+   * it, so a statement row can be written into an account once. The record endpoints never write
+   * it, so editing an imported record keeps its origin, as {@link #planId} does.
+   */
+  @Column(name = "import_fingerprint")
+  public String importFingerprint;
+
+  /** Which of the statement rows with {@link #importFingerprint} this record came from (1-based). */
+  @Column(name = "import_occurrence")
+  public Integer importOccurrence;
+
+  /**
+   * Which of the keys in {@code keys} the account's records already hold: the rows of a statement
+   * that were imported before. One query over the fingerprints the statement carries, so the cost
+   * follows the statement and not the ledger.
+   */
+  public static Set<RowKey> importedKeys(
+      UUID userId, UUID accountId, Collection<String> fingerprints) {
+    Set<RowKey> held = new HashSet<>();
+    List<String> all = new ArrayList<>(fingerprints);
+    // Chunked so a large statement never nears the driver's bind-parameter limit.
+    for (int from = 0; from < all.size(); from += 1000) {
+      List<String> chunk = all.subList(from, Math.min(all.size(), from + 1000));
+      List<Object[]> found =
+          getEntityManager()
+              .createQuery(
+                  "select r.importFingerprint, r.importOccurrence from RecordEntity r"
+                      + " where r.userId = ?1 and r.accountId = ?2 and r.importFingerprint in ?3",
+                  Object[].class)
+              .setParameter(1, userId)
+              .setParameter(2, accountId)
+              .setParameter(3, chunk)
+              .getResultList();
+      for (Object[] pair : found) {
+        held.add(new RowKey((String) pair[0], (Integer) pair[1]));
+      }
+    }
+    return held;
+  }
 
   /**
    * Every record owned by one user.

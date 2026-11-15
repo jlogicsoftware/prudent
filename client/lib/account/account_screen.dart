@@ -6,6 +6,7 @@ import '../l10n/generated/prudent_localizations.dart';
 import '../providers.dart';
 import '../popup.dart';
 import 'account_list.dart';
+import '../imports/import_statement_screen.dart';
 import 'account_new.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -18,6 +19,15 @@ class AccountScreen extends ConsumerWidget {
     return ZenPageScaffold(
       title: PrudentLocalizations.of(context).accountsTitle,
       actions: [
+        ZenIconButton(
+          icon: Icons.upload_file,
+          label: PrudentLocalizations.of(context).importStatementTooltip,
+          onPressed:
+              () => showZenDetail<void>(
+                context,
+                builder: (_) => const ImportStatementScreen(),
+              ),
+        ),
         Popup(
           icon: Icons.add,
           label: PrudentLocalizations.of(context).addAccountTooltip,
