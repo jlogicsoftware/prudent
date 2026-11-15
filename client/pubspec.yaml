@@ -19,7 +19,8 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.7.2
+  sdk: ">=3.14.0 <4.0.0"
+  flutter: ">=3.50.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -38,6 +39,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   intl: ^0.20.2
   flutter_riverpod: ^3.0.0-dev.17
+  # Flutter 3.50 moved Material and Cupertino out of the SDK libraries (ADR-099); versions as jZen's.
+  material_ui: ^1.11.0
+  cupertino_ui: ^1.1.6
 
   # The runtime for the messages generated from ../proto into lib/generated. protobuf
   # supplies GeneratedMessage; fixnum supplies the Int64 that backs every int64 field — money is
@@ -97,8 +101,6 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  custom_lint: ^0.8.0
-  riverpod_lint: ^3.0.0-dev.17
 
   # The pure-Dart end-to-end suite (integration_test/) runs on the VM via `dart test`, hitting
   # the live Supabase + Quarkus stack. It uses package:test (not flutter_test) so it stays

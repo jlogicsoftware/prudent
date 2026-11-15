@@ -1,7 +1,7 @@
 // The currency pick on the analytics screen and its by-category view (jlogicsoftware/prudent#103), now a
 // ZenSelect in the body rather than a DropdownButton in the app bar: it is offered only when more
 // than one currency is held, and choosing one re-queries for that currency — never a blend.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/analytics/analytics.dart';
@@ -47,6 +47,7 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: [
             ...PrudentLocalizations.localizationsDelegates,
+            ...GlobalMaterialLocalizations.delegates,
             zenWidgetsLocaleDelegate,
           ],
           supportedLocales: PrudentLocalizations.supportedLocales,

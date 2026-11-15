@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One labelled fact about an occurrence: the label on the left, its value on the right.
 class OccurrenceFigureRow extends StatelessWidget {

@@ -1,5 +1,5 @@
 import 'package:fixnum/fixnum.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../generated/prudent/v1/goal_allocations.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';

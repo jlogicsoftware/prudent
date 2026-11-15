@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_identity/zen_ui_identity.dart';
 import 'package:zen_ui_navigation/zen_ui_navigation.dart';
@@ -32,7 +32,7 @@ class PrudentApp extends ConsumerWidget {
       // Prudent's own delegate declines). `zen_ui_widgets` is composed the same way: its amount
       // and date fields read their own strings, and without a delegate the first one to render
       // throws.
-      localizationsDelegates: const [
+      localizationsDelegates: [
         ...PrudentLocalizations.localizationsDelegates,
         prudentPlIdentityDelegate,
         identityLocaleDelegate,
@@ -40,6 +40,9 @@ class PrudentApp extends ConsumerWidget {
         navigationLocaleDelegate,
         prudentPlWidgetsDelegate,
         zenWidgetsLocaleDelegate,
+        // Flutter 3.50: material_ui's MaterialApp looks up ITS OWN Material, Cupertino and Widgets
+        // localizations, and the generated list above still registers the SDK's (ADR-099).
+        ...GlobalMaterialLocalizations.delegates,
       ],
       supportedLocales: [for (final tag in prudentSupportedLocales) Locale(tag)],
       theme: _theme(Brightness.light),

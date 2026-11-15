@@ -1,6 +1,6 @@
 // The chart renders with zero, one and many categories — the shapes a pie/donut chart typically
 // throws on (docs/prudent-migration-plan.md Phase 4 test list).
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/analytics/donut_chart_painter.dart';
 

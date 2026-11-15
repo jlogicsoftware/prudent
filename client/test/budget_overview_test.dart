@@ -2,7 +2,7 @@
 // actual, remaining and percentage; that overspent and empty months are distinct from an ordinary
 // one; that months can be navigated; and that a failure is reported rather than drawn as zeros.
 import 'package:fixnum/fixnum.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
@@ -85,7 +85,10 @@ void main() {
           }),
         ],
         child: const MaterialApp(
-          localizationsDelegates: PrudentLocalizations.localizationsDelegates,
+          localizationsDelegates: [
+              ...PrudentLocalizations.localizationsDelegates,
+              ...GlobalMaterialLocalizations.delegates,
+            ],
           supportedLocales: PrudentLocalizations.supportedLocales,
           home: BudgetOverviewScreen(),
         ),

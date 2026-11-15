@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One slice of the donut: a pre-resolved colour and value, so the painter never has to know
 /// about categories, currencies or anything else this is a chart FOR.

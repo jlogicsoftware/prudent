@@ -30,12 +30,12 @@ Map<String, Object?> importRow(
   'sessionId': 's1',
   'rowNumber': number,
   'status': status,
-  if (rejectionCode != null) 'rejectionCode': rejectionCode,
-  if (date != null) 'transactionDate': date,
+  'rejectionCode': ?rejectionCode,
+  'transactionDate': ?date,
   if (amount != null) 'amountMinor': '$amount',
-  if (description != null) 'description': description,
-  if (duplicateCode != null) 'duplicateCode': duplicateCode,
-  if (hintCode != null) 'hintCode': hintCode,
+  'description': ?description,
+  'duplicateCode': ?duplicateCode,
+  'hintCode': ?hintCode,
 };
 
 /// The routes, with the session's state in memory and a log of what was asked.

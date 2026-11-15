@@ -444,6 +444,9 @@ consumer that bends them stops being a consumer:
   localized sentence, a hint and Try again — and never the exception's text, which is logged instead
   (#160). `client/test/load_error_view_test.dart` fails when a `*LoadError` string takes `{error}` or a
   screen passes `error.toString()` on.
+  **Flutter 3.50 (ADR-099):** Material and Cupertino come from `package:material_ui` and `package:cupertino_ui`, not the SDK's `flutter/material.dart`; a `MaterialApp` that composes
+  `PrudentLocalizations.localizationsDelegates` also appends `...GlobalMaterialLocalizations.delegates` (the generated list registers the SDK's, which `material_ui` does not read, and `uk`/`pl` fail without it).
+  `riverpod_lint` is an analyzer plugin in `analysis_options.yaml`; `custom_lint` is gone.
   `docs/jzen/README.md` has the state of the upstream issues.
 - **Typed, generated i18n.** No hardcoded user-facing strings. Each package owns `lib/l10n/*.arb`
   + `l10n.yaml` and generates accessors with `flutter gen-l10n`; the generated output is built, not

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:prudent/account/account_tile.dart';
@@ -17,6 +17,7 @@ void main() {
           child: MaterialApp(
             localizationsDelegates: [
               ...PrudentLocalizations.localizationsDelegates,
+              ...GlobalMaterialLocalizations.delegates,
               zenWidgetsLocaleDelegate,
             ],
             supportedLocales: PrudentLocalizations.supportedLocales,

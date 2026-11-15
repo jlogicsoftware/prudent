@@ -4,7 +4,7 @@
 // send are the ones asserted, not a fake's idea of them.
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -31,7 +31,6 @@ class _Entry {
     this.overdue = false,
     this.read = false,
     this.amount = -250000,
-    this.status,
   });
 
   final String id;
@@ -178,8 +177,9 @@ void main() {
           categoriesProvider.overrideWith(_FixedCategories.new),
         ],
         child: MaterialApp(
-          localizationsDelegates: const [
+          localizationsDelegates: [
             ...PrudentLocalizations.localizationsDelegates,
+            ...GlobalMaterialLocalizations.delegates,
             zenWidgetsLocaleDelegate,
           ],
           supportedLocales: PrudentLocalizations.supportedLocales,
@@ -248,7 +248,10 @@ void main() {
             prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
           ],
           child: MaterialApp(
-            localizationsDelegates: PrudentLocalizations.localizationsDelegates,
+            localizationsDelegates: [
+              ...PrudentLocalizations.localizationsDelegates,
+              ...GlobalMaterialLocalizations.delegates,
+            ],
             supportedLocales: PrudentLocalizations.supportedLocales,
             home: const RemindersScreen(),
           ),

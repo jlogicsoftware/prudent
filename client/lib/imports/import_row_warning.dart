@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A short warning beside a row: an icon and a sentence, in the tertiary container colour so it
 /// reads as "look at this" rather than as an error. Read out as a live region when it appears.

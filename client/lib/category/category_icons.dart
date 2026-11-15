@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The icons Prudent ships, keyed by the stable `icon_key` string that crosses the wire
 /// (proto/prudent/v1/categories.proto) — never a code point, which would defeat

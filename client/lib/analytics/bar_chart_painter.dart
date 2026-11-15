@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One bar: a pre-formatted label (the caller renders month names from its own locale — the
 /// server sends only "yyyy-MM", proto/prudent/v1/analytics.proto) and a value.
