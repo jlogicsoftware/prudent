@@ -81,6 +81,12 @@ dependencies:
   # refusal is respected rather than prompted again (ADR-058). Not secret, so not the keystore.
   shared_preferences: ^2.5.6
 
+  # Picks the statement file for an import (M6, jlogicsoftware/prudent#74, ADR-093). First party
+  # (flutter.dev), federated, and its iOS and macOS implementations ship Swift packages, so the Apple
+  # runners stay free of CocoaPods (ADR-083, task verify:swiftpm). The user chooses the file through
+  # the platform's own picker; the app never reads anything else from the device.
+  file_selector: ^1.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import 'account_save_error.dart';
 
 /// Edits an account's name, type and the three flags nothing could previously set
 /// (docs/prudent-migration-plan.md Phase 4). `balances` travels through UNCHANGED: a `PUT` is a
@@ -14,7 +17,9 @@ class AccountEdit extends StatefulWidget {
   const AccountEdit({super.key, required this.account, required this.onSave});
 
   final Account account;
-  final void Function(UpdateAccountRequest request) onSave;
+  /// Sends the changes to the server. May be asynchronous: when it throws the server's error the
+  /// form stays open and says why.
+  final FutureOr<void> Function(UpdateAccountRequest request) onSave;
 
   @override
   State<AccountEdit> createState() => _AccountEditState();
@@ -28,6 +33,9 @@ class _AccountEditState extends State<AccountEdit> {
   late bool _includeInTotal = widget.account.includeInTotal;
   late bool _includeInOverview = widget.account.includeInOverview;
   late bool _eligibleForGoals = widget.account.eligibleForGoals;
+  late final _accountNumber = TextEditingController(text: widget.account.accountNumber);
+  String? _error;
+  var _saving = false;
 
   String _typeLabel(PrudentLocalizations t, AccountType type) => switch (type) {
     AccountType.ACCOUNT_TYPE_CASH => t.accountTypeCash,
@@ -37,29 +45,43 @@ class _AccountEditState extends State<AccountEdit> {
     _ => type.name,
   };
 
-  void _submit() {
+  Future<void> _submit() async {
     if (_nameController.text.trim().isEmpty) return;
-    widget.onSave(
-      UpdateAccountRequest(
-        name: _nameController.text.trim(),
-        type: _type,
-        isDefault: _isDefault,
-        isActive: _isActive,
-        includeInTotal: _includeInTotal,
-        includeInOverview: _includeInOverview,
-        eligibleForGoals: _eligibleForGoals,
-        balances: widget.account.balances,
-        // Resent unchanged for the same reason as `balances`: a PUT is a full replacement, so
-        // leaving the bank number out would delete it. There is no field for it yet (ADR-090).
-        accountNumber: widget.account.accountNumber,
-      ),
-    );
-    Navigator.pop(context);
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave(
+        UpdateAccountRequest(
+          name: _nameController.text.trim(),
+          type: _type,
+          isDefault: _isDefault,
+          isActive: _isActive,
+          includeInTotal: _includeInTotal,
+          includeInOverview: _includeInOverview,
+          eligibleForGoals: _eligibleForGoals,
+          balances: widget.account.balances,
+          // A PUT is a full replacement, so the number is always sent: what is in the field, which
+          // starts as the stored number, so leaving it alone keeps it (ADR-090). Emptied, it clears it.
+          accountNumber: _accountNumber.text.trim(),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = accountSaveErrorText(PrudentLocalizations.of(context), error);
+      });
+      return;
+    }
+    if (mounted) Navigator.pop(context);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _accountNumber.dispose();
     super.dispose();
   }
 
@@ -110,11 +132,30 @@ class _AccountEditState extends State<AccountEdit> {
             value: _eligibleForGoals,
             onChanged: (value) => setState(() => _eligibleForGoals = value),
           ),
+          const SizedBox(height: 8),
+          ZenTextField(
+            label: t.accountNumberField,
+            controller: _accountNumber,
+            hint: t.accountNumberHint,
+            textCapitalization: TextCapitalization.characters,
+            enabled: !_saving,
+          ),
+          if (_error != null)
+            Semantics(
+              liveRegion: true,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              ZenButton(label: t.accountSave, onPressed: _submit),
+              ZenButton(label: t.accountSave, isLoading: _saving, onPressed: _submit),
               ZenButton(
                 label: t.cancel,
                 onPressed: () => Navigator.pop(context),

@@ -203,12 +203,12 @@ write it once. Each row needs a category before commit: its own, or the session'
 (`POST /api/v1/import-sessions/{id}/defaults`); `POST .../rows/{rowNumber}` sets a row's category, note (500 characters) and
 includes a duplicate under the next free occurrence, and answers with the row and the counts only. A session with no accepted
 rows can be committed (zero written). An incoming own-account transfer becomes a plain record of the destination only and its
-row carries `hint_code = transfer.own_account` (the other side must be recorded as a plain expense, never a Transfer). No client screen for any of this exists yet (jlogicsoftware/prudent#74). Statements are bounded (rows, field length, open sessions per user, list
+row carries `hint_code = transfer.own_account` (the other side must be recorded as a plain expense, never a Transfer). Statements are bounded (rows, field length, open sessions per user, list
 size; `prudent.import.*`). The Erste importer exists (ADR-090, jlogicsoftware/prudent#73): `ErsteStatementImporter` registers
 `erste-pl-csv`, validates the whole file against the contract before returning anything (encoding, line ending, delimiter, header,
 field count, dates, decimals, currency, sequence numbers, account identity) and rejects with a rule code and bounded row
 numbers, never text; a row with no known meaning is returned rejected instead. `Account` has an optional `account_number`
-(normalised, unique per user, no form field yet), and Erste's `checkDestination` refuses an account without one
+(normalised, unique per user; `AccountNew` and `AccountEdit` have the field), and Erste's `checkDestination` refuses an account without one
 (`account.number_missing`) or with another (`account.identity_mismatch`). An own-account transfer is a row whose description is
 `ErsteStatementImporter.OWN_TRANSFER_DESCRIPTION` and whose counterparty account is the other account's number. The bank's sequence
 number is returned as a hint only. Duplicate detection exists (ADR-091, jlogicsoftware/prudent#75): `ImportDuplicateStage` keys each row with
@@ -216,10 +216,19 @@ number is returned as a hint only. Duplicate detection exists (ADR-091, jlogicso
 counterparty fields, plus an occurrence number for identical rows in one file), marks rows whose key a ledger record of the
 destination account already holds `DUPLICATE` (`duplicate.already_imported`), and leaves the key on the import row for the
 committer to copy onto `prudent_record.import_fingerprint` / `import_occurrence`, which are unique per account. The bank's
-sequence number is not used as an identifier (`StatementImporter.stableExternalId()` is the switch, false for Erste). **There is
-no screen (#74), and nothing in the UI sets an account number.** The parser has been run on the
+sequence number is not used as an identifier (`StatementImporter.stableExternalId()` is the switch, false for Erste). The parser has been run on the
 synthetic fixtures and, locally and by counts only, on one real export; nothing has run it in a deployed service.
 **No real statement is ever committed.**
+
+The client's import flow exists (ADR-093, jlogicsoftware/prudent#74), in `client/lib/imports/`: an "Import a statement" action on the Accounts
+page opens `ImportStatementScreen` (active account, CSV file through `file_selector`, upload; an account without a bank number is refused with a
+button that opens `AccountEdit`, and unfinished sessions are listed to continue or discard), which is replaced by `ImportPreviewScreen`
+(destination, default categories, three groups of rows with a per-row category and note, an explicit "Import anyway" switch on duplicates, rejected
+rows explained and not editable, the `transfer.own_account` warning, confirm that sends the server's own accepted count, then the result). Every
+server refusal is shown as a localized sentence chosen by its rule code and row numbers (`ImportFailure`, `importRuleMessage`; never the server's text,
+unknown codes get a generic sentence naming the code). It is covered by widget tests over a mock server and has **been seen only in a browser, over an
+in-memory stand-in for the server with synthetic rows**: not against the real server, not on a device, no native file picker, and the iOS and macOS
+runners have not been built with the new plugin.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

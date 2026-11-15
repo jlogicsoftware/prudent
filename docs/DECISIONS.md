@@ -13,6 +13,98 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-093 — The client reviews an import in one flow of three pages on the framework's controls, turns every server refusal into a localized sentence from its rule code, and picks the file with `file_selector`
+
+**Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#74, fourth task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- **Where it starts and how it moves.** The Accounts page has an "Import a statement" action in its bar (`ImportStatementScreen`), opened with
+  `showZenDetail` like every other page reached from Accounts (ADR-062, ADR-063), so it stacks inside the destination's own `Navigator` and the
+  sidebar stays. `ImportStatementScreen` is ONE page whose two steps are state, not routes: `ImportUploadStep` (account, file, upload) hands the session id up
+  and the page swaps in `ImportPreviewScreen` (review, and after the commit the result), which hands "back to import" up to swap the upload step in again.
+  It must not navigate between them: opened with `showZenDetail` on a host of 720 px or more the page is the *root route* of a `ZenDetailPane`, and a root
+  route that is replaced or popped closes the pane, so a `pushReplacement` made the pane vanish after "Check statement" and left an open session behind.
+  Leaving the page altogether (Back, the result's "Back to accounts", a pane's Close) pops that one route. All code is in `client/lib/imports/`, one widget per file.
+- **State.** `importReviewProvider(sessionId)` (a family `AsyncNotifier`) holds the session and its held rows and sends every decision to the server;
+  nothing is tallied on the client. A row decision takes the row and the three counts from `UpdateImportRowResponse`; a destination change takes the
+  session the server re-classified; defaults take the session without rows; the commit sends `confirmed_accepted_rows` equal to the **server's last
+  `accepted_rows`**, never a client count. A method that fails throws the server's error and leaves the state as it was. The provider has **no automatic
+  retry** (`retry: null`): Riverpod's default back-off would keep a 404 or a rule refusal spinning where it should explain.
+- **What confirm needs.** The button is enabled only when the session has a destination, every row that would be written has a category of its own or the
+  session's default for its sign, and the writable rows held equal the server's `accepted_rows`. When the counts disagree it says so and offers a reload
+  (the server would answer 409). Zero accepted rows is a valid confirmation ("Finish without importing", ADR-092).
+- **Three groups, one at a time.** To import (accepted), Duplicates (every duplicate, including those the user chose to include), Not readable (rejected),
+  chosen with a `ZenSegmentedControl`. A row is edited through `showAdaptivePresentation` (`ImportRowForm`: `ZenSelect` category, `ZenTextField` note up to
+  500 characters); only categories that can file the row's direction are offered (`selectableCategories(expense:)`, archived ones excluded) and only fields
+  that changed are sent. A duplicate carries a visible **Import anyway** `ZenSwitchRow` that says in words the row will be counted twice if it is the same
+  operation (ADR-091). A rejected row shows its row number and its reason and has **no control at all** (the server takes no decision on it). A row whose
+  `hint_code` is `transfer.own_account` carries a warning box that the other side must be a plain expense and never a Transfer (ADR-092).
+  The rows show the bank's own description and the amount (`formatMinorUnits`, never a `double`), because without them nobody can decide a category; that is
+  the only place statement text is shown, and it is the user's own data on their own screen.
+- **Failures are sentences, not server text.** `ImportFailure.from` classifies a refusal by the wire `code` of the `ZenError` (`invalid`, `conflict`,
+  `not_found`, `unavailable`, `network_error`) and, only when the **whole** message matches the one shape the importer produces
+  (`The statement was rejected [at row(s) n, n and k more] (rule.code).`), lifts out the rule code and the row numbers. Everything else in a message is
+  discarded, so nothing but a code and numbers can reach the screen or a log. `importRuleMessage` maps 37 rule codes (the contract's, the importer's, the
+  duplicate code and the own-transfer hint) to one sentence each in en, uk and pl: what is wrong and what to do. An unknown code gets "rejected (code x.y)" and
+  the generic advice. `import_failure_test.dart` reads every `*.java` in `server/.../prudent/imports` (comments dropped) for any string literal shaped like a rule code
+  (the server builds codes as an exception's argument, a failure's, a row's, a returned name and a constant, in several files, so no list of files or call patterns is
+  kept; `jakarta.`/`java.`/`prudent.` configuration keys are not codes) and fails when the server can emit a code the client has no sentence for, or the reverse.
+  There are 37 codes (counted from the list, no repeats; a test holds that); a planted literal in a new file is reported. A 409 or 404 after an action reloads the session and shows a generic localized sentence: the cause may be an expired session,
+  and the screen then shows the ended state (expired, discarded, gone) with a way back.
+- **The account number.** `AccountNew` and `AccountEdit` have the bank account number `ZenTextField` (ADR-090). `AccountEdit` fills it with the stored number and
+  sends what it holds, so leaving it alone keeps it and emptying it clears it. Both forms now `await` their save and, on a refusal, stay open with a localized
+  line (409 "another account has this number" and 400 "not an account number" only when the server's fixed message says so, since a 400 can also be a missing name or an
+  unknown currency; otherwise "not saved", which is also what a failure that is not a server answer says, and the spinner always ends); until now a refused save closed the form over an error nobody
+  saw. The upload page offers only active accounts and, for one without a number, shows a notice with a button that opens `AccountEdit`.
+- **Leaving.** Leaving an open import by the page's own Back, the system back or the browser back (`PopScope`) asks and then discards it (a session holds its rows
+  for 24 hours and only a few may be open). **A side pane's Close button and Escape, switching to another tab, and a second detail replacing the pane do NOT ask**:
+  `ZenDetailPane` calls its owner directly, `ZenDetailScope` is not exported and `ZenPageScaffold` gives no hook for Close, so the page cannot intercept them (a jZen gap to
+  report; not worked around, because `onBack` would turn Close into a Back arrow). The session is then simply left open, which is safe: it is listed under
+  "Unfinished imports" on the first page, each with Continue and Discard, as one left open by closing the app is, and it is the way out of "too many open imports".
+  A test closes the pane with an open session and continues it.
+- **Commit and destination.** After any failed commit other than a rule refusal (a lost answer may mean it went through) the session is read again, and the message
+  says it may not have been written and was reloaded; a repeat of a commit that did go through answers with the same result (ADR-092), so sending it again is safe. The
+  destination field says beforehand that choosing another account checks duplicates again and resets "Import anyway" choices (categories and notes are kept; the server
+  resets only the duplicate decisions). Dates are shown in the app's locale, as a record's are.
+- **No statement text in a log.** The transport's decode-failure message ends with the decoder's text, which for a JSON body quotes the part it choked on, i.e. statement
+  rows, and `LoadErrorView` logs the error it is given. Every import request goes through `unwrapImportResult`, which replaces that message by a fixed sentence and keeps
+  the type and code; a test shows the transport's message does quote the body and the import providers' errors do not.
+- **An empty preview.** The client previews a fresh session with an empty request: `{}` in JSON, zero bytes in Protobuf. Verified on the server
+  (`ImportSessionResourceTest.preview_withAnEmptyRequest_isAcceptedInBothModes`, both content types, 20 of 20 in the class pass); no change was needed.
+- **File picking: `file_selector ^1.1.0`** (flutter.dev, federated). Neither the client nor jZen had a picker. It is first party, its iOS and macOS implementations
+  ship Swift packages (checked in the pub cache: `file_selector_ios`, `file_selector_macos`), so the runners stay free of CocoaPods (ADR-083). The macOS runner needed
+  `com.apple.security.files.user-selected.read-only` in both entitlement files (the app is sandboxed). The picker is reached through `statementPickerProvider`, so tests
+  replace it. A file over 5 MiB is refused before it is read, an empty one after, with a localized sentence; a read failure logs only the exception's type, never its text.
+  The `pubspec.lock` stanzas for the new packages were taken from a resolution run in a scratch copy (the repository's own `pub get` fails here on the pre-existing SDK mismatch:
+  local Flutter 3.50, CI pins 3.44.2, which is not installed on this machine). The first attempt resolved under 3.50 and picked `file_selector_ios` 0.5.3+7 and `file_selector_macos`
+  0.9.5+2, which need Flutter 3.47 and Dart 3.13 and so cannot resolve under CI's 3.44.2. The lock therefore pins the newest releases whose own constraints admit 3.44
+  (read from their pubspecs): `file_selector_ios` 0.5.3+6 and `file_selector_macos` 0.9.5+1 (both ship `Package.swift`), with `file_selector_android` 0.5.2+11,
+  `_linux` 0.9.4+1, `_windows` 0.9.3+6, `_web` 0.9.5, `_platform_interface` 2.7.0 and `cross_file` 0.3.5+5; the lock's `sdks:` line is unchanged. This is an emulation, not a
+  resolution under 3.44.2: it has not been run under that SDK. The tracked generated plugin registrants for macOS, Linux and Windows were regenerated by `flutter pub get` in
+  that copy and carry only the `file_selector` entries (iOS and Android track none).
+- **No framework gap found.** Every control is one `zen_ui_widgets` has: `ZenPageScaffold`, `ZenSelect`, `ZenTextField`, `ZenButton`, `ZenSwitchRow`,
+  `ZenSegmentedControl`, `ZenListRow`, `ZenIconButton`, `ZenProgressIndicator`, `showAdaptivePresentation`, `showZenMessage`; the confirmations are `AlertDialog`s with
+  `ZenButton`s. `task verify:controls` passes.
+
+### What this supersedes, and why
+
+Nothing earlier. It completes what ADR-091 ("Requirements handed to #74") and ADR-092 ("no client screen sets a row's category, note or inclusion") left to the client, and
+it changes `AccountEdit`'s comment that the bank number "has no field yet" (ADR-090): it has one now.
+
+### Consequence
+
+Verified: `import_flow_test.dart` (widget tests over a mock HTTP server that follows the server's rules, including its per-account duplicate classification and a lost network), `import_failure_test.dart`, `import_repository_test.dart`
+(routes, bodies, both wire formats, decode failures), `account_forms_test.dart`; the flow is also driven through `showZenDetail` in a real `ZenDetailHost` at 1000 px
+(a pane) and 500 px (a push), upload to result; the client suite in a scratch copy without `custom_lint`/`riverpod_lint` (the repository's own
+`pub get` fails first on this machine): 479 pass and 2 fail, the two being `prudent_l10n_test.dart` cases that fail identically on HEAD; `task verify:controls`, `task verify:swiftpm`, `task zen:verify:widget-files`. Not verified: a build of the iOS or macOS runner
+with the new plugin (so that SwiftPM resolves `file_selector` is established from the packages' own `Package.swift`, not from a build), the native file picker on any
+device, an import against the real server and database end to end, and anything on Android, Windows or Linux. The Polish and Ukrainian strings were written without a native
+review. Open for #77 (the failure suite): a statement that arrives while the session limit is reached, a very long statement (5000 rows) in the list, a commit refused
+at the ledger (`Row N cannot be written`), and two tabs reviewing one session.
+
+---
+
 ## ADR-092 — A statement import is committed by one locked transaction that writes ordinary records, answers a repeat with the same result, and invents no transfer leg
 
 **Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#76, sixth task of the epic jlogicsoftware/prudent#41.

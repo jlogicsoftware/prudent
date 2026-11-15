@@ -175,6 +175,34 @@ class ImportSessionResourceTest {
     }
   }
 
+  /**
+   * The client previews a fresh session with an empty request (no account named), which is {@code {}}
+   * in JSON and a ZERO-byte body in Protobuf. Both must reach the resource as "keep the destination
+   * already chosen", not fail as an unreadable body.
+   */
+  @Test
+  void preview_withAnEmptyRequest_isAcceptedInBothModes() throws Exception {
+    for (String mode : List.of(PrudentTest.JSON, PrudentTest.PROTOBUF)) {
+      ImportSession parsed =
+          session(
+              post(
+                  SESSIONS,
+                  upload(TestStatementImporter.FORMAT, statement())
+                      .setAccountId(alicesAccount.toString())
+                      .build(),
+                  mode),
+              mode);
+      PreviewImportSessionRequest empty = PreviewImportSessionRequest.getDefaultInstance();
+      assertEquals(0, empty.toByteArray().length);
+
+      Response response = post(SESSIONS + "/" + parsed.getId() + "/preview", empty, mode);
+
+      ImportSession previewed = session(response, mode);
+      assertEquals(ImportSessionState.IMPORT_SESSION_STATE_PREVIEWED, previewed.getState(), mode);
+      assertEquals(alicesAccount.toString(), previewed.getAccountId(), mode);
+    }
+  }
+
   @Test
   void parse_ofAStatementTheImporterRejects_writesNothingAndNamesTheRuleNotTheContent()
       throws Exception {

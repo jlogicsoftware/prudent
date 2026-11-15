@@ -7,6 +7,7 @@ import 'generated/prudent/v1/budgets.pb.dart';
 import 'generated/prudent/v1/categories.pb.dart';
 import 'generated/prudent/v1/goal_allocations.pb.dart';
 import 'generated/prudent/v1/goals.pb.dart';
+import 'generated/prudent/v1/imports.pb.dart';
 import 'generated/prudent/v1/plans.pb.dart';
 import 'generated/prudent/v1/records.pb.dart';
 import 'generated/prudent/v1/reminders.pb.dart';
@@ -40,6 +41,7 @@ class PrudentRepository {
   static const String _plansPath = '/api/v1/plans';
   static const String _occurrencesPath = '/api/v1/occurrences';
   static const String _remindersPath = '/api/v1/reminders';
+  static const String _importSessionsPath = '/api/v1/import-sessions';
   static const String _spendByCategoryPath =
       '/api/v1/analytics/spend-by-category';
   static const String _spendByPeriodPath = '/api/v1/analytics/spend-by-period';
@@ -136,6 +138,89 @@ class PrudentRepository {
   /// Returns an archived category to use. Refused (409) if it is not archived.
   Future<ZenResult<Category>> restoreCategory(String id) =>
       _client.post<Category>(Category.new, '$_categoriesPath/$id/restore');
+
+  // --- Statement import (M6, jlogicsoftware/prudent#41, ADR-089 to ADR-092) ----------------------
+  //
+  // Three phases, each its own request: create (parse), preview (classify, fix the destination),
+  // commit. Row decisions and defaults are made between the last two. The uploaded bytes are sent
+  // once, in [createImportSession]; nothing here keeps or logs them.
+
+  /// The caller's import sessions, newest first, without rows. [state] narrows the list.
+  Future<ZenResult<ListImportSessionsResponse>> listImportSessions({ImportSessionState? state}) {
+    final path =
+        state == null
+            ? _importSessionsPath
+            : '$_importSessionsPath?${_encodeQuery({'state': _importStateName(state)})}';
+    return _client.get<ListImportSessionsResponse>(ListImportSessionsResponse.new, path);
+  }
+
+  /// One session with its held rows (while it is parsed or previewed). Expires a session whose time
+  /// has run out, so a stale session reads as EXPIRED rather than lingering.
+  Future<ZenResult<ImportSession>> getImportSession(String id) =>
+      _client.get<ImportSession>(ImportSession.new, '$_importSessionsPath/$id');
+
+  /// Parses a statement and opens a session. The server refuses a statement it cannot read as a
+  /// whole, with a rule code and row numbers in the message and never the statement's content.
+  Future<ZenResult<ImportSession>> createImportSession(CreateImportSessionRequest request) =>
+      _client.post<ImportSession>(ImportSession.new, _importSessionsPath, body: request);
+
+  /// Classifies the rows and fixes the destination account; calling it again with another account is
+  /// how the destination is changed without uploading the statement again.
+  Future<ZenResult<ImportSession>> previewImportSession(
+    String id,
+    PreviewImportSessionRequest request,
+  ) => _client.post<ImportSession>(
+    ImportSession.new,
+    '$_importSessionsPath/$id/preview',
+    body: request,
+  );
+
+  /// A decision about one row (category, note, include a duplicate). A POST on purpose: it is a
+  /// partial update and PUT in this API means full replacement (ADR-092).
+  Future<ZenResult<UpdateImportRowResponse>> updateImportRow(
+    String id,
+    int rowNumber,
+    UpdateImportRowRequest request,
+  ) => _client.post<UpdateImportRowResponse>(
+    UpdateImportRowResponse.new,
+    '$_importSessionsPath/$id/rows/$rowNumber',
+    body: request,
+  );
+
+  /// The categories a row with none of its own is written under, by direction. The answer is the
+  /// session without its rows.
+  Future<ZenResult<ImportSession>> setImportDefaults(
+    String id,
+    SetImportDefaultsRequest request,
+  ) => _client.post<ImportSession>(
+    ImportSession.new,
+    '$_importSessionsPath/$id/defaults',
+    body: request,
+  );
+
+  /// Writes the confirmed session to the ledger in one transaction. Repeating it with the same count
+  /// answers with the same result.
+  Future<ZenResult<ImportSession>> commitImportSession(
+    String id,
+    CommitImportSessionRequest request,
+  ) => _client.post<ImportSession>(
+    ImportSession.new,
+    '$_importSessionsPath/$id/commit',
+    body: request,
+  );
+
+  /// Throws the session and its rows away. Nothing is written.
+  Future<ZenResult<ImportSession>> discardImportSession(String id) =>
+      _client.post<ImportSession>(ImportSession.new, '$_importSessionsPath/$id/discard');
+
+  static String _importStateName(ImportSessionState state) => switch (state) {
+    ImportSessionState.IMPORT_SESSION_STATE_PARSED => 'PARSED',
+    ImportSessionState.IMPORT_SESSION_STATE_PREVIEWED => 'PREVIEWED',
+    ImportSessionState.IMPORT_SESSION_STATE_COMMITTED => 'COMMITTED',
+    ImportSessionState.IMPORT_SESSION_STATE_DISCARDED => 'DISCARDED',
+    ImportSessionState.IMPORT_SESSION_STATE_EXPIRED => 'EXPIRED',
+    _ => throw ArgumentError.value(state, 'state', 'not a session state'),
+  };
 
   // --- Goals (M4, jlogicsoftware/prudent#38) — something saved for, never a transaction -----------
 

@@ -1,0 +1,92 @@
+import '../l10n/generated/prudent_localizations.dart';
+
+/// The localized sentence for a stable rule code the server puts on a statement refusal, a rejected
+/// row (`rejection_code`), a duplicate (`duplicate_code`) or a row's `hint_code`, or null for a code
+/// this client does not know.
+///
+/// Each sentence says what is wrong and what to do about it. The codes are the contract's
+/// (docs/erste-csv-contract.md, "Validation expectations") plus the importer's own; a new server
+/// rule shows up here as null, which callers turn into the generic "code X" line, never into the
+/// server's English text. `import_failure_test.dart` fails when a code the server can emit, in any
+/// file of `prudent.imports`, has no sentence, or a sentence has no code to emit it.
+String? importRuleMessage(PrudentLocalizations t, String code) => switch (code) {
+  'encoding.not_utf8' => t.importRuleEncodingNotUtf8,
+  'encoding.bom' => t.importRuleEncodingBom,
+  'encoding.nul_byte' => t.importRuleEncodingNulByte,
+  'layout.line_ending' => t.importRuleLayoutLineEnding,
+  'layout.no_final_newline' => t.importRuleLayoutNoFinalNewline,
+  'csv.malformed' => t.importRuleCsvMalformed,
+  'layout.delimiter' => t.importRuleLayoutDelimiter,
+  'layout.header_row' => t.importRuleLayoutHeaderRow,
+  'layout.summary_missing' => t.importRuleLayoutSummaryMissing,
+  'row.field_count' => t.importRuleRowFieldCount,
+  'row.trailing_field' => t.importRuleRowTrailingField,
+  'summary.export_date_invalid' => t.importRuleSummaryExportDateInvalid,
+  'summary.period_start_invalid' => t.importRuleSummaryPeriodStartInvalid,
+  'summary.account_invalid' => t.importRuleSummaryAccountInvalid,
+  'currency.unsupported' => t.importRuleCurrencyUnsupported,
+  'account.number_missing' => t.importRuleAccountNumberMissing,
+  'account.identity_mismatch' => t.importRuleAccountIdentityMismatch,
+  'account.identity_unverifiable' => t.importRuleAccountIdentityUnverifiable,
+  'date.invalid' => t.importRuleDateInvalid,
+  'date.out_of_range' => t.importRuleDateOutOfRange,
+  'date.booking_before_transaction' => t.importRuleDateBookingBeforeTransaction,
+  'amount.invalid' => t.importRuleAmountInvalid,
+  'amount.zero' => t.importRuleAmountZero,
+  'sequence.invalid' => t.importRuleSequenceInvalid,
+  'sequence.duplicate' => t.importRuleSequenceDuplicate,
+  'card.foreign_currency' => t.importRuleCardForeignCurrency,
+  'statement.empty' => t.importRuleStatementEmpty,
+  'field.too_long' => t.importRuleFieldTooLong,
+  'identifier.missing' => t.importRuleIdentifierMissing,
+  'identifier.duplicate' => t.importRuleIdentifierDuplicate,
+  'description.unknown_shape' => t.importRuleDescriptionUnknownShape,
+  'card.amount_mismatch' => t.importRuleCardAmountMismatch,
+  'amount.sign_unexpected' => t.importRuleAmountSignUnexpected,
+  'counterparty_account.invalid' => t.importRuleCounterpartyAccountInvalid,
+  'transfer.same_account' => t.importRuleTransferSameAccount,
+  'duplicate.already_imported' => t.importRuleDuplicateAlreadyImported,
+  'transfer.own_account' => t.importRuleTransferOwnAccount,
+  _ => null,
+};
+
+/// Every code [importRuleMessage] knows, so a test can hold the list against the server's.
+const List<String> importRuleCodes = [
+  'encoding.not_utf8',
+  'encoding.bom',
+  'encoding.nul_byte',
+  'layout.line_ending',
+  'layout.no_final_newline',
+  'csv.malformed',
+  'layout.delimiter',
+  'layout.header_row',
+  'layout.summary_missing',
+  'row.field_count',
+  'row.trailing_field',
+  'summary.export_date_invalid',
+  'summary.period_start_invalid',
+  'summary.account_invalid',
+  'currency.unsupported',
+  'account.number_missing',
+  'account.identity_mismatch',
+  'account.identity_unverifiable',
+  'date.invalid',
+  'date.out_of_range',
+  'date.booking_before_transaction',
+  'amount.invalid',
+  'amount.zero',
+  'sequence.invalid',
+  'sequence.duplicate',
+  'card.foreign_currency',
+  'statement.empty',
+  'field.too_long',
+  'identifier.missing',
+  'identifier.duplicate',
+  'description.unknown_shape',
+  'card.amount_mismatch',
+  'amount.sign_unexpected',
+  'counterparty_account.invalid',
+  'transfer.same_account',
+  'duplicate.already_imported',
+  'transfer.own_account',
+];
