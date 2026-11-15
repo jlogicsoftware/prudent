@@ -23,11 +23,16 @@ on:** ADR-071 (the privacy export), ADR-091 (import fingerprints), ADR-102 (the 
 
 - **A one-time import of the privacy export (`DataExport`, `privacy.proto`) into an empty Local store**, not a fresh start and not an
   ongoing bridge between the two products. A store that already holds data refuses it: merging two histories has no identity story.
-- **Refused whole, nothing kept, unless every figure checks out.** An exported account balance is the *derived current* balance
-  (`AccountMapper.java:86`), so the opening amount is rebuilt as `exported balance − Σ exported records` per account and currency;
-  after the import every derived Local balance must equal the exported one to the cent. An unknown `format_version`, a file that does
+- **Refused whole, nothing kept, unless every balance matches to the cent.** An exported account balance is the *derived current*
+  balance (`AccountMapper.java:86`), so the opening amount is rebuilt as `exported balance − Σ exported records` per account and
+  currency; after the import every derived Local balance must equal the exported one. Because the openings are built from those very
+  balances, the check holds by construction for a correct import and catches **dropped or mis-joined records** (a lost transfer leg,
+  a flipped sign, a record on the wrong account). **It does not check** budgets, carry-over, envelopes, free money, goal progress or
+  occurrences: the export carries none of those figures (ADR-071). They are proven instead by unit 10b's test, which imports an export
+  made by the real server and compares every figure with the server's own answers to the cent; at run time they are unchecked. An unknown `format_version`, a file that does
   not parse, or a transfer with one leg missing is refused the same way.
-- **Repairs made on the way in:** server UUIDs are kept as ids so links survive; the two legs of each transfer become one transfer
+- **Repairs made on the way in:** server UUIDs are kept as ids so links survive, normalised to 32 lower-case hex characters so that their text order (Local's
+  tie-break) is the server's byte order; the two legs of each transfer become one transfer
   record (ADR-102); a correction's intent fields are filled from the balance before it; occurrences and budgets get their
   natural-key ids and every `plan_occurrence_id` is remapped; the default account moves into settings. **Dropped on purpose:** the
   profile (Local has no account), open import sessions and rows, reminder-read times and archive times (not in the export).
@@ -59,7 +64,9 @@ this records a decision.
 
 **Date:** 2026-11-15. **Status:** accepted (decided by the user on the phase-0 analysis). **Plan:** decision 0.2 of
 `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245); the full per-field table for every message in `proto/prudent/v1/` is
-`docs/plans/prudent-local-phase0.md` §0.2, and is part of this decision. **Depends on:** jZen ADR-065/073 (`zen_store`'s per-field
+`docs/plans/prudent-local-phase0.md` §0.2, and is part of this decision; **that table is frozen as of jlogicsoftware/prudent#249** —
+the phase-0 document is not append-only, so a change to a field's class is made by a new ADR that supersedes the row, never by editing
+the table. **Depends on:** jZen ADR-065/073 (`zen_store`'s per-field
 merge). **jZen issues:** jZenDev/jZen#232 (multi-record write), #233 (app issues beside conflicts), #234 (bulk resolution), #235
 (per-field policies), #236 (CloudKit record names).
 
@@ -105,6 +112,10 @@ merge). **jZen issues:** jZenDev/jZen#232 (multi-record write), #233 (app issues
   and an occurrence's reminder-read time, and only when every side holds the same new state, Prudent settles the conflict itself by
   keeping the earliest time. That is not last-writer-wins: no side's intent is dropped, and arrival order cannot change the answer.
   It moves into the store when jZenDev/jZen#235 lands. Every other conflict goes to the person.
+- **Lists answer as the server's do.** A transfer is expanded into its two leg `Record`s before the record list's filters run, so
+  `type=transfer`, an account filter and an `abs(amount)` range apply per leg exactly as on the server. Ids are lower-case hex text
+  compared as text — the server's Postgres byte order — so the `date desc, id` tie-break is the same on every device; it is not a
+  parity property, because server and Local mint different ids (phase-0 §0.3, "List, filter and order semantics").
 - **Import sessions and rows are device-only**, in a second, unsynced, encrypted store (`ZenDeviceStoreKey.load` with its own `name`).
 
 ### What this supersedes, and why
@@ -201,7 +212,7 @@ the sync key (shared by paired devices on Android, Windows and Linux); a stateme
 | T2 | A lost device that is unlocked, or has no PIN | **Warn**: on first launch, offer a PIN (off by default, as jZen ADR-065), saying that without one anyone holding the unlocked device sees everything; the lifecycle lock relocks in the background | 9 | **#231** (`inactive`/`hidden` on Windows, Linux, Android, ADR-078) |
 | T3 | A lost device still paired keeps receiving new data and, on the folder transport, holds a key that can write valid records | **Warn**: Settings → Sync says how to cut it off today (remove it from the Apple ID; for a folder, stop sharing the folder with it, start a new folder and re-pair); **refuse** to call a device "removed" while no rekey exists | 9 | jZen has no rekey (jZenDev/jZen#237); CloudKit not verified (**#231**) |
 | T4 | A forgotten PIN | Owner check where it exists (iOS, macOS, Android); erase this device's copy and re-sync on Linux and Windows (ADR-078/081). **Warn** before turning a PIN on where there is no owner check **and** no other paired device: "If you forget this PIN, this device's data is erased and nothing else holds a copy — save a copy first" | 9 | **#231** ("Forgot PIN?" on real Android, Windows, Linux) |
-| T5 | Every device lost, or the iCloud Keychain lost | **Accept and warn**: the data cannot be recovered by anyone. Said at first run, in Settings → Sync, and in the privacy text; "Save a copy" is offered there | 9, 13 | — |
+| T5 | Every device lost, or the iCloud Keychain lost | **Accept and warn**: the data cannot be recovered by anyone. Said at first run, in Settings → Sync, and in the privacy text; "Save a copy" is offered there | 9, 13 | **#231** (iCloud Keychain and CloudKit recovery behaviour, never run) |
 | T6 | A shared cloud folder holds the ledger's ciphertext | **Accept**: the service sees the number of devices and records, sizes and times, never content (jZen ADR-076). **Warn** when a folder is chosen: choose one only you can open; a folder shared with others shows them when and how much you edit. **Refuse** a folder inside the app's own data directory | 9 | **#231** (real Syncthing, Dropbox, OneDrive; Android SAF) |
 | T7 | Apple sees CloudKit metadata | **Accept, closing later**: record names are `<collection>:<id>` in plaintext (`ZenCloudKitBridge.swift:12`), so Apple sees collection names and counts. **Refuse** to derive any id from an amount, a title, a payee or an account number; ids derived from slots (category + month + currency, plan + date) expose which months and dates exist until jZen keys the names | 4 | jZenDev/jZen#236; real CloudKit **#231** |
 | T8 | A Linux desktop with no secret service, or a locked keyring | **Refuse** to open: no key in a file, no plaintext fallback, no new key over existing data (ADR-075). Show what to install or unlock; offer nothing that erases | 9, 11 (`libsecret-1` in the Linux package) | **#231** (no-secret-service desktop) |
@@ -215,14 +226,14 @@ the sync key (shared by paired devices on Android, Windows and Linux); a stateme
 | T16 | Reminder notifications on a lock screen | **Refuse** amounts in notification text (ADR-056); the plan's title is shown. **Warn** in the reminder setting that titles appear on the lock screen | 6b, 9 | — |
 | T17 | A pairing code photographed or overlooked | **Accept** jZen ADR-077's answer: shown on request, five minutes, hidden in the background, never in a log, URL or clipboard | 9 | QR camera scanning **#231** |
 | T18 | A release build syncing through `ZenFolderCloud`, which stores payloads unencrypted | **Refuse**: the Local app's release tasks and CI fail when `ZEN_SYNC` is set for a release build | 11 | jZenDev/jZen#238 (the framework does not refuse it) |
-| T19 | Someone with write access to the folder but no key | **Accept**: AES-GCM with the file path bound in, so a file cannot be forged, renamed or replayed into something else; deleting files only delays sync (ADR-076) | — | **#231** |
-| T20 | An older app version re-saves a record and drops fields a newer version added | **Refuse** whole-record saves from forms: a form applies only what the person changed onto the record as stored now (jZen ADR-080's rule), so unknown fields survive | 4, 9 | — |
+| T19 | Someone with write access to the folder but no key | **Accept**: AES-GCM with the file path bound in, so a file cannot be forged, renamed or replayed into something else; deleting files only delays sync (ADR-076) | — (accept only; no unit) | **#231** |
+| T20 | An older app version re-saves a record and drops fields a newer version added | **Refuse** whole-record saves from forms: a form applies only what the person changed onto the record as stored now (jZen ADR-080's rule), so unknown fields survive | 4, 9 | **#231** (jZen ADR-080's unknown-field rule is tested on a host only) |
 | T21 | Data in logs | **Refuse** amounts, titles, payees, notes, account numbers, statement text, the sync key and pairing codes in any log line; a failure is one line of classes and codes (ADR-072, ADR-094) | 9 | — |
 | T22 | Account numbers | Kept only inside the encrypted store; **refuse** them in ids, logs, notifications and file names | 4, 5 | — |
 | T23 | A merge breaks a rule across records (an envelope below zero, a record on a deleted account) | **Refuse** to fix it silently; listed as an integrity issue with actions (phase-0 doc, 0.2 D6) | 4–8 | jZenDev/jZen#233 (no place in `zen_ui_store` for app issues) |
 | T24 | "Delete my data" has no server to delete from | **Refuse** to say "deleted everywhere": "Erase this device's copy" says what remains (other devices, the folder, iCloud) | 9 | jZenDev/jZen#239 |
 | T25 | One OS account shared by two people | **Accept**: one ledger per OS user; the PIN is a door, not a key (jZen ADR-065). Said in the privacy text | 13 | — |
-| T26 | A wrong device clock | **Accept**: time decides nothing in a merge; it shows dates, expires pairing codes on an honest device, and dates reminders and import expiry | — | — |
+| T26 | A wrong device clock | **Accept**: time decides nothing in a merge; it shows dates, expires pairing codes on an honest device, and dates reminders and import expiry | — (accept only; no unit) | — |
 
 ### What this supersedes, and why
 
@@ -241,7 +252,7 @@ the sync key (shared by paired devices on Android, Windows and Linux); a stateme
 - Unit 9's "done when" gains a test or a written refusal per row; units 4, 5, 6b, 8b, 10a, 10b, 11 and 13 carry the rows named for them.
 - Nine jZen limitations are filed (jZenDev/jZen#232–#240) and listed in `docs/plans/prudent-local-phase0.md` (J1–J9); T3, T7, T15, T18, T23 and T24 change
   when they land. None is patched around here.
-- Rows T1–T4, T6–T10, T15, T17 and T19 cannot be more verified than jZenDev/jZen#231; Prudent Local is not released before unit 12.
+- Rows T1–T10, T15, T17, T19 and T20 cannot be more verified than jZenDev/jZen#231; Prudent Local is not released before unit 12.
 - Nothing was built or run for this entry.
 
 ---

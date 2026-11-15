@@ -73,8 +73,8 @@ are not). Output: ADR with the per-field table for every proto message in `proto
 
 ### 0.3 Inventory of what the server enforces
 **Done:** the table is `docs/plans/prudent-local-phase0.md` §0.3 — 9 rules in unit 3, 4 obligations in
-unit 4, 45 in unit 5, 45 in unit 6 (28 + 17 after the split), 4 in unit 7, 23 rows / 44 rule codes in
-unit 8, 4 in unit 9, 7 with no local owner by design. Its findings are in "Findings from phase 0" below
+unit 4, 53 in unit 5, 54 in unit 6 (34 + 20 after the split), 4 in unit 7, 25 rows / 44 rule codes in
+unit 8, 5 in unit 9, 7 with no local owner by design. Its findings are in "Findings from phase 0" below
 and have changed units 4, 5, 6, 8 and 10.
 Walk the 22 migrations, every `CHECK`, unique index and resource for the rule it holds
 (normalisation of account numbers, import fingerprints, archive and category kind, budget
@@ -149,17 +149,28 @@ flag (finding F-01). Balances derived; a transfer as one immutable record (ADR-1
 meaning (one person per store) and is recorded as such. **Done when:** parity scenarios for every
 balance-changing path pass, and the account deleted with its records (ADR-081), whose all-or-nothing **waits on
 jZenDev/jZen#232** (until then a resumable delete and integrity issues for what remains).
+**List and filter semantics** (phase-0 §0.3 rows 5.46–5.53): the record list's date, account, category,
+`type`, `abs(amount)` range and search filters and its `date desc, id` order, answered over transfers
+**expanded into their two legs first**, so `type=transfer` and an amount range behave per leg as on the
+server; order within one date is compared as a set, because ids differ between server and Local. The
+search waits on a server fix that escapes `LIKE` wildcards (finding F-09); name order needs one pinned
+collation (F-10). Parity scenarios `record_list_filters` and `record_list_order`.
 
 ### Unit 6a — Budgets, carry-over resets, goals, allocations
 Budget slots by derived id, the summary, carry-over and its resets; goal states, envelopes, free money,
 progress; allocations append-only. The most integrity checks (envelope below zero, money in an archived
-goal, two live resets for one slot). 28 rules (phase-0 §0.3 rows 6.1–6.28). **Done when:** parity
+goal, two live resets for one slot). 34 rules (phase-0 §0.3 rows 6.1–6.28, 6.46–6.50, 6.54), including
+the goal, envelope-history, budget and reset list filters and orders (parity scenarios `goal_lists`,
+`budget_lists`). **Blocked on jZen:** the same-intent times (reset revocation, goal status change) are
+settled by Prudent until jZenDev/jZen#235 lands. **Done when:** parity
 scenarios cover each and the figures match the server's to the cent.
 
 ### Unit 6b — Plans, occurrences, reminders
 Plans with their recurrence and reminder, occurrences by derived id (completion derived from the
 confirming record), confirmation, reminders. Reminders use local-device notifications only. The parity
-suite passes `asOf` explicitly (finding F-07). 17 rules (rows 6.29–6.45). **Done when:** parity scenarios
+suite passes `asOf` explicitly (finding F-07). 20 rules (rows 6.29–6.45, 6.51–6.53), including the
+upcoming window and the order of occurrences and reminders (finding F-11). **Blocked on jZen:** the
+reminder-read time is a same-intent field, settled by Prudent until jZenDev/jZen#235 lands. **Done when:** parity scenarios
 cover each, including a day boundary in a plan's own time zone.
 
 ### Unit 7 — Analytics
@@ -208,8 +219,12 @@ round-trips.
 ### Unit 10b — Moving data in
 As decided in ADR-103: the export read from a file into an empty store, opening amounts rebuilt from the
 exported balances (finding F-03), transfers joined into one record, ids remapped, refused whole unless every
-balance matches to the cent. **Done when:** a synthetic export round-trips and every figure matches the
-server's.
+balance matches to the cent. That balance check catches dropped or mis-joined records; it cannot see a
+wrong mapping of budgets, envelopes, goal progress or occurrences, which the export does not carry.
+**Done when:** a synthetic export made by the real server in `test:e2e` round-trips, and the parity suite
+compares the Local figures after the import with the server's own answers — balances, budget summaries,
+carry-over, envelopes, free money and goal progress — to the cent. At run time only the balances are
+checked; the other figures are proven by that test, not by the app.
 
 ### Unit 11 — Taskfile and CI
 `task` runs the Local app with no server, refuses web, and builds on iOS, macOS, Android, Windows
@@ -252,6 +267,9 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | F-06 | Account deletion with records and the import commit are one server transaction; `zen_store` has no multi-record write | units 5 and 8b; jZenDev/jZen#232 |
 | F-07 | The server's "today" is UTC or the plan's zone; the device's is local | unit 3 harness, unit 6b (`asOf` pinned) |
 | F-08 | Reminder lead days: Java allows `{0,1,2,3,7}`, the schema `0–365`; the Java set is the rule | unit 6b |
+| F-09 | The record search is an unescaped SQL `LIKE` (`%`, `_` are wildcards) with locale-dependent `lower()` | a server fix (own ADR) before unit 5 |
+| F-10 | Accounts, categories and free-money accounts are ordered by the database's unpinned collation | units 5 and 6a |
+| F-11 | Ids order three ways: Postgres bytes (= Local's hex text), Java's signed `UUID.compareTo` in two routes | unit 3, unit 6b |
 
 ## jZen issues Prudent Local waits on
 
@@ -261,7 +279,7 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | jZenDev/jZen#232 | multi-record write | 5, 8b |
 | jZenDev/jZen#233 | application issues beside conflicts | 4, 9 |
 | jZenDev/jZen#234 | settle many conflicts at once | 8b |
-| jZenDev/jZen#235 | intent-preserving per-field merge policy | 4, 6a |
+| jZenDev/jZen#235 | intent-preserving per-field merge policy | 4, 6a, 6b |
 | jZenDev/jZen#236 | CloudKit record names in plaintext | 4 (ADR-100 T7) |
 | jZenDev/jZen#237 | rekey / remove a device | 9 (ADR-100 T3) |
 | jZenDev/jZen#238 | refuse the unencrypted folder in release | 11 (ADR-100 T18) |

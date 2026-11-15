@@ -52,7 +52,7 @@ Read from the code, not only the ADRs, because several decisions turn on them:
 
 ## 0.1 Shape — how the Local app sits beside the server-connected app
 
-**Status: proposal. STOP — the person decides.**
+**Status: decided — ADR-101** (every recommendation below accepted as proposed). The analysis is kept as it was put to the person.
 
 ### The options
 
@@ -119,7 +119,7 @@ include moves from `client/lib/generated` to `packages/prudent_ui/lib/generated`
 
 ## 0.2 Money under merge
 
-**Status: proposal. STOP — the person decides.** The ground rule holds throughout: **no
+**Status: decided — ADR-102** (every recommendation below accepted as proposed; the table below is frozen as of jlogicsoftware/prudent#249 and changes only by a new ADR). The ground rule holds throughout: **no
 last-writer-wins anywhere**, wall-clock time is shown and never decides.
 
 ### The plan's own sentence needs correcting
@@ -406,10 +406,13 @@ read-only, edits refused with a sentence) until the store model is split.
 
 ## 0.3 Inventory of what the server enforces
 
-**Status: complete.** Every `CHECK`, unique index, foreign key with a delete meaning, trigger and
-RLS policy in the 22 migrations and `R__prudent_row_level_security.sql`, and every refusal
+**Status: complete after review.** Every `CHECK`, unique index, foreign key with a delete meaning, trigger and
+RLS policy in the 22 migrations and `R__prudent_row_level_security.sql`, every refusal
 (`PrudentException.invalid/conflict`, 153 call sites) and calculation in
-`server/src/main/java/prudent/`. File paths are relative to `server/src/main/` (`db/` is
+`server/src/main/java/prudent/`, and — added after the review of jlogicsoftware/prudent#249, which
+found the record-list rules missing — **every `@QueryParam` of every resource (24 parameters in 11
+methods) and every list order** (each `order by` and `Comparator` in the server). Those are the rows
+marked "list" below and the block "List, filter and order semantics" after unit 5. File paths are relative to `server/src/main/` (`db/` is
 `resources/db/migration/`, the date prefix shortened; `java/` is `java/prudent/`). Plain
 `NOT NULL` columns are covered by the "required" rows of each entity, not listed one by one.
 
@@ -439,7 +442,7 @@ scenario runs through both implementations (unit 3's harness).
 | 4.3 | The integrity check runner (0.2 D6), each unit adding its checks | none — **no unit in the plan owns it** (finding F-05) | `integrity_test` per rule |
 | 4.4 | Same-intent timestamp rule (0.2) | none | `two_devices_test` |
 
-### Unit 5 — ledger: accounts, records, transfers, corrections, categories, settings (45 rules)
+### Unit 5 — ledger: accounts, records, transfers, corrections, categories, settings (53 rules)
 
 Categories are here, not in unit 6 as the plan says: a record cannot be written without its
 category's kind and archived checks (finding F-01).
@@ -491,8 +494,46 @@ category's kind and archived checks (finding F-01).
 | 5.43 | Starter categories are seeded once | `NewUserSetup.java:88` | `first_run_test` (first device only, deterministic ids) |
 | 5.44 | One settings record; its main currency defaults and is ISO-4217 | `init.sql:147`; `NewUserSetup.java:81`; `SettingsResource.java:82` | `settings_test` |
 | 5.45 | The main currency is a label, not checked against accounts | `SettingsResource.java:84`; ADR-009 | `settings_test` |
+| 5.46 | list — record filters `dateFrom`/`dateTo` (inclusive), `accountId`, `categoryId`; malformed dates or ids refused | `RecordResource.java:72–75,245–270`; `RecordEntity.java:486–515` | parity scenario `record_list_filters` |
+| 5.47 | list — `type`: expense = negative, no transfer, not a correction; income = the positive counterpart; transfer = any transfer leg; correction = any correction. Trimmed, case-insensitive; an unknown type refused | `RecordType.java:24–35`; `RecordEntity.java:516–524` | `record_list_filters` |
+| 5.48 | list — `amountMin`/`amountMax` compare `abs(amount)`, inclusive, in any currency; a negative bound refused | `RecordResource.java:77–78,273–276`; `RecordEntity.java:525–532` | `record_list_filters` |
+| 5.49 | list — `search`: trimmed, lower-cased substring over title, payee and note; blank ignored | `RecordResource.java:79`; `RecordEntity.java:533–538` | `record_list_filters` (finding F-09) |
+| 5.50 | list — records ordered `date desc, id` | `RecordEntity.java:196,539` | `record_list_order` (finding F-11) |
+| 5.51 | list — accounts ordered by name | `AccountEntity.java:132` | `accounts_test` (finding F-10) |
+| 5.52 | list — categories ordered by title | `CategoryEntity.java:112` | `categories_test` (finding F-10) |
+| 5.53 | list — `deleteRecords` defaults to false (the refusal stands) | `AccountResource.java:180–182` | `account_delete_test` |
 
-### Unit 6 — budgets, resets, goals, allocations, plans, occurrences, reminders (45 rules)
+#### List, filter and order semantics (units 5 and 6)
+
+The shared screens rely on what the server's list routes return, so the local repository answers the
+same requests with the same rows in the same order. Three things need saying because the local model
+differs (ADR-102):
+
+- **A transfer is one record, listed as two legs.** The local `listRecords` first expands every transfer
+  into its two derived leg `Record`s (ids `H(transfer_id, "from")`, `H(transfer_id, "to")`, no category,
+  no payee or note), then applies every filter to each leg exactly as the server applies it to each row.
+  So `type=transfer` returns both legs; with `accountId` only the leg on that account; `amountMin`/`amountMax`
+  test each leg's own `abs(amount)`, so a cross-currency transfer of 100.00 PLN to 23.00 EUR can match one
+  leg and not the other, as on the server; `categoryId` and `type=expense`/`income` never match a leg;
+  `search` sees the shared title only. Filtering the transfer record as a whole would silently disagree.
+- **The `id` tie-break.** Within one date the server orders by `id`, which in Postgres compares UUIDs
+  byte by byte — the same order as their lower-case hex text. Locally ids are lower-case 32-hex strings
+  compared as text, which is that same order, and every device holds the same ids, so every device shows
+  the same order. Server and Local mint different ids, so **order within a date is not a parity property**:
+  the parity suite compares rows by date order and, within a date, as a set. Ids carried over from the
+  server (0.4) are normalised to 32 lower-case hex characters (dashes removed) so text order stays byte
+  order. Two server routes tie-break with Java's `UUID.compareTo`, which compares signed halves and is a
+  different order (`OccurrenceResource.java:302`, `ReminderResource.java:192`; finding F-11).
+- **Name order is a collation.** Accounts, categories and free-money accounts are ordered by the
+  database's default collation, which no migration pins; Dart's `compareTo` orders by UTF-16 code unit.
+  Polish and Ukrainian names differ (finding F-10).
+
+Parity scenarios: **`record_list_filters`** (ordinary records, a correction, a cross-currency transfer
+with different amounts on each side; each filter alone and combined; compared as multisets of (date,
+kind, account, amount, currency, title) in date order) and **`record_list_order`**; **`goal_lists`** and
+**`budget_lists`** for unit 6's rows 6.46–6.54.
+
+### Unit 6 — budgets, resets, goals, allocations, plans, occurrences, reminders (54 rules)
 
 | # | Rule | Where it lives today | Test |
 |---|---|---|---|
@@ -536,11 +577,20 @@ category's kind and archived checks (finding F-01).
 | 6.38 | Overdue is derived: planned and past | `OccurrenceResource` | parity scenario `occurrences` |
 | 6.39 | Confirming creates exactly one record carrying both plan ids; a double confirm cannot make two | `OccurrenceResource.java:190–205`; unique `record_plan_link.sql:29` | deterministic id; `confirm_test` (mirrors `OccurrenceConfirmationTest`) |
 | 6.40 | Confirmation overrides are validated as a record | `OccurrenceResource.java:190–230` | `confirm_test` |
-| 6.41 | The upcoming horizon is bounded | `OccurrenceResource.java:105` | `occurrences_test` |
+| 6.41 | The upcoming horizon is bounded (the window itself is 6.51) | `OccurrenceResource.java:105` | `occurrences_test` |
 | 6.42 | A reminder is due for a planned occurrence of a plan whose reminder is on, within the lead or past, in the plan's own calendar day | `ReminderResource.java`; ADR-055 | parity scenario `reminders` |
 | 6.43 | Read/unread/read-all; a reminder ends on confirm or skip | `ReminderResource.java:151`; `occurrence_reminder_read.sql:17` | `reminders_test` |
 | 6.44 | Notifications: next 30 days, 09:00 device time, no amount, reconciled | `client/lib/notification/` (already client-side, ADR-056/057) | moves with the shared package; existing client suite |
 | 6.45 | The goal "today" defaults to the server's UTC date | `GoalResource.java:305`; ADR-052 | parity pins `asOf` (finding F-07) |
+| 6.46 | list — goals by `status` (exact constant name, an unknown one refused), ordered `created_at, id` | `GoalResource.java:68–69,308–316`; `GoalEntity.java:86–88` | parity scenario `goal_lists` |
+| 6.47 | list — envelope history by `goalId` (as source or target; a malformed id refused), ordered `created_at desc, id` | `GoalAllocationResource.java:69–70`; `GoalAllocationEntity.java:83–86` | `goal_lists` |
+| 6.48 | list — budgets by optional `month` and `categoryId`, ordered month, currency, category | `BudgetResource.java:86–92`; `BudgetEntity.java:120–148` | parity scenario `budget_lists` |
+| 6.49 | list — the budget summary needs `month` and `currency` | `BudgetResource.java:115–122` | `budget_lists` |
+| 6.50 | list — reset history by optional `categoryId` and `currency`, ordered `created_at desc, id` | `BudgetCarryOverResetResource.java:75–83`; `BudgetCarryResetEntity.java:153` | `budget_lists` |
+| 6.51 | list — upcoming: `days` defaults to 30, 1–366, today through today + days inclusive; overdue is its own route; ordered date, id | `OccurrenceResource.java:74–77,102–106,286–303` | parity scenario `occurrences` (finding F-11) |
+| 6.52 | list — due reminders ordered by occurrence date, id | `ReminderResource.java:192` | `reminders_test` (finding F-11) |
+| 6.53 | list — plans ordered `start_date, id`; a plan's occurrences by date | `PlanEntity.java:122`; `PlanOccurrenceEntity.java:113,148,160` | `plans_test` |
+| 6.54 | list — free-money accounts ordered by name, id | `FreeMoney.java:72` | `free_money` (finding F-10) |
 
 ### Unit 7 — analytics (4 rules)
 
@@ -551,7 +601,7 @@ category's kind and archived checks (finding F-01).
 | 7.3 | Transfer legs and corrections are not spending | `RecordEntity.java:381–383` | same |
 | 7.4 | Planned cash flow per currency, apart from balances | `client/lib/overview/planned_cash_flow.dart` (client-side, ADR-042) | moves with the shared package; reads occurrences from the local repository |
 
-### Unit 8 — Erste statement import (23 rules; row 8.6 alone is 44 rule codes and ~220 catalogue cases)
+### Unit 8 — Erste statement import (25 rules; row 8.6 alone is 44 rule codes and ~220 catalogue cases)
 
 | # | Rule | Where it lives today | Test |
 |---|---|---|---|
@@ -578,8 +628,10 @@ category's kind and archived checks (finding F-01).
 | 8.21 | The statement identity is a 64-hex digest, kept only while open | `CHECK import_sessions.sql:51` | `import_workflow_test` |
 | 8.22 | No statement text in an answer or a log line | `ImportRejectedException.java`; ADR-094 | `import_logging_test` (mirrors `ImportKeyLoggingTest`) |
 | 8.23 | The bank's sequence number is not an identifier for Erste | `StatementImporter.java` (`stableExternalId`) | `fingerprints_parity_test` |
+| 8.24 | list — sessions by `state` (exact name, an unknown one refused), `limit` 1–100 defaulting to 50, ordered `created_at desc, id` | `ImportSessionResource.java:73–81,338–345`; `ImportSessionEntity.java:157–182` | `import_workflow_test` |
+| 8.25 | An unknown format id is refused without echoing it; formats are listed sorted | `ImportFormats.java:64,76–82` | `import_failure_matrix_test` |
 
-### Unit 9 — the application (4 rules)
+### Unit 9 — the application (5 rules)
 
 | # | Rule | Where it lives today | Test |
 |---|---|---|---|
@@ -587,6 +639,7 @@ category's kind and archived checks (finding F-01).
 | 9.2 | Erasure deletes everything the person owns | `PrudentDataEraser.java`; ADR-071 | `erase_test` — "this device" only; "everywhere" needs jZenDev/jZen#239 |
 | 9.3 | Erasure must be confirmed deliberately (the address repeated) | `PrivacyResource.java:104` | `erase_test` (a typed phrase, as `DeleteAccountForm`) |
 | 9.4 | A failure is logged as one line without data | `UnhandledExceptionMapper.java`; ADR-072 | `logging_test` |
+| 9.5 | list — the export lists rows in a stable order (`created_at, id` where there is one) | `PrudentDataExporter.java:127` | `data_copy_test` |
 
 ### No local owner
 
@@ -625,6 +678,19 @@ By design (recorded so they are not mistaken for gaps):
   device's is local. The parity suite must pass `asOf` explicitly or it will fail near midnight.
 - **F-08 — Reminder lead days are narrower in Java than in the schema** (`{0,1,2,3,7}` against
   `0–365`). Locally the Java set is the rule; the schema's range is irrelevant.
+- **F-09 — The record search is a SQL `LIKE` whose wildcards are not escaped** (`RecordEntity.java:533–538`):
+  a `%` or `_` the person types matches anything, and `lower()` follows the database's locale while
+  Dart's `toLowerCase` does not. Local cannot copy this faithfully and should not; the server should
+  escape the pattern (its own small change and ADR) and both then do a plain case-insensitive
+  substring. Owner: unit 5, with that server fix before it.
+- **F-10 — Name order is the database's unpinned collation** (accounts, categories, free-money
+  accounts). Owner: units 5 and 6a: pin one collation on both sides (or compare names in parity by a
+  stated rule) before the parity suite covers lists.
+- **F-11 — Three id orders.** Postgres orders UUIDs by bytes (= lower-case hex text, which is Local's
+  order); Java's `UUID.compareTo` (used at `OccurrenceResource.java:302` and `ReminderResource.java:192`)
+  compares signed halves. Ids differ between server and Local anyway, so order within one date is
+  compared as a set; Local uses text order everywhere. Owner: unit 3 (id rules), unit 6b (the two
+  routes).
 
 ### Counts, and whether units 6 and 8 must split
 
@@ -632,24 +698,24 @@ By design (recorded so they are not mistaken for gaps):
 |---|---|---|
 | 3 | 9 | ~300 (Currencies, AccountNumbers, Ids, parsing helpers) |
 | 4 | 4 obligations (no server rule) | — |
-| 5 | 45 | ~3,200 (account, record, category, settings) |
-| 6 | 45 | ~4,400 (budget 1,079, goal 1,386, plan 1,909) |
+| 5 | 53 | ~3,200 (account, record, category, settings) |
+| 6 | 54 | ~4,400 (budget 1,079, goal 1,386, plan 1,909) |
 | 7 | 4 | ~200 |
-| 8 | 23 rows, 44 rule codes, ~220 catalogue cases | ~3,250 |
-| 9 | 4 | ~800 (privacy) |
+| 8 | 25 rows, 44 rule codes, ~220 catalogue cases | ~3,250 |
+| 9 | 5 | ~800 (privacy) |
 | none | 7 by design | — |
 
-**Recommendation: split both.** Unit 6 into **6a — budgets, resets, goals, allocations** (28
-rules, three calculators, the most integrity checks) and **6b — plans, occurrences, reminders**
-(17 rules, a state machine and time-zone arithmetic). Unit 8 into **8a — the Erste parser and
-fingerprints** (pure functions: rows 8.6–8.9, 8.20–8.23, the whole failure catalogue) and **8b —
-sessions, duplicates, commit and the two-device import** (8.1–8.5, 8.10–8.19).
+**Recommendation: split both.** Unit 6 into **6a — budgets, resets, goals, allocations** (34
+rules: 6.1–6.28, 6.46–6.50, 6.54; three calculators, the most integrity checks) and **6b — plans, occurrences, reminders**
+(20 rules: 6.29–6.45, 6.51–6.53; a state machine and time-zone arithmetic). Unit 8 into **8a — the Erste parser and
+fingerprints** (pure functions: rows 8.6–8.9, 8.20–8.23, 8.25, the whole failure catalogue) and **8b —
+sessions, duplicates, commit and the two-device import** (8.1–8.5, 8.10–8.19, 8.24).
 
 ---
 
 ## 0.4 Moving existing data
 
-**Status: proposal. STOP — the person decides.**
+**Status: decided — ADR-103** (every recommendation below accepted as proposed). The analysis is kept as it was put to the person.
 
 ### What exists
 
@@ -668,6 +734,8 @@ clipboard** (ADR-071), because no file save existed when it was built.
 
 ### What an import must repair (B)
 
+0. **Ids** are kept, normalised to 32 lower-case hex characters so their text order stays the
+   server's byte order (§0.3, list semantics).
 1. **Opening amounts** (F-03): an exported account balance is the current derived balance; the
    opening amount is `exported balance − Σ exported records` per account and currency. This makes
    the strongest check available: after the import, every derived Local balance must equal the
