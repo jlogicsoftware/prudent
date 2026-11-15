@@ -23,7 +23,10 @@ re-checked against a download made for this repository; UI labels are quoted as 
    transakcji" (from and to), "Wydatki i wpływy" (expenses and inflows), "Status" ("Wszystkie") and a
    radio "Widoczne w tabeli" with the options "Data transakcji" and "Data księgowania i saldo". Period,
    amount, type, status and what is visible in the table are chosen here; the download dialog offers
-   none of them. That the filter also decides what the download holds is assumed, not seen.
+   none of them. That the filter also decides what the download holds is assumed, not seen. The
+   account the page shows is chosen in the page header (reported by the user, not visible in the
+   screenshots). The "Widoczne w tabeli" radio changes only what the table shows, not the CSV
+   (reported by the user), so the file has the same columns whichever option is selected.
 3. Under **"Pobierz listę transakcji"** press **"CSV"** (the other button is "PDF").
 4. In the small dialog, leave the dropdown **"Separator"** on **"przecinek - ,"** (comma, the default
    shown). It is the only option the dialog has; the others it lists are "średnik - ;", "pipe - |" and
@@ -48,11 +51,9 @@ importer relies on.
 
 ### Still unconfirmed
 
-- How the account is chosen: whether the "Historia" page is per account or lists several, and so
-  which account a given file holds.
-- Whether the "Widoczne w tabeli" radio changes the columns of the CSV. The sample this contract was
-  derived from held both a transaction date and a booking date and a balance column while "Data
-  transakcji" appeared selected in the screenshots, which does not settle it.
+- Whether one "Historia" page can hold several accounts' transactions in a single CSV. The account
+  is chosen in the page header (reported by the user), so a file is expected to hold one account,
+  and the summary row names it; the importer checks that name against the destination account.
 - Whether the filter applies to the download at all (assumed, not seen), and whether its limits (for
   example "Okres") change anything in the file beyond which rows it holds, such as the summary row's
   period start.

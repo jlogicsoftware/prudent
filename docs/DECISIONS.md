@@ -23,8 +23,9 @@ own — ADR-001 is the first instance.
   web UI on 2026-11-15** (Polish interface, four screenshots): "Historia" then "Historia", the filter
   panel, "Pobierz listę transakcji" then "CSV", the "Separator" dropdown, "POBIERZ", and the file name
   `history_YYYYMMDD.csv`. Nothing beyond what the user saw is stated; the rest is listed there as
-  unconfirmed (account choice, the effect of "Widoczne w tabeli", the filters' effect on the file, size limits, a
-  non-default separator's output).
+  unconfirmed (whether one page can hold several accounts in a file, the filters' effect on the file, size
+  limits, a non-default separator's output). The user later added two facts: the account is chosen in the
+  page header, and "Widoczne w tabeli" does not change the CSV.
 - The importer requires the comma separator, as ADR-088 already had it; the procedure now tells the
   user to leave the dropdown on "przecinek - ,". The file name is still never parsed.
 - This closes the last open bullet of #42, which ADR-088 said must not be closed until the steps
