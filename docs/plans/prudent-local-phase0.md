@@ -1,11 +1,12 @@
 # Prudent Local — phase 0, decisions 0.1 to 0.5
 
-> **Status:** analysis, written 2026-11-15 for `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
-> **0.1, 0.2 and 0.4 are proposals waiting for the person's decision** — no ADR is written for them
-> yet. **0.3** (the inventory) is complete. **0.5** is decided and recorded as ADR-100 in
-> `docs/DECISIONS.md` (the number may change when it is merged beside ADR-099 of decision 0.6).
-> Nothing here is built, and nothing here was run on a device. Prudent Local inherits every
-> "not verified" of jZen Local (jZenDev/jZen#231).
+> **Status:** written 2026-11-15 for `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
+> **All five are decided.** The user accepted every recommendation of 0.1, 0.2 and 0.4 as proposed:
+> 0.1 is ADR-101, 0.2 is ADR-102, 0.4 is ADR-103, 0.5 (the threat model) is ADR-100, and 0.3 (the
+> inventory) is folded into the plan. The sections below keep the analysis as it was put to the
+> person; where they say "proposal" or "STOP", the ADR now holds. Nothing here is built, and nothing
+> here was run on a device. Prudent Local inherits every "not verified" of jZen Local
+> (jZenDev/jZen#231). The nine jZen limitations below are filed as jZenDev/jZen#232–#240.
 
 Sources read: `CLAUDE.md`, `docs/zen-architecture.md`, `docs/DECISIONS.md` (ADR-014, 071, 081,
 088–097), the plan, all 22 Flyway migrations and the repeatable RLS script, every resource and
@@ -175,7 +176,7 @@ that create "the same" thing write the same record:
 **Exposure:** on CloudKit the record name is visible to Apple (fact 6), so `H(category_id, month,
 currency)` lets Apple test which months and currencies a budget exists for, and `H(plan_id, date)`
 which dates a plan falls on. No amount, title or account number ever enters an id. Closing this
-needs CloudKit record names to be keyed (jZen issue J5 below); it is a threat-model row (ADR-100,
+needs CloudKit record names to be keyed (jZenDev/jZen#236 below); it is a threat-model row (ADR-100,
 row T7).
 
 **D4 — A transfer is one store record.** The server writes two `Record` rows with a shared
@@ -237,7 +238,7 @@ clock readings: a conflict about *when*, not *whether*. The same holds for `stat
 (two devices completing one goal) and the reminder-read time. These are the only fields where an
 automatic answer is honest: when every side carries the *same* new state, the earliest timestamp
 is kept. That is not last-writer-wins — no side's intent is dropped, and the answer does not depend
-on which device wrote last. It needs a declared per-field policy in `zen_store` (jZen issue J4);
+on which device wrote last. It needs a declared per-field policy in `zen_store` (jZenDev/jZen#235);
 until then the same rule is applied by `prudent_local_core` through `resolve`, only for these
 listed fields, and every other conflict goes to the person.
 
@@ -311,7 +312,7 @@ Stored messages (as they will be stored locally; the reason is in the last colum
 | Field | Class | Why |
 |---|---|---|
 | `id`, `category_id`, `month`, `currency`, `discarded_minor`, `note`, `created_by`, `created_at_ms` | Immutable | an audit entry, never edited (ADR-046); `created_by` is the device id locally |
-| `revoked_by`, `revoked_at_ms` | Group (revocation), same-intent rule | revoking twice is the same intent; the earliest time is kept (J4). Two live resets in one slot are an integrity issue (D6) |
+| `revoked_by`, `revoked_at_ms` | Group (revocation), same-intent rule | revoking twice is the same intent; the earliest time is kept (jZenDev/jZen#235). Two live resets in one slot are an integrity issue (D6) |
 
 **`Goal`** (`goals.proto`)
 
@@ -383,7 +384,7 @@ Messages that are never stored (requests, responses, calculated views) — **no 
 
 Yes, with D2–D7 accepted, and with one cost that must be said plainly: **an import made on two
 devices with different category choices produces one conflict per differing row**, each settled
-one at a time in `zen_ui_store` today (jZen issue J3 asks for "keep this device's version for all").
+one at a time in `zen_ui_store` today (jZenDev/jZen#234 asks for "keep this device's version for all").
 Where it would not be honest is option "store the wire protos as they are" (D2 rejected): currency
 and amount would merge apart, and every account's currency list would conflict whole. If the person
 rejects D2, the narrower fallback the plan names applies: **one writer device** (other devices
@@ -569,7 +570,7 @@ category's kind and archived checks (finding F-01).
 | 8.13 | Defaults per direction only while open | `CHECK import_commit.sql:57`; `ImportWorkflow.java` | `import_rows_test` |
 | 8.14 | Every accepted row has a category at commit | `ImportWorkflow.java:254–261` | `import_commit_test` |
 | 8.15 | The commit names the accepted count it confirms | `ImportWorkflow.java:242–247` | `import_commit_test` |
-| 8.16 | One transaction, account locked, ordinary records through the record writer | `LedgerImportCommitter.java:54–172`; ADR-092 | `import_commit_test` — **locally all-or-nothing needs jZen J1; until then an idempotent, resumable commit (D3 ids) and a validation pass before the first write** |
+| 8.16 | One transaction, account locked, ordinary records through the record writer | `LedgerImportCommitter.java:54–172`; ADR-092 | `import_commit_test` — **locally all-or-nothing needs jZenDev/jZen#232; until then an idempotent, resumable commit (D3 ids) and a validation pass before the first write** |
 | 8.17 | A repeated commit answers the stored counts | `CHECK import_commit.sql:48–55` | `import_commit_test` |
 | 8.18 | Failures between preview and commit have rule codes | `LedgerImportCommitter.java:144,172`; ADR-094 | `ImportCommitFailureTest` ported |
 | 8.19 | Rows are deleted when a session ends | `ImportWorkflow.java:393–425` | `import_expiry_test` |
@@ -583,7 +584,7 @@ category's kind and archived checks (finding F-01).
 | # | Rule | Where it lives today | Test |
 |---|---|---|---|
 | 9.1 | A copy of every row the person owns, in any state | `PrudentDataExporter.java`; ADR-071 | `data_copy_test` (every collection appears; mirrors `PrivacyCoverageTest`) |
-| 9.2 | Erasure deletes everything the person owns | `PrudentDataEraser.java`; ADR-071 | `erase_test` — "this device" only; "everywhere" needs jZen J8 |
+| 9.2 | Erasure deletes everything the person owns | `PrudentDataEraser.java`; ADR-071 | `erase_test` — "this device" only; "everywhere" needs jZenDev/jZen#239 |
 | 9.3 | Erasure must be confirmed deliberately (the address repeated) | `PrivacyResource.java:104` | `erase_test` (a typed phrase, as `DeleteAccountForm`) |
 | 9.4 | A failure is logged as one line without data | `UnhandledExceptionMapper.java`; ADR-072 | `logging_test` |
 
@@ -619,7 +620,7 @@ By design (recorded so they are not mistaken for gaps):
   5.19, 5.42, 6.9, 6.16, 6.23, 6.24, and the dangling references behind 5.10, 5.11, 5.12) can be
   broken by a merge and are not caught by any write-time check. Unit 4 should own the runner.
 - **F-06 — Atomic writes.** Rows 5.12, 5.30 and 8.16 are one transaction on the server; `zen_store`
-  has no multi-record write (jZen J1). 5.30 is solved by modelling (0.2 D4); 5.12 and 8.16 are not.
+  has no multi-record write (jZenDev/jZen#232). 5.30 is solved by modelling (0.2 D4); 5.12 and 8.16 are not.
 - **F-07 — "Today" differs.** The server's goal and reminder "today" is UTC or the plan's zone; the
   device's is local. The parity suite must pass `asOf` explicitly or it will fail near midnight.
 - **F-08 — Reminder lead days are narrower in Java than in the schema** (`{0,1,2,3,7}` against
@@ -721,19 +722,19 @@ dependencies are there; it is reviewed again before unit 9 lands.
 
 ---
 
-## jZen limitations met (for the orchestrator to file in jZenDev/jZen)
+## jZen limitations met (filed as jZenDev/jZen#232–#240)
 
-Nothing below is patched around in Prudent. Each line is what the issue should say; each has a
-row to add to `docs/jzen/README.md` once filed.
+Nothing below is patched around in Prudent. Each is filed in jZenDev/jZen and has a row in
+`docs/jzen/README.md`.
 
 | # | Package | Limitation | Why it matters to Prudent | Acceptance test |
 |---|---|---|---|---|
-| J1 | `zen_store` | No multi-record write; each `put` persists one shard, so two writes can be half-done after a crash | A ledger has one-transaction operations: an account deleted with its records (ADR-081), a statement import commit (ADR-092) | `writeAll` over records in different shards; a crash injected between shard renames leaves either all or none on reopen |
-| J2 | `zen_ui_store` | Only per-record field conflicts are shown; an application cannot list its own cross-record "integrity issues" beside them | Every rule across records (envelope below zero, a record on a deleted account) must be shown where conflicts are, with actions | an app-supplied issue appears in the conflict banner count and list, with its own actions, in en/uk |
-| J3 | `zen_ui_store` | Conflicts are settled one record at a time | One statement imported on two devices with different categories yields one conflict per row | "Keep this device's version for all N" settles N conflicts from one device in one action, with a count shown first |
-| J4 | `zen_store` | No declared per-field merge policy; every differing value is a conflict | Revocation, status-change and read times set by two devices for the same intent conflict about *when* only | a field declared "earliest" merges two different timestamps to the earlier without a conflict; no policy can choose by write order |
-| J5 | `zen_store_cloudkit` | CloudKit record names are `<collection>:<id>` in plaintext | Collection names, counts per collection and any derived id are visible to Apple; the folder transport hides them (ADR-076) | record names are an HMAC under a key kept in a synchronizable iCloud Keychain item; Apple's view of a record shows no collection or id |
-| J6 | `zen_store_sync` / `zen_ui_store` | No rekey and no way to remove a paired device | A lost or sold device that keeps the sync key keeps reading new data and can write valid records into the folder | "Remove a device": a new sync key, the remaining devices re-paired, the old key's files no longer read; a test shows the removed device's new writes are ignored |
-| J7 | `zen_store_sync` | `ZEN_SYNC=folder` (`ZenFolderCloud`, unencrypted payloads) is not refused in a release build | A release build made with the define would write the whole ledger unencrypted | `ZenSync.start` in release mode with `ZEN_SYNC` set answers a `ZenValidationError` |
-| J8 | `zen_store` / transports | Erase is this device only; there is no "erase everywhere" (all devices, the folder, the CloudKit zone) | The Local counterpart of ADR-071's erasure has no way to delete the person's data from the sync service | one call deletes every record on every device at its next sync and removes the folder directories / the zone; the folder holds no file of the store afterwards |
-| J9 | `zen_ui_lock` | No screen-capture protection (Android `FLAG_SECURE`, a hidden snapshot on iOS); Flutter does not set it (ADR-078) | Balances appear in Android's recents and in screen recordings | an option sets `FLAG_SECURE` while the app holds data; verified on a device as part of #231 |
+| J1 ([#232](https://github.com/jZenDev/jZen/issues/232)) | `zen_store` | No multi-record write; each `put` persists one shard, so two writes can be half-done after a crash | A ledger has one-transaction operations: an account deleted with its records (ADR-081), a statement import commit (ADR-092) | `writeAll` over records in different shards; a crash injected between shard renames leaves either all or none on reopen |
+| J2 ([#233](https://github.com/jZenDev/jZen/issues/233)) | `zen_ui_store` | Only per-record field conflicts are shown; an application cannot list its own cross-record "integrity issues" beside them | Every rule across records (envelope below zero, a record on a deleted account) must be shown where conflicts are, with actions | an app-supplied issue appears in the conflict banner count and list, with its own actions, in en/uk |
+| J3 ([#234](https://github.com/jZenDev/jZen/issues/234)) | `zen_ui_store` | Conflicts are settled one record at a time | One statement imported on two devices with different categories yields one conflict per row | "Keep this device's version for all N" settles N conflicts from one device in one action, with a count shown first |
+| J4 ([#235](https://github.com/jZenDev/jZen/issues/235)) | `zen_store` | No declared per-field merge policy; every differing value is a conflict | Revocation, status-change and read times set by two devices for the same intent conflict about *when* only | a field declared "earliest" merges two different timestamps to the earlier without a conflict; no policy can choose by write order |
+| J5 ([#236](https://github.com/jZenDev/jZen/issues/236)) | `zen_store_cloudkit` | CloudKit record names are `<collection>:<id>` in plaintext | Collection names, counts per collection and any derived id are visible to Apple; the folder transport hides them (ADR-076) | record names are an HMAC under a key kept in a synchronizable iCloud Keychain item; Apple's view of a record shows no collection or id |
+| J6 ([#237](https://github.com/jZenDev/jZen/issues/237)) | `zen_store_sync` / `zen_ui_store` | No rekey and no way to remove a paired device | A lost or sold device that keeps the sync key keeps reading new data and can write valid records into the folder | "Remove a device": a new sync key, the remaining devices re-paired, the old key's files no longer read; a test shows the removed device's new writes are ignored |
+| J7 ([#238](https://github.com/jZenDev/jZen/issues/238)) | `zen_store_sync` | `ZEN_SYNC=folder` (`ZenFolderCloud`, unencrypted payloads) is not refused in a release build | A release build made with the define would write the whole ledger unencrypted | `ZenSync.start` in release mode with `ZEN_SYNC` set answers a `ZenValidationError` |
+| J8 ([#239](https://github.com/jZenDev/jZen/issues/239)) | `zen_store` / transports | Erase is this device only; there is no "erase everywhere" (all devices, the folder, the CloudKit zone) | The Local counterpart of ADR-071's erasure has no way to delete the person's data from the sync service | one call deletes every record on every device at its next sync and removes the folder directories / the zone; the folder holds no file of the store afterwards |
+| J9 ([#240](https://github.com/jZenDev/jZen/issues/240)) | `zen_ui_lock` | No screen-capture protection (Android `FLAG_SECURE`, a hidden snapshot on iOS); Flutter does not set it (ADR-078) | Balances appear in Android's recents and in screen recordings | an option sets `FLAG_SECURE` while the app holds data; verified on a device as part of #231 |

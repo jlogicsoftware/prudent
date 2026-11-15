@@ -13,6 +13,171 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-103 — Existing data moves into Prudent Local once, by a file, into an empty store, and only if every balance matches to the cent
+
+**Date:** 2026-11-15. **Status:** accepted (decided by the user on the phase-0 analysis). **Plan:** decision 0.4 of
+`docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245); analysis in `docs/plans/prudent-local-phase0.md` §0.4. **Builds
+on:** ADR-071 (the privacy export), ADR-091 (import fingerprints), ADR-102 (the Local store model).
+
+### Decision
+
+- **A one-time import of the privacy export (`DataExport`, `privacy.proto`) into an empty Local store**, not a fresh start and not an
+  ongoing bridge between the two products. A store that already holds data refuses it: merging two histories has no identity story.
+- **Refused whole, nothing kept, unless every figure checks out.** An exported account balance is the *derived current* balance
+  (`AccountMapper.java:86`), so the opening amount is rebuilt as `exported balance − Σ exported records` per account and currency;
+  after the import every derived Local balance must equal the exported one to the cent. An unknown `format_version`, a file that does
+  not parse, or a transfer with one leg missing is refused the same way.
+- **Repairs made on the way in:** server UUIDs are kept as ids so links survive; the two legs of each transfer become one transfer
+  record (ADR-102); a correction's intent fields are filled from the balance before it; occurrences and budgets get their
+  natural-key ids and every `plan_occurrence_id` is remapped; the default account moves into settings. **Dropped on purpose:** the
+  profile (Local has no account), open import sessions and rows, reminder-read times and archive times (not in the export).
+- **A new unit before the import unit, on the server side:** the import fingerprint and occurrence (ADR-091) are added to the
+  export, contract-first, so a statement imported before the move is still recognised after it; and the server-connected app gains
+  **"Save to a file"** for the export (beside the clipboard copy), with a warning that the file is not encrypted. The Local app reads
+  the export from a file the person picks, never from the clipboard (ADR-100, T14).
+- **The server account is not erased by the move.** The Local app says how to erase it once the person has checked the figures.
+
+### What this supersedes, and why
+
+- **"Is there a path from a server account to a Local one? … Decide: import that export into a fresh Local store, or no migration and
+  a fresh start."** (`PRUDENT-LOCAL-PLAN.md`, 0.4) → **decided: import, gated.** *Why:* the export already holds every row in every
+  state, and its balances give a check strong enough to refuse a wrong import rather than ship one.
+- **"The clipboard is the export's only destination for now"** (ADR-071, Decision) → **refined: the server-connected app also saves
+  the export to a file.** *Why:* the move is a whole ledger in plaintext, and the clipboard reaches clipboard managers and other
+  devices (ADR-100, T14). The clipboard copy stays for the person who wants it.
+- **`Record` on the wire has no import fingerprint** (`records.proto`; finding F-02) → **to change**, in its own unit and ADR. *Why:*
+  without it a re-imported statement writes every row twice after the move.
+
+### Consequence
+
+Nothing is built. The plan gains the server-side unit (export fingerprints and file save) before the import unit. Verified: nothing;
+this records a decision.
+
+---
+
+## ADR-102 — Money under merge in Prudent Local: its own store messages, ids from natural keys, a transfer as one record, and rule breaks shown, never fixed
+
+**Date:** 2026-11-15. **Status:** accepted (decided by the user on the phase-0 analysis). **Plan:** decision 0.2 of
+`docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245); the full per-field table for every message in `proto/prudent/v1/` is
+`docs/plans/prudent-local-phase0.md` §0.2, and is part of this decision. **Depends on:** jZen ADR-065/073 (`zen_store`'s per-field
+merge). **jZen issues:** jZenDev/jZen#232 (multi-record write), #233 (app issues beside conflicts), #234 (bulk resolution), #235
+(per-field policies), #236 (CloudKit record names).
+
+### Decision
+
+- **No last-writer-wins anywhere; wall-clock time never decides.** `zen_store` merges per top-level proto field: edits to different
+  fields merge, equal values merge, and two different values of one field are always a conflict for the person. Every rule below is
+  built on that and asks nothing more of it.
+- **Every figure is derived:** balances (opening + net of records, ADR-014), budget summary and carry-over, envelopes, free money, goal
+  progress, analytics, overdue, due reminders. The opening amount per account and currency is the only stored money figure of an
+  account.
+- **The Local store has its own messages** (`local/prudent_local_core/proto/prudent_local/v1/`, generated as jZen ADR-080 does for its
+  demo); a mapper produces the `proto/prudent/v1/` messages the shared screens use. The wire `Account.balances` is a derived value and
+  is not stored; each account currency is its own record.
+- **Field classes** (table in the phase-0 document): *merge* (its own field), *group* (coupled fields in one nested message that
+  conflict together — on records and plans, account + currency + amount is one `posting`), *immutable*, *derived*, *device* (never
+  synced). Note, payee and category are plain merge fields: they merge beside edits to other fields, and **two different values of one
+  of them is still a conflict** — the plan's "note and category are not conflicts" is withdrawn, because the only way to make it true
+  would be to pick a winner.
+- **Ids from natural keys.** Where the server holds a unique index on a natural key, the local id is derived from it, so two devices
+  that make "the same" thing write the same record and a uniqueness rule becomes a same-record conflict the store shows: settings
+  (constant id), account currency (`account, currency`), budget (`category, month, currency`), occurrence (`plan, date`), the record
+  confirming an occurrence, an imported record (`account, fingerprint, occurrence`), starter categories (seeded only by "Start fresh on
+  this device", never by "Join"). No id is ever derived from an amount, title, payee or account number. **The default account moves
+  into settings** as one field, so two devices cannot leave two defaults.
+- **A transfer is one immutable record holding both legs — a deliberate Prudent Local difference from the server**, which writes two
+  `Record` rows sharing a `transfer_id` (`TransferResource.java:74`). Locally a leg can never arrive alone, because there is no second
+  record to wait for; the two leg `Record`s the screens and the parity suite see are produced on read with ids derived from the
+  transfer's. Figures are the same as the server's; storage is not. Like the server, a transfer is never edited, only deleted.
+- **Completion and detachment are derived, not written:** an occurrence is completed when a live record carries its id; a record
+  whose plan is deleted reads as detached. Neither needs a second record written beside the first.
+- **Rules across records are checked after every sync and listed as integrity issues with actions**, beside the store's conflicts;
+  nothing is fixed silently. The list (dangling references, a currency an account no longer holds, a sign against a category's kind,
+  an envelope below zero, money in an archived goal, two live resets for one slot, an occurrence skipped on one device and paid on
+  another, a correction whose effect changed, two accounts with one account number) and its actions are in the phase-0 document. An
+  envelope below zero is repaired by a compensating entry, never by a delete. Free money below zero is not an issue (ADR-051 allows it).
+  Until jZenDev/jZen#233 lands, Prudent shows the list itself.
+- **A correction keeps the server's meaning** — a stored delta from the balance at that moment (`CorrectionResource.java:95–110`) — and
+  two immutable local fields, the balance asked for and the balance seen, so the integrity check notices when a merge changed its
+  effect and asks: keep, adjust to the intended balance, or delete.
+- **Goal allocations stay append-only** with random ids: two devices' entries never meet.
+- **Same-intent timestamps keep the earliest time.** Only for `revoked_at`/`revoked_by` of a reset, a goal's `status_changed_at`
+  and an occurrence's reminder-read time, and only when every side holds the same new state, Prudent settles the conflict itself by
+  keeping the earliest time. That is not last-writer-wins: no side's intent is dropped, and arrival order cannot change the answer.
+  It moves into the store when jZenDev/jZen#235 lands. Every other conflict goes to the person.
+- **Import sessions and rows are device-only**, in a second, unsynced, encrypted store (`ZenDeviceStoreKey.load` with its own `name`).
+
+### What this supersedes, and why
+
+- **"A transfer is two legs created together, and what happens if only one arrives"** (`PRUDENT-LOCAL-PLAN.md`, 0.2, and the server's
+  model in ADR-014 / `transfers.sql`) → **reframed for Prudent Local: one record.** *Why:* `zen_store` has no multi-record write and
+  the transport delivers record by record (jZenDev/jZen#232), so two legs could be half-written on one device and half-delivered to
+  another; one record removes the case instead of inventing a rule for it. The server keeps two legs, unchanged.
+- **"which fields merge without a question and which are a conflict (amount and account are conflicts; note and category are
+  not)"** (`PRUDENT-LOCAL-PLAN.md`, 0.2) → **corrected.** *Why:* any field set to two different values is a conflict in `zen_store`;
+  what can be chosen is how fields are grouped, which are immutable, and which are not stored.
+- **"Map every proto message into `zen_store`"** (`PRUDENT-LOCAL-PLAN.md`, unit 4) → **refined: through Local's own store messages.**
+  *Why:* stored as they are, the wire messages would let a currency and an amount merge apart and would store a derived balance.
+- **"the server minted ids because an id from an untrusted client is not identity"** (plan, unit 4; `Ids.java`) → **changed locally:
+  random ids minted by the device, or ids derived from natural keys.** *Why:* the device is the only authority over its own store.
+
+### Consequence
+
+The plan's units 4–8 build to this; unit 4 owns the integrity-check runner (finding F-05). The one honest cost: a statement imported on
+two devices with different category choices gives one conflict per differing row until jZenDev/jZen#234 lands. On CloudKit, ids derived
+from slots show Apple which months and dates exist until jZenDev/jZen#236 lands (ADR-100, T7). Verified: nothing; this records a
+decision.
+
+---
+
+## ADR-101 — Prudent Local is a second app that shares its screens with the server-connected app through a package
+
+**Date:** 2026-11-15. **Status:** accepted (decided by the user on the phase-0 analysis). **Plan:** decision 0.1 of
+`docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245); analysis in `docs/plans/prudent-local-phase0.md` §0.1. **Depends on:**
+jZen ADR-073, ADR-079, ADR-080.
+
+### Decision
+
+- **Four Dart packages, linked by `path:`** (the root stays language-neutral; there is no root `pubspec.yaml`):
+
+  ```
+  client/                       the server-connected app: auth, ServerPrudentRepository, its runners, the web build
+  packages/prudent_ui/          every screen and view model, money formatting, the abstract PrudentRepository,
+                                the generated Dart of proto/prudent/v1/, the shared screens' en/uk/pl strings
+  local/prudent_local_core/     pure Dart: Local store messages, the rules and calculators, the Erste importer,
+                                the integrity checks, the parity harness's local side
+  local/prudent_local_client/   the Local app: LocalPrudentRepository, ZenSync.start, zen_ui_lock, zen_ui_store,
+                                its own runners, no web runner
+  ```
+
+- **No server package in the Local app's `pubspec.yaml`** (`zen_transport`, `zen_identity`, the auth deep links) **and no Local
+  package in `client/`'s** (`zen_store`, `zen_store_sync`, `zen_ui_lock`, `zen_ui_store`). `verify:boundaries` checks both pubspec
+  files, which is a fact one file states rather than an import graph to analyse.
+- **The Local rules are pure Dart** so the parity suite runs the same scenario through the real server (`task test:e2e`, ADR-017) and
+  through `prudent_local_core` on the Dart VM.
+- **The Local app is its own product on the device:** its own bundle id, the name "Prudent Local", its own CloudKit container and
+  data; both apps can be installed side by side.
+- **The generated proto Dart moves** from `client/lib/generated` to `packages/prudent_ui/lib/generated`; `PROTO_DART_OUT` on the jZen
+  include and `verify:contracts` follow it.
+
+### What this supersedes, and why
+
+- **"keep `client/` as the server-connected app, add `local/prudent_local_client` as the Local app"** (`PRUDENT-LOCAL-PLAN.md`, 0.1) →
+  **refined: plus `local/prudent_local_core` and `packages/prudent_ui` as named packages.** *Why:* the parity suite needs the local
+  rules without Flutter, and the plan named no home for the shared screens.
+- **One app with a compile-time flag** (the plan's rejected alternative) → **rejected.** *Why:* it needs flavours in every runner
+  (SwiftPM-only Xcode projects, ADR-083; Android, Windows, Linux), puts server packages in the Local app's dependency graph and Local
+  packages in the web build's, and turns a pubspec-level boundary into an import-graph one.
+- **`docs/zen-architecture.md` §3, "A wrapper around a single implementation is not an abstraction"** → **unchanged, and satisfied:**
+  the repository interface of unit 1 has two real implementations.
+
+### Consequence
+
+Unit 2 is a large move of `client/lib` into `packages/prudent_ui` (a `git mv` pass like ADR-026); `verify:controls`,
+`verify:widget-files` and the l10n setup follow the files. Verified: nothing; this records a decision.
+
+---
+
 ## ADR-100 — Prudent Local's threat model: what a ledger on the person's own devices refuses, warns about, and accepts
 
 **Date:** 2026-11-15. **Status:** accepted; reviewed again before plan unit 9 lands. **Plan:** decision 0.5 of
@@ -35,28 +200,28 @@ the sync key (shared by paired devices on Android, Windows and Linux); a stateme
 |---|---|---|---|---|
 | T1 | A lost or stolen device, locked | **Accept**: the store is AES-256-GCM files with a key in the platform's secret storage; iOS adds Data Protection `complete` | 4, 9 | **#231** (store key off Apple, ADR-075 is a desk study) |
 | T2 | A lost device that is unlocked, or has no PIN | **Warn**: on first launch, offer a PIN (off by default, as jZen ADR-065), saying that without one anyone holding the unlocked device sees everything; the lifecycle lock relocks in the background | 9 | **#231** (`inactive`/`hidden` on Windows, Linux, Android, ADR-078) |
-| T3 | A lost device still paired keeps receiving new data and, on the folder transport, holds a key that can write valid records | **Warn**: Settings → Sync says how to cut it off today (remove it from the Apple ID; for a folder, stop sharing the folder with it, start a new folder and re-pair); **refuse** to call a device "removed" while no rekey exists | 9 | jZen has no rekey (issue J6); CloudKit not verified (**#231**) |
+| T3 | A lost device still paired keeps receiving new data and, on the folder transport, holds a key that can write valid records | **Warn**: Settings → Sync says how to cut it off today (remove it from the Apple ID; for a folder, stop sharing the folder with it, start a new folder and re-pair); **refuse** to call a device "removed" while no rekey exists | 9 | jZen has no rekey (jZenDev/jZen#237); CloudKit not verified (**#231**) |
 | T4 | A forgotten PIN | Owner check where it exists (iOS, macOS, Android); erase this device's copy and re-sync on Linux and Windows (ADR-078/081). **Warn** before turning a PIN on where there is no owner check **and** no other paired device: "If you forget this PIN, this device's data is erased and nothing else holds a copy — save a copy first" | 9 | **#231** ("Forgot PIN?" on real Android, Windows, Linux) |
 | T5 | Every device lost, or the iCloud Keychain lost | **Accept and warn**: the data cannot be recovered by anyone. Said at first run, in Settings → Sync, and in the privacy text; "Save a copy" is offered there | 9, 13 | — |
 | T6 | A shared cloud folder holds the ledger's ciphertext | **Accept**: the service sees the number of devices and records, sizes and times, never content (jZen ADR-076). **Warn** when a folder is chosen: choose one only you can open; a folder shared with others shows them when and how much you edit. **Refuse** a folder inside the app's own data directory | 9 | **#231** (real Syncthing, Dropbox, OneDrive; Android SAF) |
-| T7 | Apple sees CloudKit metadata | **Accept, closing later**: record names are `<collection>:<id>` in plaintext (`ZenCloudKitBridge.swift:12`), so Apple sees collection names and counts. **Refuse** to derive any id from an amount, a title, a payee or an account number; ids derived from slots (category + month + currency, plan + date) expose which months and dates exist until jZen keys the names | 4 | jZen issue J5; real CloudKit **#231** |
+| T7 | Apple sees CloudKit metadata | **Accept, closing later**: record names are `<collection>:<id>` in plaintext (`ZenCloudKitBridge.swift:12`), so Apple sees collection names and counts. **Refuse** to derive any id from an amount, a title, a payee or an account number; ids derived from slots (category + month + currency, plan + date) expose which months and dates exist until jZen keys the names | 4 | jZenDev/jZen#236; real CloudKit **#231** |
 | T8 | A Linux desktop with no secret service, or a locked keyring | **Refuse** to open: no key in a file, no plaintext fallback, no new key over existing data (ADR-075). Show what to install or unlock; offer nothing that erases | 9, 11 (`libsecret-1` in the Linux package) | **#231** (no-secret-service desktop) |
 | T9 | Windows answers a failed key read with "nothing stored" | **Refuse** to make a key beside existing files (ADR-075's directory check); offer "erase this device's copy and re-sync", never automatically | 9 | **#231** |
 | T10 | An OS backup restores the store files without their key (iCloud backup, Time Machine, Android Auto Backup, File History) | **Refuse** to open and explain; offer erase and re-sync. Android: the app's manifest sets `android:allowBackup="false"` (or excludes the store and secret storage), and a gate checks it | 9, 11 | **#231** (Keystore behaviour after restore) |
 | T11 | A statement file left in Downloads | **Warn** after a commit or a discard: "Prudent did not keep the statement file; it is still where you picked it — delete it if you no longer need it." **Refuse** to copy, cache or log the file's bytes; it is read once (ADR-089). Prudent cannot and does not delete the person's own file | 8b, 9 | — |
 | T12 | Import session rows (descriptions, counterparties) spread to other devices and the sync service | **Refuse** to sync them: sessions live in a second, unsynced, encrypted store and end after 24 hours, at commit or discard (phase-0 doc, 0.2) | 8b | — |
 | T13 | Two devices import one statement | **Accept**: deterministic record ids make each row one record; differing category or note choices become conflicts the person settles | 4, 8b | — |
-| T14 | A data copy (export) is plaintext | **Warn** before saving that the file is not encrypted and should be deleted after use. **Refuse** the clipboard as the Local app's export channel (clipboard managers, Universal Clipboard, Windows cloud clipboard history); the copy is a file the person picks | 9, 10 | — |
-| T15 | Balances in the app switcher, Android's recents or a screen recording | `zen_ui_lock`'s cover on `inactive`. **Accept for now** that Android's `FLAG_SECURE` is not set (ADR-078); not patched in Prudent | 9 | jZen issue J9; recents timing **#231** |
+| T14 | A data copy (export) is plaintext | **Warn** before saving that the file is not encrypted and should be deleted after use. **Refuse** the clipboard as the Local app's export channel (clipboard managers, Universal Clipboard, Windows cloud clipboard history); the copy is a file the person picks | 9, 10b | — |
+| T15 | Balances in the app switcher, Android's recents or a screen recording | `zen_ui_lock`'s cover on `inactive`. **Accept for now** that Android's `FLAG_SECURE` is not set (ADR-078); not patched in Prudent | 9 | jZenDev/jZen#240; recents timing **#231** |
 | T16 | Reminder notifications on a lock screen | **Refuse** amounts in notification text (ADR-056); the plan's title is shown. **Warn** in the reminder setting that titles appear on the lock screen | 6b, 9 | — |
 | T17 | A pairing code photographed or overlooked | **Accept** jZen ADR-077's answer: shown on request, five minutes, hidden in the background, never in a log, URL or clipboard | 9 | QR camera scanning **#231** |
-| T18 | A release build syncing through `ZenFolderCloud`, which stores payloads unencrypted | **Refuse**: the Local app's release tasks and CI fail when `ZEN_SYNC` is set for a release build | 11 | jZen issue J7 (the framework does not refuse it) |
+| T18 | A release build syncing through `ZenFolderCloud`, which stores payloads unencrypted | **Refuse**: the Local app's release tasks and CI fail when `ZEN_SYNC` is set for a release build | 11 | jZenDev/jZen#238 (the framework does not refuse it) |
 | T19 | Someone with write access to the folder but no key | **Accept**: AES-GCM with the file path bound in, so a file cannot be forged, renamed or replayed into something else; deleting files only delays sync (ADR-076) | — | **#231** |
 | T20 | An older app version re-saves a record and drops fields a newer version added | **Refuse** whole-record saves from forms: a form applies only what the person changed onto the record as stored now (jZen ADR-080's rule), so unknown fields survive | 4, 9 | — |
 | T21 | Data in logs | **Refuse** amounts, titles, payees, notes, account numbers, statement text, the sync key and pairing codes in any log line; a failure is one line of classes and codes (ADR-072, ADR-094) | 9 | — |
 | T22 | Account numbers | Kept only inside the encrypted store; **refuse** them in ids, logs, notifications and file names | 4, 5 | — |
-| T23 | A merge breaks a rule across records (an envelope below zero, a record on a deleted account) | **Refuse** to fix it silently; listed as an integrity issue with actions (phase-0 doc, 0.2 D6) | 4–8 | jZen issue J2 (no place in `zen_ui_store` for app issues) |
-| T24 | "Delete my data" has no server to delete from | **Refuse** to say "deleted everywhere": "Erase this device's copy" says what remains (other devices, the folder, iCloud) | 9 | jZen issue J8 |
+| T23 | A merge breaks a rule across records (an envelope below zero, a record on a deleted account) | **Refuse** to fix it silently; listed as an integrity issue with actions (phase-0 doc, 0.2 D6) | 4–8 | jZenDev/jZen#233 (no place in `zen_ui_store` for app issues) |
+| T24 | "Delete my data" has no server to delete from | **Refuse** to say "deleted everywhere": "Erase this device's copy" says what remains (other devices, the folder, iCloud) | 9 | jZenDev/jZen#239 |
 | T25 | One OS account shared by two people | **Accept**: one ledger per OS user; the PIN is a door, not a key (jZen ADR-065). Said in the privacy text | 13 | — |
 | T26 | A wrong device clock | **Accept**: time decides nothing in a merge; it shows dates, expires pairing codes on an honest device, and dates reminders and import expiry | — | — |
 
@@ -74,8 +239,8 @@ the sync key (shared by paired devices on Android, Windows and Linux); a stateme
 
 ### Consequence
 
-- Unit 9's "done when" gains a test or a written refusal per row; units 4, 5, 6b, 8b, 10, 11 and 13 carry the rows named for them.
-- Nine jZen limitations are listed for filing in `docs/plans/prudent-local-phase0.md` (J1–J9); T3, T7, T15, T18, T23 and T24 change
+- Unit 9's "done when" gains a test or a written refusal per row; units 4, 5, 6b, 8b, 10a, 10b, 11 and 13 carry the rows named for them.
+- Nine jZen limitations are filed (jZenDev/jZen#232–#240) and listed in `docs/plans/prudent-local-phase0.md` (J1–J9); T3, T7, T15, T18, T23 and T24 change
   when they land. None is patched around here.
 - Rows T1–T4, T6–T10, T15, T17 and T19 cannot be more verified than jZenDev/jZen#231; Prudent Local is not released before unit 12.
 - Nothing was built or run for this entry.
