@@ -183,8 +183,7 @@ Unit 2 is a large move of `client/lib` into `packages/prudent_ui` (a `git mv` pa
 **Date:** 2026-11-15. **Status:** accepted; reviewed again before plan unit 9 lands. **Plan:** decision 0.5 of
 `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245); the analysis of 0.1–0.4 is in
 `docs/plans/prudent-local-phase0.md`. **Depends on:** jZen ADR-065, 073, 075–081. **Not verified:** everything here that rests on
-jZen behaviour jZenDev/jZen#231 has not yet checked on a device (marked **#231** below). The number may change when this entry is
-merged beside ADR-099 (decision 0.6).
+jZen behaviour jZenDev/jZen#231 has not yet checked on a device (marked **#231** below). Decision 0.6 is ADR-099.
 
 ### Decision
 
