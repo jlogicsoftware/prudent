@@ -1,6 +1,6 @@
 # Plan: Prudent Local — Prudent with no server, on every native target
 
-> **Status: planned, nothing built.** Written 2026-11-15, on top of jZen's Local mode
+> **Status: phase 0 decided (0.1–0.5: ADR-100–103; 0.6: ADR-099, jlogicsoftware/prudent#248), nothing built.** Written 2026-11-15, on top of jZen's Local mode
 > (jZen ADR-073, issue jZenDev/jZen#210, all code units merged). jZen's **device verification is
 > still open** (jZenDev/jZen#231): Android folder access, the store key off Apple, real CloudKit and
 > every cross-device matrix row are *not verified*. Prudent Local inherits that gap; unit 12 is the
@@ -48,6 +48,8 @@ gates pass, and what it could not verify is written in its PR and in `docs/DECIS
 ## Phase 0 — Decisions (each ends in an ADR before code that depends on it)
 
 ### 0.1 Shape: a second app, sharing screens through a package
+**Decided: ADR-101.** Four packages — `client/`, `packages/prudent_ui`, `local/prudent_local_core` (pure
+Dart), `local/prudent_local_client` — a separate bundle id, the name "Prudent Local".
 Today `client/` is one app whose screens call `PrudentRepository` (600 lines) over `ZenClient`.
 Decide the split. **Recommendation:** extract the screens and domain types into a package both
 apps use, keep `client/` as the server-connected app, add `local/prudent_local_client` as the
@@ -57,6 +59,12 @@ binary's source graph and forces web builds to carry the local store's condition
 Output: ADR, and the directory layout.
 
 ### 0.2 Money under merge
+**Decided: ADR-102**, with the per-field table in `docs/plans/prudent-local-phase0.md` §0.2. Local's own
+store messages; ids derived from natural keys; **a transfer is one immutable record** (a Prudent Local
+difference from the server's two legs); account + currency + amount one grouped field; the default
+account in settings; rule breaks across records listed after every sync, never fixed silently. The
+plan's "note and category are not conflicts" is withdrawn: two different values of any field are a
+conflict in `zen_store`.
 How do balances, transfers, corrections and goal allocations behave when two devices edit offline?
 Decide: balance derived from records; a transfer is two legs created together, and what happens if
 only one arrives; what an edit to a record that another device deleted means; which fields merge
@@ -64,6 +72,10 @@ without a question and which are a conflict (amount and account are conflicts; n
 are not). Output: ADR with the per-field table for every proto message in `proto/prudent/v1/`.
 
 ### 0.3 Inventory of what the server enforces
+**Done:** the table is `docs/plans/prudent-local-phase0.md` §0.3 — 9 rules in unit 3, 4 obligations in
+unit 4, 53 in unit 5, 54 in unit 6 (34 + 20 after the split), 4 in unit 7, 25 rows / 44 rule codes in
+unit 8, 5 in unit 9, 7 with no local owner by design. Its findings are in "Findings from phase 0" below
+and have changed units 4, 5, 6, 8 and 10.
 Walk the 22 migrations, every `CHECK`, unique index and resource for the rule it holds
 (normalisation of account numbers, import fingerprints, archive and category kind, budget
 carry-over resets, goal eligibility, plan occurrence state, row-level security). Output: a table in
@@ -71,11 +83,15 @@ this plan's PR — rule, where it lives today, where it will live locally, test 
 Rules with no local owner are findings, not footnotes.
 
 ### 0.4 Moving existing data
+**Decided: ADR-103.** A one-time import of the export into an empty Local store, refused whole unless
+every balance matches to the cent; the export gains the import fingerprints and a file save first (unit
+10a).
 Is there a path from a server account to a Local one? The privacy export already exists
 (`privacy.proto`). Decide: import that export into a fresh Local store, or no migration and a
 fresh start. Either is acceptable; silence is not.
 
 ### 0.5 Threat model for a ledger on a device
+**Decided: ADR-100** (rows T1–T26, each mapped to a unit).
 Lost device, a PIN that is forgotten, a shared cloud folder that holds ciphertext of someone's
 finances, a Linux desktop with no secret service, a statement file left in Downloads. Output: ADR
 and a list of what the app must refuse or warn about. Reviewed before unit 9 lands.
@@ -119,34 +135,65 @@ and fails on a one-cent difference.
 ### Unit 4 — Store model and merge
 Map every proto message into `zen_store`; device-minted UUIDs (the server minted ids because
 "an id from an untrusted client is not identity" — locally the device is the only authority, so the
-reason changes, and the ADR says so); per-field merge as decided in 0.2. **Done when:** two real
+reason changes, and the ADR says so); per-field merge as decided in 0.2, through Local's own store messages and a mapper to the wire messages
+(ADR-102); ids derived from natural keys; **the integrity-check runner** that re-evaluates every rule
+across records after a sync and lists what fails with actions (finding F-05; each later unit adds its
+checks); the same-intent timestamp rule. **Blocked on jZen:** the list is Prudent's own until
+jZenDev/jZen#233 lands, and the timestamp rule moves into the store with jZenDev/jZen#235. **Done when:** two real
 sessions, each with its own encrypted store, merge disjoint edits and surface the conflicts of 0.2,
 through `ZenFolderCloud` (as `two_devices_test` does in jZen).
 
-### Unit 5 — Ledger: accounts, records, transfers, corrections
-Balances derived; transfers as paired legs; corrections; archive. Row-level security has no local
+### Unit 5 — Ledger: accounts, records, transfers, corrections, categories, settings
+Categories move here from unit 6, because a record is refused by its category's kind and archived
+flag (finding F-01). Balances derived; a transfer as one immutable record (ADR-102), shown as two legs; corrections; archive. Row-level security has no local
 meaning (one person per store) and is recorded as such. **Done when:** parity scenarios for every
-balance-changing path pass, including a transfer with one leg late.
+balance-changing path pass, and the account deleted with its records (ADR-081), whose all-or-nothing **waits on
+jZenDev/jZen#232** (until then a resumable delete and integrity issues for what remains).
+**List and filter semantics** (phase-0 §0.3 rows 5.46–5.53): the record list's date, account, category,
+`type`, `abs(amount)` range and search filters and its `date desc, id` order, answered over transfers
+**expanded into their two legs first**, so `type=transfer` and an amount range behave per leg as on the
+server; order within one date is compared as a set, because ids differ between server and Local. The
+search waits on a server fix that escapes `LIKE` wildcards (finding F-09); name order needs one pinned
+collation (F-10). Parity scenarios `record_list_filters` and `record_list_order`.
 
-### Unit 6 — Categories, budgets, goals, allocations, plans, occurrences, reminders
-Budget carry-over and its resets, goal envelopes and free money, plan occurrences and their state,
-reminders. Reminders use local-device notifications only. **Done when:** parity scenarios cover each
-and the figures match the server's to the cent.
+### Unit 6a — Budgets, carry-over resets, goals, allocations
+Budget slots by derived id, the summary, carry-over and its resets; goal states, envelopes, free money,
+progress; allocations append-only. The most integrity checks (envelope below zero, money in an archived
+goal, two live resets for one slot). 34 rules (phase-0 §0.3 rows 6.1–6.28, 6.46–6.50, 6.54), including
+the goal, envelope-history, budget and reset list filters and orders (parity scenarios `goal_lists`,
+`budget_lists`). **Blocked on jZen:** the same-intent times (reset revocation, goal status change) are
+settled by Prudent until jZenDev/jZen#235 lands. **Done when:** parity
+scenarios cover each and the figures match the server's to the cent.
+
+### Unit 6b — Plans, occurrences, reminders
+Plans with their recurrence and reminder, occurrences by derived id (completion derived from the
+confirming record), confirmation, reminders. Reminders use local-device notifications only. The parity
+suite passes `asOf` explicitly (finding F-07). 20 rules (rows 6.29–6.45, 6.51–6.53), including the
+upcoming window and the order of occurrences and reminders (finding F-11). **Blocked on jZen:** the
+reminder-read time is a same-intent field, settled by Prudent until jZenDev/jZen#235 lands. **Done when:** parity scenarios
+cover each, including a day boundary in a plan's own time zone.
 
 ### Unit 7 — Analytics
 Spend by category and by month, computed from the local store. **Done when:** parity on a large
 synthetic ledger, and a stated bound on how long the overview takes at that size on the slowest
 target (Android), measured.
 
-### Unit 8 — Erste statement import
-Port `ErsteStatementImporter`, `ImportWorkflow` and the three enforced phases (ADR-089); the
-versioned fingerprint plus occurrence number (ADR-091); the whole file validated before any row is
-returned (ADR-090); only normalised rows kept, never the file; committed in one local transaction
-(ADR-092) with a repeat answering the same. **The new problem:** two devices that import the same
-statement must merge to one set of records, so the fingerprint must be an identity the merge
-understands. Fixtures are the synthetic ones of ADR-088. **Done when:** the failure catalogue of
-ADR-094 passes locally and "nothing was written" holds on every refusal, and a two-device test
-imports one statement on both and ends with each row once.
+### Unit 8a — Erste parser and fingerprints
+Port `ErsteStatementImporter`, the whole-file validation before any row is returned (ADR-090), the 44
+rule codes and the failure catalogue of ADR-094, and the versioned fingerprint plus occurrence number
+(ADR-091) — pure functions in `prudent_local_core`. Fixtures are the synthetic ones of ADR-088.
+**Done when:** the catalogue passes locally, fingerprints match the Java implementation's golden vectors,
+and no statement text reaches an answer or a log line.
+
+### Unit 8b — Import sessions, duplicates, commit, two devices
+The three enforced phases (ADR-089) in a second, **unsynced** store (ADR-102); only normalised rows kept,
+never the file; duplicates against the destination; the commit (ADR-092) writing records whose ids derive
+from the fingerprint, so two devices that import one statement end with each row once. **Blocked on
+jZen:** a one-transaction commit needs jZenDev/jZen#232 (until then the commit validates everything before
+the first write and is idempotent and resumable); differing category choices on two devices give one
+conflict per row until jZenDev/jZen#234. **Done when:** the failure catalogue passes and "nothing was
+written" holds on every refusal, and a two-device test imports one statement on both and ends with each
+row once.
 
 ---
 
@@ -158,16 +205,33 @@ Settings → Sync, Add a device, Join, Erase this device's copy, all from `zen_u
 Ukrainian and Polish. Screens from the shared package; nothing hand-rolled
 (`verify:controls`). A copy of the person's data (the local counterpart of ADR-071's export) and
 erasure of this device's data. **Done when:** widget, integration and a11y suites pass, and the
-threat model of 0.5 has a test or a written refusal for every row.
+threat model (ADR-100) has a test or a written refusal for every row. Rows that change when jZen lands:
+rekey (jZenDev/jZen#237), erase everywhere (jZenDev/jZen#239), screen-capture protection
+(jZenDev/jZen#240).
 
-### Unit 10 — Moving data in
-As decided in 0.4: import of the privacy export into a fresh store, or the recorded decision not
-to. **Done when:** a synthetic export round-trips and every figure matches the server's.
+### Unit 10a — The server export carries import fingerprints and saves to a file
+Server-side, contract-first, before the import: add the import fingerprint and occurrence (ADR-091) to
+the privacy export (finding F-02), and give the server-connected app "Save to a file" for the export
+beside the clipboard copy, with a warning that the file is not encrypted (ADR-103, ADR-100 T14). Its own
+ADR. **Done when:** `PrivacyCoverageTest` sees the new fields, `verify:contracts` passes, and a saved file
+round-trips.
+
+### Unit 10b — Moving data in
+As decided in ADR-103: the export read from a file into an empty store, opening amounts rebuilt from the
+exported balances (finding F-03), transfers joined into one record, ids remapped, refused whole unless every
+balance matches to the cent. That balance check catches dropped or mis-joined records; it cannot see a
+wrong mapping of budgets, envelopes, goal progress or occurrences, which the export does not carry.
+**Done when:** a synthetic export made by the real server in `test:e2e` round-trips, and the parity suite
+compares the Local figures after the import with the server's own answers — balances, budget summaries,
+carry-over, envelopes, free money and goal progress — to the cent. At run time only the balances are
+checked; the other figures are proven by that test, not by the app.
 
 ### Unit 11 — Taskfile and CI
 `task` runs the Local app with no server, refuses web, and builds on iOS, macOS, Android, Windows
 and Linux in CI (jZen's `Taskfile.app.yml` already supports this). `verify:boundaries` forbids
-`zen_transport`/`zen_identity` in the Local app and Local code in `client/`. **Done when:** a
+`zen_transport`/`zen_identity` in the Local app and Local code in `client/`. A release build with
+`ZEN_SYNC` set fails (ADR-100 T18; jZenDev/jZen#238 asks the framework to refuse it too). The Android
+manifest refuses Auto Backup of the store (ADR-100 T10). **Done when:** a
 deliberate violation of each rule fails the gate.
 
 ---
@@ -189,6 +253,41 @@ whatever was not verified stated at the top.
 
 ---
 
+## Findings from phase 0
+
+From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it:
+
+| # | Finding | Owner |
+|---|---|---|
+| F-01 | Records are refused by their category's kind and archived flag, so categories cannot wait for unit 6 | unit 5 (moved) |
+| F-02 | The wire `Record` (and so the privacy export) has no import fingerprint | unit 10a (export), unit 4 (a local store field) |
+| F-03 | The wire `Account.balances` is the derived current balance, not the stored opening amount | unit 4 (not stored), unit 10b (openings rebuilt) |
+| F-04 | "500 characters" is code points on the server and UTF-16 units in Dart | unit 3 (count runes) |
+| F-05 | No unit owned the rules a merge can break across records (13 of them) | unit 4 (runner), units 5–8 (checks) |
+| F-06 | Account deletion with records and the import commit are one server transaction; `zen_store` has no multi-record write | units 5 and 8b; jZenDev/jZen#232 |
+| F-07 | The server's "today" is UTC or the plan's zone; the device's is local | unit 3 harness, unit 6b (`asOf` pinned) |
+| F-08 | Reminder lead days: Java allows `{0,1,2,3,7}`, the schema `0–365`; the Java set is the rule | unit 6b |
+| F-09 | The record search is an unescaped SQL `LIKE` (`%`, `_` are wildcards) with locale-dependent `lower()` | a server fix (own ADR) before unit 5 |
+| F-10 | Accounts, categories and free-money accounts are ordered by the database's unpinned collation | units 5 and 6a |
+| F-11 | Ids order three ways: Postgres bytes (= Local's hex text), Java's signed `UUID.compareTo` in two routes | unit 3, unit 6b |
+
+## jZen issues Prudent Local waits on
+
+| Issue | What | Units |
+|---|---|---|
+| jZenDev/jZen#231 | device verification of jZen Local | 12 (release gate); ADR-100 rows marked #231 |
+| jZenDev/jZen#232 | multi-record write | 5, 8b |
+| jZenDev/jZen#233 | application issues beside conflicts | 4, 9 |
+| jZenDev/jZen#234 | settle many conflicts at once | 8b |
+| jZenDev/jZen#235 | intent-preserving per-field merge policy | 4, 6a, 6b |
+| jZenDev/jZen#236 | CloudKit record names in plaintext | 4 (ADR-100 T7) |
+| jZenDev/jZen#237 | rekey / remove a device | 9 (ADR-100 T3) |
+| jZenDev/jZen#238 | refuse the unencrypted folder in release | 11 (ADR-100 T18) |
+| jZenDev/jZen#239 | erase everywhere | 9 (ADR-100 T24) |
+| jZenDev/jZen#240 | screen-capture protection | 9 (ADR-100 T15) |
+
+None blocks starting a unit; each is a stated limitation of that unit until it lands and is consumed.
+
 ## Open risks
 
 - **Merge semantics for money** are the hardest part and are decided in 0.2 before any code; if the
@@ -197,5 +296,5 @@ whatever was not verified stated at the top.
 - **Parity drift:** a server change that is not mirrored locally. The parity suite is the guard;
   until it covers a rule, the rule is listed as uncovered in 0.3.
 - **Inherited jZen gaps** (#231). Prudent Local cannot be more verified than the framework under it.
-- **Size of the port.** The importer and the budget/goal rules are the bulk; units 6 and 8 may need
-  splitting once 0.3 has counted the rules.
+- **Size of the port.** The importer and the budget/goal rules are the bulk; units 6 and 8 are split
+  (6a/6b, 8a/8b) on 0.3's count.
