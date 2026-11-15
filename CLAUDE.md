@@ -448,7 +448,7 @@ consumer that bends them stops being a consumer:
   `PrudentLocalizations.localizationsDelegates` also appends `...GlobalMaterialLocalizations.delegates` (the generated list registers the SDK's, which `material_ui` does not read, and `uk`/`pl` fail without it).
   `riverpod_lint` is an analyzer plugin in `analysis_options.yaml`; `custom_lint` is gone.
   `docs/jzen/README.md` has the state of the upstream issues.
-  **The analyzer is a gate (ADR-100):** `task verify:analyze` (CI, `gates`) runs `flutter analyze --fatal-infos --fatal-warnings` in `client/`, `riverpod_lint` included; fix a finding, do not ignore it.
+  **The analyzer is a gate (ADR-104):** `task verify:analyze` (CI, `gates`) runs `flutter analyze --fatal-infos --fatal-warnings` in `client/`, `riverpod_lint` included; fix a finding, do not ignore it.
 - **Typed, generated i18n.** No hardcoded user-facing strings. Each package owns `lib/l10n/*.arb`
   + `l10n.yaml` and generates accessors with `flutter gen-l10n`; the generated output is built, not
   committed. **Prudent supports `{en, uk, pl}`** — its own decision, not the framework's (jZen

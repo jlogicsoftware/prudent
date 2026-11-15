@@ -204,8 +204,8 @@ tasks:
   verify:analyze:
     desc: Fail on any issue the Dart analyzer (and its riverpod_lint plugin) reports in client/
     summary: |
-      THE GATE BEHIND "the analyzer is configured" (client/analysis_options.yaml, ADR-099, ADR-100).
-      Until ADR-100 nothing ran `flutter analyze`: flutter_lints and the riverpod_lint analyzer
+      THE GATE BEHIND "the analyzer is configured" (client/analysis_options.yaml, ADR-099, ADR-104).
+      Until ADR-104 nothing ran `flutter analyze`: flutter_lints and the riverpod_lint analyzer
       plugin were declared and enforced by nobody, and a declared rule nothing runs is decoration.
 
       Runs `flutter gen-l10n` first (the analyzer needs Prudent's generated localizations, which are
@@ -216,7 +216,7 @@ tasks:
       client/lib/generated/ and client/lib/l10n/generated/ are excluded in analysis_options.yaml
       (derived output, unactionable by construction; the reasoning is written there). Run
       `task zen:deps:client` first on a fresh checkout. That the plugin really loads in CI was proved
-      once by hand, with a deliberate provider misuse that turned the job red (ADR-100); no check
+      once by hand, with a deliberate provider misuse that turned the job red (ADR-104); no check
       re-proves it on every run.
     dir: client
     cmds:

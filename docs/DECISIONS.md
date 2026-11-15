@@ -13,7 +13,7 @@ own — ADR-001 is the first instance.
 
 ---
 
-## ADR-100 — `task verify:analyze` runs `flutter analyze` with infos fatal in CI, so the analyzer and `riverpod_lint` are a gate
+## ADR-104 — `task verify:analyze` runs `flutter analyze` with infos fatal in CI, so the analyzer and `riverpod_lint` are a gate
 
 **Date:** 2026-11-15. **Status:** accepted. Follows ADR-099, which is not edited.
 

@@ -221,7 +221,7 @@ jobs:
         working-directory: prudent
         run: task verify:contracts
 
-      # Nothing ran the analyzer before ADR-100: flutter_lints and the riverpod_lint plugin were
+      # Nothing ran the analyzer before ADR-104: flutter_lints and the riverpod_lint plugin were
       # declared and enforced by nobody. After zen:deps:client (needs the resolved packages) and the
       # contract gate (which regenerates what the analyzer reads).
       - name: Analyzer gate
