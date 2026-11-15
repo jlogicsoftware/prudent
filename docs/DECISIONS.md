@@ -13,6 +13,66 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-096 — jZen is pinned at `3a820b2` to consume the detail-pane guard (jZen#222), the import's leave prompt answers Close, Escape and a replacing detail only when the import is the pane's root (not on the real path through Accounts, jZen#226), and a tab switch still discards nothing
+
+**Date:** 2026-11-15. **Status:** accepted. jZenDev/jZen#222 (Prudent's report), jZen PR #224; the nested case it leaves open is jZenDev/jZen#226.
+
+### Decision
+
+- **The pin moves** from `3313b40` to `3a820b2` ("Let a detail page guard Close and Escape") in `.github/workflows/ci.yml` and, as its
+  comment requires, `.github/workflows/audit.yml`. The 26 commits between them were read. Relevant to what Prudent consumes: #224
+  itself (`zen_detail_host.dart`, `zen_detail_pane.dart`) and `c5f1c87`, which changed `ZenCupertinoTextFormField` under `ZenTextField`
+  (Apple platforms; the whole client suite is green on macOS with it). `Taskfile.app.yml` gained `guard:web` and `build:web`, which refuse a web
+  target for an application with no server pom; Prudent has one, so both are no-ops here, and the build-runner and CI-runner tasks it
+  calls changed only for a pom-less application. No change under `server/`, `zen_core`, `zen_transport`, `zen_identity` or `zen_secure_store`.
+  The rest is the local-first line, none of it consumed by Prudent: `zen_ui_lock`, `zen_ui_store`, `zen_store`, `zen_store_cloudkit` and the new
+  `zen_store_key`, `zen_store_shared_folder` and `zen_store_sync`, pairing, and ADR renumbering and docs.
+- **The framework's change.** Close, Escape and a second detail asking to replace the pane now consult the pane's first page's `PopScope`
+  as Back does: a page that vetoes with `canPop: false` is told through `onPopInvokedWithResult` and decides whether to pop itself, and
+  a replacing detail is dropped while the guard vetoes. A tab switch discards the pane with its navigator and cannot be vetoed; jZen's
+  documented hook there is `State.dispose`.
+- **Prudent's code did not need a new guard.** `ImportPreviewScreen` already wraps its page in a `PopScope` that, while the session is open,
+  asks "Leave this import?" and discards on "Discard and leave" (ADR-093). For an import opened as the **root route of a pane** (`showZenDetail` from a
+  list) the framework now reaches it for the other exits too: "Stay" keeps the review, "Discard and leave" discards on the server and closes the pane.
+  Once the session is committed or ended the page allows the pop, so nothing is asked. The first step (no session yet) has no guard and closes at once.
+  Only the comments that called the pane exits a framework gap changed.
+- **This narrows ADR-093's limitation; it does not remove it.** The guard does **not** reach the real entry path. The only opener of the import is
+  `AccountScreen`, itself a pane root (opened with `showZenDetail` from Overview and Settings, ADR-062), and `showZenDetail` called from inside a
+  detail pushes a `ZenPageRoute` onto the pane's navigator, so the import is a **nested page** above the Accounts root. jZen's `requestClose`
+  consults only the pane's first route, which is Accounts and has no `PopScope`. On the real path: **Back asks** (the nested route's own
+  `PopScope`); **Escape closes the whole pane with no prompt**; **a second detail replaces the pane with no prompt**; **the Close button is not shown** on
+  the nested page (it shows Back); in each unprompted case the session stays open and is listed under "Unfinished imports". This is
+  jZenDev/jZen#226. ADR-093's premise that the import sits in "the root route of a side pane" is accurate only for the root case, and ADR-093 is
+  not edited. A minor consequence on the guarded (root) path: after "Discard and leave" from a second-detail attempt the replacing detail is dropped,
+  and the user must click it again.
+- **Nothing is discarded in `dispose`.** Discarding is a network call that can fail, that the user has not agreed to, and that would race a
+  commit the user just made; a `dispose` cannot ask or report. The session is left open, as it is when the app is closed, and the
+  "Unfinished imports" list on the first step stays as the way back to it or out of it, and as the way out of a "too many open imports" refusal.
+- **Tests** (`client/test/import_flow_test.dart`, wide host). *Import opened as the pane root:* each of Close, Escape and a second detail asks, "Stay"
+  vetoes (the second detail is not shown), "Discard and leave" discards once and closes. Only these ask/Stay/Discard tests prove the guard; the four
+  negative tests (no prompt on the first step, after a commit or a discard, on a tab switch) also pass on the pre-#224 pin. A tab switch (removing the
+  host from the tree) leaves the session undiscarded and listed. *Real flow (Accounts pane, then Import):* Back asks, Stay keeps and "Discard and leave"
+  discards and returns to Accounts; Escape and a second detail are pinned as **not** asking, with the session left open and listed, and the nested page
+  is pinned as having no Close button. Those pins are jZen#226: when it is fixed and consumed they fail on purpose, as the signal to flip them (the
+  comment on the group says so). The narrow (pushed page) tests are unchanged and pass.
+
+### What this supersedes
+
+The sentence of ADR-093 that said a pane's Close, Escape and a second detail do not ask, but only for an import opened as a pane root; on the real path through Accounts it still holds (jZen#226). Its other decisions stand and it is not edited.
+
+### Checked
+
+Client suite in a scratch copy without `custom_lint` and `riverpod_lint` (528 pass); `verify:controls`, `verify:swiftpm`, `zen:verify:widget-files`,
+`verify:boundaries`, `verify:import-fixtures`; server `./mvnw test` through `task test:server` (1256 pass). Not seen on a device or a real window, and
+CI on the new pin has not run.
+
+### The tab switch
+
+It remains unguarded and the framework says so on purpose, so it is a documented limit rather than a bug to file. It costs the user nothing here, because the session
+stays open and findable. If an application ever needs to stop a tab switch, that is a new framework request, not a reason to discard in `dispose`.
+
+---
+
 ## ADR-095 — The Erste export steps are recorded as reported by the user, the comma separator is required, and #42 may close
 
 **Date:** 2026-11-15. **Status:** accepted. jlogicsoftware/prudent#42.
