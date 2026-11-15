@@ -34,6 +34,10 @@ analyzer:
     # file, which is exactly what `task verify:contracts` exists to forbid. They are still COMPILED
     # and still type-checked wherever they are used — this suppresses style lints, not errors.
     - lib/generated/**
+    # The localizations `flutter gen-l10n` writes from lib/l10n/*.arb. Gitignored and built on
+    # every checkout, so a lint on it can only be "fixed" by editing a file the next build
+    # overwrites; the ARB files and every caller stay analyzed.
+    - lib/l10n/generated/**
     - build/**
     - android/**
     - ios/**

@@ -64,6 +64,7 @@ includes:
 #   generate            Regenerate every cross-language artifact — no gate, always green
 #   verify:contracts    generate, then FAIL if the tree drifted (was Prudent's sync:contracts)
 #   generate:proto[:java|:dart] / generate:api[:schema|:ts] / generate:l10n   the loop's parts
+#   verify:analyze      flutter analyze (incl. the riverpod_lint plugin) in client/, infos fatal
 #   test:client         Every Dart/Flutter suite
 #   build:runners       Every delivery runner this host can build; skips are announced
 #   run:supabase / run:server / run:client / run:admin / run:dev   the local stack — #78/#81/#89
@@ -199,6 +200,28 @@ tasks:
       Dart scopes already use.
     cmds:
       - python3 scripts/verify_boundaries.py
+
+  verify:analyze:
+    desc: Fail on any issue the Dart analyzer (and its riverpod_lint plugin) reports in client/
+    summary: |
+      THE GATE BEHIND "the analyzer is configured" (client/analysis_options.yaml, ADR-099, ADR-100).
+      Until ADR-100 nothing ran `flutter analyze`: flutter_lints and the riverpod_lint analyzer
+      plugin were declared and enforced by nobody, and a declared rule nothing runs is decoration.
+
+      Runs `flutter gen-l10n` first (the analyzer needs Prudent's generated localizations, which are
+      built and never committed), then `flutter analyze --fatal-infos --fatal-warnings` in client/ —
+      the only Dart package in the repository — so an info-level lint, which is what riverpod_lint
+      and most of flutter_lints report, fails the build like an error does.
+
+      client/lib/generated/ and client/lib/l10n/generated/ are excluded in analysis_options.yaml
+      (derived output, unactionable by construction; the reasoning is written there). Run
+      `task zen:deps:client` first on a fresh checkout. That the plugin really loads in CI was proved
+      once by hand, with a deliberate provider misuse that turned the job red (ADR-100); no check
+      re-proves it on every run.
+    dir: client
+    cmds:
+      - flutter gen-l10n
+      - flutter analyze --fatal-infos --fatal-warnings
 
   verify:controls:
     desc: Fail if client screens use raw Material controls zen_ui_widgets replaces
