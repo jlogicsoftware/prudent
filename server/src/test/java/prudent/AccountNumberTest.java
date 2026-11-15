@@ -66,6 +66,21 @@ class AccountNumberTest {
   }
 
   @Test
+  void upperCasingFoldsAsciiOnly_soTwoDifferentStringsAreNeverOneNumber() {
+    // "ß" would become "SS", a dotless "ı" "I" and a long "ſ" "S" under String.toUpperCase: each
+    // would then pass the shape check as a number the user never typed.
+    String sharp = "00000000ß000000000001"; // 21 chars; "SS" would make it 22
+    String ss = "00000000SS000000000001";
+    for (String folded : new String[] {sharp, "0000000000ı000000000", "0000000000ſ000000000"}) {
+      assertNull(AccountNumbers.normalizeOrNull(folded), folded);
+      assertThrows(PrudentException.class, () -> AccountNumbers.normalize(folded), folded);
+    }
+    assertEquals(ss, AccountNumbers.normalize(ss.toLowerCase(java.util.Locale.ROOT)));
+    assertTrue(!AccountNumbers.identityOf(sharp).equals(AccountNumbers.identityOf(ss)));
+    assertEquals(AccountNumbers.identityOf("pl00000000000000000000000001"), AccountNumbers.identityOf(NORMAL));
+  }
+
+  @Test
   void aUniqueViolationAnywhereInTheCauseChain_isRecognised() {
     SQLException violation = new SQLException("x", "23505");
     assertTrue(

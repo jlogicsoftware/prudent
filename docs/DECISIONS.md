@@ -13,6 +13,70 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-094 — The import's failures are a catalogue that runs through the real API and proves "nothing was written", every rule the importer can emit must have a case, and a commit that fails now says which rule and which rows
+
+**Date:** 2026-11-15. **Status:** accepted. jlogicsoftware/prudent#77, last task of the epic jlogicsoftware/prudent#41.
+
+### Decision
+
+- **The epic's safety claim is a test, not a sentence.** `ImportFailureCatalogue` (test sources, `prudent.imports`) is data: 180 statements the Erste import must
+  refuse as a whole and 41 it must accept as a file and flag row by row, each with the rule code, the bounded row numbers or the exact message it must produce. Every file is built in memory from one
+  synthetic base statement (`ImportTestSupport.Erste`: a summary row and five rows holding each description shape); none is a copy of a real export and none needs a fixture file or a pass
+  through `verify:import-fixtures`. The classes: empty and one-newline files; encoding (UTF-8, UTF-16 and UTF-32 with and without a BOM, Windows-1250, ISO 8859-2, NUL, a lone lead byte, an
+  overlong sequence); line endings and a missing or doubled final newline; a header added above, below or instead of the summary row; the summary row missing, repeated, moved or alone; columns
+  added, dropped, shifted or swapped, on every row or on transaction rows alone; delimiters (semicolon, tab, pipe), quote styles; the summary's dates, account (including `ß` and a dotless `ı`), currency; mixed
+  currency (a summary in another currency, card payments in euro or dollars, an amount with a currency suffix, a destination that does not hold PLN); dates in other formats, impossible days, out-of-range years;
+  amounts with separators, other decimals, signs, other digit sets, 12 digits; an amount column that has moved (a positive card or BLIK row, amount and balance swapped, card rows that disagree with their own text); sequence numbers; descriptions in new wordings, a card mask or currency that changed; counterparty accounts; oversized (5001 rows, 5 MiB + 1,
+  a field of 1100 characters); files cut mid-row, mid-quote and mid-letter; a PDF, PNG, zip, gzip, random bytes, JSON, XML, HTML, prose, another bank's CSV of the same shape; and every wrong destination (another number, no
+  number, inactive, another user's, unknown).
+- **Every case proves both halves.** `ImportFailureMatrixTest` uploads each through `POST /api/v1/import-sessions` with `erste-pl-csv` and asserts the status, that the message is exactly the contract's one shape (rule, rows,
+  "and k more"), that it holds only words of the fixed vocabulary, and that no value of the file, no `0000` and none of the synthetic marker words appears in the body, and that no log line the server wrote meanwhile (a JUL handler on the root logger) holds a free-text value, a number of the file (every date, account number, amount of four or more digits, compared after stripping everything but letters and digits, so an account number without its spaces is found) or any amount in its comma or dot spelling, whatever its size, after only UUIDs, timestamps and durations are removed; the check was proved by planting a `log.warn` of an account number and the amount of an `amount.zero` row in a scratch copy of the importer, which failed three matrix cases, and a self-test holds the same plants and the allowed shapes. It then compares a **snapshot of everything a refused import could touch, for both users** — every record
+  with its key, every account with its number, balances and net, every session and row — taken before and after, and finally uploads a good statement to show nothing was left poisoned. A flagged file is held to the
+  same standard, then previewed and committed: exactly the accepted rows reach the ledger and the account's net moves by exactly their sum.
+- **Exactly once.** The same statement imported twice, two tabs that previewed before either committed, a commit repeated after a lost answer, overlapping exports with different sequence numbers, identical rows in one file
+  (and again), and a statement of only flagged rows each leave the ledger with the effect of one import.
+- **The commit phase.** `ImportCommitFailureTest` changes the world between the preview and the commit and asserts the same four things — a rule and its rows, no text, an unchanged ledger, the session still open — and then that the retry after the fix writes the
+  statement once: a default or a row category deleted, archived or made the wrong direction; an account renumbered, unnumbered, deactivated, stripped of PLN, or deleted together with its records (ADR-081); an expired session; two tabs;
+  a discard and a commit in either order; a failure injected at the parse, at the preview and at each of the five rows of the commit; a ledger refusal that quotes its input; another user's session and ledger.
+- **A commit that failed used to explain nothing.** `LedgerImportCommitter` answered a refused row with `Row N cannot be written: <the writer's own sentence>`, and the client could only say "that could not be done in the import's current state".
+  Three rule codes replace it, in the contract's message shape so the client already knows how to read them: `commit.category_unavailable` (checked **before the first write**, naming up to ten rows and how many more: a category that is gone, archived or for the other
+  direction), `commit.account_unavailable` (the destination is gone, inactive or no longer holds the statement's currency, at the commit only; before it the 400 keeps its plain sentence) and `commit.row_refused` (the backstop for
+  any other ledger refusal, which no longer echoes the writer's sentence, since a writer can quote a value it was given and a row's values come from the statement). The client has a sentence for each in en, pl and uk, shows the rows a commit refusal names, and no longer
+  says "may not have been written" over a refusal that wrote nothing. Rule codes the client knows: 45 in all (the 40 of the catalogue, the amount-column rule and the four below).
+- **The amount column is checked without the balance column.** A swap of the amount and balance columns used to be accepted for an incoming own-account transfer (the balance became its amount) because only the sign of card and BLIK rows gave it away. `layout.amount_column` now refuses the **whole file** on either of two witnesses:
+  any card or BLIK row with a positive amount (a real export has none, so one is enough), or the amount column disagreeing with the amount written in the card description on **half or more of at least two card rows**. A lone disagreeing card row in an otherwise consistent file is not systematic and stays the per-row flag
+  `card.amount_mismatch`; so does a file with a single card row. The balance column is still never read (it does not chain, contract). Residual limit: a file with no card or BLIK row at all (own-account transfers only) cannot witness the swap, and is not refused. `amount.sign_unexpected` now remains for an outgoing own-account transfer only.
+- **Upload bounds are rule codes too.** An empty upload, a file over 5 MiB, more than 5000 rows and a destination account that is not the caller's used to answer plain sentences that the client could only meet with "check that the account is active and holds the currency", which is false advice for a long export. They are now `statement.empty_upload`, `statement.too_large`, `statement.too_many_rows` and `account.not_found` (status codes unchanged), with a client sentence each in en, pl and uk that says what to do (a shorter period, another file, choose the account again). The inactive and wrong-currency destinations keep their plain sentences.
+- **New rules cannot ship untested.** `ImportRuleCatalogueTest` reads every dotted lower-case string literal in `src/main/java/prudent/imports` (comments dropped, the way the client's `import_failure_test` does) and fails when a rule is emitted that no case in the catalogue names
+  and no test named in `coveredElsewhere` proves (eight rules owned by another stage: the duplicate code, the own-transfer hint, the identity hook, two identifier rules and the three commit rules); it fails the other way when a case names a rule nothing emits, when a named test method does not exist or its body does not mention its rule, and when
+  the matrix has shrunk below a floor. The client holds its own sentences to the same scan, and `ErsteFormatDriftTest` holds the rule codes written in the contract's validation list to the ones `ErsteStatementImporter` and `ErsteCsv` can emit, both ways.
+- **Format drift fails closed.** `ErsteFormatDriftTest` pins each committed fixture to its exact parsed rows (golden values typed from the synthetic fixtures, 1 + 2 + 8 rows, field by field) and derives from each fixture, programmatically, a column dropped or added at every position,
+  columns shifted either way, dates swapped, a header, no summary, a repeated summary, a changed currency, semicolons, another encoding, CRLF, a cut, a new wording of every description, a first row with each field emptied or broken. All 3 fixtures x all mutations are refused with a specific rule
+  or, where the file stays well-formed and a row loses its meaning, flagged on every row; a guard test shows each mutation changes the bytes.
+- **The account-number nit.** `AccountNumbers` upper-cased with `Locale.ROOT` before the shape check, so `ß` became `SS`, `ı` became `I` and `ſ` became `S`: two different typed strings were one stored number and passed. It now upper-cases `a` to `z` only; such a character stays what it is and the
+  shape check refuses it, for the account form and for the Erste summary row (`summary.account_invalid`), which share the one function.
+
+### Findings, stated rather than smoothed
+
+- The matrix found **no partial write, no leaked text, no 500 and no accepted file that should have been refused** in the importer, the workflow or the resource. Three checks first failed because my expectation or harness was wrong, not the code (a `DD-MM-YYYY` export date reads as a transaction, so
+  `layout.summary_missing`; every column shifted right puts the sequence number in the field that must be empty, so `row.trailing_field`; a follow-up upload to an account the case had emptied); no importer rule changed. The defects were the commit-phase ones above and the account number's case folding.
+- **The first version of this ADR left a swapped amount and balance column accepted for an incoming own-account transfer, as a "known limit".** The audit showed that was money-unsafe, and it is closed by `layout.amount_column` (above). The remaining unwitnessed case is a file made only of own-account transfers.
+- UTF-8 text that was decoded as Windows-1250 and saved again (mojibake) is valid UTF-8, so it is refused only per row: every row with a Polish letter in a description is flagged, a BLIK row in plain ASCII survives. A file with every field in quotes is accepted, as RFC 4180 and the contract's "standard CSV quoting" allow.
+  A semicolon file whose amounts are still quoted is reported as `csv.malformed` and not `layout.delimiter`, because the quote is found first; the sentence still tells the user to download the statement again. A statement of only flagged rows previews and commits as "nothing imported".
+- Another user's **account** named in an upload body is a 400 ("no such account for this user", the id arrived in a body); another user's **session** in a URL is a 404.
+
+### Verified, and not
+
+Server: the full `./mvnw test` (1256 pass: 231 matrix, which is 180 refusals, 41 flagged and 10 others, 15 commit-phase, 18 drift, 6 catalogue, the rest as before); `task verify:import-fixtures`, `task verify:reflection`, `task verify:controls`, `flutter gen-l10n`. Client, in a scratch copy without
+`custom_lint`/`riverpod_lint` (the repository's own `pub get` fails first on this machine): 511 pass and 2 fail, the two `prudent_l10n_test.dart` cases that fail identically on HEAD; the new ones are widget tests and sentence checks (every failure class at upload, at commit, at a row decision, on opening; a dropped connection; 5000 rows built lazily from a builder delegate, under 60 row widgets, before and
+after a long scroll). No proto or generated contract changed (only `docs/erste-csv-contract.md`), so `task generate` was not run. The plant proof of the log check ran in a scratch copy of the server.
+
+**Not covered, and not claimed:** a real second export (so overlap and whether the bank sequence number is stable are still only what the fingerprint assumes, ADR-091); a real change of the bank's format (a bank's next format is not in any list a test can hold, only the changes thought of here); amounts of 1000 or more in a real export;
+the wording of an outgoing own-account transfer; the bank's UI steps; a run on a device or with the native file picker; the client against the real server rather than a stand-in; native-speaker review of the pl and uk sentences; load (the 5000-row bound is tested, not its time on a phone); two real browsers racing one session (the race is
+driven from threads in `ImportConcurrencyTest`, not through two clients). The matrix is as good as the failures someone thought to write: the catalogue forces a case for every rule that exists, not a rule for every way a bank can change.
+
+---
+
 ## ADR-093 — The client reviews an import in one flow of three pages on the framework's controls, turns every server refusal into a localized sentence from its rule code, and picks the file with `file_selector`
 
 **Date:** 2026-11-14. **Status:** accepted. jlogicsoftware/prudent#74, fourth task of the epic jlogicsoftware/prudent#41.

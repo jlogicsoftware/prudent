@@ -82,7 +82,7 @@ class VerifyImportFixtures(unittest.TestCase):
 
     def test_fixture_name_must_be_statement(self):
         def mutate(root, fixtures):
-            (fixtures / "statement-a.csv").rename(fixtures / "erste_2026-11-14.csv")
+            (fixtures / "statement-a.csv").rename(fixtures / "example_export_9999-99-99.csv")
         self.assertFails(run(mutate), "named statement-*.csv")
 
     def test_no_fixture_fails(self):
@@ -149,8 +149,8 @@ class VerifyImportFixtures(unittest.TestCase):
 
     def test_real_file_name_in_fixtures_fails(self):
         def mutate(root, fixtures):
-            (fixtures / "erste_2026-11-14.csv").write_text(SUMMARY + GOOD_ROW, encoding="utf-8")
-        self.assertFails(run(mutate), "erste_2026-11-14.csv")
+            (fixtures / "example_export_9999-99-99.csv").write_text(SUMMARY + GOOD_ROW, encoding="utf-8")
+        self.assertFails(run(mutate), "example_export_9999-99-99.csv")
 
     def test_ds_store_is_skipped(self):
         def mutate(root, fixtures):

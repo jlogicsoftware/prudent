@@ -13,6 +13,7 @@ import 'package:http/testing.dart';
 import 'package:prudent/account/account_screen.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/imports/import_preview_screen.dart';
+import 'package:prudent/imports/import_rule_messages.dart';
 import 'package:prudent/imports/import_statement_screen.dart';
 import 'package:prudent/imports/statement_picker.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
@@ -836,6 +837,283 @@ void main() {
       // Only what changed is sent: no category.
       expect(server.bodiesOf('POST /api/v1/import-sessions/s1/rows/1').single, {'note': 'for the record'});
       expect(find.text('Note: for the record'), findsOneWidget);
+    });
+  });
+
+  // ADR-094: every class of server failure the failure matrix proves safe is also said in words, at
+  // the step where it happens, with no statement text and no rule code on the screen.
+  group('failures at every step', () {
+    PickedStatement file() => _file();
+
+    Future<void> upload(WidgetTester tester, ImportServer s) async {
+      await pump(tester, s, home: const ImportStatementScreen(), picker: () async => file());
+      await tester.tap(find.text('Choose CSV file'));
+      await tester.pumpAndSettle();
+      await tester.tap(_button('Check statement'));
+      await tester.pumpAndSettle();
+    }
+
+    ImportServer reviewed() => previewed()
+      ..defaultExpense = 'food'
+      ..defaultIncome = 'salary';
+
+    // The refusals of a whole statement, by the class the server answers them with.
+    const uploadRefusals = <(String, int, String, String, String)>[
+      ('a rule on one row', 400, 'invalid', 'The statement was rejected at row 3 (date.invalid).', 'date that does not exist'),
+      ('a rule on the whole file', 400, 'invalid', 'The statement was rejected (encoding.not_utf8).', 'not UTF-8 text'),
+      ('a changed layout', 400, 'invalid', 'The statement was rejected (layout.header_row).', 'starts with a header row'),
+      ('a foreign currency card payment', 400, 'invalid', 'The statement was rejected at row 2 (card.foreign_currency).', 'foreign currency'),
+      ('a statement in another currency', 400, 'invalid', 'The statement was rejected (currency.unsupported).', 'Polish zloty'),
+      ('a statement for another account', 400, 'invalid', 'The statement was rejected (account.identity_mismatch).', 'different account'),
+      ('an account with no number', 400, 'invalid', 'The statement was rejected (account.number_missing).', 'no bank account number'),
+      ('a statement with no transactions', 400, 'invalid', 'The statement was rejected (statement.empty).', 'no transactions'),
+      ('a field that is too long', 400, 'invalid', 'The statement was rejected at row 2 (field.too_long).', 'longer than an import can hold'),
+      ('too many rows', 400, 'invalid', 'The statement was rejected (statement.too_many_rows).', 'more than 5000 transactions'),
+      ('a file over the size limit', 400, 'invalid', 'The statement was rejected (statement.too_large).', 'larger than 5 MiB'),
+      ('an empty upload', 400, 'invalid', 'The statement was rejected (statement.empty_upload).', 'The file is empty'),
+      ('a destination that is not found', 400, 'invalid', 'The statement was rejected (account.not_found).', 'could not be found'),
+      ('a moved amount column', 400, 'invalid', 'The statement was rejected (layout.amount_column).', 'amount column of this file'),
+      ('an account that is not usable', 400, 'invalid', 'The destination account is inactive.', 'holds the statement\'s currency'),
+      ('an unavailable service', 503, 'unavailable', 'The database is away TEST SECRET', 'not available right now'),
+      ('an unexpected failure', 500, 'internal_error', 'java.lang.IllegalStateException TEST SECRET', 'Something went wrong'),
+    ];
+
+    for (final (name, status, code, message, shown) in uploadRefusals) {
+      testWidgets('at upload: $name is explained and the file is kept for another try', (tester) async {
+        if (skipWithoutZenPlatform()) return;
+        final s = ImportServer(rows: _rows());
+        s.failNext['POST /api/v1/import-sessions'] = (status, {'code': code, 'message': message});
+        await upload(tester, s);
+
+        expect(find.textContaining(shown), findsWidgets, reason: name);
+        for (final leaked in [
+          'SECRET',
+          'java.lang',
+          'database is away',
+          'The statement was rejected',
+          'The destination account is inactive',
+          'transaction rows, which is the most',
+          ...importRuleCodes,
+        ]) {
+          expect(find.textContaining(leaked), findsNothing, reason: '$name leaked "$leaked"');
+        }
+        // Still on the upload page with the file chosen, and nothing opened.
+        expect(find.text('File: statement-example.csv'), findsOneWidget);
+        expect(find.text('Review import'), findsNothing);
+        expect(_enabled(tester, 'Check statement'), isTrue);
+      });
+    }
+
+    testWidgets('at upload: a connection that drops says so and keeps the file', (tester) async {
+      if (skipWithoutZenPlatform()) return;
+      final s = ImportServer(rows: _rows())..dropBefore.add('POST /api/v1/import-sessions');
+      await upload(tester, s);
+
+      expect(find.textContaining('Could not reach the server'), findsOneWidget);
+      expect(find.text('File: statement-example.csv'), findsOneWidget);
+
+      // The next try goes through.
+      await tester.tap(_button('Check statement'));
+      await tester.pumpAndSettle();
+      expect(find.text('Review import'), findsOneWidget);
+    });
+
+    // Commit refusals that name a rule: nothing was written, the rows are named, the review stays.
+    const commitRefusals = <(String, String, String, List<String>)>[
+      (
+        'a category gone after it was chosen',
+        'The statement was rejected at rows 1, 2, 4, 5 (commit.category_unavailable).',
+        'A category chosen for the rows listed was deleted',
+        ['Rows involved: 1, 2, 4, 5.'],
+      ),
+      (
+        'more rows than are named',
+        'The statement was rejected at rows 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 and 3 more (commit.category_unavailable).',
+        'A category chosen for the rows listed was deleted',
+        ['Rows involved: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 and 3 more.'],
+      ),
+      (
+        'a destination that went away',
+        'The statement was rejected (commit.account_unavailable).',
+        'The destination account was deleted, deactivated',
+        [],
+      ),
+      (
+        'a destination renumbered',
+        'The statement was rejected (account.identity_mismatch).',
+        'belongs to a different account',
+        [],
+      ),
+      (
+        'a destination whose number was removed',
+        'The statement was rejected (account.number_missing).',
+        'has no bank account number',
+        [],
+      ),
+      (
+        'a row the ledger refused',
+        'The statement was rejected at row 2 (commit.row_refused).',
+        'The ledger refused the row listed',
+        ['Rows involved: 2.'],
+      ),
+    ];
+
+    for (final (name, message, sentence, rows) in commitRefusals) {
+      testWidgets('at commit: $name is explained, names its rows, and keeps the review open', (tester) async {
+        if (skipWithoutZenPlatform()) return;
+        final s = reviewed();
+        await pump(tester, s);
+        s.failNext['POST /api/v1/import-sessions/s1/commit'] = (409, {'code': 'conflict', 'message': message});
+
+        await tester.tap(_button('Import 3 rows'));
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('The statement was not accepted.'), findsOneWidget, reason: name);
+        expect(find.textContaining(sentence), findsOneWidget, reason: name);
+        for (final line in rows) {
+          expect(find.textContaining(line), findsOneWidget, reason: name);
+        }
+        // Nothing was written, so the lost-answer wording must not appear, and no rule code does.
+        expect(find.textContaining('may not have been written'), findsNothing);
+        expect(find.textContaining('commit.'), findsNothing);
+        expect(find.textContaining('The statement was rejected'), findsNothing);
+        // The review is still on screen and can be confirmed again once the cause is fixed.
+        expect(find.text('Import 3 rows'), findsOneWidget);
+
+        await tester.pump(const Duration(seconds: 10));
+        await tester.pumpAndSettle();
+        await tester.tap(_button('Import 3 rows'));
+        await tester.pumpAndSettle();
+        expect(find.text('3 records were added.'), findsOneWidget, reason: '$name: the retry');
+        expect(s.count('POST /api/v1/import-sessions/s1/commit'), 2);
+      });
+    }
+
+    testWidgets('at commit: a session that expired meanwhile reads as expired', (tester) async {
+      if (skipWithoutZenPlatform()) return;
+      final s = reviewed();
+      await pump(tester, s);
+      s.failNext['POST /api/v1/import-sessions/s1/commit'] = (
+        409,
+        {'code': 'conflict', 'message': 'This import session has expired. Upload the statement again.'},
+      );
+      s.state = 'IMPORT_SESSION_STATE_EXPIRED';
+
+      await tester.tap(_button('Import 3 rows'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('This import has expired'), findsOneWidget);
+      expect(find.textContaining('This import session has expired'), findsNothing, reason: 'the server\'s sentence');
+    });
+
+    testWidgets('at commit: a stale count from a second tab reloads the review', (tester) async {
+      if (skipWithoutZenPlatform()) return;
+      final s = reviewed();
+      await pump(tester, s);
+      s.failNext['POST /api/v1/import-sessions/s1/commit'] = (
+        409,
+        {'code': 'conflict', 'message': 'This import session is already committed with a different number of rows.'},
+      );
+      s.state = 'IMPORT_SESSION_STATE_COMMITTED';
+      s.committedWritten = 3;
+      s.committedAlready = 0;
+
+      await tester.tap(_button('Import 3 rows'));
+      await tester.pumpAndSettle();
+
+      // The reload shows what the other tab did, not the server's sentence.
+      expect(find.text('3 records were added.'), findsOneWidget);
+      expect(find.textContaining('different number of rows'), findsNothing);
+    });
+
+    testWidgets('at a row decision: a conflict is said in words and reloads the session', (tester) async {
+      if (skipWithoutZenPlatform()) return;
+      final s = previewed();
+      await pump(tester, s);
+      s.failNext['POST /api/v1/import-sessions/s1/rows/1'] = (
+        409,
+        {'code': 'conflict', 'message': 'An import session that is DISCARDED holds no rows TEST SECRET'},
+      );
+
+      await tester.tap(find.text('TEST CARD PAYMENT EXAMPLE'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(EditableText).last, 'note');
+      await tester.tap(find.text('Save row'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('SECRET'), findsNothing);
+      expect(find.textContaining('could not be done in the import'), findsOneWidget);
+      expect(s.count('GET /api/v1/import-sessions/s1'), 2);
+    });
+
+    testWidgets('on opening: a review that cannot be loaded offers to try again and shows no exception', (tester) async {
+      if (skipWithoutZenPlatform()) return;
+      final s = previewed();
+      s.failNext['GET /api/v1/import-sessions/s1'] = (
+        500,
+        {'code': 'internal_error', 'message': 'java.lang.IllegalStateException TEST SECRET'},
+      );
+      await pump(tester, s);
+
+      expect(find.textContaining('SECRET'), findsNothing);
+      expect(find.textContaining('IllegalState'), findsNothing);
+      expect(find.text('Try again'), findsOneWidget);
+
+      await tester.tap(find.text('Try again'));
+      await tester.pumpAndSettle();
+      expect(find.text('To import (3)'), findsOneWidget);
+    });
+
+    testWidgets('on opening: a dropped connection offers to try again', (tester) async {
+      if (skipWithoutZenPlatform()) return;
+      final s = previewed()..dropBefore.add('GET /api/v1/import-sessions/s1');
+      await pump(tester, s);
+
+      expect(find.text('Try again'), findsOneWidget);
+      await tester.tap(find.text('Try again'));
+      await tester.pumpAndSettle();
+      expect(find.text('To import (3)'), findsOneWidget);
+    });
+  });
+
+  group('a long statement', () {
+    testWidgets('5000 rows are built lazily: only the visible ones become widgets', (tester) async {
+      if (skipWithoutZenPlatform()) return;
+      final rows = [
+        for (var i = 1; i <= 5000; i++)
+          importRow(i, amount: -100 - i, description: 'TEST CARD PAYMENT EXAMPLE $i', date: '2026-11-03'),
+      ];
+      final s = ImportServer(rows: rows, accountId: 'acc');
+      final watch = Stopwatch()..start();
+      await pump(tester, s);
+      watch.stop();
+
+      expect(find.text('To import (5000)'), findsOneWidget);
+      final built = find.byWidgetPredicate((w) => w.runtimeType.toString() == 'ImportRowTile');
+      expect(built, findsWidgets);
+      // A viewport of this size shows a few dozen rows at most; building all 5000 would be thousands.
+      expect(built.evaluate().length, lessThan(60), reason: 'the list must be lazy');
+      // An eager ListView(children: [...]) also builds few elements, so the delegate is checked too:
+      // a builder delegate asks for a row only when it is scrolled to, a list delegate holds all.
+      final lists = tester.widgetList<ListView>(find.byType(ListView)).toList();
+      final rowList = lists.where((l) => l.childrenDelegate is SliverChildBuilderDelegate).toList();
+      expect(rowList, isNotEmpty, reason: 'the rows must come from a builder delegate (ListView.builder)');
+      expect(
+        lists.any((l) {
+          final d = l.childrenDelegate;
+          return d is SliverChildListDelegate && d.children.length > 100;
+        }),
+        isFalse,
+        reason: 'no list may hold the 5000 rows as ready-made children',
+      );
+
+      // Scrolling far builds other rows and drops the first ones.
+      await tester.drag(find.byType(ListView).first, const Offset(0, -200000));
+      await tester.pumpAndSettle();
+      expect(built.evaluate().length, lessThan(60));
+      expect(find.text('TEST CARD PAYMENT EXAMPLE 1'), findsNothing);
+      // Opening and a long scroll of 5000 rows is quick; a generous bound only catches a rebuild of all.
+      expect(watch.elapsed, lessThan(const Duration(seconds: 20)));
     });
   });
 }

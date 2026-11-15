@@ -112,6 +112,21 @@ void main() {
       });
     }
 
+    for (final locale in PrudentLocalizations.supportedLocales) {
+      test('no sentence is a placeholder, the server English, or another rule\'s sentence (${locale.languageCode})', () {
+        final t = lookupPrudentLocalizations(locale);
+        final seen = <String, String>{};
+        for (final code in importRuleCodes) {
+          final text = importRuleMessage(t, code)!;
+          expect(text.contains('{') || text.contains('}'), isFalse, reason: code);
+          expect(text.contains('The statement was rejected'), isFalse, reason: code);
+          final other = seen[text];
+          expect(other, isNull, reason: '$code repeats the sentence of $other');
+          seen[text] = code;
+        }
+      });
+    }
+
     test('rows read as a list, with how many more', () {
       final t = lookupPrudentLocalizations(const Locale('en'));
       expect(

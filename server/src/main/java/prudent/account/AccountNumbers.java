@@ -4,7 +4,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import java.util.Locale;
 import java.util.regex.Pattern;
 import prudent.error.PrudentException;
 
@@ -13,7 +12,7 @@ import prudent.error.PrudentException;
  * stores, and what a statement importer compares it with, so that two spellings of one number
  * become one string and a number is never compared in two different ways.
  *
- * <p>Normal form: whitespace (any Unicode white space, no-break spaces included) removed, upper-cased, and a leading {@code PL} dropped from a 26-digit
+ * <p>Normal form: whitespace (any Unicode white space, no-break spaces included) removed, ASCII letters upper-cased (nothing else is case-folded), and a leading {@code PL} dropped from a 26-digit
  * number (a Polish number is written with or without the country prefix, and the bank's statement
  * writes it without). What remains must be 10 to 34 letters and digits. The shape is checked, the
  * IBAN checksum is not: the synthetic fixtures use check digits {@code 00}, which no real IBAN has.
@@ -84,8 +83,7 @@ public final class AccountNumbers {
   }
 
   /**
-   * The canonical form without the shape check: Unicode white space removed, upper-cased with {@link
-   * Locale#ROOT}, a leading {@code PL} dropped from a 26-digit number; {@code null} when nothing is
+   * The canonical form without the shape check: Unicode white space removed, ASCII upper-cased ({@link #asciiUpperCase}), a leading {@code PL} dropped from a 26-digit number; {@code null} when nothing is
    * left. The single place a number is normalised.
    */
   public static String canonical(String raw) {
@@ -101,8 +99,24 @@ public final class AccountNumbers {
     if (raw == null) {
       return null;
     }
-    String compact = WHITE_SPACE.matcher(raw).replaceAll("").toUpperCase(Locale.ROOT);
+    String compact = asciiUpperCase(WHITE_SPACE.matcher(raw).replaceAll(""));
     return compact.isEmpty() ? null : compact;
+  }
+
+  /**
+   * Upper-cases the letters {@code a} to {@code z} and nothing else. {@link String#toUpperCase}
+   * would also fold characters outside the shape into it ({@code ß} becomes {@code SS}, a dotless
+   * {@code ı} becomes {@code I}, a long {@code ſ} becomes {@code S}), so two different typed strings
+   * could be stored as one number; here such a character stays what it is and the shape check
+   * refuses it.
+   */
+  private static String asciiUpperCase(String text) {
+    StringBuilder upper = new StringBuilder(text.length());
+    for (int i = 0; i < text.length(); i++) {
+      char c = text.charAt(i);
+      upper.append(c >= 'a' && c <= 'z' ? (char) (c - 'a' + 'A') : c);
+    }
+    return upper.toString();
   }
 
   private static String shaped(String canonical) {

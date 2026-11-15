@@ -47,6 +47,14 @@ String? importRuleMessage(PrudentLocalizations t, String code) => switch (code) 
   'transfer.same_account' => t.importRuleTransferSameAccount,
   'duplicate.already_imported' => t.importRuleDuplicateAlreadyImported,
   'transfer.own_account' => t.importRuleTransferOwnAccount,
+  'commit.category_unavailable' => t.importRuleCommitCategoryUnavailable,
+  'commit.account_unavailable' => t.importRuleCommitAccountUnavailable,
+  'commit.row_refused' => t.importRuleCommitRowRefused,
+  'layout.amount_column' => t.importRuleLayoutAmountColumn,
+  'statement.empty_upload' => t.importRuleStatementEmptyUpload,
+  'statement.too_large' => t.importRuleStatementTooLarge,
+  'statement.too_many_rows' => t.importRuleStatementTooManyRows,
+  'account.not_found' => t.importRuleAccountNotFound,
   _ => null,
 };
 
@@ -89,4 +97,12 @@ const List<String> importRuleCodes = [
   'transfer.same_account',
   'duplicate.already_imported',
   'transfer.own_account',
+  'commit.category_unavailable',
+  'commit.account_unavailable',
+  'commit.row_refused',
+  'layout.amount_column',
+  'statement.empty_upload',
+  'statement.too_large',
+  'statement.too_many_rows',
+  'account.not_found',
 ];

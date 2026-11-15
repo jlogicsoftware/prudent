@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import prudent.account.AccountEntity;
+import prudent.category.CategoryEntity;
 import prudent.error.PrudentException;
 import prudent.record.RecordEntity;
 import prudent.record.RecordWriter;
@@ -41,13 +42,17 @@ public class LedgerImportCommitter implements ImportCommitter {
   /** The title a record gets when its statement row has no description at all. */
   static final String FALLBACK_TITLE = "Imported transaction";
 
+  /** The most rows one refusal names, as in the importer. */
+  private static final int MAX_REPORTED_ROWS = ErsteStatementImporter.MAX_REPORTED_ROWS;
+
   @Inject RecordWriter writer;
 
   @Override
   public CommitResult commit(ImportSessionEntity session, List<ImportRowEntity> accepted) {
     AccountEntity account = AccountEntity.findOwnedForUpdate(session.userId, session.accountId);
     if (account == null) {
-      throw PrudentException.conflict("The destination account no longer exists.");
+      throw PrudentException.conflict(
+          new ImportRejectedException("commit.account_unavailable").getMessage());
     }
     if (accepted.isEmpty()) {
       // Nothing to write (every row was already imported, or none is wanted): a valid commit.
@@ -63,6 +68,7 @@ public class LedgerImportCommitter implements ImportCommitter {
               + " row(s) have no category yet. Choose a category for every row, or a default"
               + " category for expenses and for income, before committing.");
     }
+    requireUsableCategories(session, accepted);
     for (ImportRowEntity row : accepted) {
       if (row.fingerprint == null || row.occurrence == null) {
         // A PREVIEWED session with a destination always has keys; a row without one would be
@@ -111,6 +117,36 @@ public class LedgerImportCommitter implements ImportCommitter {
     return new CommitResult(written, alreadyImported);
   }
 
+  /**
+   * Refuses, before the first write, every row whose category has gone since it was chosen: deleted,
+   * archived, or for the other direction. The refusal is a rule code and the row numbers, never the
+   * category's name or any statement text (a category title is the user's own, but the message ends
+   * up in logs), so the client can say which rows need another category. {@link RecordWriter} checks
+   * the same things again at each write and stays the authority; this makes the common failure
+   * readable instead of a generic "cannot be written" that explains nothing.
+   */
+  private static void requireUsableCategories(
+      ImportSessionEntity session, List<ImportRowEntity> accepted) {
+    Map<UUID, CategoryEntity> categories = new HashMap<>();
+    List<Integer> unusable = new ArrayList<>();
+    for (ImportRowEntity row : accepted) {
+      UUID id = categoryOf(session, row);
+      CategoryEntity category =
+          categories.computeIfAbsent(id, key -> CategoryEntity.findOwned(session.userId, key));
+      if (category == null
+          || category.isArchived()
+          || !category.canFile(row.amountMinor)) {
+        unusable.add(row.rowNumber);
+      }
+    }
+    if (!unusable.isEmpty()) {
+      List<Integer> named = unusable.subList(0, Math.min(unusable.size(), MAX_REPORTED_ROWS));
+      throw PrudentException.conflict(
+          new ImportRejectedException("commit.category_unavailable", named, unusable.size())
+              .getMessage());
+    }
+  }
+
   private void write(ImportSessionEntity session, ImportRowEntity row, int occurrence) {
     RecordEntity record = new RecordEntity();
     record.id = UUID.randomUUID();
@@ -128,9 +164,13 @@ public class LedgerImportCommitter implements ImportCommitter {
           row.counterparty,
           row.note);
     } catch (PrudentException refused) {
-      // The writer's message names an account or category the user owns, never statement text.
+      // Whatever the ledger refused, the answer is the rule and the row, never the writer's own
+      // sentence: that one can quote a value it was given, and a row's values come from the
+      // statement. The usual causes (a category gone, an account that changed) are named before the
+      // first write by requireUsableCategories and the workflow's destination check, so this is the
+      // backstop for a refusal nobody foresaw.
       throw PrudentException.conflict(
-          "Row " + row.rowNumber + " cannot be written: " + refused.getMessage());
+          new ImportRejectedException("commit.row_refused", row.rowNumber).getMessage());
     }
     record.importFingerprint = row.fingerprint;
     record.importOccurrence = occurrence;

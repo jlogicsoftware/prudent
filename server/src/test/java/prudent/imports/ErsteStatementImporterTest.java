@@ -471,8 +471,13 @@ class ErsteStatementImporterTest {
 
   @Test
   void aSignTheShapeCannotHave_isFlagged() {
-    assertEquals("amount.sign_unexpected", onlyRow(card("05-01-2026", "1,00", "1.00", "2")).rejectionCode());
-    assertEquals("amount.sign_unexpected", onlyRow(blik(OTHER_ACCOUNT, "1,00", "2")).rejectionCode());
+    // A positive card or BLIK row is not flagged: it moves the amount column, so the file is refused.
+    for (String line : new String[] {card("05-01-2026", "1,00", "1.00", "2"), blik(OTHER_ACCOUNT, "1,00", "2")}) {
+      ImportRejectedException moved =
+          assertThrows(
+              ImportRejectedException.class, () -> importer.parse(file(SUMMARY, line), context));
+      assertEquals("layout.amount_column", moved.rule());
+    }
     // An outgoing own-account transfer: its wording is not known.
     assertEquals("amount.sign_unexpected", onlyRow(own(OTHER_ACCOUNT, "-1,00", "2")).rejectionCode());
   }

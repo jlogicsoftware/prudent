@@ -178,7 +178,7 @@ class ImportCommitTest {
   void aRowTheLedgerRefusesAtTheThirdRow_rollsBackEverything() {
     SessionView view = previewed(threeRows(), erste);
     UUID id = view.session().id;
-    // Archived after it was chosen: rows 1 and 2 are written first, then row 3 is refused.
+    // Archived after it was chosen: the refusal names row 3, and nothing is written for rows 1 and 2.
     UUID retired = PrudentTest.seedCategory(PrudentTest.ALICE, "Retired");
     workflow.updateRow(ALICE, id, 3, retired, false, null, null);
     QuarkusTransaction.requiringNew()
@@ -188,7 +188,8 @@ class ImportCommitTest {
         assertThrows(PrudentException.class, () -> workflow.commit(ALICE, id, 3));
 
     assertEquals(409, refused.status().getStatusCode());
-    assertTrue(refused.getMessage().startsWith("Row 3 cannot be written"), refused.getMessage());
+    assertEquals(
+        "The statement was rejected at row 3 (commit.category_unavailable).", refused.getMessage());
     assertFalse(refused.getMessage().contains("SKLEP"), "no statement text in an error");
     assertEquals(0, records(), "rows 1 and 2 were written and must be gone");
     SessionView kept = workflow.get(ALICE, id);

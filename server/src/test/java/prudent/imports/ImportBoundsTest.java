@@ -20,7 +20,6 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import prudent.PrudentTest;
-import prudent.error.PrudentException;
 import prudent.proto.v1.ImportSession;
 import prudent.proto.v1.PreviewImportSessionRequest;
 import zen.proto.v1.ZenError;
@@ -59,7 +58,7 @@ class ImportBoundsTest {
   void aStatementWithMoreRowsThanTheLimitIsA400ThatWritesNothing() throws Exception {
     ZenError refused = error(upload(rows(5_001, "TEST"), null), 400);
     assertEquals("invalid", refused.getCode());
-    assertTrue(refused.getMessage().contains("5000"), refused.getMessage());
+    assertEquals("The statement was rejected (statement.too_many_rows).", refused.getMessage());
     assertNothingWritten();
   }
 
@@ -89,11 +88,11 @@ class ImportBoundsTest {
             ParsedRow.accepted(1, day, null, 5, "TEST", null, null, null),
             ParsedRow.accepted(2, day, null, 6, "TEST", null, null, null));
     // Too many rows: the statement's doing, a 400 and not a 500.
-    PrudentException tooMany =
+    ImportRejectedException tooMany =
         assertThrows(
-            PrudentException.class,
+            ImportRejectedException.class,
             () -> ParsedStatements.validate("f", new ParsedStatement("PLN", two), 1));
-    assertEquals(PrudentException.INVALID, tooMany.code());
+    assertEquals("statement.too_many_rows", tooMany.rule());
     ParsedStatements.validate("f", new ParsedStatement("PLN", two), 2);
 
     // Too long a field: a rejection naming the row.

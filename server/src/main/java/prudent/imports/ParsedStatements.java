@@ -79,10 +79,8 @@ final class ParsedStatements {
       throw broken(formatId, "returned a statement with no rows; reject it instead");
     }
     if (statement.rows().size() > maxRows) {
-      // The statement's doing, not the importer's: a 400 that gives the limit and nothing else.
-      throw PrudentException.invalid(
-          "The statement has more than " + maxRows + " transaction rows, which is the most an"
-              + " import can hold.");
+      // The statement's doing, not the importer's: a 400 that names the rule and nothing else (the client says the limit).
+      throw new ImportRejectedException("statement.too_many_rows");
     }
     Set<Integer> seen = new HashSet<>();
     Set<String> identifiers = new HashSet<>();

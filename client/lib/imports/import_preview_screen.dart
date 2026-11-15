@@ -65,7 +65,17 @@ class _ImportPreviewScreenState extends ConsumerState<ImportPreviewScreen> {
       if (failure.shouldReload || (commit && failure.kind != ImportFailureKind.rule)) _reload();
       if (mounted) {
         final t = PrudentLocalizations.of(context);
-        showZenMessage(context, '$lead ${importFailureMessage(t, failure)}');
+        // A refusal that names rows (a category gone at the commit, say) says which, as the upload
+        // screen's failure box does; the sentence alone would leave the user guessing.
+        final rows = importFailureRows(t, failure);
+        // A rule refusal at the commit means nothing was written (the sentence says so), so the
+        // "may not have been written" lead of a lost answer would contradict it.
+        final heading =
+            commit && failure.kind == ImportFailureKind.rule ? '${t.importFailureTitle}.' : lead;
+        showZenMessage(
+          context,
+          '$heading ${importFailureMessage(t, failure)}${rows == null ? '' : ' $rows.'}',
+        );
       }
       return false;
     } finally {

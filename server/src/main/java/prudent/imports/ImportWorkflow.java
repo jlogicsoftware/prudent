@@ -90,10 +90,10 @@ public class ImportWorkflow {
   @Transactional
   public SessionView create(UUID userId, String formatId, byte[] content, UUID accountId) {
     if (content == null || content.length == 0) {
-      throw PrudentException.invalid("The statement is empty.");
+      throw PrudentException.invalid(new ImportRejectedException("statement.empty_upload").getMessage());
     }
     if (content.length > MAX_CONTENT_BYTES) {
-      throw PrudentException.invalid("The statement is larger than the 5 MiB limit.");
+      throw PrudentException.invalid(new ImportRejectedException("statement.too_large").getMessage());
     }
     StatementImporter importer = formats.require(formatId);
     Instant now = clock.instant();
@@ -251,7 +251,7 @@ public class ImportWorkflow {
     // another request cannot rename, deactivate or re-number it in between, nor can a second commit
     // into it start until this one ends.
     if (AccountEntity.findOwnedForUpdate(userId, session.accountId) == null) {
-      throw PrudentException.conflict("The destination account no longer exists.");
+      throw refusal(true, null);
     }
     checkDestination(userId, session, session.accountId, true);
 
@@ -454,7 +454,10 @@ public class ImportWorkflow {
     try {
       importer.checkDestination(session.statementIdentity, account);
     } catch (ImportRejectedException rejected) {
-      throw refusal(atCommit, rejected.getMessage());
+      // The rule is already the sentence: a 409 at the commit, a 400 before it.
+      throw atCommit
+          ? PrudentException.conflict(rejected.getMessage())
+          : PrudentException.invalid(rejected.getMessage());
     }
   }
 
@@ -469,11 +472,7 @@ public class ImportWorkflow {
       UUID userId, UUID accountId, String currency, boolean atCommit) {
     AccountEntity account = AccountEntity.findOwned(userId, accountId);
     if (account == null) {
-      throw refusal(
-          atCommit,
-          atCommit
-              ? "The destination account no longer exists."
-              : "No such account for this user.");
+      throw refusal(atCommit, new ImportRejectedException("account.not_found").getMessage());
     }
     if (!account.isActive) {
       throw refusal(atCommit, "The destination account is inactive.");
@@ -486,14 +485,24 @@ public class ImportWorkflow {
     return account;
   }
 
+  /**
+   * A refusal of the destination. Before the commit it is a 400 with a plain sentence (the form is
+   * still open and the account field says what is wrong). At the commit the account changed under a
+   * finished review, so it is a 409 that names the rule {@code commit.account_unavailable} and
+   * nothing else, for the client to turn into "choose the account again" in the user's language.
+   */
   private static PrudentException refusal(boolean atCommit, String message) {
-    return atCommit ? PrudentException.conflict(message) : PrudentException.invalid(message);
+    return atCommit
+        ? PrudentException.conflict(
+            new ImportRejectedException("commit.account_unavailable").getMessage())
+        : PrudentException.invalid(message);
   }
+
 
   private static void requireOwnedAccount(UUID userId, UUID accountId) {
     if (AccountEntity.findOwned(userId, accountId) == null) {
       // 400, not 404: the id arrived in a request body (see Ids.parseInBody).
-      throw PrudentException.invalid("No such account for this user.");
+      throw PrudentException.invalid(new ImportRejectedException("account.not_found").getMessage());
     }
   }
 

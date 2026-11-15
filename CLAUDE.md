@@ -184,7 +184,7 @@ done (#159). For a person who cannot sign in, `POST /api/v1/admin/privacy/users/
 jlogicsoftware/prudent#172) runs the same eraser, anonymiser and sign-in deletion for an `admin`-role session (401/403 otherwise, 404 for an id with nothing
 behind it, 400 for the caller's own); it has not been run against a deployed service.
 
-M6 (Erste Polska CSV import, epic jlogicsoftware/prudent#41) has begun with its contract only (ADR-088,
+M6 (Erste Polska CSV import, epic jlogicsoftware/prudent#41) is built through its failure matrix; it began with its contract (ADR-088,
 jlogicsoftware/prudent#42): `docs/erste-csv-contract.md` records the format of one real export, kept outside the
 repository, with its open questions, and `server/src/test/resources/import/erste/` holds synthetic fixtures.
 `task verify:import-fixtures` (CI) refuses values that cannot be synthetic and is weak by design (see its summary).
@@ -229,6 +229,16 @@ server refusal is shown as a localized sentence chosen by its rule code and row 
 unknown codes get a generic sentence naming the code). It is covered by widget tests over a mock server and has **been seen only in a browser, over an
 in-memory stand-in for the server with synthetic rows**: not against the real server, not on a device, no native file picker, and the iOS and macOS
 runners have not been built with the new plugin.
+
+M6's backlog is complete in code (ADR-094, jlogicsoftware/prudent#77): a failure and drift matrix of about 220 statements (45 rule codes the client has a sentence for) (`ImportFailureCatalogue`, run by
+`ImportFailureMatrixTest` through the real HTTP API) proves each malformed, structurally changed, mixed-currency, oversized, misdirected or flagged file is refused
+or flagged with a rule code and bounded row numbers, quotes no statement text in an answer or a log line, and leaves every record, session, row and account of both users
+as it was; `ImportCommitFailureTest` does the same for a category, account, session or phase that fails between the preview and the commit (three rule codes,
+`commit.category_unavailable`, `commit.account_unavailable` and `commit.row_refused`, replace a "Row N cannot be written" that explained nothing); `ErsteFormatDriftTest` pins the
+fixtures to their exact parsed rows and the contract's rules to the importer's; `ImportRuleCatalogueTest` fails when the importer's sources can emit a rule that no case
+proves. A file whose amount column has moved (a positive card or BLIK row, or the column disagreeing with the card text on half or more of at least two card rows) is refused whole as `layout.amount_column`, never read through the balance column; an empty or oversized upload, too many rows and an unknown destination are rule codes too (`statement.empty_upload`, `statement.too_large`, `statement.too_many_rows`, `account.not_found`). **Never seen:** a real second export (overlap, whether the bank sequence number is stable), amounts of 1000 or more, the wording of an outgoing own-account transfer, a
+real change of the bank's format, the bank's UI steps for exporting (user-supplied), a run on a device or with the native file picker, the client against the real server, and any
+Polish or Ukrainian string reviewed by a native speaker.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
@@ -311,6 +321,14 @@ is deleted as part of it, since a versioned dependency's documentation travels w
 (`apps/zen_demo/*` is the reference application), but never write to it, and never copy framework
 source into this repository. If Prudent needs a framework change, that change is made in jZen and
 consumed — say so explicitly rather than forking a copy here.
+
+**A limitation met in jZen is an issue in jZen, filed when it is met.** Whenever work here runs into a
+framework limitation — a control, hook, export or behaviour `zen_ui_widgets`, `zen_transport`,
+`zen-identity` or any other jZen library lacks or gets wrong — open an issue in `jZenDev/jZen`
+(English, as `konter-dev`, with what was tried, why it matters here and an acceptance test), add a row
+to the table in [`docs/jzen/README.md`](docs/jzen/README.md), and name the issue in the workaround's
+comment and ADR. Do not leave it as a sentence in an ADR or a code comment alone, and do not fork the
+framework to get around it. A found limitation with no issue number is unfinished work.
 
 ## Target structure
 

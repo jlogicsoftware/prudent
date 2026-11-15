@@ -32,7 +32,8 @@ import prudent.account.AccountNumbers;
  *       delimiter, header, field count, dates (real days, 2000 to a year ahead), decimals, currency, sequence numbers, a foreign
  *       currency card payment, an empty statement. The whole statement is rejected.
  *   <li><em>A row has no known meaning</em> — a description outside the three observed shapes, a
- *       card amount that disagrees with the column, a sign the shape cannot have, a counterparty
+ *       card amount that disagrees with the column, a sign the shape cannot have (on a card or BLIK
+ *       row that is a whole-file refusal instead, {@link #amountColumnMoved}), a counterparty
  *       account that is not shaped like one. The row is returned {@linkplain ParsedRow#rejected
  *       rejected} so the count the user sees is the count in the file, and the rest may still be
  *       imported.
@@ -114,6 +115,9 @@ public class ErsteStatementImporter implements StatementImporter {
     List<ParsedRow> rows = new ArrayList<>();
     Set<String> sequences = new HashSet<>();
     LocalDate latest = LocalDate.now(clock).plusYears(1);
+    int positiveOutgoing = 0;
+    int cardRows = 0;
+    int cardMismatches = 0;
 
     for (int index = 1; index < lines.size(); index++) {
       int number = index; // transaction row n is file line n + 1
@@ -132,6 +136,15 @@ public class ErsteStatementImporter implements StatementImporter {
         failures.add(new Failure(result.rule(), number));
         continue;
       }
+      switch (result.column()) {
+        case POSITIVE -> positiveOutgoing++;
+        case MISMATCH -> {
+          cardRows++;
+          cardMismatches++;
+        }
+        case CONSISTENT -> cardRows++;
+        case UNCHECKED -> {}
+      }
       // Sequence numbers: well-formed (checked in readRow) and unique within the file.
       if (!sequences.add(fields.get(7))) {
         failures.add(new Failure("sequence.duplicate", number));
@@ -143,10 +156,34 @@ public class ErsteStatementImporter implements StatementImporter {
     if (!failures.isEmpty()) {
       throw rejection(failures);
     }
+    if (amountColumnMoved(positiveOutgoing, cardRows, cardMismatches)) {
+      throw new ImportRejectedException("layout.amount_column");
+    }
     if (rows.isEmpty()) {
       throw new ImportRejectedException("statement.empty");
     }
     return new ParsedStatement(CURRENCY, List.copyOf(rows), ParsedStatement.identityOf(accountNumber));
+  }
+
+  /**
+   * Whether the amount column no longer holds the amount (for example because the amount and the
+   * balance columns changed places), told from two witnesses that never use the balance column:
+   *
+   * <ul>
+   *   <li>Every real card payment and BLIK purchase is an outgoing, negative amount, so even one
+   *       of them with a positive figure means the column is not the amount: a single such row is
+   *       enough, because a real export has none.
+   *   <li>A card payment writes its own amount in its description. When the column disagrees with
+   *       that text on <em>half or more</em> of at least two card rows, the column is not the
+   *       amount; one disagreeing row in an otherwise consistent file stays what it was, a row the
+   *       user decides on ({@code card.amount_mismatch}).
+   * </ul>
+   *
+   * An incoming own-account transfer cannot be told apart this way, so the whole file is refused
+   * rather than leave it as the one row accepted with a balance for its amount.
+   */
+  static boolean amountColumnMoved(int positiveOutgoing, int cardRows, int cardMismatches) {
+    return positiveOutgoing > 0 || (cardRows >= 2 && cardMismatches * 2 >= cardRows);
   }
 
   /**
@@ -231,14 +268,30 @@ public class ErsteStatementImporter implements StatementImporter {
   }
 
   /** Either a row (accepted or flagged) or the whole-file rule it broke. */
-  private record RowResult(ParsedRow row, String rule) {
+  private record RowResult(ParsedRow row, String rule, Column column) {
     static RowResult of(ParsedRow row) {
-      return new RowResult(row, null);
+      return new RowResult(row, null, Column.UNCHECKED);
+    }
+
+    static RowResult of(ParsedRow row, Column column) {
+      return new RowResult(row, null, column);
     }
 
     static RowResult fail(String rule) {
-      return new RowResult(null, rule);
+      return new RowResult(null, rule, Column.UNCHECKED);
     }
+  }
+
+  /** What a row says about whether the amount column still holds the amount. */
+  private enum Column {
+    /** Nothing: the row is not a card or BLIK row, or it was refused for another reason. */
+    UNCHECKED,
+    /** A card payment whose column equals the amount in its text. */
+    CONSISTENT,
+    /** A card payment whose column differs from the amount in its text. */
+    MISMATCH,
+    /** A card or BLIK row with a positive amount, which a real export never has. */
+    POSITIVE
   }
 
   /**
@@ -286,13 +339,15 @@ public class ErsteStatementImporter implements StatementImporter {
         return RowResult.of(ParsedRow.rejected(number, "description.unknown_shape"));
       }
       if (amountMinor > 0) {
-        return RowResult.of(ParsedRow.rejected(number, "amount.sign_unexpected"));
+        return RowResult.of(ParsedRow.rejected(number, "amount.sign_unexpected"), Column.POSITIVE);
       }
       long embedded = Long.parseLong(card.group(1)) * 100 + Long.parseLong(card.group(2));
       if (embedded != magnitude) {
-        return RowResult.of(ParsedRow.rejected(number, "card.amount_mismatch"));
+        return RowResult.of(ParsedRow.rejected(number, "card.amount_mismatch"), Column.MISMATCH);
       }
-      return RowResult.of(ParsedRow.accepted(number, transaction, booking, amountMinor, description, null, null, sequence));
+      return RowResult.of(
+          ParsedRow.accepted(number, transaction, booking, amountMinor, description, null, null, sequence),
+          Column.CONSISTENT);
     }
     if (BLIK.matcher(description).matches()) {
       if (counterparty.isBlank()) {
@@ -303,7 +358,7 @@ public class ErsteStatementImporter implements StatementImporter {
         return RowResult.of(ParsedRow.rejected(number, "counterparty_account.invalid"));
       }
       if (amountMinor > 0) {
-        return RowResult.of(ParsedRow.rejected(number, "amount.sign_unexpected"));
+        return RowResult.of(ParsedRow.rejected(number, "amount.sign_unexpected"), Column.POSITIVE);
       }
       return RowResult.of(ParsedRow.accepted(
           number, transaction, booking, amountMinor, description, counterparty, other, sequence));

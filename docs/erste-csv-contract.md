@@ -89,6 +89,10 @@ All three observed, none exhaustive. Fields 4 and 5 differ per shape.
 A description in any other shape is not an error for the file, but the row has no known meaning and
 the parser must say so per row rather than guess a merchant.
 
+## Upload bounds (the import workflow's, before any parser runs)
+
+A refusal before the importer is also a rule code with no text, so the client can say what to do: an empty upload (`statement.empty_upload`), a file over 5 MiB (`statement.too_large`), more than 5000 transaction rows (`statement.too_many_rows`) and a destination account that is not the caller's or does not exist (`account.not_found`). They are the workflow's, not the importer's, so the rule list below does not contain them.
+
 ## Validation expectations for the parser (#73)
 
 Reject the whole file, before any write, when (the rule code is in brackets; error messages carry the code and row numbers only):
@@ -104,9 +108,10 @@ Reject the whole file, before any write, when (the rule code is in brackets; err
 9. an amount is not `-?` plus digits (1 to 11, no separator, no leading zero except a single `0`), a comma and exactly two decimals (`amount.invalid`), or is zero (`amount.zero`). The balance is not checked;
 10. a bank sequence number is not digits without a leading zero (`sequence.invalid`) or repeats within the file (`sequence.duplicate`);
 11. a card payment names a currency other than the file's (`card.foreign_currency`). This rejects the whole file, not the row: whether the amount column then holds the card currency or the account currency is not observed, so no row of such a file can be trusted to carry the right amount;
-12. a file has no transaction row (`statement.empty`).
+12. a file has no transaction row (`statement.empty`);
+13. the amount column no longer holds the amount (`layout.amount_column`), told without the balance column (never read) from two witnesses. Every real card payment and BLIK purchase is outgoing, so **any** card or BLIK row with a positive amount refuses the file. A card payment also writes its own amount in its description, so when field 6 disagrees with that text on **half or more of at least two** card rows the file is refused too; one disagreeing row among consistent ones is not enough (that stays a flagged row, below). The case this is for is a bank that swaps the amount and balance columns: without it an incoming own-account transfer would be accepted with the balance as its amount.
 
-Per row, flag (do not drop silently; the row is returned rejected with a code and no text) a description that fits none of the three shapes, including a card payment that has a counterparty (`description.unknown_shape`); a card payment whose embedded amount differs from field 6 (`card.amount_mismatch`); a counterparty account that is not two digits then six groups of four (`counterparty_account.invalid`); a card or BLIK entry with a positive amount or an own-account transfer with a negative one (`amount.sign_unexpected`: no such row was observed); and an own-account transfer whose other account is the statement's own (`transfer.same_account`: it cannot be a transfer between two accounts). Never assert the running balance. Error messages name the row number and the rule, never the row's content, because the content is personal data.
+Per row, flag (do not drop silently; the row is returned rejected with a code and no text) a description that fits none of the three shapes, including a card payment that has a counterparty (`description.unknown_shape`); a card payment whose embedded amount differs from field 6 (`card.amount_mismatch`); a counterparty account that is not two digits then six groups of four (`counterparty_account.invalid`); an own-account transfer with a negative amount (`amount.sign_unexpected`: no such row was observed; a card or BLIK entry with a positive amount is not flagged, it refuses the file, item 13); and an own-account transfer whose other account is the statement's own (`transfer.same_account`: it cannot be a transfer between two accounts). Never assert the running balance. Error messages name the row number and the rule, never the row's content, because the content is personal data.
 
 ## Unsupported and unknown variants
 
@@ -165,8 +170,11 @@ chain.
 | `statement-minimal.csv` | The smallest valid file: the summary row and one card payment |
 | `statement-diacritics.csv` | Every Polish letter (upper and lower case) in the holder, address and description; UTF-8 without a BOM |
 
-Malformed, drifted, duplicate and mixed-currency fixtures are not here: they belong to
-jlogicsoftware/prudent#77.
+Malformed, drifted, duplicate and mixed-currency statements are not fixtures: a file that is meant to be
+refused is derived in memory from a synthetic base statement by the failure matrix (ADR-094,
+`ImportFailureCatalogue`), so no refused-file variant needs a place in this tree or a pass through the gate.
+`ErsteFormatDriftTest` pins these three fixtures to their exact parsed rows and holds the rule codes named
+in the validation list above to the ones the importer can emit.
 
 **Issue #42 stays open.** This document and the fixtures are its inspection and fixtures halves; the
 export steps in the bank UI are user-supplied and still missing. Do not close #42 from a PR

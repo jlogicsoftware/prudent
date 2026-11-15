@@ -74,11 +74,20 @@ public class CategoryEntity extends PanacheEntityBase {
 
   /** Refuses (400) a record of this direction when the category is for the other one. */
   public void requireKindFor(long amountMinor) {
-    if (kind == 1 && amountMinor > 0 || kind == 2 && amountMinor < 0) {
+    if (!canFile(amountMinor)) {
       throw PrudentException.invalid(
           "Category '" + title + "' is for " + (kind == 1 ? "expenses" : "income")
               + ", so it cannot file " + (kind == 1 ? "income" : "an expense") + ".");
     }
+  }
+
+  /**
+   * Whether an amount of this sign fits the category's kind (1 is expense-only, 2 is income-only,
+   * anything else takes both): the one test {@link #requireKindFor} refuses on, and that the import
+   * commit uses to name every row it would refuse before it writes the first.
+   */
+  public boolean canFile(long amountMinor) {
+    return !(kind == 1 && amountMinor > 0 || kind == 2 && amountMinor < 0);
   }
 
   public boolean isArchived() {

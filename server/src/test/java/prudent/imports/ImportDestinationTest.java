@@ -173,7 +173,9 @@ class ImportDestinationTest {
           account.balances.clear();
           account.balances.add(new AccountBalance("USD", 0L));
         });
-    assertTrue(error(commit(parsed.getId(), 1), 409).getMessage().contains("PLN"));
+    assertEquals(
+        "The statement was rejected (commit.account_unavailable).",
+        error(commit(parsed.getId(), 1), 409).getMessage());
     assertTrue(committer.calls.isEmpty());
   }
 
@@ -190,7 +192,9 @@ class ImportDestinationTest {
     ImportTestSupport.RecordingCommitter committer = installRecordingCommitter(0);
     session(preview(parsed.getId(), savings));
     edit(savings, account -> account.isActive = false);
-    assertTrue(error(commit(parsed.getId(), 1), 409).getMessage().contains("inactive"));
+    assertEquals(
+        "The statement was rejected (commit.account_unavailable).",
+        error(commit(parsed.getId(), 1), 409).getMessage());
     assertTrue(committer.calls.isEmpty());
   }
 
