@@ -13,6 +13,30 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-095 — The Erste export steps are recorded as reported by the user, the comma separator is required, and #42 may close
+
+**Date:** 2026-11-15. **Status:** accepted. jlogicsoftware/prudent#42.
+
+### Decision
+
+- `docs/erste-csv-contract.md` now holds the export procedure, **reported by the user from the bank's
+  web UI on 2026-11-15** (Polish interface, four screenshots): "Historia" then "Historia", the filter
+  panel, "Pobierz listę transakcji" then "CSV", the "Separator" dropdown, "POBIERZ", and the file name
+  `history_YYYYMMDD.csv`. Nothing beyond what the user saw is stated; the rest is listed there as
+  unconfirmed (account choice, the effect of "Widoczne w tabeli", the filters' effect on the file, size limits, a
+  non-default separator's output).
+- The importer requires the comma separator, as ADR-088 already had it; the procedure now tells the
+  user to leave the dropdown on "przecinek - ,". The file name is still never parsed.
+- This closes the last open bullet of #42, which ADR-088 said must not be closed until the steps
+  existed. #42 may be closed with the change that records them.
+
+### What this supersedes, and why
+
+Only the sentences of ADR-088 that said the export steps were missing and #42 stays open. ADR-088
+is not edited; its other decisions stand.
+
+---
+
 ## ADR-094 — The import's failures are a catalogue that runs through the real API and proves "nothing was written", every rule the importer can emit must have a case, and a commit that fails now says which rule and which rows
 
 **Date:** 2026-11-15. **Status:** accepted. jlogicsoftware/prudent#77, last task of the epic jlogicsoftware/prudent#41.
