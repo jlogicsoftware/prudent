@@ -85,6 +85,10 @@ Prudent consumes jZen by path at a pinned ref. Local needs jZen at or after the 
 jZenDev/jZen#229 (Flutter 3.50, Dart 3.14) and the Local packages. Decide the ref, and whether
 `client/` follows the Flutter upgrade first (its CI pins 3.44.2, local machines run 3.50).
 
+**Decided by ADR-099:** jZen is pinned at `fdef7e8` (which contains #229) and `client/` moves to
+Flutter 3.50 / Dart 3.14, CI included. Prudent Local builds on that ref; the Local packages are
+a later bump of it.
+
 ---
 
 ## Phase 1 — Seams

@@ -1,7 +1,7 @@
 // The category form (jlogicsoftware/prudent#103) on the framework's buttons, and its two domain
 // grids — colour and icon — which stay Prudent's own but must be reachable by keyboard and show
 // where focus is. What is asserted is what reaches onSave, and that a key press alone can pick.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/category/category_color_swatch.dart';
@@ -30,7 +30,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        localizationsDelegates: [...PrudentLocalizations.localizationsDelegates, zenWidgetsLocaleDelegate],
+        localizationsDelegates: [...PrudentLocalizations.localizationsDelegates, ...GlobalMaterialLocalizations.delegates, zenWidgetsLocaleDelegate],
         supportedLocales: PrudentLocalizations.supportedLocales,
         home: Scaffold(
           body: NewCategory(

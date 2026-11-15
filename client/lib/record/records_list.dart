@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
@@ -97,7 +97,7 @@ class RecordsList extends ConsumerWidget {
         constraints: const BoxConstraints(maxWidth: 720),
         child: ListView.separated(
           itemCount: records.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
+          separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (ctx, index) {
             final record = records[index];
             return ZenListItemActions(

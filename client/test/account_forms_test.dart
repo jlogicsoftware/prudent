@@ -4,8 +4,8 @@
 import 'dart:io';
 
 import 'package:fixnum/fixnum.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/account/account_edit.dart';
 import 'package:prudent/account/account_new.dart';
@@ -26,6 +26,7 @@ Future<void> _pump(WidgetTester tester, Widget form) async {
     MaterialApp(
       localizationsDelegates: [
         ...PrudentLocalizations.localizationsDelegates,
+        ...GlobalMaterialLocalizations.delegates,
         zenWidgetsLocaleDelegate,
       ],
       supportedLocales: PrudentLocalizations.supportedLocales,

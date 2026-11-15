@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,6 +44,7 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: [
             ...PrudentLocalizations.localizationsDelegates,
+            ...GlobalMaterialLocalizations.delegates,
             zenWidgetsLocaleDelegate,
           ],
           supportedLocales: PrudentLocalizations.supportedLocales,

@@ -160,7 +160,7 @@ silently, and why CI needs more than one operating system. See
 
 ### Toolchain
 
-**Flutter is pinned to `3.44.2`** in [`.fvmrc`](.fvmrc), matching jZen. This is load-bearing rather
+**Flutter is pinned to `3.50.0`** in [`.fvmrc`](.fvmrc), matching jZen. This is load-bearing rather
 than tidiness: the Android build delegates its NDK version to the SDK (`flutter.ndkVersion`), so two
 developers on different Flutter releases resolve different NDKs and hit build failures
 asymmetrically. Until CI enforces it, the pin is advisory — check `flutter --version` matches.

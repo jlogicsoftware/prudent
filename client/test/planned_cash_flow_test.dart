@@ -2,7 +2,7 @@
 // income and spending stay apart, and that the section is separate from — and hideable without
 // touching — the actual balances.
 import 'package:fixnum/fixnum.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
@@ -145,6 +145,7 @@ void main() {
           child: const MaterialApp(
             localizationsDelegates: [
               ...PrudentLocalizations.localizationsDelegates,
+              ...GlobalMaterialLocalizations.delegates,
               zenWidgetsLocaleDelegate,
             ],
             supportedLocales: PrudentLocalizations.supportedLocales,

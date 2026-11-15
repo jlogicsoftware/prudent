@@ -23,7 +23,7 @@ import 'record/record_filter.dart';
 /// call, so the client negotiates its own default rather than the app pinning JSON/Protobuf
 /// instances side by side.
 class PrudentRepository {
-  PrudentRepository({required ZenClient client}) : _client = client;
+  PrudentRepository({required this._client});
 
   final ZenClient _client;
 
@@ -350,8 +350,8 @@ class PrudentRepository {
     String? categoryId,
   }) {
     final query = <String, String>{
-      if (month != null) 'month': month,
-      if (categoryId != null) 'categoryId': categoryId,
+      'month': ?month,
+      'categoryId': ?categoryId,
     };
     final path =
         query.isEmpty ? _budgetsPath : '$_budgetsPath?${_encodeQuery(query)}';
@@ -411,8 +411,8 @@ class PrudentRepository {
   Future<ZenResult<ListBudgetCarryOverResetsResponse>>
   listBudgetCarryOverResets({String? categoryId, String? currency}) {
     final query = <String, String>{
-      if (categoryId != null) 'categoryId': categoryId,
-      if (currency != null) 'currency': currency,
+      'categoryId': ?categoryId,
+      'currency': ?currency,
     };
     final path =
         query.isEmpty

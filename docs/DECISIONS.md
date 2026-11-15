@@ -13,6 +13,44 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-099 — Prudent moves to Flutter 3.50 and Dart 3.14 with jZen pinned at `fdef7e8`, imports Material and Cupertino from `material_ui` and `cupertino_ui`, appends their localization delegates, and drops `custom_lint`
+
+**Date:** 2026-11-15. **Status:** accepted. jlogicsoftware/prudent#235; jZenDev/jZen#212 (jZen PR #229, its ADR-082). Follows ADR-097 and ADR-098, which are not edited.
+
+### Decision
+
+- **The pin moves** from `c1a4e22` to `fdef7e8` (jZen `main`, which contains #229) in `ci.yml` and `audit.yml`. The eight commits between them were read; relevant to what Prudent
+  consumes: the Flutter 3.50 migration of every `zen_ui_*` package and the SDK constraints `>=3.14.0 <4.0.0` (`zen_ui_widgets` also `flutter: >=3.50.0`), a second guard commit for nested
+  detail pages (Prudent's real-flow tests pass with it), `zen_secure_store` (one line in the io keystore), and the local-first line (`zen_demo_local`, a Windows `local_auth` stand-in,
+  docs), none of it consumed. No change under `server/`, so the Java side is untouched.
+- **Toolchain.** `.fvmrc` and the four `flutter-version` pins in `ci.yml` go from `3.44.2` to `3.50.0`; `client/pubspec.yaml` has `sdk: ">=3.14.0 <4.0.0"` and `flutter: ">=3.50.0"`. The Android runner
+  follows jZen's demo: Gradle `9.1.0` to `9.5.0`, AGP `9.0.1` to `9.3.1`, Kotlin `2.3.20` to `2.4.20` (Flutter 3.50's Gradle plugin refuses Gradle below 9.3.1).
+- **Material and Cupertino come from packages.** `package:flutter/material.dart` and `cupertino.dart` are deprecated in 3.50. `dart fix --apply --code=migrate_design_widgets` rewrote 105 imports in
+  103 files (`client/lib`, `client/test`); `material_ui: ^1.11.0` and `cupertino_ui: ^1.1.6` are declared, the same versions as jZen. The `verify:controls` rules are unchanged: they forbid
+  controls by name, and the names are the same.
+- **A `MaterialApp` composition appends `...GlobalMaterialLocalizations.delegates`.** `material_ui`'s `MaterialApp` looks up its own Material and Cupertino localizations, and the list that
+  `flutter gen-l10n` generates (`PrudentLocalizations.localizationsDelegates`) still registers the SDK's, so `uk` and `pl` failed with "A MaterialLocalizations delegate that supports the pl
+  locale was not found". `lib/app.dart` and the 21 test files that compose the list append them; the list is no longer `const`.
+- **`custom_lint` is removed, `riverpod_lint` becomes an analyzer plugin.** Under Flutter 3.50 `flutter_test` pins `test_api 0.7.14`, which needs `test >=1.31.2` and so `analyzer >=13`; `custom_lint`
+  needs `analyzer ^7` or `^8`, so the project could not resolve. `riverpod_lint` 3.2 no longer uses `custom_lint`: it is installed with `plugins: riverpod_lint: 3.2.0` in
+  `analysis_options.yaml`, and neither package is in `pubspec.yaml` any more. This also ends the long-standing "the repository's own `pub get` fails on this machine" in earlier ADRs. Whether
+  the plugin's rules are actually running in CI was seen once (a finding appeared and disappeared between two runs of `dart analyze`) and is not established.
+- **Lints that the newer analyzer added are fixed, not silenced:** `use_null_aware_elements` (11), `prefer_initializing_formals`, `unnecessary_underscores`, `curly_braces_in_flow_control_structures`
+  (`dart fix --apply --code=...`), and one unused constructor parameter in a test. `dart analyze lib test` reports nothing outside the generated localizations, which are built and not tracked.
+- **`client/pubspec.lock` is regenerated** by `flutter pub get` under 3.50 (the hand-merged entries of ADR-098 are superseded by a real resolution).
+
+### Checked
+
+`dart analyze lib test` (nothing outside the generated localizations); the whole client suite on Flutter 3.50 against jZen `fdef7e8`: 530 pass (two tests read `../server` and were run with it linked);
+`verify:controls`, `verify:import-fixtures`, `verify:swiftpm`. Debug builds of the app on Flutter 3.50 succeed for macOS, an iOS simulator and Android (`flutter build apk --debug` on Gradle 9.5.0, AGP 9.3.1, Kotlin 2.4.20); they were built in a scratch copy against jZen `fdef7e8`, as the checkout's own `../jZen` is not at that commit.
+
+### Not checked
+
+CI on the new pins; the server suite (nothing under `server/` changed); a run of the migrated app by hand (the suite and the builds are the evidence); Windows, Linux and web builds; a real device. Formatting is not changed: the committed layout is from an older formatter,
+as in jZen's migration.
+
+---
+
 ## ADR-098 — The import is driven through the compiled app on a device by `integration_test/app_import_test.dart`, which CI does not run, and the native file panel is still only seen by hand
 
 **Date:** 2026-11-15. **Status:** accepted. Follows ADR-093 and ADR-097, which are not edited.

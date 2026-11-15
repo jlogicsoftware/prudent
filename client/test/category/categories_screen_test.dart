@@ -1,7 +1,7 @@
 // The category grid sizes itself from the width it is given (jlogicsoftware/prudent#104), not from
 // a platform constant: `zenIsDesktop` is false on every web build, so a wide browser window used to
 // get the phone's two columns. The breakpoint is the framework's zenNarrowWidth.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/category/categories_screen.dart';
@@ -27,7 +27,7 @@ void main() {
       ProviderScope(
         overrides: [categoriesProvider.overrideWith(_FixedCategories.new)],
         child: MaterialApp(
-          localizationsDelegates: [...PrudentLocalizations.localizationsDelegates, zenWidgetsLocaleDelegate],
+          localizationsDelegates: [...PrudentLocalizations.localizationsDelegates, ...GlobalMaterialLocalizations.delegates, zenWidgetsLocaleDelegate],
           supportedLocales: PrudentLocalizations.supportedLocales,
           home: const CategoriesScreen(),
         ),

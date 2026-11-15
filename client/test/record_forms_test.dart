@@ -2,7 +2,7 @@
 // framework's controls. What is asserted is what reaches the form's callback — or the filter
 // provider — for the input given, not how a control draws itself; that is zen_ui_widgets' own test.
 import 'package:fixnum/fixnum.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
@@ -64,6 +64,7 @@ Future<ProviderContainer> _pump(WidgetTester tester, Widget form, {RecordFilter?
       child: MaterialApp(
         localizationsDelegates: [
           ...PrudentLocalizations.localizationsDelegates,
+          ...GlobalMaterialLocalizations.delegates,
           zenWidgetsLocaleDelegate,
         ],
         supportedLocales: PrudentLocalizations.supportedLocales,

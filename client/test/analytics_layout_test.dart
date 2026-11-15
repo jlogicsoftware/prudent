@@ -1,7 +1,7 @@
 // The analytics screen on a wide and a narrow window (jlogicsoftware/prudent#194): its content sits
 // in a bounded column, the legend's rows are divided, and its text is no smaller than the body.
 import 'package:fixnum/fixnum.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent/analytics/analytics.dart';
@@ -64,6 +64,7 @@ void main() {
           ),
           localizationsDelegates: [
             ...PrudentLocalizations.localizationsDelegates,
+            ...GlobalMaterialLocalizations.delegates,
             zenWidgetsLocaleDelegate,
           ],
           supportedLocales: PrudentLocalizations.supportedLocales,

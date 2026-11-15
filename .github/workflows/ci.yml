@@ -53,7 +53,7 @@ env:
   # it). The tasks this workflow calls (verify:contracts, the all-tier zen:deps) do not exist
   # before #74; the later bumps keep CI's jZen in step with the run:* tasks Prudent now delegates
   # wholesale and with what the committed contracts actually reflect.
-  JZEN_REF: c1a4e22f53012925f27df2aa072cb8476dd380e1
+  JZEN_REF: fdef7e87ffb6e470eed35262fa43122050528a94
 
 jobs:
   # Contract drift, the boundary gate, the Dart/Flutter suites, and the admin typecheck. Needs the
@@ -83,10 +83,10 @@ jobs:
           distribution: temurin
           java-version: "25"
 
-      - name: Flutter 3.44.2 (brings Dart) — pinned by client/.fvmrc's own value
+      - name: Flutter 3.50.0 (brings Dart) — pinned by client/.fvmrc's own value
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          flutter-version: "3.44.2"
+          flutter-version: "3.50.0"
           channel: stable
 
       - name: Node + pnpm via corepack
@@ -297,10 +297,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-      - name: Flutter 3.44.2
+      - name: Flutter 3.50.0
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          flutter-version: "3.44.2"
+          flutter-version: "3.50.0"
           channel: stable
       - name: go-task
         uses: arduino/setup-task@bfe25a35f5c1f609e1d6153197b3b42a04ae054c # v3.0.0
@@ -357,10 +357,10 @@ jobs:
           repository: jZenDev/jZen
           ref: ${{ env.JZEN_REF }}
           path: jZen
-      - name: Flutter 3.44.2
+      - name: Flutter 3.50.0
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          flutter-version: "3.44.2"
+          flutter-version: "3.50.0"
           channel: stable
       - name: go-task
         uses: arduino/setup-task@bfe25a35f5c1f609e1d6153197b3b42a04ae054c # v3.0.0
@@ -407,10 +407,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-      - name: Flutter 3.44.2
+      - name: Flutter 3.50.0
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          flutter-version: "3.44.2"
+          flutter-version: "3.50.0"
           channel: stable
       - name: Supabase CLI
         uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
