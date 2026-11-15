@@ -215,9 +215,11 @@ tasks:
 
       client/lib/generated/ and client/lib/l10n/generated/ are excluded in analysis_options.yaml
       (derived output, unactionable by construction; the reasoning is written there). Run
-      `task zen:deps:client` first on a fresh checkout. That the plugin really loads in CI was proved
+      The client's packages are resolved first (`deps:`), so it works on a fresh checkout. That the plugin really loads in CI was proved
       once by hand, with a deliberate provider misuse that turned the job red (ADR-104); no check
       re-proves it on every run.
+    deps:
+      - task: zen:deps:client
     dir: client
     cmds:
       - flutter gen-l10n
