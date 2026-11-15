@@ -230,10 +230,9 @@ unknown codes get a generic sentence naming the code). It is covered by widget t
 in-memory stand-in for the server with synthetic rows**: not against the real server, not on a device, no native file picker, and the iOS and macOS
 runners have not been built with the new plugin.
 Leaving an open import by Back asks "Leave this import?" first; for an import opened as a pane's root (the case jZen#222/#224 guards, ADR-096) so do
-a side pane's Close, Escape and a second detail replacing the pane. **The real path does not get that:** Overview or Settings opens Accounts as the pane root and Accounts
-opens the import from inside it, so the import is a nested page, and there Back asks but Escape and a second detail do not (the pane closes or is replaced, the session stays open
-and is listed under "Unfinished imports"), and the Close button is not shown (jZenDev/jZen#226, reported, waiting). Switching tab cannot be vetoed either. The guard has been seen only in widget tests,
-which pin both cases.
+a side pane's Close, Escape and a second detail replacing the pane. The real path is a nested page (Overview or Settings opens Accounts as the pane root and Accounts
+opens the import from inside it), and since jZen#226 (PR #227, ADR-097) the pane asks every page on its stack, so Escape and a second detail ask there too; a nested page has Back and no Close button,
+by jZen's design. Switching tab cannot be vetoed; the session stays open and is listed under "Unfinished imports". The guard has been seen only in widget tests, not in a real window.
 
 M6's backlog is complete in code (ADR-094, jlogicsoftware/prudent#77): a failure and drift matrix of about 220 statements (45 rule codes the client has a sentence for) (`ImportFailureCatalogue`, run by
 `ImportFailureMatrixTest` through the real HTTP API) proves each malformed, structurally changed, mixed-currency, oversized, misdirected or flagged file is refused

@@ -25,9 +25,9 @@ import 'import_row_form.dart';
 /// Leaving an open import by the page's own Back, the system's back gesture or the browser's asks
 /// first and discards it (`PopScope` below). When the import is the ROOT page of a side pane, jZen
 /// asks that `PopScope` for the pane's Close, Escape and a second detail replacing the pane too
-/// (jZen#222, ADR-096). The real path is not that case: Accounts is the pane root and opens the
-/// import from inside it, so the import is a nested page, and only Back reaches this guard; Escape
-/// and a second detail dismiss the pane without asking and there is no Close button (jZenDev/jZen#226).
+/// (jZen#222, ADR-096). The real path has the import as a nested page above Accounts, the pane's
+/// root; since jZen#226 (ADR-097) the pane asks every page on its stack, so Escape and a second
+/// detail reach this guard there too. A nested page shows Back, not Close.
 /// The prompt exists because a session holds rows for 24 hours and only a few may be open, and an
 /// import nobody can find again is worse than one that was thrown away.
 ///

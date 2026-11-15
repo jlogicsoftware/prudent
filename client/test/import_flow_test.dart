@@ -905,15 +905,9 @@ void main() {
   });
 
   // The REAL entry path: Overview or Settings opens Accounts as a pane root (ADR-062) and Accounts
-  // opens the import with `showZenDetail`, which from inside a detail pushes a nested page. jZen's
-  // pane guard (#222/#224) consults only the pane's first page, so only Back reaches the import's
-  // PopScope here. Reported upstream as jZenDev/jZen#226.
-  //
-  // WHEN jZen#226 IS FIXED and this repository consumes it: the 'Escape' and 'second detail' tests
-  // below will FAIL, because the prompt will then appear. That is the signal to flip them to expect
-  // 'Leave this import?' (as the pane-root tests above do), to delete the 'Close is unreachable'
-  // expectation if Close then reaches the nested page, and to update ADR-096, CLAUDE.md (M6) and the
-  // #222/#226 rows of docs/jzen/README.md. Do not "fix" the tests by loosening them.
+  // opens the import with `showZenDetail`, which from inside a detail pushes a nested page. Since
+  // jZen#226 (fixed in jZen PR #227, consumed in ADR-097) the pane asks every page on its stack,
+  // topmost first, so Escape and a second detail reach the import's PopScope as Back does.
   group('real flow: Accounts pane, then Import (nested page)', () {
     Future<void> openReview(WidgetTester tester, ImportServer s) async {
       await pump(
@@ -933,15 +927,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Review import'), findsOneWidget);
       expect(find.text('accounts body'), findsNothing, reason: 'the import is a page above Accounts');
-    }
-
-    Future<void> expectSessionStillListed(WidgetTester tester, ImportServer s) async {
-      expect(s.count('POST /api/v1/import-sessions/s1/discard'), 0);
-      await tester.tap(find.text('Open accounts'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byWidgetPredicate((w) => w is ZenIconButton && w.label == 'Import statement'));
-      await tester.pumpAndSettle();
-      expect(find.text('Unfinished imports'), findsOneWidget);
     }
 
     testWidgets('Back asks first; Stay keeps the import', (tester) async {
@@ -973,44 +958,54 @@ void main() {
       expect(find.text('accounts body'), findsOneWidget);
     });
 
-    testWidgets('jZen#226: the nested page has no Close button, only Back', (tester) async {
+    testWidgets('the nested page offers Back, not Close (jZen only puts Close on a pane\'s first page)', (tester) async {
       if (skipWithoutZenPlatform()) return;
       final s = ImportServer(rows: _rows());
       await openReview(tester, s);
       expect(find.byWidgetPredicate((w) => w is ZenIconButton && w.label == 'Close'), findsNothing);
     });
 
-    testWidgets('jZen#226: Escape closes the pane WITHOUT asking and leaves the session open', (tester) async {
-      if (skipWithoutZenPlatform()) return;
-      final s = ImportServer(rows: _rows());
-      await openReview(tester, s);
+    final exits = <String, Future<void> Function(WidgetTester)>{
+      'Escape': (tester) async {
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+      },
+      'a second detail': (tester) async {
+        await tester.tap(find.text('Open other'));
+        await tester.pumpAndSettle();
+      },
+    };
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
-      expect(find.text('Leave this import?'), findsNothing);
-      expect(find.text('Review import'), findsNothing);
-      expect(find.text('accounts body'), findsNothing);
-      expect(find.text('List of accounts'), findsOneWidget);
-      await expectSessionStillListed(tester, s);
-    });
+    for (final entry in exits.entries) {
+      testWidgets('${entry.key} asks first; Stay keeps the import open', (tester) async {
+        if (skipWithoutZenPlatform()) return;
+        final s = ImportServer(rows: _rows());
+        await openReview(tester, s);
 
-    testWidgets('jZen#226: a second detail replaces the pane WITHOUT asking and leaves the session open', (tester) async {
-      if (skipWithoutZenPlatform()) return;
-      final s = ImportServer(rows: _rows());
-      await openReview(tester, s);
+        await entry.value(tester);
+        expect(find.text('Leave this import?'), findsOneWidget);
+        expect(s.count('POST /api/v1/import-sessions/s1/discard'), 0);
 
-      await tester.tap(find.text('Open other'));
-      await tester.pumpAndSettle();
-      expect(find.text('Leave this import?'), findsNothing);
-      expect(find.text('Review import'), findsNothing);
-      expect(find.text('Another detail'), findsOneWidget);
-      await tester.tap(find.text('Open accounts'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byWidgetPredicate((w) => w is ZenIconButton && w.label == 'Import statement'));
-      await tester.pumpAndSettle();
-      expect(s.count('POST /api/v1/import-sessions/s1/discard'), 0);
-      expect(find.text('Unfinished imports'), findsOneWidget);
-    });
+        await tester.tap(find.widgetWithText(ZenButton, 'Stay'));
+        await tester.pumpAndSettle();
+        expect(find.text('Leave this import?'), findsNothing);
+        expect(find.text('Review import'), findsOneWidget);
+        expect(find.text('Another detail'), findsNothing);
+        expect(s.count('POST /api/v1/import-sessions/s1/discard'), 0);
+      });
+
+      testWidgets('${entry.key} then Discard and leave discards the session', (tester) async {
+        if (skipWithoutZenPlatform()) return;
+        final s = ImportServer(rows: _rows());
+        await openReview(tester, s);
+
+        await entry.value(tester);
+        await tester.tap(find.widgetWithText(ZenButton, 'Discard and leave'));
+        await tester.pumpAndSettle();
+        expect(s.count('POST /api/v1/import-sessions/s1/discard'), 1);
+        expect(find.text('Review import'), findsNothing);
+      });
+    }
   });
 
   group('committing', () {
