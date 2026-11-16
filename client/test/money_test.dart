@@ -3,7 +3,7 @@
 // exists to remove. Nothing here goes through `double`.
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/money.dart';
+import 'package:prudent_ui/money.dart';
 
 void main() {
   group('parseMinorUnits', () {

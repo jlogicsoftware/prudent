@@ -1,12 +1,12 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:zen_ui_identity/zen_ui_identity.dart';
 
 import '../generated/prudent/v1/privacy.pb.dart';
 import '../notification/notification_providers.dart';
 import '../prudent_repository.dart';
 import '../providers.dart';
+import '../settings_session.dart';
 
 /// What a person can ask of the server about their own data: a readable copy of all of it, and its
 /// erasure (M0, jlogicsoftware/prudent#48, ADR-071). The repository carries the same calls; this is
@@ -54,7 +54,7 @@ class PrivacyActions {
     try {
       await _ref.read(reminderNotificationSchedulerProvider).reconcile(const []);
     } finally {
-      await _ref.read(identitySessionStoreProvider.notifier).logout();
+      await _ref.read(settingsSessionProvider)?.signOut();
     }
   }
 }

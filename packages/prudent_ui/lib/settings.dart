@@ -1,6 +1,5 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:zen_ui_identity/zen_ui_identity.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import 'account/account_screen.dart';
@@ -9,6 +8,7 @@ import 'l10n/generated/prudent_localizations.dart';
 import 'privacy/privacy_screen.dart';
 import 'overview/planned_cash_flow.dart';
 import 'providers.dart';
+import 'settings_session.dart';
 
 /// Each language's own name (autonym), not translated per-locale — a language picker
 /// conventionally names every option in itself, so a Polish speaker still finds "Українська"
@@ -22,6 +22,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeProvider);
     final t = PrudentLocalizations.of(context);
+    final session = ref.watch(settingsSessionProvider);
 
     // Accounts, Categories and Profile open as the detail of this screen (ADR-062): beside it on a
     // wide host, so the navigation sidebar stays, and a full-screen push on a narrow one.
@@ -88,15 +89,16 @@ class SettingsScreen extends ConsumerWidget {
                                 .set,
                       ),
                     ),
-                    ZenButton(
-                      label: t.settingsProfile,
-                      variant: ZenButtonVariant.text,
-                      onPressed:
-                          () => showZenDetail<void>(
-                            context,
-                            builder: (_) => const ProfileScreen(),
-                          ),
-                    ),
+                    if (session != null)
+                      ZenButton(
+                        label: t.settingsProfile,
+                        variant: ZenButtonVariant.text,
+                        onPressed:
+                            () => showZenDetail<void>(
+                              context,
+                              builder: session.profileBuilder,
+                            ),
+                      ),
                     ZenButton(
                       label: t.settingsPrivacy,
                       variant: ZenButtonVariant.text,
@@ -107,15 +109,12 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                     ),
                     const Spacer(),
-                    ZenButton(
-                      label: t.settingsLogOut,
-                      variant: ZenButtonVariant.text,
-                      onPressed:
-                          () =>
-                              ref
-                                  .read(identitySessionStoreProvider.notifier)
-                                  .logout(),
-                    ),
+                    if (session != null)
+                      ZenButton(
+                        label: t.settingsLogOut,
+                        variant: ZenButtonVariant.text,
+                        onPressed: session.signOut,
+                      ),
                   ],
                 ),
               ),

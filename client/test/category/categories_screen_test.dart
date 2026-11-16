@@ -4,10 +4,10 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/category/categories_screen.dart';
-import 'package:prudent/generated/prudent/v1/categories.pb.dart';
-import 'package:prudent/l10n/generated/prudent_localizations.dart';
-import 'package:prudent/providers.dart';
+import 'package:prudent_ui/category/categories_screen.dart';
+import 'package:prudent_ui/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/providers.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 

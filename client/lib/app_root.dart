@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_identity/zen_ui_identity.dart';
 
 import 'auth/auth_flow.dart';
-import 'home_shell.dart';
-import 'splash_screen.dart';
+import 'package:prudent_ui/home_shell.dart';
+import 'package:prudent_ui/splash_screen.dart';
 
 /// Routes on the identity session: anonymous -> the auth flow, a forced password reset -> the
 /// set-password screen, authenticated -> the home shell.

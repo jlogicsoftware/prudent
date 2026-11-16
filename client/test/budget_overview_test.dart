@@ -6,14 +6,14 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
-import 'package:prudent/budget/budget_month.dart';
-import 'package:prudent/budget/budget_overview_screen.dart';
-import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
-import 'package:prudent/generated/prudent/v1/budgets.pb.dart';
-import 'package:prudent/generated/prudent/v1/categories.pb.dart';
-import 'package:prudent/generated/prudent/v1/settings.pb.dart';
-import 'package:prudent/l10n/generated/prudent_localizations.dart';
-import 'package:prudent/providers.dart';
+import 'package:prudent_ui/budget/budget_month.dart';
+import 'package:prudent_ui/budget/budget_overview_screen.dart';
+import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/budgets.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/settings.pb.dart';
+import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/providers.dart';
 import 'zen_fields.dart';
 
 Account _account(String id, String currency) => Account(

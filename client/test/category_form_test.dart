@@ -4,11 +4,11 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/category/category_color_swatch.dart';
-import 'package:prudent/category/category_icon_choice.dart';
-import 'package:prudent/category/category_icons.dart';
-import 'package:prudent/category/new_category.dart';
-import 'package:prudent/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/category/category_color_swatch.dart';
+import 'package:prudent_ui/category/category_icon_choice.dart';
+import 'package:prudent_ui/category/category_icons.dart';
+import 'package:prudent_ui/category/new_category.dart';
+import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 import 'zen_fields.dart';
 

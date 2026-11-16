@@ -13,6 +13,57 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-108 — The screens, the generated messages and the strings live in `packages/prudent_ui`, which cannot import the transport or sign-in
+
+**Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 2 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
+**Builds on:** ADR-101 (the four packages), ADR-105 (the repository interface). (Written as ADR-106 and then ADR-107 while other PRs were in
+flight; numbered ADR-108 at rebase.)
+
+### Decision
+
+- **`packages/prudent_ui`** is a Flutter package (`prudent_ui`, `publish_to: none`, consumed by `path:`) holding every screen, view model,
+  provider, the money formatting, the `PrudentRepository` interface, the notification code, the three languages' ARB files and the
+  generated protobuf messages. Files moved with `git mv`, so history follows; the folders keep their names and are imported as
+  `package:prudent_ui/<folder>/<file>.dart`. `client/` keeps `main.dart`, `app.dart`, `app_root.dart`, `auth/`,
+  `ServerPrudentRepository`, the Polish identity wording, and every test (they exercise the screens through the server repository and
+  its mock transport, as before).
+- **The package may not import, or depend on, `zen_transport`, `zen_identity`, `zen_ui_identity` (which renders sign-in over
+  `zen_identity`) or `zen_secure_store`.** `task verify:boundaries` gains check E and `scripts/test_verify_boundaries.py`, which plants
+  each violation and requires the gate to fail; the other four checks now scan both `client/lib` and `packages/prudent_ui/lib`.
+- **The unit-1 leaks, resolved:**
+  - `ZenTransportError` in three screens → `failureCode(error)` (`lib/failure_code.dart`) reads `ZenError.internalData['code']`, which is
+    where the transport already puts the wire code, so a Local repository reports a refusal the same way. `FailureCodes.network` /
+    `.decode` name the two codes the transport invents; `client/test/failure_code_test.dart` fails if they drift from `ZenTransportErrorCode`.
+  - `unwrapImportResult` stripped the transport's decoder message (which quotes statement text) by building a `ZenTransportError`; it now
+    throws an `ImportDecodeFailure` (same code, fixed sentence) for any decode failure, so the guarantee holds for every repository. The
+    server repository still returns the transport's raw error — the existing test that shows why this matters still passes untouched.
+  - `RecordFilter.toQueryParameters` → an extension in `client/lib/record_filter_query.dart`, used only by `ServerPrudentRepository`.
+  - Settings' profile page and log-out, and the sign-out that ends erasing an account, came from `identitySessionStoreProvider`. They are
+    now a `SettingsSession?` (`settingsSessionProvider`, default `null`); `client/` overrides it (`identitySettingsSession`). With no
+    session Settings shows neither entry: a button that signs out of nothing would be a lie in an app with no sign-in.
+- **l10n is the package's.** `packages/prudent_ui/l10n.yaml` and the ARB files (en, uk, pl) generate `PrudentLocalizations`, built and
+  never committed (`.gitignore` follows the move). `client/` has no `l10n.yaml` and no `generate: true`; it takes the delegates from the
+  package and keeps Polish identity wording, which wraps `zen_ui_identity`. The Polish navigation and widget wording moved with the screens.
+- **The contract loop writes into the package** (`PROTO_DART_OUT: packages/prudent_ui/lib/generated`), and `DART_ROOTS` on the include
+  names both packages, so `pub get`, gen-l10n discovery, the one-widget-per-file gate and `test:client` cover both. `verify:controls`
+  scans both trees and fails when either is empty; `verify:analyze` runs gen-l10n and `flutter analyze --fatal-infos --fatal-warnings`
+  in the package and in `client/`.
+- **`FakePrudentRepository.createCategory` is removed** (unit 1's review): it invented a `fake-N` id against its own rule that a fake
+  never answers with a made-up value, and nothing called it.
+
+### Consequences
+
+- A second app can link the screens and the messages with no server code in its source graph; whether it can *build* without the server's
+  packages still depends on `zen_ui_widgets`/`zen_ui_navigation` being free of them, which they are today.
+- The package's own tests (`packages/prudent_ui/test/`) hold what needs no transport: `failureCode`, and Settings with and without a
+  session. The 533 existing tests stay in `client/`; the only test added there is the drift check above, which needs the transport.
+- `load_error_view_test.dart` reads source files by relative path, so its two paths now point at the package (and it scans both `lib`
+  trees); its assertions are unchanged.
+
+### Not verified
+
+No second app consumes the package yet; that the package builds with no server packages is shown by the gate and by `flutter analyze`
+and its own tests, not by a build of Local. `integration_test/` compiles (analyze) and was not run, as before.
 ## ADR-107 — Prudent Local's domain core reproduces the server's rule methods exactly, held to them by golden vectors from the JVM and by a parity suite of data scenarios run through the live server
 
 **Date:** 2026-11-15. **Status:** accepted. **Plan:** unit 3 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);

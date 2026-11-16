@@ -7,9 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:prudent/generated/prudent/v1/records.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/records.pb.dart';
 import 'package:prudent/server_prudent_repository.dart';
-import 'package:prudent/providers.dart';
+import 'package:prudent_ui/providers.dart';
 import 'package:zen_transport/zen_transport.dart';
 
 const _params = BudgetSummaryParams(month: '2026-10', currency: 'PLN');

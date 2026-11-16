@@ -26,11 +26,11 @@ import 'package:zen_core/zen_core.dart' show ZenResult;
 import 'package:zen_identity/zen_identity.dart';
 import 'package:zen_transport/zen_transport.dart';
 
-import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
-import 'package:prudent/generated/prudent/v1/categories.pb.dart';
-import 'package:prudent/generated/prudent/v1/privacy.pb.dart';
-import 'package:prudent/generated/prudent/v1/records.pb.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/privacy.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/records.pb.dart';
+import 'package:prudent_ui/prudent_repository.dart';
 import 'package:prudent/server_prudent_repository.dart';
 
 void main() {

@@ -3,9 +3,9 @@
 // there is no clock to pin.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:prudent/generated/prudent/v1/plans.pb.dart';
-import 'package:prudent/generated/prudent/v1/reminders.pb.dart';
-import 'package:prudent/reminder/reminder_figures.dart';
+import 'package:prudent_ui/generated/prudent/v1/plans.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/reminders.pb.dart';
+import 'package:prudent_ui/reminder/reminder_figures.dart';
 
 DueReminder _reminder(String id, OccurrenceStatus status) =>
     DueReminder(occurrence: PlanOccurrence(id: id, status: status));

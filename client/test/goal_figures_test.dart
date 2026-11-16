@@ -4,10 +4,10 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:prudent/generated/prudent/v1/goal_allocations.pb.dart';
-import 'package:prudent/generated/prudent/v1/goals.pb.dart';
-import 'package:prudent/goal/goal_figures.dart';
-import 'package:prudent/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/generated/prudent/v1/goal_allocations.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/goals.pb.dart';
+import 'package:prudent_ui/goal/goal_figures.dart';
+import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 
 Goal _goal(
   String id, {

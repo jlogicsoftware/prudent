@@ -1,5 +1,6 @@
 import 'package:zen_core/zen_core.dart';
-import 'package:zen_transport/zen_transport.dart' show ZenTransportError, ZenTransportErrorCode;
+
+import '../failure_code.dart';
 
 /// What kind of refusal the server (or the network) gave an import request.
 enum ImportFailureKind {
@@ -65,7 +66,7 @@ class ImportFailure {
   /// Classifies [error]. [creating] says the request was the upload, where a 409 means too many open
   /// sessions rather than a session in the wrong state.
   factory ImportFailure.from(Object error, {bool creating = false}) {
-    final String? wire = error is ZenTransportError ? error.zenError.code : null;
+    final String? wire = failureCode(error);
     final String message = error is ZenError ? error.message : '';
 
     final rule = _ruleMessage.firstMatch(message);
@@ -79,7 +80,7 @@ class ImportFailure {
       );
     }
 
-    if (wire == ZenTransportErrorCode.network.wire) {
+    if (wire == FailureCodes.network) {
       return const ImportFailure(kind: ImportFailureKind.network);
     }
     return switch (wire) {

@@ -1,5 +1,4 @@
 import 'package:fixnum/fixnum.dart';
-import 'package:intl/intl.dart';
 
 // NOTHING IN THIS FILE MAY IMPORT `package:flutter/*` (client/integration_test/e2e_test.dart's own
 // header comment). prudent_repository.dart, which that suite imports directly to run on the plain
@@ -62,23 +61,6 @@ class RecordFilter {
       amountMin == null &&
       amountMax == null &&
       (search == null || search!.trim().isEmpty);
-
-  /// The query parameters this filter maps to, matching `RecordResource.list`'s param names
-  /// exactly. Empty entries are simply absent, never sent as blank — that is what "no filter for
-  /// this criterion" means on both ends.
-  Map<String, String> toQueryParameters() {
-    final query = <String, String>{};
-    if (dateFrom != null) query['dateFrom'] = DateFormat('yyyy-MM-dd').format(dateFrom!);
-    if (dateTo != null) query['dateTo'] = DateFormat('yyyy-MM-dd').format(dateTo!);
-    if (accountId != null) query['accountId'] = accountId!;
-    if (categoryId != null) query['categoryId'] = categoryId!;
-    if (type != null) query['type'] = type!.wireValue;
-    if (amountMin != null) query['amountMin'] = '$amountMin';
-    if (amountMax != null) query['amountMax'] = '$amountMax';
-    final trimmedSearch = search?.trim();
-    if (trimmedSearch != null && trimmedSearch.isNotEmpty) query['search'] = trimmedSearch;
-    return query;
-  }
 
   @override
   bool operator ==(Object other) =>

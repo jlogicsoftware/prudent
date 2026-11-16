@@ -9,9 +9,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:prudent/l10n/generated/prudent_localizations.dart';
-import 'package:prudent/privacy/privacy_screen.dart';
-import 'package:prudent/providers.dart';
+import 'package:prudent/auth/identity_settings_session.dart';
+import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/privacy/privacy_screen.dart';
+import 'package:prudent_ui/providers.dart';
 import 'package:prudent/server_prudent_repository.dart';
 import 'package:zen_core/zen_core.dart' hide ZenError;
 import 'package:zen_identity/zen_identity.dart';
@@ -129,6 +130,7 @@ void main() {
         overrides: [
           prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
           identityRepositoryProvider.overrideWithValue(identity),
+          identitySettingsSession,
         ],
         child: const MaterialApp(
           localizationsDelegates: [

@@ -1,14 +1,14 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/content_width.dart';
-import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
-import 'package:prudent/generated/prudent/v1/settings.pb.dart';
-import 'package:prudent/home_shell.dart';
-import 'package:prudent/l10n/generated/prudent_localizations.dart';
-import 'package:prudent/notification/notification_providers.dart';
-import 'package:prudent/notification/reminder_notification_outcome.dart';
-import 'package:prudent/providers.dart';
+import 'package:prudent_ui/content_width.dart';
+import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/settings.pb.dart';
+import 'package:prudent_ui/home_shell.dart';
+import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/notification/notification_providers.dart';
+import 'package:prudent_ui/notification/reminder_notification_outcome.dart';
+import 'package:prudent_ui/providers.dart';
 import 'package:zen_ui_navigation/zen_ui_navigation.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 

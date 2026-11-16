@@ -5,10 +5,10 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/imports/import_failure.dart';
-import 'package:prudent/imports/import_failure_text.dart';
-import 'package:prudent/imports/import_rule_messages.dart';
-import 'package:prudent/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/imports/import_failure.dart';
+import 'package:prudent_ui/imports/import_failure_text.dart';
+import 'package:prudent_ui/imports/import_rule_messages.dart';
+import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_transport/zen_transport.dart' as transport;
 

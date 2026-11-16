@@ -3,8 +3,8 @@
 // presentation (docs/DECISIONS.md ADR-009 — per-currency, never blended).
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
-import 'package:prudent/overview/overview_totals.dart';
+import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_ui/overview/overview_totals.dart';
 
 Account _account({
   required String name,

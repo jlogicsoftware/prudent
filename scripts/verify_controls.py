@@ -9,7 +9,7 @@ treatment, silently became the one that does not have it.
 
 THE RULE, in two parts.
 
-1. **Banned** in `client/lib` (generated code and `l10n/` excluded): every name in
+1. **Banned** in `client/lib` and `packages/prudent_ui/lib` (generated code and `l10n/` excluded): every name in
    `BANNED_CONTROLS`. Each has a `zen_ui_widgets` counterpart — `ZenButton` (all three variants),
    `ZenSelect`, `ZenSegmentedControl`, `ZenSwitchRow`, `ZenDateField` / `ZenDateRangeField`,
    `ZenTextField`, `ZenIconButton`, `ZenProgressIndicator`, `ZenProgressBar`, `ZenPageScaffold` (for
@@ -55,7 +55,10 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-CLIENT_LIB_SCOPE = "client/lib"
+# Every Dart library whose screens are in scope. The screens moved into the shared package
+# (ADR-108), and client/lib keeps the composition root and sign-in: both are scanned, and an empty
+# scope is a failure in each, so neither can be emptied into green.
+LIB_SCOPES = ("client/lib", "packages/prudent_ui/lib")
 # Generated output is a derived artifact; l10n holds generated accessors and .arb files.
 EXCLUDED_DIRS = ("generated", "l10n")
 
@@ -105,17 +108,20 @@ def repo_root() -> Path:
 
 
 def dart_sources(root: Path) -> "list[Path]":
-    lib_dir = root / CLIENT_LIB_SCOPE
-    if not lib_dir.is_dir():
-        raise StaleScope(f"scope '{CLIENT_LIB_SCOPE}' matched no directory under {root}")
-    files = [
-        f
-        for f in lib_dir.rglob("*.dart")
-        if not any(part in EXCLUDED_DIRS for part in f.relative_to(lib_dir).parts[:-1])
-    ]
-    if not files:
-        raise StaleScope(f"scope '{CLIENT_LIB_SCOPE}' matched no Dart source under {root}")
-    return sorted(files)
+    found: "list[Path]" = []
+    for scope in LIB_SCOPES:
+        lib_dir = root / scope
+        if not lib_dir.is_dir():
+            raise StaleScope(f"scope '{scope}' matched no directory under {root}")
+        files = [
+            f
+            for f in lib_dir.rglob("*.dart")
+            if not any(part in EXCLUDED_DIRS for part in f.relative_to(lib_dir).parts[:-1])
+        ]
+        if not files:
+            raise StaleScope(f"scope '{scope}' matched no Dart source under {root}")
+        found.extend(files)
+    return sorted(found)
 
 
 def mask(source: str) -> str:
@@ -297,7 +303,7 @@ def main(root: "Path | None" = None) -> int:
         return 1
 
     if not hits:
-        print("  ok   no raw Material control in client/lib")
+        print("  ok   no raw Material control in " + " or ".join(LIB_SCOPES))
         print()
         print("Controls intact: client screens are built from zen_ui_widgets.")
         return 0
