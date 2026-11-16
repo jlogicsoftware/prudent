@@ -13,6 +13,74 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-112 — Prudent Local reads an Erste statement and keys its rows exactly as the server does: the parser and the fingerprint ported to pure Dart, held to the JVM over the whole failure catalogue
+
+**Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 8a of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
+**Builds on:** ADR-088 (synthetic fixtures), ADR-090 (the importer), ADR-091 (the fingerprint), ADR-094 (the failure catalogue), ADR-103
+(ids moved in from the server), ADR-107 (golden vectors), ADR-110 (the export carries each record's key). **jZen:** nothing consumed or filed.
+
+### Decision
+
+- **The parse stage is pure Dart in `local/prudent_local_core/lib/src/imports/`**, one file per server class: `ErsteCsv` (strict UTF-8,
+  line structure, the RFC 4180 reader), `ErsteStatementImporter` (summary row, whole-file validation, the three description shapes,
+  `layout.amount_column`, the `transfer.own_account` hint, `checkDestination`), `StatementBounds` (`ParsedStatements.validate` and the
+  upload bounds of `ImportWorkflow.create`: 5 MiB, 5 000 rows, 1 024 UTF-16 units a field, the stable-identifier rules),
+  `RowFingerprints` (`v1` fingerprint, `e1` stable-id key, occurrence numbers), `ParsedRow` / `ParsedStatement`, and `ImportRule` /
+  `ImportRejection`. `parseErsteStatement(bytes, today:)` is what the server does to an upload before a session exists. No store, no
+  Flutter, no clock: "today" is a parameter, as the server's `Clock` is. Sessions, duplicates against the ledger and the commit are unit 8b's.
+- **Held to the server by two golden files**, written by `GoldenVectorsTest` through `ImportGoldenVectors` (and `ImportRulesAccess`, which
+  opens the package-private import code to it, as `RecordRulesAccess` does for records). `erste_import.json` runs **every one of the 217
+  cases of `ImportFailureCatalogue` the parse stage decides**, the three synthetic fixtures and 71 cases at the places Java and Dart
+  differ, and records each answer: the rule with its rows and total, or every row (dates, amount, texts, hint, rejection code) with its
+  fingerprint and key. The generator first checks each catalogue answer against what the catalogue itself expects and throws on a
+  disagreement, so a golden file can never carry an answer the server's own matrix would fail. Two cases are too large for a file (over
+  5 MiB; 5 001 rows): they are written as a recipe with the SHA-256 and length of the bytes the server read, and the Dart side refuses to
+  run a rebuild that differs. `import_fingerprints.json` holds `normalise` over the hostile text of ADR-107 and more, 142 fingerprints,
+  the stable-id keys and occurrence lists, and the JDK's root upper-case and canonical-decomposition tables.
+- **Java's semantics, spelled out, where Dart's differ.** Java's `\S` is "not one of six ASCII white space characters" (Dart's also
+  excludes a no-break space, U+3000 and a byte-order mark); Java's `.` excludes U+0085 (Dart's does not); `isBlank` and `strip` are
+  `javaIsBlank` / `javaStrip` (ADR-107); `Character.isDigit` over UTF-16 units is a range table held to the JDK over all 65 536 units;
+  UTF-8 is validated against the Unicode standard's table 3-7 before decoding, so what is refused does not depend on one SDK's decoder;
+  `LocalDate.plusYears(1)` on the 29th of February is the 28th. Each has a golden case, and changing any one of them fails cases.
+- **The fingerprint is the server's byte for byte, and the account id is written as the server writes it.** A Local id is the server's
+  id without its dashes (ADR-103), so `RowFingerprints.fingerprint` writes either form as `UUID.toString()` would. An account moved in
+  from the server therefore keeps the fingerprints the server stored for it (ADR-110), and a statement imported before the move is
+  recognised after it; an account made on the device gets the same treatment, so there is one rule, not two.
+- **`normalise` needs NFC and Java's root upper-casing; Dart has neither.** NFC comes from `unorm_dart` (pure Dart, MIT), the core's
+  second dependency after `crypto`. Root upper-casing is a table of the JDK's own answer for every code point it changes (1 552),
+  committed as `java_root_upper_case.dart` and generated from the golden file by `tool/generate_root_upper_case.dart` — the same
+  "a copy held to its source" as the ISO-4217 list of ADR-107. Dart's `toUpperCase` leaves `ß`, `ŉ` and every astral letter alone.
+  The test compares NFD and NFC of every code point that decomposes, all 11 172 Hangul syllables, and that nothing else changes, over
+  the whole code space. That sweep found **a defect in `unorm_dart` 0.3.3**: it takes U+D7A4, the unassigned code point after the last
+  Hangul syllable, for a syllable (a `<` where the algorithm says `<=`). `RowFingerprints.nfc` normalises the text on each side of it
+  separately, which is exact because U+D7A4 is a starter that composes with nothing; a test fails as soon as the package is fixed, so the
+  workaround is removed then.
+- **The rule catalogue mirrors `ImportRuleCatalogueTest`.** The server's scan of its own sources (45 codes) is in the golden file;
+  `ImportRule` names all 45 — 40 that this package emits (`parseStage`) and 5 that need a session, an account's owner or the ledger
+  (`sessionStage`: `account.not_found`, `duplicate.already_imported`, `commit.*`). The second set is not an exemption: those rules
+  belong to stages that do not exist here, the server also proves four of them outside its parse-stage catalogue (`coveredElsewhere`), and
+  the fifth is decided by the four catalogue cases that need a session (the generator lists them). The test fails when the server emits a
+  code Local does not name, when Local names one the server dropped, when a parse-stage rule has no passing case, and when this package's
+  sources spell a rule as a literal or emit a session-stage one.
+- **No statement text leaves the parse stage.** `ImportRejection` holds a code, row numbers and a count, and refuses a code that is not
+  one without quoting it; `ParsedRow.toString` names the row and its codes, never its text. `import_privacy_test.dart` puts a unique
+  marker in every field (the holder, the summary fields nobody reads, each merchant, counterparty and balance, and the very value that
+  breaks the rule), drives every parse-stage rule with `print` captured, and finds no marker in any refusal, error, `toString` or line.
+
+### Consequence
+
+Unit 8b can build sessions, duplicate detection and the commit on functions that answer as the server does for every catalogue case,
+and on keys that match what the server stored. **Verified:** `dart test` in `local/prudent_local_core` (2 734 tests, the new ones
+included), `GoldenVectorsTest` without writing (the drift gate of `verify:golden`), the server's `ImportRuleCatalogueTest`,
+`ErsteStatementImporterTest`, `ErsteFormatDriftTest` and `RowFingerprintsTest`, `dart analyze --fatal-infos --fatal-warnings` in the three
+pure-Dart packages, `dart test` in `local/prudent_local_store` (its lock gains `unorm_dart`), `scripts/verify_boundaries.py` and
+`scripts/verify_import_fixtures.py`. These were run as the underlying commands from a git worktree, where `task` does not load (ADR-065);
+the tasks themselves run in CI. **Not verified:** no real statement has been parsed by the Dart code (none may be, ADR-088); the parse of a
+5 000-row statement has not been timed on a device; `verify:import-fixtures` does not read the golden files, whose statements are built
+by the server's catalogue from its synthetic base rather than kept as fixtures; the `unorm_dart` defect is not reported upstream.
+
+---
+
 ## ADR-111 — Prudent Local's store model: its own messages on `zen_store`, ids minted on the device or derived from natural keys, jZen's per-field merge, and an integrity-check runner; the wire messages move to a pure-Dart package
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 4 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245); the

@@ -273,7 +273,13 @@ never-deleted records), jZen's `ZenMergePolicy.earliest` on the goal-status and 
 records with actions and fix nothing; units 5–8 add checks. `task test:local-store` proves every §0.2 row through two encrypted stores
 synced by `ZenFolderCloud`. A reset revoked on two devices stays a conflict (jZenDev/jZen#244), and a field set to its default differs from
 an unset one in the merge (jZenDev/jZen#245). The issues reach no screen until the Local app wraps them in `zen_ui_store`'s `ZenIssueSource`
-(unit 9). No Local app or screen exists yet.
+(unit 9). Unit 8a (ADR-112) is the Erste parse stage in `prudent_local_core/lib/src/imports/`: `parseErsteStatement(bytes, today:)` is
+the server's upload bounds, `ErsteStatementImporter` and `ParsedStatements.validate`, and `RowFingerprints` the `v1` key byte for byte (a Local
+account id is written in the server's form, so keys moved in by ADR-110 match). `test/golden/erste_import.json` holds it to every parse-stage case of
+`ImportFailureCatalogue` (written by `ImportGoldenVectors`, which checks each against the catalogue first); `ImportRule` names the server's 45 codes,
+5 of them for unit 8b; no statement text reaches a refusal, `toString` or log (`import_privacy_test.dart`). NFC is `unorm_dart` (with a workaround
+at U+D7A4), root upper-casing the JDK's table (`tool/generate_root_upper_case.dart`). Sessions, duplicates and the commit are unit 8b's.
+No Local app or screen exists yet.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

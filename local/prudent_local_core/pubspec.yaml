@@ -17,6 +17,10 @@ dependencies:
   # SHA-256 for the account identity token (AccountNumbers.identityOf, ADR-090). The Dart team's
   # own package, pure Dart.
   crypto: ^3.0.6
+  # Unicode NFC for the row fingerprint's normal form (RowFingerprints.normalise, ADR-091). Dart has
+  # no normaliser; this is a pure-Dart port of unorm. It is held to the JDK's java.text.Normalizer
+  # over every code point by test/golden/import_fingerprints.json (canonicalDecompositions).
+  unorm_dart: ^0.3.3
 
 dev_dependencies:
   lints: ^6.0.0

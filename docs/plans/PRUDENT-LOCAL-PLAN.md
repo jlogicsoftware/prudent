@@ -200,6 +200,10 @@ synthetic ledger, and a stated bound on how long the overview takes at that size
 target (Android), measured.
 
 ### Unit 8a — Erste parser and fingerprints
+**Built: ADR-112** — `local/prudent_local_core/lib/src/imports/` (`parseErsteStatement`, `ErsteStatementImporter`, `StatementBounds`,
+`RowFingerprints`, `ImportRule`), held to the JVM by `test/golden/erste_import.json` (every parse-stage case of the catalogue, the fixtures and
+the Java/Dart differences) and `test/golden/import_fingerprints.json`. The server emits 45 rule codes, not 44: 40 are the parse stage's, and the
+5 that need a session or the ledger are named for unit 8b. NFC comes from `unorm_dart`, root upper-casing from a JDK table.
 Port `ErsteStatementImporter`, the whole-file validation before any row is returned (ADR-090), the 44
 rule codes and the failure catalogue of ADR-094, and the versioned fingerprint plus occurrence number
 (ADR-091) — pure functions in `prudent_local_core`. Fixtures are the synthetic ones of ADR-088.
