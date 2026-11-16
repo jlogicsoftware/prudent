@@ -12,7 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:prudent/auth/identity_settings_session.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
-import 'package:prudent_ui/generated/prudent/v1/privacy.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/privacy.pb.dart';
 import 'package:prudent_ui/privacy/export_file_saver.dart';
 import 'package:prudent_ui/privacy/privacy_screen.dart';
 import 'package:prudent_ui/providers.dart';
