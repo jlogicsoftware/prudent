@@ -436,44 +436,9 @@ void main() {
         expectConflict(plans, base.id, {tagOf(base, 'reminder')});
       },
     );
-
-    test(
-      'budget_resets.revocation: revoking on two devices stays a conflict until jZenDev/jZen#244',
-      () async {
-        final category = Device.ok(
-          await devices.laptop.store.putCategory(Fixtures.category(devices.laptop.store)),
-        );
-        final reset = BudgetCarryOverReset(
-          id: devices.laptop.store.newId(),
-          categoryId: category.id,
-          month: '2026-11',
-          currency: 'PLN',
-          discardedMinor: Int64(1200),
-          note: 'fresh start',
-          createdBy: devices.laptop.store.deviceId,
-          createdAtMs: Int64(1000),
-        );
-        Device.ok(await devices.laptop.store.addBudgetReset(reset));
-        await devices.sync();
-        Device.ok(await devices.laptop.store.revokeBudgetReset(reset.id, atMs: 2000));
-        Device.ok(await devices.phone.store.revokeBudgetReset(reset.id, atMs: 3000));
-        await devices.sync();
-        for (final device in devices.both) {
-          final conflict = Device.ok(device.store.budgetResets.conflictFor(reset.id))!;
-          expect(conflict.fields, {tagOf(reset, 'revocation')});
-          // Each side keeps its own pair: who and when are never split.
-          expect(
-            conflict.sides
-                .map((s) => (s.value!.revocation.by, s.value!.revocation.atMs.toInt()))
-                .toSet(),
-            {(devices.laptop.store.deviceId, 2000), (devices.phone.store.deviceId, 3000)},
-          );
-        }
-      },
-    );
   });
 
-  // ── Same-intent rows (ZenMergePolicy.earliest, jZenDev/jZen#235) ──────────────────────────────
+  // ── Same-intent rows (earliest: jZenDev/jZen#235; earliestBy: #244) ────────────────────────────
 
   group('Same-intent', () {
     test(
@@ -548,14 +513,49 @@ void main() {
       },
     );
 
-    test('the policies are declared on exactly those two fields', () {
+    test('budget_resets.revocation: revoked on both devices merges and keeps the first revocation '
+        'whole, who and when (jZenDev/jZen#244)', () async {
+      final category = Device.ok(
+        await devices.laptop.store.putCategory(Fixtures.category(devices.laptop.store)),
+      );
+      final reset = BudgetCarryOverReset(
+        id: devices.laptop.store.newId(),
+        categoryId: category.id,
+        month: '2026-11',
+        currency: 'PLN',
+        discardedMinor: Int64(1200),
+        note: 'fresh start',
+        createdBy: devices.laptop.store.deviceId,
+        createdAtMs: Int64(1000),
+      );
+      Device.ok(await devices.laptop.store.addBudgetReset(reset));
+      await devices.sync();
+      Device.ok(await devices.laptop.store.revokeBudgetReset(reset.id, atMs: 3000));
+      Device.ok(await devices.phone.store.revokeBudgetReset(reset.id, atMs: 2000));
+      await devices.sync();
+      expectNoConflicts();
+      for (final device in devices.both) {
+        final revocation = Device.ok(device.store.budgetResets.get(reset.id)).revocation;
+        // The phone revoked first; its device id comes with its time, never the laptop's.
+        expect((revocation.by, revocation.atMs.toInt()), (devices.phone.store.deviceId, 2000));
+      }
+    });
+
+    test('the policies are declared on exactly those fields', () {
       expect(StorePolicies.goals, {tagOf(Goal(), 'statusChangedAtMs'): ZenMergePolicy.earliest});
       expect(StorePolicies.occurrences, {
         tagOf(OccurrenceState(), 'reminderReadAtMs'): ZenMergePolicy.earliest,
       });
+      expect(StorePolicies.budgetResets, {
+        tagOf(BudgetCarryOverReset(), 'revocation'): ZenMergePolicy.earliestBy(
+          tagOf(Revocation(), 'atMs'),
+        ),
+      });
       // Field numbers are frozen: a renumbering would move a policy onto another field.
       expect(tagOf(Goal(), 'statusChangedAtMs'), 7);
       expect(tagOf(OccurrenceState(), 'reminderReadAtMs'), 5);
+      expect(tagOf(BudgetCarryOverReset(), 'revocation'), 9);
+      expect(tagOf(Revocation(), 'atMs'), 2);
     });
   });
 

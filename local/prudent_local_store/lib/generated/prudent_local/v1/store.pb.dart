@@ -1087,9 +1087,9 @@ class Budget extends $pb.GeneratedMessage {
 }
 
 /// Who revoked a carry-over reset, and when. One field: the time without its author is half an
-/// audit entry. Revoking on two devices is the same intent, but jZen's merge policies decide a single
-/// scalar or timestamp only, so two revocations stay a conflict for the person until the store can
-/// merge a group by one of its fields (jZenDev/jZen#244).
+/// audit entry. Revoking on two devices is the same intent, so the field merges by `at_ms` with jZen's
+/// group policy (`ZenMergePolicy.earliestBy`, jZenDev/jZen#244): the earlier revocation is kept whole,
+/// its author with it (`StorePolicies.budgetResets`).
 class Revocation extends $pb.GeneratedMessage {
   factory Revocation({
     $core.String? by,

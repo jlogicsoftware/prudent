@@ -282,13 +282,24 @@ at U+D7A4), root upper-casing the JDK's table (`tool/generate_root_upper_case.da
 Unit 5 (ADR-113) is the ledger: `Ledger` in `local/prudent_local_store/lib/src/ledger/` holds every account,
 category, record, transfer, correction and settings rule of §0.3 rows 5.1–5.53, wire requests in and wire messages out, refusals
 shaped as the server's (`LedgerErrors`). Several records are written as one only through jZen's `ZenStore.writeAll`
-(`PrudentLocalStore.writeAll(StoreBatch)`, jZenDev/jZen#232 at `JZEN_REF` `e6a06c6`), so an account deleted with its records is
+(`PrudentLocalStore.writeAll(StoreBatch)`, jZenDev/jZen#232, consumed at `e6a06c6`), so an account deleted with its records is
 all or nothing. A figure never reads a value two devices disagree about: a disputed posting, transfer or opening counts in no
 balance and is named on every read that answers a balance (`Settled<T>`, `AccountBalances.unsettled`), and a correction is refused until it is settled. Search and name order are the
 core's `SearchRules`, whose fold is a table from the JVM (`golden/fold.json`; the Dart VM's `toLowerCase` differs on 437 code
 points). `CorrectionIntent.seen_corrections` feeds the `correction.made_apart` check. The parity suite's local side is
 `StoreBackend` (`package:prudent_local_store/parity.dart`); thirteen scenarios agree with the live server. Open: jZenDev/jZen#251
-(no write precondition), and the server's 500 on an account update that reorders currencies (jlogicsoftware/prudent#261). No Local app or screen exists yet.
+(no write precondition), and the server's 500 on an account update that reorders currencies (jlogicsoftware/prudent#261).
+Unit 8b (ADR-114) is statement import: `ImportWorkflow` in `local/prudent_local_store/lib/src/imports/` is the server's three phases,
+destination checks, row decisions, defaults, duplicates and commit, check for check, answering the wire `ImportSession`; sessions are the
+device-only collection `import_sessions` of the ledger's store (`collection(syncs: false)`, jZenDev/jZen#252), one record per session,
+rows' text kept as bytes (Dart's UTF-8 decoder drops a leading U+FEFF, `ImportText`). The commit writes every row and the completed
+session in one `writeAll` through `Ledger.importedRecord`, ids `DerivedIds.imported`, so two devices that commit one statement end with
+each row once; every session write and the commit's batch carry `expect` preconditions (jZenDev/jZen#251), so a change a sync lands
+between the checks and the write refuses it whole. All 291 catalogue cases and the server's commit-failure cases pass through the
+workflow; parity scenarios `import_sessions` and `import_destination` agree with the live server. Differing category choices on two
+devices are plain two-device conflicts for jZen's sweep (#234, wired by unit 9); a reset's revocation merges by its time
+(`ZenMergePolicy.earliestBy`, #244); `import_sessions` declares explicit presence (#245). #245 and #251 are not yet applied to the unit
+4/5 collections and ledger writes. `JZEN_REF` is `4fa887a`. No Local app or screen exists yet.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

@@ -4,6 +4,7 @@ import 'package:protobuf/protobuf.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_store/zen_store.dart';
 
+import '../generated/prudent_local/v1/imports.pb.dart';
 import '../generated/prudent_local/v1/store.pb.dart';
 import 'derived_ids.dart';
 
@@ -45,6 +46,12 @@ final class PrudentLocalStore {
   final ZenCollection<OccurrenceState> occurrences;
   final ZenCollection<Settings> settings;
 
+  /// Statement import sessions (unit 8b, ADR-114): **device-only** (`syncs: false`,
+  /// jZenDev/jZen#252). A session holds normalised statement rows for at most 24 hours; they never
+  /// reach another device or the sync service, yet `writeAll` saves a session together with the
+  /// ledger records its commit writes, as one.
+  final ZenCollection<LocalImportSession> importSessions;
+
   /// Declares every collection on [zen], with the merge policies of [StorePolicies]. Every device
   /// declares the same ones on every launch; the store refuses a collection re-declared differently.
   PrudentLocalStore(this.zen)
@@ -54,7 +61,11 @@ final class PrudentLocalStore {
       records = zen.collection('records', Record.fromBuffer),
       transfers = zen.collection('transfers', Transfer.fromBuffer),
       budgets = zen.collection('budgets', Budget.fromBuffer),
-      budgetResets = zen.collection('budget_resets', BudgetCarryOverReset.fromBuffer),
+      budgetResets = zen.collection(
+        'budget_resets',
+        BudgetCarryOverReset.fromBuffer,
+        mergePolicies: StorePolicies.budgetResets,
+      ),
       goals = zen.collection('goals', Goal.fromBuffer, mergePolicies: StorePolicies.goals),
       goalAllocations = zen.collection('goal_allocations', GoalAllocation.fromBuffer),
       plans = zen.collection('plans', Plan.fromBuffer),
@@ -63,7 +74,13 @@ final class PrudentLocalStore {
         OccurrenceState.fromBuffer,
         mergePolicies: StorePolicies.occurrences,
       ),
-      settings = zen.collection('settings', Settings.fromBuffer);
+      settings = zen.collection('settings', Settings.fromBuffer),
+      importSessions = zen.collection(
+        'import_sessions',
+        LocalImportSession.fromBuffer,
+        syncs: false,
+        explicitPresence: StorePolicies.importSessionPresence,
+      );
 
   /// A new random id: 128 bits as 32 lower-case hex characters, minted by this device.
   ///
@@ -101,6 +118,15 @@ final class PrudentLocalStore {
   /// record that confirms an occurrence carries the id derived from it, and an imported record the
   /// id derived from its account, fingerprint and occurrence, so two devices write one record.
   Future<ZenResult<Record>> putRecord(Record value) => _put(records, value, _recordRules);
+
+  // ── Import sessions (device-only) ───────────────────────────────────────────────────────────
+
+  /// One import session, whole. [expect] runs inside the write's turn against the session as it
+  /// stands then (jZenDev/jZen#251), so a rule checked before the write still holds when it runs.
+  Future<ZenResult<LocalImportSession>> putImportSession(
+    LocalImportSession value, {
+    ZenError? Function(LocalImportSession? current)? expect,
+  }) => _put(importSessions, value, _importSessionRules, expect: expect);
 
   Future<ZenResult<Record>> deleteRecord(String id) => records.delete(id);
 
@@ -267,6 +293,11 @@ final class PrudentLocalStore {
         : null,
   );
 
+  static final _importSessionRules = _Rules<LocalImportSession>(
+    id: _randomId,
+    immutable: const ['formatId', 'currency', 'createdAtMs'],
+  );
+
   /// A transfer is written once and never edited, only deleted (`RecordResource.java:217`).
   static final _transferRules = _Rules<Transfer>(id: _randomId, writeOnce: true);
 
@@ -280,12 +311,13 @@ final class PrudentLocalStore {
   Future<ZenResult<T>> _put<T extends GeneratedMessage>(
     ZenCollection<T> collection,
     T value,
-    _Rules<T> rules,
-  ) {
+    _Rules<T> rules, {
+    ZenError? Function(T? current)? expect,
+  }) {
     if (_admit(collection, value, rules) case final error?) {
       return Future.value(ZenResult.err(error));
     }
-    return collection.put(value.getField(_idTag) as String, value);
+    return collection.put(value.getField(_idTag) as String, value, expect: expect);
   }
 
   /// Null when [rules] allow writing [value] over what [collection] holds now; otherwise why not.
@@ -353,10 +385,10 @@ final class PrudentLocalStore {
 /// two values, the same on every device whatever arrived first. Every other field keeps the store's
 /// default: two different values are a conflict for the person.
 ///
-/// A carry-over reset's revocation is a same-intent field too, but it is a *group* — who and when —
-/// and jZen's policies decide a single scalar or timestamp field only. Two devices revoking one reset
-/// therefore stay a conflict for the person until the framework can merge a group by one of its
-/// fields (jZenDev/jZen#244).
+/// A carry-over reset's revocation is a same-intent field that is a *group* — who and when. It
+/// merges by its time with jZen's group policy (`ZenMergePolicy.earliestBy`, jZenDev/jZen#244,
+/// consumed in ADR-114), which keeps the whole earlier version, so the author is never taken from
+/// the other device than the time beside it.
 abstract final class StorePolicies {
   /// `Goal.status_changed_at_ms`: completing (or archiving) one goal on two devices keeps the first
   /// moment. The status itself stays a plain field, so completing on one device and archiving on
@@ -368,6 +400,30 @@ abstract final class StorePolicies {
   /// `OccurrenceState.reminder_read_at_ms`: a reminder read on two devices keeps the first moment.
   static final Map<int, ZenMergePolicy> occurrences = {
     _tag(OccurrenceState(), 'reminderReadAtMs'): ZenMergePolicy.earliest,
+  };
+
+  /// `BudgetCarryOverReset.revocation`: a reset revoked on two devices keeps the first revocation,
+  /// who and when together, ordered by `Revocation.at_ms`. Revoking on one device against no
+  /// revocation on the other is not a disagreement (the revocation is only ever added), so nothing
+  /// else changes. Field numbers pinned by merge_table_test.
+  static final Map<int, ZenMergePolicy> budgetResets = {
+    _tag(BudgetCarryOverReset(), 'revocation'): ZenMergePolicy.earliestBy(
+      _tag(Revocation(), 'atMs'),
+    ),
+  };
+
+  /// The `optional` fields of an import session, whose default is a value and not "unset"
+  /// (jZenDev/jZen#245): above all `committed_written` = 0, a commit that wrote nothing.
+  static final Set<int> importSessionPresence = {
+    for (final name in const [
+      'accountId',
+      'committedWritten',
+      'committedAlreadyImported',
+      'defaultExpenseCategoryId',
+      'defaultIncomeCategoryId',
+      'statementIdentity',
+    ])
+      _tag(LocalImportSession(), name),
   };
 
   static int _tag(GeneratedMessage message, String name) => message.info_.byName[name]!.tagNumber;
@@ -422,7 +478,15 @@ final class StoreBatch {
   void putCategory(Category value) =>
       _put(_store.categories, value, PrudentLocalStore._categoryRules);
 
-  void putRecord(Record value) => _put(_store.records, value, PrudentLocalStore._recordRules);
+  /// [expect] as for `ZenBatch.put` (jZenDev/jZen#251): run when the batch does, and a refusal
+  /// fails the whole batch.
+  void putRecord(Record value, {ZenError? Function(Record? current)? expect}) =>
+      _put(_store.records, value, PrudentLocalStore._recordRules, expect: expect);
+
+  void putImportSession(
+    LocalImportSession value, {
+    ZenError? Function(LocalImportSession? current)? expect,
+  }) => _put(_store.importSessions, value, PrudentLocalStore._importSessionRules, expect: expect);
 
   void deleteRecord(String id) => _delete(_store.records, id);
 
@@ -431,12 +495,21 @@ final class StoreBatch {
   void putSettings(Settings value) =>
       _put(_store.settings, value, PrudentLocalStore._settingsRules);
 
-  void _put<T extends GeneratedMessage>(ZenCollection<T> collection, T value, _Rules<T> rules) =>
-      _steps.add((batch) {
-        if (PrudentLocalStore._admit(collection, value, rules) case final error?) return error;
-        batch.put(collection, value.getField(PrudentLocalStore._idTag) as String, value);
-        return null;
-      });
+  void _put<T extends GeneratedMessage>(
+    ZenCollection<T> collection,
+    T value,
+    _Rules<T> rules, {
+    ZenError? Function(T? current)? expect,
+  }) => _steps.add((batch) {
+    if (PrudentLocalStore._admit(collection, value, rules) case final error?) return error;
+    batch.put(
+      collection,
+      value.getField(PrudentLocalStore._idTag) as String,
+      value,
+      expect: expect,
+    );
+    return null;
+  });
 
   void _delete<T extends GeneratedMessage>(ZenCollection<T> collection, String id) =>
       _steps.add((batch) {

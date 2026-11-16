@@ -1,0 +1,241 @@
+{
+  "name": "import_destination",
+  "description": "The destination of an import is checked wherever it is set and again at the commit: a preview that names another account, an account made inactive, renumbered or stripped of its currency after the preview, and the commit that goes through once it is put back.",
+  "rules": [
+    "8.5",
+    "8.14",
+    "8.16"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "as": "erste",
+      "outcome": "accepted",
+      "input": {
+        "name": "Erste destination",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "00 0000 0000 0000 0000 0000 0802"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "elsewhere",
+      "outcome": "accepted",
+      "input": {
+        "name": "Other destination",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "00 0000 0000 0000 0000 0000 0803"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "spending",
+      "outcome": "accepted",
+      "input": {
+        "title": "Spending",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "income",
+      "outcome": "accepted",
+      "input": {
+        "title": "Income",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "other",
+      "outcome": "accepted",
+      "input": {
+        "title": "Other",
+        "iconKey": "leisure"
+      }
+    },
+    {
+      "comment": "No destination yet: nothing is a duplicate of nothing.",
+      "op": "import.create",
+      "as": "s",
+      "outcome": "accepted",
+      "input": {
+        "csv": "2026-11-14,01-01-2026,'00 0000 0000 0000 0000 0000 0802,JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO,PLN,\"0,00\",\"50,00\",999,\n12-03-2026,10-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 7.10 PLN SKLEP A TESTOWY,,,\"-7,10\",\"10,00\",1,\n09-03-2026,09-03-2026,Zakup BLIK SKLEP B TESTOWY ref:00000000001,SKLEP B TESTOWY,00 0000 0000 0000 0000 0000 0010,\"-25,00\",\"10,00\",2,\n08-03-2026,08-03-2026,Przelew na rachunek w\u0142asny,FIRMA TESTOWA JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO WOJ. TESTOWE,00 0000 0000 0000 0000 0000 0002,\"100,00\",\"10,00\",3,\n08-03-2026,07-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 3.00 PLN SKLEP C TESTOWY,,,\"-3,00\",\"10,00\",4,\n06-03-2026,06-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 1.00 PLN SKLEP D TESTOWY,,,\"-1,00\",\"10,00\",5,\n"
+      }
+    },
+    {
+      "comment": "Not the statement's account.",
+      "op": "import.preview",
+      "outcome": "refused",
+      "input": {
+        "session": "$s",
+        "account": "$elsewhere"
+      }
+    },
+    {
+      "op": "import.preview",
+      "outcome": "accepted",
+      "input": {
+        "session": "$s",
+        "account": "$erste"
+      }
+    },
+    {
+      "op": "import.defaults",
+      "outcome": "accepted",
+      "input": {
+        "session": "$s",
+        "expense": "$spending",
+        "income": "$income"
+      }
+    },
+    {
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$erste",
+        "name": "Erste destination",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": false,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "00 0000 0000 0000 0000 0000 0802"
+      }
+    },
+    {
+      "comment": "commit.account_unavailable",
+      "op": "import.commit",
+      "outcome": "refused",
+      "input": {
+        "session": "$s",
+        "confirmed": 5
+      }
+    },
+    {
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$erste",
+        "name": "Erste destination",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "00 0000 0000 0000 0000 0000 0804"
+      }
+    },
+    {
+      "comment": "account.identity_mismatch",
+      "op": "import.commit",
+      "outcome": "refused",
+      "input": {
+        "session": "$s",
+        "confirmed": 5
+      }
+    },
+    {
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$erste",
+        "name": "Erste destination",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "account.number_missing",
+      "op": "import.commit",
+      "outcome": "refused",
+      "input": {
+        "session": "$s",
+        "confirmed": 5
+      }
+    },
+    {
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$erste",
+        "name": "Erste destination",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "00 0000 0000 0000 0000 0000 0802"
+      }
+    },
+    {
+      "op": "category.archive",
+      "outcome": "accepted",
+      "input": {
+        "category": "$spending"
+      }
+    },
+    {
+      "comment": "commit.category_unavailable",
+      "op": "import.commit",
+      "outcome": "refused",
+      "input": {
+        "session": "$s",
+        "confirmed": 5
+      }
+    },
+    {
+      "op": "category.restore",
+      "outcome": "accepted",
+      "input": {
+        "category": "$spending"
+      }
+    },
+    {
+      "op": "import.commit",
+      "outcome": "accepted",
+      "input": {
+        "session": "$s",
+        "confirmed": 5
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$erste"
+      }
+    }
+  ]
+}

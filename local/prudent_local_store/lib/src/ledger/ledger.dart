@@ -1,4 +1,5 @@
 import 'package:fixnum/fixnum.dart';
+import 'package:meta/meta.dart' show internal;
 import 'package:prudent_local_core/prudent_local_core.dart';
 import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart' as wire;
@@ -797,6 +798,40 @@ final class Ledger {
   }
 
   // ── Record rules ────────────────────────────────────────────────────────────────────────────
+
+  /// The record an import commit writes for one statement row (unit 8b, ADR-114): exactly what
+  /// `LedgerImportCommitter.write` asks of `RecordWriter.apply` — the same checks, in the same
+  /// order, as a record typed by hand — plus the row's [key], which also derives the record's id
+  /// (`DerivedIds.imported`), so two devices that commit one statement write one record per row.
+  /// Throws the [Refusal] the ledger refuses the row with; the commit names the row, never the text.
+  @internal
+  static Record importedRecord(
+    LedgerView view, {
+    required String accountId,
+    required String currency,
+    required RowKey key,
+    required String title,
+    required int amountMinor,
+    required String date,
+    required String categoryId,
+    required String? payee,
+    required String? note,
+  }) {
+    final record = _applyRecord(
+      view,
+      null,
+      DerivedIds.imported(accountId, key.fingerprint, key.occurrence),
+      title: title,
+      amountMinor: amountMinor,
+      date: date,
+      categoryId: categoryId,
+      accountId: accountId,
+      currency: currency,
+      payee: payee,
+      note: note,
+    );
+    return record..importKey = ImportKey(fingerprint: key.fingerprint, occurrence: key.occurrence);
+  }
 
   /// `RecordWriter.apply`, check for check and in its order: title, amount, account, category, the
   /// category's archived state and kind (when the category or the direction changes), currency, the

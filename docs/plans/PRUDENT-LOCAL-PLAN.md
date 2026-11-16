@@ -227,6 +227,13 @@ rule codes and the failure catalogue of ADR-094, and the versioned fingerprint p
 and no statement text reaches an answer or a log line.
 
 ### Unit 8b — Import sessions, duplicates, commit, two devices
+**Built: ADR-114** — `ImportWorkflow` in `local/prudent_local_store/lib/src/imports/`: the server's three phases, destination checks,
+row decisions, defaults, duplicates and commit, check for check; sessions in the device-only collection `import_sessions` of the ledger's
+store (jZenDev/jZen#252, filed by this unit); every row and the completed session committed in one `ZenStore.writeAll`, ids from the
+row keys, each write guarded by an `expect` precondition (jZenDev/jZen#251); the whole failure catalogue and the server's commit-failure
+cases through the workflow; a two-device test; parity scenarios `import_sessions` and `import_destination`. Consumes jZenDev/jZen#234
+(the conflict sweep, wired by unit 9), #244 (a reset's revocation merges by its time), #245 (explicit presence on the session's
+`optional` fields), #251 and #252 at `JZEN_REF` `4fa887a`. The interim clauses below are withdrawn and were never built.
 The three enforced phases (ADR-089) in a second, **unsynced** store (ADR-102); only normalised rows kept,
 never the file; duplicates against the destination; the commit (ADR-092) writing records whose ids derive
 from the fingerprint, so two devices that import one statement end with each row once. **Blocked on
@@ -325,17 +332,18 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | jZenDev/jZen#231 | device verification of jZen Local | 12 (release gate); ADR-100 rows marked #231 |
 | jZenDev/jZen#232 | multi-record write — **merged (PR #248, jZen `e6a06c6`: `ZenStore.writeAll`), consumed by unit 5** | 5, 8b |
 | jZenDev/jZen#233 | application issues beside conflicts — **merged (PR #242), consumed by unit 4** | 4, 9 |
-| jZenDev/jZen#234 | settle many conflicts at once | 8b |
+| jZenDev/jZen#234 | settle many conflicts at once — **merged (PR #250), consumed by unit 8b (the shape; ADR-114), wired by unit 9** | 8b, 9 |
 | jZenDev/jZen#235 | intent-preserving per-field merge policy — **merged (PR #241), consumed by unit 4** | 4, 6a, 6b |
 | jZenDev/jZen#236 | CloudKit record names in plaintext — **merged (PR #243, jZen `cf36d77`: HMAC-hashed names)**, consumed when unit 9 wires CloudKit | 4, 9 (ADR-100 T7) |
 | jZenDev/jZen#237 | rekey / remove a device | 9 (ADR-100 T3) |
 | jZenDev/jZen#238 | refuse the unencrypted folder in release | 11 (ADR-100 T18) |
 | jZenDev/jZen#239 | erase everywhere | 9 (ADR-100 T24) |
 | jZenDev/jZen#240 | screen-capture protection | 9 (ADR-100 T15) |
-| jZenDev/jZen#244 | a merge policy over a group (a reset's revocation: who and when) | 4, 6a |
-| jZenDev/jZen#245 | a proto3 field set to its default differs from an unset one in the merge | 4, 5 (every write path) |
+| jZenDev/jZen#244 | a merge policy over a group (a reset's revocation: who and when) — **merged (PR #249), consumed by unit 8b (ADR-114)** | 4, 6a |
+| jZenDev/jZen#245 | a proto3 field set to its default differs from an unset one in the merge — **merged (PR #254, jZen `4fa887a`); consumed by unit 8b for the import sessions (ADR-114); the unit 4/5 collections are a separate change** | 4, 5 (every write path), 8b |
 | jZenDev/jZen#246 | save-file capability on iOS and Android | 10a (mobile half) |
-| jZenDev/jZen#251 | a write precondition, so a rule checked before a write holds when it runs (an edit cannot resurrect a record a sync just deleted) | 4, 5, 6a, 6b, 8b (every write path) |
+| jZenDev/jZen#252 | an atomic write across synced and device-only data — **merged (PR #254, jZen `4fa887a`), consumed by unit 8b: sessions are a device-only collection, the commit one `writeAll` (ADR-114)** | 8b |
+| jZenDev/jZen#251 | a write precondition, so a rule checked before a write holds when it runs (an edit cannot resurrect a record a sync just deleted) — **merged (PR #254, jZen `4fa887a`); consumed by unit 8b's session and commit writes (ADR-114); the unit 4/5 write paths are a separate change** | 4, 5, 6a, 6b, 8b (every write path) |
 
 None blocks starting a unit; each is a stated limitation of that unit until it lands and is consumed.
 

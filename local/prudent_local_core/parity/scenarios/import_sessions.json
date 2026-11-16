@@ -1,0 +1,341 @@
+{
+  "name": "import_sessions",
+  "description": "A statement import through its three phases: what a parse, a preview, a row decision, the defaults and a commit refuse, the counts each answers, a repeated commit, the same statement again as duplicates with one included under the next occurrence, a statement with a flagged row, and the balance the commits leave. Counts and codes are compared; keys never reach the wire.",
+  "rules": [
+    "8.1",
+    "8.4",
+    "8.5",
+    "8.6",
+    "8.10",
+    "8.12",
+    "8.13",
+    "8.14",
+    "8.15",
+    "8.17",
+    "8.25"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "as": "erste",
+      "outcome": "accepted",
+      "input": {
+        "name": "Erste import",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "00 0000 0000 0000 0000 0000 0801"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "cash",
+      "outcome": "accepted",
+      "input": {
+        "name": "Cash import",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "spending",
+      "outcome": "accepted",
+      "input": {
+        "title": "Spending",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "income",
+      "outcome": "accepted",
+      "input": {
+        "title": "Income",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "other",
+      "outcome": "accepted",
+      "input": {
+        "title": "Other",
+        "iconKey": "leisure"
+      }
+    },
+    {
+      "comment": "8.4: an empty upload.",
+      "op": "import.create",
+      "outcome": "refused",
+      "input": {
+        "csv": "",
+        "account": "$erste"
+      }
+    },
+    {
+      "comment": "8.25: an unknown format.",
+      "op": "import.create",
+      "outcome": "refused",
+      "input": {
+        "csv": "2026-11-14,01-01-2026,'00 0000 0000 0000 0000 0000 0801,JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO,PLN,\"0,00\",\"50,00\",999,\n12-03-2026,10-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 7.10 PLN SKLEP A TESTOWY,,,\"-7,10\",\"10,00\",1,\n09-03-2026,09-03-2026,Zakup BLIK SKLEP B TESTOWY ref:00000000001,SKLEP B TESTOWY,00 0000 0000 0000 0000 0000 0010,\"-25,00\",\"10,00\",2,\n08-03-2026,08-03-2026,Przelew na rachunek w\u0142asny,FIRMA TESTOWA JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO WOJ. TESTOWE,00 0000 0000 0000 0000 0000 0002,\"100,00\",\"10,00\",3,\n08-03-2026,07-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 3.00 PLN SKLEP C TESTOWY,,,\"-3,00\",\"10,00\",4,\n06-03-2026,06-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 1.00 PLN SKLEP D TESTOWY,,,\"-1,00\",\"10,00\",5,\n",
+        "account": "$erste",
+        "format": "mbank-csv"
+      }
+    },
+    {
+      "comment": "8.5: an account without a number.",
+      "op": "import.create",
+      "outcome": "refused",
+      "input": {
+        "csv": "2026-11-14,01-01-2026,'00 0000 0000 0000 0000 0000 0801,JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO,PLN,\"0,00\",\"50,00\",999,\n12-03-2026,10-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 7.10 PLN SKLEP A TESTOWY,,,\"-7,10\",\"10,00\",1,\n09-03-2026,09-03-2026,Zakup BLIK SKLEP B TESTOWY ref:00000000001,SKLEP B TESTOWY,00 0000 0000 0000 0000 0000 0010,\"-25,00\",\"10,00\",2,\n08-03-2026,08-03-2026,Przelew na rachunek w\u0142asny,FIRMA TESTOWA JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO WOJ. TESTOWE,00 0000 0000 0000 0000 0000 0002,\"100,00\",\"10,00\",3,\n08-03-2026,07-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 3.00 PLN SKLEP C TESTOWY,,,\"-3,00\",\"10,00\",4,\n06-03-2026,06-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 1.00 PLN SKLEP D TESTOWY,,,\"-1,00\",\"10,00\",5,\n",
+        "account": "$cash"
+      }
+    },
+    {
+      "op": "import.create",
+      "as": "first",
+      "outcome": "accepted",
+      "input": {
+        "csv": "2026-11-14,01-01-2026,'00 0000 0000 0000 0000 0000 0801,JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO,PLN,\"0,00\",\"50,00\",999,\n12-03-2026,10-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 7.10 PLN SKLEP A TESTOWY,,,\"-7,10\",\"10,00\",1,\n09-03-2026,09-03-2026,Zakup BLIK SKLEP B TESTOWY ref:00000000001,SKLEP B TESTOWY,00 0000 0000 0000 0000 0000 0010,\"-25,00\",\"10,00\",2,\n08-03-2026,08-03-2026,Przelew na rachunek w\u0142asny,FIRMA TESTOWA JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO WOJ. TESTOWE,00 0000 0000 0000 0000 0000 0002,\"100,00\",\"10,00\",3,\n08-03-2026,07-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 3.00 PLN SKLEP C TESTOWY,,,\"-3,00\",\"10,00\",4,\n06-03-2026,06-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 1.00 PLN SKLEP D TESTOWY,,,\"-1,00\",\"10,00\",5,\n",
+        "account": "$erste"
+      }
+    },
+    {
+      "comment": "8.1: commit before a preview.",
+      "op": "import.commit",
+      "outcome": "refused",
+      "input": {
+        "session": "$first",
+        "confirmed": 5
+      }
+    },
+    {
+      "op": "import.preview",
+      "outcome": "accepted",
+      "input": {
+        "session": "$first"
+      }
+    },
+    {
+      "comment": "8.14: no category and no default.",
+      "op": "import.commit",
+      "outcome": "refused",
+      "input": {
+        "session": "$first",
+        "confirmed": 5
+      }
+    },
+    {
+      "comment": "8.13: an income category cannot file expenses.",
+      "op": "import.defaults",
+      "outcome": "refused",
+      "input": {
+        "session": "$first",
+        "expense": "$income"
+      }
+    },
+    {
+      "op": "import.defaults",
+      "outcome": "accepted",
+      "input": {
+        "session": "$first",
+        "expense": "$spending",
+        "income": "$income"
+      }
+    },
+    {
+      "op": "import.row",
+      "outcome": "accepted",
+      "input": {
+        "session": "$first",
+        "row": 2,
+        "category": "$other",
+        "note": "  a note  "
+      }
+    },
+    {
+      "comment": "8.12: the other direction.",
+      "op": "import.row",
+      "outcome": "refused",
+      "input": {
+        "session": "$first",
+        "row": 2,
+        "category": "$income"
+      }
+    },
+    {
+      "comment": "8.12: not a duplicate.",
+      "op": "import.row",
+      "outcome": "refused",
+      "input": {
+        "session": "$first",
+        "row": 1,
+        "include": true
+      }
+    },
+    {
+      "comment": "No such row.",
+      "op": "import.row",
+      "outcome": "refused",
+      "input": {
+        "session": "$first",
+        "row": 9,
+        "note": "x"
+      }
+    },
+    {
+      "comment": "8.15: not the count reviewed.",
+      "op": "import.commit",
+      "outcome": "refused",
+      "input": {
+        "session": "$first",
+        "confirmed": 4
+      }
+    },
+    {
+      "op": "import.commit",
+      "outcome": "accepted",
+      "input": {
+        "session": "$first",
+        "confirmed": 5
+      }
+    },
+    {
+      "comment": "8.17: a repeat answers the stored counts.",
+      "op": "import.commit",
+      "outcome": "accepted",
+      "input": {
+        "session": "$first",
+        "confirmed": 5
+      }
+    },
+    {
+      "op": "import.commit",
+      "outcome": "refused",
+      "input": {
+        "session": "$first",
+        "confirmed": 4
+      }
+    },
+    {
+      "comment": "8.1: a committed session is over.",
+      "op": "import.preview",
+      "outcome": "refused",
+      "input": {
+        "session": "$first"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$erste"
+      }
+    },
+    {
+      "op": "import.create",
+      "as": "second",
+      "outcome": "accepted",
+      "input": {
+        "csv": "2026-11-14,01-01-2026,'00 0000 0000 0000 0000 0000 0801,JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO,PLN,\"0,00\",\"50,00\",999,\n12-03-2026,10-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 7.10 PLN SKLEP A TESTOWY,,,\"-7,10\",\"10,00\",1,\n09-03-2026,09-03-2026,Zakup BLIK SKLEP B TESTOWY ref:00000000001,SKLEP B TESTOWY,00 0000 0000 0000 0000 0000 0010,\"-25,00\",\"10,00\",2,\n08-03-2026,08-03-2026,Przelew na rachunek w\u0142asny,FIRMA TESTOWA JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO WOJ. TESTOWE,00 0000 0000 0000 0000 0000 0002,\"100,00\",\"10,00\",3,\n08-03-2026,07-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 3.00 PLN SKLEP C TESTOWY,,,\"-3,00\",\"10,00\",4,\n06-03-2026,06-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 1.00 PLN SKLEP D TESTOWY,,,\"-1,00\",\"10,00\",5,\n",
+        "account": "$erste"
+      }
+    },
+    {
+      "comment": "8.10: every row is already imported.",
+      "op": "import.preview",
+      "outcome": "accepted",
+      "input": {
+        "session": "$second"
+      }
+    },
+    {
+      "op": "import.row",
+      "outcome": "accepted",
+      "input": {
+        "session": "$second",
+        "row": 1,
+        "include": true
+      }
+    },
+    {
+      "op": "import.defaults",
+      "outcome": "accepted",
+      "input": {
+        "session": "$second",
+        "expense": "$spending"
+      }
+    },
+    {
+      "comment": "Written under the next free occurrence.",
+      "op": "import.commit",
+      "outcome": "accepted",
+      "input": {
+        "session": "$second",
+        "confirmed": 1
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$erste"
+      }
+    },
+    {
+      "comment": "Row 3 is an outgoing own-account transfer: rejected.",
+      "op": "import.create",
+      "as": "flagged",
+      "outcome": "accepted",
+      "input": {
+        "csv": "2026-11-14,01-01-2026,'00 0000 0000 0000 0000 0000 0801,JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO,PLN,\"0,00\",\"50,00\",999,\n12-03-2026,10-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 7.10 PLN SKLEP A TESTOWY,,,\"-7,10\",\"10,00\",1,\n09-03-2026,09-03-2026,Zakup BLIK SKLEP B TESTOWY ref:00000000001,SKLEP B TESTOWY,00 0000 0000 0000 0000 0000 0010,\"-25,00\",\"10,00\",2,\n08-03-2026,08-03-2026,Przelew na rachunek w\u0142asny,FIRMA TESTOWA JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO WOJ. TESTOWE,00 0000 0000 0000 0000 0000 0002,\"-100,00\",\"10,00\",3,\n08-03-2026,07-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 3.00 PLN SKLEP C TESTOWY,,,\"-3,00\",\"10,00\",4,\n06-03-2026,06-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 1.00 PLN SKLEP D TESTOWY,,,\"-1,00\",\"10,00\",5,\n",
+        "account": "$erste"
+      }
+    },
+    {
+      "op": "import.preview",
+      "outcome": "accepted",
+      "input": {
+        "session": "$flagged"
+      }
+    },
+    {
+      "comment": "A rejected row takes no decision.",
+      "op": "import.row",
+      "outcome": "refused",
+      "input": {
+        "session": "$flagged",
+        "row": 3,
+        "note": "x"
+      }
+    },
+    {
+      "op": "import.discard",
+      "outcome": "accepted",
+      "input": {
+        "session": "$flagged"
+      }
+    },
+    {
+      "op": "import.discard",
+      "outcome": "refused",
+      "input": {
+        "session": "$flagged"
+      }
+    }
+  ]
+}
