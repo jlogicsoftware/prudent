@@ -3,4 +3,5 @@
 /// the Local app never links the harness.
 library;
 
+export 'src/parity/import_parity.dart';
 export 'src/parity/store_backend.dart';

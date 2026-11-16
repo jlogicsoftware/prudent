@@ -124,6 +124,13 @@ final class ServerBackend extends ParityBackend {
     'correction.create': _createCorrection,
     'correction.delete': _deleteCorrection,
     'settings.update': _updateSettings,
+    // Unit 8b, statement import (ADR-114): bodies and observations are ImportParity's, shared.
+    'import.create': _createImport,
+    'import.preview': _previewImport,
+    'import.defaults': _importDefaults,
+    'import.row': _importRow,
+    'import.commit': _commitImport,
+    'import.discard': _discardImport,
   };
 
   /// Nothing to set up: the session is the suite's, and a scenario's rows are its own (see
@@ -389,6 +396,61 @@ final class ServerBackend extends ParityBackend {
     return answer.observe(
       (body) =>
           StepResult(ParityObservation.accepted({'mainCurrency': _string(body, 'mainCurrency')})),
+    );
+  }
+
+  // ── Statement import (unit 8b) ──────────────────────────────────────────────────────────────
+
+  static const _imports = 'import-sessions';
+
+  Future<StepResult> _createImport(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', [_imports], ImportParity.createBody(input, bindings));
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(ImportParity.sessionObservation(body, bindings)),
+        createdId: _string(body, 'id'),
+      ),
+    );
+  }
+
+  Future<StepResult> _previewImport(Map<String, Object?> input, ParityBindings bindings) =>
+      _sessionStep(input, bindings, 'preview', ImportParity.previewBody(input, bindings));
+
+  Future<StepResult> _importDefaults(Map<String, Object?> input, ParityBindings bindings) =>
+      _sessionStep(input, bindings, 'defaults', ImportParity.defaultsBody(input, bindings));
+
+  Future<StepResult> _commitImport(Map<String, Object?> input, ParityBindings bindings) =>
+      _sessionStep(input, bindings, 'commit', ImportParity.commitBody(input));
+
+  Future<StepResult> _discardImport(Map<String, Object?> input, ParityBindings bindings) =>
+      _sessionStep(input, bindings, 'discard', const {});
+
+  Future<StepResult> _importRow(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', [
+      _imports,
+      ImportParity.session(input, bindings),
+      'rows',
+      '${ImportParity.rowNumber(input)}',
+    ], ImportParity.rowBody(input, bindings));
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ImportParity.rowDecisionObservation(body))),
+    );
+  }
+
+  Future<StepResult> _sessionStep(
+    Map<String, Object?> input,
+    ParityBindings bindings,
+    String phase,
+    Map<String, Object?> body,
+  ) async {
+    final answer = await _send('POST', [
+      _imports,
+      ImportParity.session(input, bindings),
+      phase,
+    ], body);
+    return answer.observe(
+      (json) =>
+          StepResult(ParityObservation.accepted(ImportParity.sessionObservation(json, bindings))),
     );
   }
 

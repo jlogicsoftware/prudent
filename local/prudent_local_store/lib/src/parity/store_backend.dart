@@ -5,6 +5,7 @@ import 'package:prudent_local_core/parity.dart';
 import 'package:prudent_local_core/prudent_local_core.dart';
 import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/imports.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/records.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart' as wire;
 import 'package:protobuf/protobuf.dart';
@@ -13,11 +14,14 @@ import 'package:zen_store/zen_store.dart';
 
 import '../../generated/prudent_local/v1/store.pb.dart';
 import '../derived_ids.dart';
+import '../imports/import_session_store.dart';
+import '../imports/import_workflow.dart';
 import '../ledger/ledger.dart';
 import '../ledger/ledger_errors.dart';
 import '../ledger/ledger_view.dart';
 import '../ledger/record_query.dart';
 import '../prudent_local_store.dart';
+import 'import_parity.dart';
 
 /// The local side of the parity suite (ADR-107, ADR-113): every parity operation answered by the
 /// [Ledger] over a real encrypted [ZenStore] in a temporary directory, one fresh store per scenario.
@@ -40,6 +44,8 @@ final class StoreBackend extends ParityBackend {
   ZenStore? _zen;
   late PrudentLocalStore _store;
   late Ledger _ledger;
+  ImportSessionStore? _sessions;
+  late ImportWorkflow _imports;
 
   @override
   late final Map<String, ParityOp> ops = {
@@ -66,20 +72,48 @@ final class StoreBackend extends ParityBackend {
     'settings.update': _guarded(_updateSettings),
     'budget.set': _guarded(_setBudget),
     'reset.create': _guarded(_createReset),
+    // Unit 8b, statement import (ADR-114).
+    'import.create': _guarded(_createImport),
+    'import.preview': _guarded(_previewImport),
+    'import.defaults': _guarded(_importDefaults),
+    'import.row': _guarded(_importRow),
+    'import.commit': _guarded(_commitImport),
+    'import.discard': _guarded(_discardImport),
   };
 
   @override
   Future<void> open(String scenarioName) async {
     final directory = await Directory.systemTemp.createTemp('prudent_parity_$scenarioName');
     _directory = directory;
-    final zen = _ok(await ZenStore.open(directory, deviceName: 'parity', key: List.filled(32, 7)));
+    final zen = _ok(
+      await ZenStore.open(
+        Directory('${directory.path}/ledger'),
+        deviceName: 'parity',
+        key: List.filled(32, 7),
+      ),
+    );
     _zen = zen;
     _store = PrudentLocalStore(zen);
     _ledger = Ledger(_store);
+    final sessions = _ok(
+      await ImportSessionStore.open(
+        Directory('${directory.path}/sessions'),
+        key: List.filled(32, 8),
+      ),
+    );
+    _sessions = sessions;
+    // The wall clock, as the server's: its importer measures dates from today in UTC.
+    _imports = ImportWorkflow(
+      ledger: _store,
+      sessions: sessions,
+      nowMs: () => DateTime.now().millisecondsSinceEpoch,
+    );
   }
 
   @override
   Future<void> close() async {
+    await _sessions?.close();
+    _sessions = null;
     await _zen?.close();
     await _directory?.delete(recursive: true);
     _zen = null;
@@ -386,6 +420,67 @@ final class StoreBackend extends ParityBackend {
     }
     return id;
   }
+
+  // ── Statement import (unit 8b) ──────────────────────────────────────────────────────────────
+
+  Future<StepResult> _createImport(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.CreateImportSessionRequest()
+      ..mergeFromProto3Json(ImportParity.createBody(input, bindings));
+    final session = _ok(await _imports.create(request));
+    return StepResult(
+      ParityObservation.accepted(ImportParity.sessionObservation(_json(session), bindings)),
+      createdId: session.id,
+    );
+  }
+
+  Future<StepResult> _previewImport(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.PreviewImportSessionRequest()
+      ..mergeFromProto3Json(ImportParity.previewBody(input, bindings));
+    return _session(
+      await _imports.preview(ImportParity.session(input, bindings), request),
+      bindings,
+    );
+  }
+
+  Future<StepResult> _importDefaults(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.SetImportDefaultsRequest()
+      ..mergeFromProto3Json(ImportParity.defaultsBody(input, bindings));
+    return _session(
+      await _imports.setDefaults(ImportParity.session(input, bindings), request),
+      bindings,
+    );
+  }
+
+  Future<StepResult> _importRow(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.UpdateImportRowRequest()
+      ..mergeFromProto3Json(ImportParity.rowBody(input, bindings));
+    final answer = _ok(
+      await _imports.updateRow(
+        ImportParity.session(input, bindings),
+        ImportParity.rowNumber(input),
+        request,
+      ),
+    );
+    return StepResult(
+      ParityObservation.accepted(ImportParity.rowDecisionObservation(_json(answer))),
+    );
+  }
+
+  Future<StepResult> _commitImport(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.CommitImportSessionRequest()
+      ..mergeFromProto3Json(ImportParity.commitBody(input));
+    return _session(
+      await _imports.commit(ImportParity.session(input, bindings), request),
+      bindings,
+    );
+  }
+
+  Future<StepResult> _discardImport(Map<String, Object?> input, ParityBindings bindings) async =>
+      _session(await _imports.discard(ImportParity.session(input, bindings)), bindings);
+
+  StepResult _session(ZenResult<wire.ImportSession> answer, ParityBindings bindings) => StepResult(
+    ParityObservation.accepted(ImportParity.sessionObservation(_json(_ok(answer)), bindings)),
+  );
 
   // ── Plumbing ────────────────────────────────────────────────────────────────────────────────
 
