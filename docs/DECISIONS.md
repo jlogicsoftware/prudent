@@ -48,7 +48,10 @@ ADR-101, ADR-102, ADR-105, ADR-106, ADR-107, ADR-109, ADR-111. **jZen:** consume
   opening is disputed (counted as zero), and `AccountBalances.unsettled` names what was left out. A conflict about anything else
   (note, title, category, date, display position) leaves the money agreed, and it is counted. A correction is refused (409) while
   its balance is unsettled — a delta from a guess would be wrong money. The record list still lists a disputed record as the store
-  shows it, because the person has to see what they settle. Flagging alone (counting the shown side) was rejected for the clock
+  shows it, because the person has to see what they settle. **The flag travels with the figure:** every ledger read that answers
+  balances (`getAccount`, `listAccounts`, `createAccount`, `updateAccount`) answers a `Settled<T>` — the wire message and, by
+  account, what its balances leave out — because the wire `Account` has no field for it and a bare wire figure would drop money
+  silently. The Local repository (unit 9) must show it beside the figure; the plan's unit 9 says so. Flagging alone (counting the shown side) was rejected for the clock
   reason; excluding without naming was rejected because a figure that silently drops money reads as settled.
 - **The default account is the settings record's one field** (ADR-102); creating, updating or deleting an account writes it in the
   same batch, and nothing is written when it does not change. An absent settings record reads as `PLN` and is not written by
@@ -106,7 +109,7 @@ ADR-101, ADR-102, ADR-105, ADR-106, ADR-107, ADR-109, ADR-111. **jZen:** consume
 
 ### Found, not fixed here
 
-- **The server answers 500 to an account update that reorders held currencies** (`PUT /api/v1/accounts/{id}` with `[EUR, PLN]` →
+- **The server answers 500 to an account update that reorders held currencies** (jlogicsoftware/prudent#261) (`PUT /api/v1/accounts/{id}` with `[EUR, PLN]` →
   `[PLN, EUR, …]`): Hibernate rewrites the `@OrderColumn` element collection in place and violates
   `prudent_account_balance_unique_currency` (SQLSTATE 23505) — row 5.5's "declared order is kept" holds only for appends and drops
   at the end. Local reorders fine. The parity scenarios do not reorder; a server fix is its own change.
@@ -131,6 +134,11 @@ four scenarios; a transfer leg not always a transfer: `record_list_filters`), an
 - `task` does not load from a git worktree (ADR-065): `task test:e2e`, `verify:contracts`, `verify:analyze`, `test:local-store`,
   `test:local-core` and `verify:golden` ran only as their underlying commands here (the parity half of `test:e2e` against a server
   built and started from this worktree, on port 8095), and run as tasks in CI. The client e2e half was not run.
+- All or nothing **across a power loss** rests on jZen's own journal tests for `writeAll` (jZenDev/jZen#232); there is no
+  Prudent-side test that kills the process in the middle of an account delete. The Prudent tests prove a refused operation writes
+  nothing.
+- Unit 5 reads plans, budgets and resets for its "still used by" refusals from the shown value only, not from conflict sides;
+  units 6a and 6b, which give those collections their rules, move them onto the ledger's helper (plan, unit 6a).
 - No device, no CloudKit, no screen: figures and issues reach no UI until unit 9. The interleaving behind jZenDev/jZen#251 is
   reasoned from the code, not reproduced.
 

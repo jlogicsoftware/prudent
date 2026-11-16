@@ -41,7 +41,7 @@ void main() {
           balances: [wire.CurrencyBalance(currency: 'PLN', amountMinor: Int64(10000))],
         ),
       ),
-    );
+    ).value;
     final category = Device.ok(
       await laptop.createCategory(wire.CreateCategoryRequest(title: 'Food', iconKey: 'food')),
     );
@@ -137,6 +137,17 @@ void main() {
         // Opening 100.00 and the undisputed tea only: neither 12.00 nor 18.00 is chosen by a clock.
         expect(f.minor, {'PLN': 9500});
         expect(f.unsettled, [r.id]);
+        // The flag rides on the path a repository reads: an account and the account list answer
+        // the balance together with what it leaves out, never the bare wire figure.
+        final account = Device.ok(await ledger.getAccount(l.account));
+        expect(account.value.balances.single.amountMinor.toInt(), 9500);
+        expect(account.isSettled, isFalse);
+        expect(account.unsettled, {
+          l.account: [r.id],
+        });
+        expect(Device.ok(await ledger.listAccounts()).unsettled, {
+          l.account: [r.id],
+        });
         // The list still shows the record, as the store shows it: a person has to see what they settle.
         expect(Device.ok(await ledger.listRecords()).records.map((x) => x.id), contains(r.id));
         // A correction would be a delta from a guess: refused on both devices.
@@ -157,6 +168,8 @@ void main() {
       Device.ok(await devices.phone.store.records.resolve(r.id, chosen.value));
       await devices.sync();
       for (final device in both()) {
+        expect(Device.ok(await device.listAccounts()).isSettled, isTrue);
+        expect(Device.ok(await device.getAccount(l.account)).unsettled, isEmpty);
         final f = await figures(device, l.account);
         expect(f.minor, {'PLN': 8300});
         expect(f.unsettled, <String>[]);
@@ -244,7 +257,7 @@ void main() {
           balances: [wire.CurrencyBalance(currency: 'PLN')],
         ),
       ),
-    );
+    ).value;
     await devices.sync();
 
     Device.ok(await laptop.deleteAccount(l.account, deleteRecords: true));

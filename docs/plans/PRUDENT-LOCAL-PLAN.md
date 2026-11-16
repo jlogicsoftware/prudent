@@ -174,7 +174,7 @@ and to a JVM table of every code point's fold (the Dart VM's `toLowerCase` diffe
 (`CorrectionIntent.seen_corrections`); `StoreBackend`, which replaced unit 3's in-memory parity backend; parity scenarios
 `ledger_records`, `ledger_transfers`, `ledger_corrections`, `ledger_accounts`, `ledger_categories`, `ledger_settings`,
 `record_list_filters`, `record_list_order`. Filed jZenDev/jZen#251 (no write precondition). Found: the server answers 500 to an
-account update that reorders held currencies (row 5.5; a server fix of its own).
+account update that reorders held currencies (row 5.5; jlogicsoftware/prudent#261).
 Categories move here from unit 6, because a record is refused by its category's kind and archived
 flag (finding F-01). Balances derived; a transfer as one immutable record (ADR-102), shown as two legs; corrections; archive. Row-level security has no local
 meaning (one person per store) and is recorded as such. **Done when:** parity scenarios for every
@@ -196,6 +196,11 @@ the goal, envelope-history, budget and reset list filters and orders (parity sce
 `budget_lists`). **jZen:** the goal status time merges in the store by jZenDev/jZen#235's policy (declared in
 unit 4); a reset's revocation is a group and stays a conflict until jZenDev/jZen#244. **Done when:** parity
 scenarios cover each and the figures match the server's to the cent.
+**From unit 5 (ADR-113):** every "still used by" refusal and every figure reads plans, budgets and resets the way the ledger
+reads records — with the sides of a conflict (`LedgerView.recordValues` is the pattern) and leaving out of a figure what two
+devices disagree about, answered as `Settled` so the flag travels with the figure. Unit 5's own reads of plans in
+`deleteAccount`, `updateAccount` and `deleteCategory` read only the shown value, because plans have no rules yet; 6a and 6b move
+them onto the same helper.
 
 ### Unit 6b — Plans, occurrences, reminders
 Plans with their recurrence and reminder, occurrences by derived id (completion derived from the
@@ -244,6 +249,9 @@ erasure of this device's data. **Done when:** widget, integration and a11y suite
 threat model (ADR-100) has a test or a written refusal for every row. Rows that change when jZen lands:
 rekey (jZenDev/jZen#237), erase everywhere (jZenDev/jZen#239), screen-capture protection
 (jZenDev/jZen#240).
+**Also done when** (ADR-113): every balance the screens show from the Local repository comes with the `Settled.unsettled` of
+the `Ledger` answer behind it, and a figure that leaves something out says so on screen, beside the figure, in all three
+languages, with a widget test that syncs a disputed amount and finds the words — never a bare number.
 
 ### Unit 10a — The server export carries import fingerprints and saves to a file
 Server-side, contract-first, before the import: add the import fingerprint and occurrence (ADR-091) to

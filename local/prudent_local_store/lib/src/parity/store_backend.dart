@@ -15,6 +15,7 @@ import '../../generated/prudent_local/v1/store.pb.dart';
 import '../derived_ids.dart';
 import '../ledger/ledger.dart';
 import '../ledger/ledger_errors.dart';
+import '../ledger/ledger_view.dart';
 import '../ledger/record_query.dart';
 import '../prudent_local_store.dart';
 
@@ -89,7 +90,7 @@ final class StoreBackend extends ParityBackend {
 
   Future<StepResult> _createAccount(Map<String, Object?> input, ParityBindings bindings) async {
     final request = wire.CreateAccountRequest()..mergeFromProto3Json(input);
-    final account = _ok(await _ledger.createAccount(request));
+    final account = _settled(_ok(await _ledger.createAccount(request)));
     final json = _json(account);
     return StepResult(
       ParityObservation.accepted({
@@ -102,20 +103,22 @@ final class StoreBackend extends ParityBackend {
   }
 
   Future<StepResult> _balances(Map<String, Object?> input, ParityBindings bindings) async {
-    final account = _ok(await _ledger.getAccount(bindings.resolve(input['account'])));
+    final account = _settled(_ok(await _ledger.getAccount(bindings.resolve(input['account']))));
     return StepResult(ParityObservation.accepted({'balances': _balanceMap(_json(account))}));
   }
 
   Future<StepResult> _getAccount(Map<String, Object?> input, ParityBindings bindings) async {
-    final account = _ok(await _ledger.getAccount(bindings.idOrLiteral(input['account'])!));
+    final account = _settled(
+      _ok(await _ledger.getAccount(bindings.idOrLiteral(input['account'])!)),
+    );
     return StepResult(ParityObservation.accepted(ParityReaders.account(_json(account))));
   }
 
   Future<StepResult> _updateAccount(Map<String, Object?> input, ParityBindings bindings) async {
     final body = Map<String, Object?>.of(input)..remove('account');
     final request = wire.UpdateAccountRequest()..mergeFromProto3Json(body);
-    final account = _ok(
-      await _ledger.updateAccount(bindings.idOrLiteral(input['account'])!, request),
+    final account = _settled(
+      _ok(await _ledger.updateAccount(bindings.idOrLiteral(input['account'])!, request)),
     );
     return StepResult(ParityObservation.accepted(ParityReaders.account(_json(account))));
   }
@@ -131,7 +134,7 @@ final class StoreBackend extends ParityBackend {
   }
 
   Future<StepResult> _listAccounts(Map<String, Object?> input, ParityBindings bindings) async {
-    final list = _ok(await _ledger.listAccounts());
+    final list = _settled(_ok(await _ledger.listAccounts()));
     final rows = (_json(list)['accounts'] as List<Object?>?) ?? const [];
     return StepResult(
       ParityObservation.accepted({'accounts': ParityReaders.boundNames(rows, bindings)}),
@@ -407,6 +410,13 @@ final class StoreBackend extends ParityBackend {
       null => throw StateError('the store failed: ${error.runtimeType}: ${error.message}'),
     },
   };
+
+  /// One store, one device: nothing can be in conflict, so a figure that leaves something out is a
+  /// bug, never a value to compare.
+  static T _settled<T>(Settled<T> answer) {
+    if (!answer.isSettled) throw StateError('a parity figure left out ${answer.unsettled}');
+    return answer.value;
+  }
 
   static Map<String, Object?> _json(GeneratedMessage message) =>
       message.toProto3Json() as Map<String, Object?>;

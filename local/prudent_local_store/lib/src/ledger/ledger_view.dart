@@ -40,6 +40,26 @@ final class AccountBalances {
   const AccountBalances(this.minor, this.unsettled);
 }
 
+/// A wire answer that carries a derived figure, together with what that figure leaves out
+/// (ADR-113). The wire `Account.balances` has no room to say "this leaves out a record two devices
+/// disagree about", and a balance that silently drops money reads as settled; so every ledger read
+/// that answers balances answers this, and the caller cannot reach [value] without passing the
+/// place where [unsettled] sits. The Local app (unit 9) shows it beside the figure.
+@immutable
+final class Settled<T> {
+  /// The wire answer, its figures computed from settled values only.
+  final T value;
+
+  /// By account id, the records, transfers and account currencies its balances leave out, sorted;
+  /// an account with nothing left out is absent.
+  final Map<String, List<String>> unsettled;
+
+  const Settled(this.value, this.unsettled);
+
+  /// Whether every figure in [value] is settled.
+  bool get isSettled => unsettled.isEmpty;
+}
+
 /// The ledger's records read once, with what the store holds in conflict, so every figure of one
 /// answer is computed from one state.
 ///

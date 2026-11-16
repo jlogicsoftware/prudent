@@ -62,7 +62,7 @@ void main() {
         ],
       ),
     ),
-  );
+  ).value;
 
   Future<wire.Category> category({
     String title = 'Groceries',
@@ -94,7 +94,7 @@ void main() {
   };
 
   Future<Map<String, int>> balanceOf(String accountId) async =>
-      balances(Device.ok(await ledger.getAccount(accountId)));
+      balances(Device.ok(await ledger.getAccount(accountId)).value);
 
   group('accounts', () {
     test(
@@ -165,8 +165,8 @@ void main() {
       final a = await account(name: 'A', isDefault: true);
       final b = await account(name: 'B', isDefault: true);
       expect(Device.ok(store.settings.get(DerivedIds.settings)).defaultAccountId, b.id);
-      expect(Device.ok(await ledger.getAccount(a.id)).isDefault, isFalse);
-      expect(Device.ok(await ledger.getAccount(b.id)).isDefault, isTrue);
+      expect(Device.ok(await ledger.getAccount(a.id)).value.isDefault, isFalse);
+      expect(Device.ok(await ledger.getAccount(b.id)).value.isDefault, isTrue);
     });
 
     test('5.9: one account number per person, whatever its spelling (409)', () async {
@@ -224,7 +224,8 @@ void main() {
           ),
         );
         expect(refused(await ledger.updateAccount(a.id, keep(['PLN', 'USD']))), (409, '5.7'));
-        final updated = Device.ok(await ledger.updateAccount(a.id, keep(['USD', 'EUR', 'PLN'])));
+        final updated = Device.ok(await ledger.updateAccount(a.id, keep(['USD', 'EUR', 'PLN'])))
+            .value;
         expect([for (final b in updated.balances) b.currency], ['USD', 'EUR', 'PLN']);
       },
     );
@@ -343,7 +344,7 @@ void main() {
       for (final name in ['Zupa', 'Łazienka', 'Lato', 'mleko', 'Mleko']) {
         await account(name: name);
       }
-      final names = [for (final a in Device.ok(await ledger.listAccounts()).accounts) a.name];
+      final names = [for (final a in Device.ok(await ledger.listAccounts()).value.accounts) a.name];
       expect(names, ['Lato', 'Łazienka', 'Mleko', 'mleko', 'Zupa']);
     });
 
@@ -818,7 +819,7 @@ void main() {
       () async {
         final a = await account(isDefault: true);
         Device.ok(await ledger.updateSettings(wire.UpdateSettingsRequest(mainCurrency: 'EUR')));
-        expect(Device.ok(await ledger.getAccount(a.id)).isDefault, isTrue);
+        expect(Device.ok(await ledger.getAccount(a.id)).value.isDefault, isTrue);
       },
     );
   });
@@ -868,6 +869,23 @@ void main() {
       ));
       expect(refused(await ledger.listRecords(const RecordQuery(accountId: 'x'))), (400, '5.46'));
     });
+
+    test(
+      'a stored date that does not parse is a storage error naming the record, not a 400',
+      () async {
+        final a = await account();
+        final c = await category();
+        final r = Device.ok(await ledger.createRecord(recordRequest(a.id, c.id)));
+        // Only a write that skipped the ledger can leave this behind.
+        Device.ok(
+          await store.putRecord(Device.ok(store.records.get(r.id)).deepCopy()..date = '2026-13-01'),
+        );
+        final result = await ledger.listRecords();
+        expect(result.errorOrNull, isA<ZenStorageError>());
+        expect(result.errorOrNull!.message, contains(r.id));
+        expect(LedgerErrors.statusOf(result.errorOrNull!), isNull);
+      },
+    );
 
     test(
       'an amount bound on a row of Long.MIN_VALUE fails as Postgres abs() does, never wraps',

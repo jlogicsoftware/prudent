@@ -284,11 +284,11 @@ category, record, transfer, correction and settings rule of §0.3 rows 5.1–5.5
 shaped as the server's (`LedgerErrors`). Several records are written as one only through jZen's `ZenStore.writeAll`
 (`PrudentLocalStore.writeAll(StoreBatch)`, jZenDev/jZen#232 at `JZEN_REF` `e6a06c6`), so an account deleted with its records is
 all or nothing. A figure never reads a value two devices disagree about: a disputed posting, transfer or opening counts in no
-balance and is named (`AccountBalances.unsettled`), and a correction is refused until it is settled. Search and name order are the
+balance and is named on every read that answers a balance (`Settled<T>`, `AccountBalances.unsettled`), and a correction is refused until it is settled. Search and name order are the
 core's `SearchRules`, whose fold is a table from the JVM (`golden/fold.json`; the Dart VM's `toLowerCase` differs on 437 code
 points). `CorrectionIntent.seen_corrections` feeds the `correction.made_apart` check. The parity suite's local side is
 `StoreBackend` (`package:prudent_local_store/parity.dart`); thirteen scenarios agree with the live server. Open: jZenDev/jZen#251
-(no write precondition), and the server's 500 on an account update that reorders currencies. No Local app or screen exists yet.
+(no write precondition), and the server's 500 on an account update that reorders currencies (jlogicsoftware/prudent#261). No Local app or screen exists yet.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

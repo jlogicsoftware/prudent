@@ -64,6 +64,11 @@ final class CorrectionIntentCheck implements IntegrityCheck {
   }
 
   /// The groups of corrections joined by "neither saw the other", each of two or more.
+  ///
+  /// **Transitive on purpose.** A and C may have seen each other while B saw neither: B was made
+  /// apart from both, so all three are one question about one balance, and one issue. Splitting it
+  /// into pairwise issues would offer "replace A and B by one correction" while C still changes the
+  /// same balance — an answer that leaves the balance wrong. Do not "fix" this into pairs.
   static List<List<Record>> _madeApart(List<Record> corrections) {
     bool apart(Record a, Record b) =>
         !a.correction.seenCorrections.contains(b.id) &&

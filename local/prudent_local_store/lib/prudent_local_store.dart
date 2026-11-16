@@ -24,7 +24,7 @@ export 'src/integrity/integrity_runner.dart';
 export 'src/integrity/store_snapshot.dart';
 export 'src/ledger/ledger.dart';
 export 'src/ledger/ledger_errors.dart';
-export 'src/ledger/ledger_view.dart' show AccountBalances;
+export 'src/ledger/ledger_view.dart' show AccountBalances, Settled;
 export 'src/ledger/record_query.dart';
 export 'src/prudent_local_store.dart';
 export 'src/wire_mapper.dart';

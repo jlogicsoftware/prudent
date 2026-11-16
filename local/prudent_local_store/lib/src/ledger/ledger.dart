@@ -5,6 +5,7 @@ import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/records.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart' as wire;
 import 'package:zen_core/zen_core.dart';
+import 'package:zen_store/zen_store.dart' show ZenStorageError;
 
 import '../../generated/prudent_local/v1/store.pb.dart';
 import '../derived_ids.dart';
@@ -47,17 +48,23 @@ final class Ledger {
 
   // ── Accounts ────────────────────────────────────────────────────────────────────────────────
 
-  /// Every account in name order (`TextRules.compareNames`, row 5.51).
-  Future<ZenResult<wire.ListAccountsResponse>> listAccounts() => _run(() async {
+  /// Every account in name order (`TextRules.compareNames`, row 5.51), with what each one's
+  /// balances leave out while two devices disagree (ADR-113).
+  Future<ZenResult<Settled<wire.ListAccountsResponse>>> listAccounts() => _run(() async {
     final view = LedgerView.read(store);
     final accounts = view.accounts.values.toList()
       ..sort((a, b) => SearchRules.compareNames(a.name, a.id, b.name, b.id));
-    return wire.ListAccountsResponse(accounts: [for (final a in accounts) _accountWire(view, a)]);
+    return Settled(
+      wire.ListAccountsResponse(accounts: [for (final a in accounts) _accountWire(view, a)]),
+      _unsettled(view, accounts),
+    );
   });
 
-  Future<ZenResult<wire.Account>> getAccount(String id) => _run(() async {
+  /// One account, with what its balances leave out while two devices disagree (ADR-113).
+  Future<ZenResult<Settled<wire.Account>>> getAccount(String id) => _run(() async {
     final view = LedgerView.read(store);
-    return _accountWire(view, _requireAccount(view, id));
+    final account = _requireAccount(view, id);
+    return Settled(_accountWire(view, account), _unsettled(view, [account]));
   });
 
   /// The balances of account [id] and what they leave out while two devices disagree (ADR-113).
@@ -68,7 +75,7 @@ final class Ledger {
 
   /// `AccountResource.create`: name, type, account number, then the currencies (rows 5.1–5.5, 5.9,
   /// 5.13), written with the account's currencies and the default setting as one.
-  Future<ZenResult<wire.Account>> createAccount(wire.CreateAccountRequest request) =>
+  Future<ZenResult<Settled<wire.Account>>> createAccount(wire.CreateAccountRequest request) =>
       _run(() async {
         final view = LedgerView.read(store);
         final id = store.newId();
@@ -88,44 +95,46 @@ final class Ledger {
         _putCurrencies(batch, view, id, openings);
         _applyDefault(batch, view, id, request.isDefault);
         await _write(store.writeAll(batch));
-        return _accountWire(LedgerView.read(store), readOrThrow(store.accounts.get(id)));
+        return _settledAccount(id);
       });
 
   /// `AccountResource.replace`: a full replacement. A currency still used by a record, a transfer or
   /// a plan cannot be dropped (rows 5.6, 5.7); a dropped currency's opening record is deleted with
   /// the change, in one write.
-  Future<ZenResult<wire.Account>> updateAccount(String id, wire.UpdateAccountRequest request) =>
-      _run(() async {
-        final view = LedgerView.read(store);
-        final current = _requireAccount(view, id);
-        final account = _account(
-          view,
-          current.id,
-          name: request.name,
-          type: request.type,
-          isActive: request.isActive,
-          includeInTotal: request.includeInTotal,
-          includeInOverview: request.includeInOverview,
-          eligibleForGoals: request.eligibleForGoals,
-          accountNumber: request.accountNumber,
-        );
-        final openings = _openings(
-          request.balances,
-          inUse: _currenciesInUse(view, current.id),
-          planned: {
-            for (final p in view.plans.values)
-              if (p.posting.accountId == current.id) p.posting.currency,
-          },
-        );
-        final batch = StoreBatch(store)..putAccount(account);
-        _putCurrencies(batch, view, current.id, openings);
-        for (final held in view.currenciesOf(current.id)) {
-          if (!openings.containsKey(held.currency)) batch.deleteAccountCurrency(held.id);
-        }
-        _applyDefault(batch, view, current.id, request.isDefault);
-        await _write(store.writeAll(batch));
-        return _accountWire(LedgerView.read(store), readOrThrow(store.accounts.get(current.id)));
-      });
+  Future<ZenResult<Settled<wire.Account>>> updateAccount(
+    String id,
+    wire.UpdateAccountRequest request,
+  ) => _run(() async {
+    final view = LedgerView.read(store);
+    final current = _requireAccount(view, id);
+    final account = _account(
+      view,
+      current.id,
+      name: request.name,
+      type: request.type,
+      isActive: request.isActive,
+      includeInTotal: request.includeInTotal,
+      includeInOverview: request.includeInOverview,
+      eligibleForGoals: request.eligibleForGoals,
+      accountNumber: request.accountNumber,
+    );
+    final openings = _openings(
+      request.balances,
+      inUse: _currenciesInUse(view, current.id),
+      planned: {
+        for (final p in view.plans.values)
+          if (p.posting.accountId == current.id) p.posting.currency,
+      },
+    );
+    final batch = StoreBatch(store)..putAccount(account);
+    _putCurrencies(batch, view, current.id, openings);
+    for (final held in view.currenciesOf(current.id)) {
+      if (!openings.containsKey(held.currency)) batch.deleteAccountCurrency(held.id);
+    }
+    _applyDefault(batch, view, current.id, request.isDefault);
+    await _write(store.writeAll(batch));
+    return _settledAccount(current.id);
+  });
 
   /// `AccountResource.delete` (rows 5.10–5.12, 5.53). Without [deleteRecords] an account with any
   /// record, correction or transfer is refused (409). A plan refuses either way, checked before
@@ -320,13 +329,14 @@ final class Ledger {
     }
     final view = LedgerView.read(store);
     final rows = <(CivilDate, wire.Record)>[
-      for (final r in view.records.values) (CivilDate.parse(r.date), WireMapper.recordToWire(r)),
+      for (final r in view.records.values)
+        (_storedDate('records', r.id, r.date), WireMapper.recordToWire(r)),
       for (final t in view.transfers.values)
         for (final leg in [
           WireMapper.transferToWire(t).fromRecord,
           WireMapper.transferToWire(t).toRecord,
         ])
-          (CivilDate.parse(t.date), leg),
+          (_storedDate('transfers', t.id, t.date), leg),
     ];
     bool keep((CivilDate, wire.Record) row) {
       final (date, r) = row;
@@ -704,6 +714,18 @@ final class Ledger {
     batch.putSettings(next);
   }
 
+  /// The account [id] as written, read back with its figures and what they leave out.
+  Settled<wire.Account> _settledAccount(String id) {
+    final view = LedgerView.read(store);
+    final account = readOrThrow(store.accounts.get(id));
+    return Settled(_accountWire(view, account), _unsettled(view, [account]));
+  }
+
+  static Map<String, List<String>> _unsettled(LedgerView view, Iterable<Account> accounts) => {
+    for (final a in accounts)
+      if (view.balancesOf(a.id).unsettled case final ids when ids.isNotEmpty) a.id: ids,
+  };
+
   wire.Account _accountWire(LedgerView view, Account account) => WireMapper.accountToWire(
     account,
     currencies: view.currenciesOf(account.id),
@@ -881,6 +903,13 @@ final class Ledger {
     if (date == null) throw Refusal.invalid(rule, 'Not an ISO-8601 date. Expected YYYY-MM-DD.');
     return date;
   }
+
+  /// The date a stored record holds. Every write path parses it, so one that does not parse was not
+  /// written by this ledger: that is a storage failure, answered as the store's kind of error and
+  /// naming the record, never a 400 that tells every caller they asked for something wrong.
+  static CivilDate _storedDate(String collection, String id, String date) =>
+      CivilDate.tryParse(date) ??
+      (throw LedgerReadFailure(ZenStorageError('$collection/$id holds a date that is not one.')));
 
   /// A list filter's date: blank is no filter, anything else must parse (row 5.46).
   static CivilDate? _optionalDate(String? text) {
