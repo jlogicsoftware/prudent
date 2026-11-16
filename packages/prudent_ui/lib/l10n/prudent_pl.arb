@@ -299,6 +299,7 @@
   "privacyExportSaveAction": "Zapisz do pliku",
   "privacyExportSaveWarning": "Plik nie jest zaszyfrowany. Zawiera wszystkie Twoje finanse zwykłym tekstem, więc przeczyta je każdy, kto go zdobędzie. Trzymaj go w prywatnym miejscu i usuń, gdy już go użyjesz.",
   "privacyExportSaveDone": "Twoje dane zostały zapisane. Plik nie jest zaszyfrowany: usuń go, gdy już go użyjesz.",
+  "privacyExportDownloadDone": "Twoje dane zostały przekazane do pobranych plików przeglądarki. Plik nie jest zaszyfrowany: usuń go, gdy już go użyjesz.",
   "privacyExportSaveFailed": "Nie udało się zapisać pliku. Spróbuj ponownie lub wybierz inne miejsce.",
   "privacyExportCopyWarning": "Schowek jest współdzielony z innymi aplikacjami, a na niektórych urządzeniach także z Twoimi innymi urządzeniami.",
   "privacyEraseAction": "Usuń moje dane",

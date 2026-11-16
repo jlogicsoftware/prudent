@@ -160,13 +160,13 @@ into Local), ADR-108 (the shared package). (ADR-109 is the boundaries PR.)
   repeats the deletion advice.
 - **iOS and Android get no "Save to a file" yet.** `file_selector_ios` and `file_selector_android` implement no save location and the framework has no
   save-file capability, so the button is absent there (`exportFileSavingSupportedProvider`, `!zenIsMobile`) and only the copy is offered. Hand-rolling a
-  plugin choice is what CLAUDE.md forbids; the gap is recorded in `docs/jzen/README.md` with proposed issue text, and the mobile half of unit 10a waits for
+  plugin choice is what CLAUDE.md forbids; the gap is jZen's (nothing under jZen's `client/` saves or shares a file, checked before filing) and is reported as jZenDev/jZen#247 and listed in `docs/jzen/README.md`, and the mobile half of unit 10a waits for
   it (a phone user with a server account cannot move to Local by file until then).
 - **The clipboard copy stays in the server-connected app.** T14 refuses the clipboard as the *Local* app's export channel; the server app's copy is a
   convenience the person already has, and removing it would take away the only export on a phone. It now carries its own sentence saying the clipboard is
   shared with other apps and, on some devices, with the person's other devices, and the Local app never reads an export from it (ADR-103).
 - **Save failures are shown, never swallowed:** a refused write shows "The file could not be saved" and logs the exception; a cancelled panel says nothing,
-  because nothing was asked for.
+  because nothing was asked for. The busy state is reset in a `finally`, so an `Error` the handlers do not catch (an `UnimplementedError` from a platform without a save panel) still propagates, as an unhandled error, without leaving the button spinning. On the web the browser decides where the file goes and the app cannot tell whether it was kept, so the confirmation says it was handed to the browser's downloads, not that it was saved.
 
 ### Consequence
 

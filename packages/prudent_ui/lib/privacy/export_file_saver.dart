@@ -43,3 +43,8 @@ final exportFileSaverProvider = Provider<ExportFileSaver>((ref) => saveExportFil
 /// Whether this platform can save the export to a file. False on iOS and Android, where the
 /// clipboard copy is the only way out until the framework gains a save-file capability.
 final exportFileSavingSupportedProvider = Provider<bool>((ref) => !zenIsMobile);
+
+/// Whether [saveExportFile] hands the file to the browser's downloads rather than to a place the
+/// person chose (the web). It only changes the wording of the confirmation: the browser does not say
+/// where the file went, so the app cannot claim it was saved somewhere.
+final exportFileSavedByDownloadProvider = Provider<bool>((ref) => kIsWeb);

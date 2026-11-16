@@ -1,6 +1,7 @@
 // The privacy screen (M0, jlogicsoftware/prudent#48): what Prudent keeps, a copy of it, and the
 // two-step deletion. Driven through the real PrudentRepository over a mock HTTP server, so the
 // requests it sends are the ones asserted.
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:material_ui/material_ui.dart';
@@ -98,8 +99,10 @@ void main() {
   late List<({String name, Uint8List bytes})> saved;
   bool cancelSave = false;
   bool failSave = false;
+  Object? throwOnSave;
+  bool byDownload = false;
 
-  Future<void> pump(WidgetTester tester, {bool canSave = true}) async {
+  Future<void> pump(WidgetTester tester, {bool canSave = true, bool download = false}) async {
     identity = _Identity();
     erased = [];
     copied = null;
@@ -111,6 +114,8 @@ void main() {
     saved = [];
     cancelSave = false;
     failSave = false;
+    throwOnSave = null;
+    byDownload = download;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (
       call,
     ) async {
@@ -155,7 +160,9 @@ void main() {
           identityRepositoryProvider.overrideWithValue(identity),
           identitySettingsSession,
           exportFileSavingSupportedProvider.overrideWithValue(canSave),
+          exportFileSavedByDownloadProvider.overrideWithValue(byDownload),
           exportFileSaverProvider.overrideWithValue((name, bytes) async {
+            if (throwOnSave != null) throw throwOnSave!;
             if (failSave) throw const FormatException('disk refused');
             if (cancelSave) return false;
             saved.add((name: name, bytes: bytes));
@@ -250,6 +257,34 @@ void main() {
     await tester.tap(button('Save to a file'));
     await tester.pumpAndSettle();
     expect(find.textContaining('could not be saved'), findsOneWidget);
+  });
+
+  testWidgets('an Error from the platform still stops the spinner; the screen stays usable', (
+    tester,
+  ) async {
+    await pump(tester);
+
+    throwOnSave = UnimplementedError('no save location here');
+    // The handler's future is not awaited by anyone, so the Error surfaces as an uncaught async
+    // error: it is not swallowed here, and the zone below is how the test sees it.
+    final uncaught = <Object>[];
+    await runZonedGuarded(() async {
+      await tester.tap(button('Save to a file'));
+      await tester.pump();
+    }, (error, stack) => uncaught.add(error));
+    await tester.pumpAndSettle();
+    expect(uncaught.single, isA<UnimplementedError>());
+    expect(tester.widget<ZenButton>(button('Save to a file')).isLoading, isFalse);
+    expect(tester.widget<ZenButton>(button('Copy my data')).isLoading, isFalse);
+  });
+
+  testWidgets('on the web the confirmation says downloaded, not saved', (tester) async {
+    await pump(tester, download: true);
+
+    await tester.tap(button('Save to a file'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining("handed to your browser's downloads"), findsOneWidget);
+    expect(find.textContaining('Your data was saved'), findsNothing);
   });
 
   testWidgets('where no file can be saved only the copy is offered, still with its warning', (

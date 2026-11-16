@@ -374,6 +374,7 @@
   "privacyExportSaveAction": "Save to a file",
   "privacyExportSaveWarning": "The file is not encrypted. It holds all of your finances in plain text, so anyone who gets it can read them. Keep it somewhere private and delete it when you have used it.",
   "privacyExportSaveDone": "Your data was saved. The file is not encrypted: delete it when you have used it.",
+  "privacyExportDownloadDone": "Your data was handed to your browser's downloads. The file is not encrypted: delete it when you have used it.",
   "privacyExportSaveFailed": "The file could not be saved. Try again, or choose another place.",
   "privacyExportCopyWarning": "The clipboard is shared with other apps and, on some devices, with your other devices.",
   "privacyEraseAction": "Delete my data",

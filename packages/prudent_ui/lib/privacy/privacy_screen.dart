@@ -39,9 +39,12 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
       message = t.privacyExportDone;
     } on ZenError catch (error) {
       message = error.message.isEmpty ? t.privacyExportFailed : error.message;
+    } finally {
+      // Whatever was thrown, the button stops spinning; an Error that is not handled above still
+      // propagates after this.
+      if (mounted) setState(() => _exporting = false);
     }
     if (!mounted) return;
-    setState(() => _exporting = false);
     showZenMessage(context, message);
   }
 
@@ -51,16 +54,21 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
     try {
       final file = await ref.read(privacyActionsProvider).exportFile();
       final saved = await ref.read(exportFileSaverProvider)(file.name, file.bytes);
-      message = saved ? t.privacyExportSaveDone : null;
+      // A browser download is not a save the person chose the place of, so it is worded as one.
+      final byDownload = ref.read(exportFileSavedByDownloadProvider);
+      message = !saved
+          ? null
+          : (byDownload ? t.privacyExportDownloadDone : t.privacyExportSaveDone);
     } on ZenError catch (error) {
       message = error.message.isEmpty ? t.privacyExportFailed : error.message;
     } on Exception catch (error, stack) {
       // The platform refused the write. Say so; the details go to the log, not the screen.
       developer.log('saving the export failed', error: error, stackTrace: stack);
       message = t.privacyExportSaveFailed;
+    } finally {
+      if (mounted) setState(() => _exporting = false);
     }
     if (!mounted) return;
-    setState(() => _exporting = false);
     if (message != null) showZenMessage(context, message);
   }
 
