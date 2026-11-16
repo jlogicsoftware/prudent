@@ -165,11 +165,22 @@ for units 3 and 5 to consume. ADR-106. **Must land before unit 5.** It is user-v
 (search no longer treats `%`/`_` as wildcards; lists may reorder once).
 
 ### Unit 5 — Ledger: accounts, records, transfers, corrections, categories, settings
+**Built: ADR-113** — `Ledger` in `local/prudent_local_store` (`lib/src/ledger/`): every rule of §0.3 rows 5.1–5.53 over the store,
+wire requests in and wire messages out; derived balances that never read a value two devices disagree about (a disputed record,
+transfer or opening counts in no figure and is named, and a correction is refused until it is settled); multi-record writes only
+through jZen's `ZenStore.writeAll` (jZenDev/jZen#232, consumed at `e6a06c6`), so an account deleted with its records is all or
+nothing and no resumable delete exists; `SearchRules` (search fold, `compareNames`) in the core, held to the server's vector files
+and to a JVM table of every code point's fold (the Dart VM's `toLowerCase` differs on 437); the correction-intent integrity check
+(`CorrectionIntent.seen_corrections`); `StoreBackend`, which replaced unit 3's in-memory parity backend; parity scenarios
+`ledger_records`, `ledger_transfers`, `ledger_corrections`, `ledger_accounts`, `ledger_categories`, `ledger_settings`,
+`record_list_filters`, `record_list_order`. Filed jZenDev/jZen#251 (no write precondition). Found: the server answers 500 to an
+account update that reorders held currencies (row 5.5; a server fix of its own).
 Categories move here from unit 6, because a record is refused by its category's kind and archived
 flag (finding F-01). Balances derived; a transfer as one immutable record (ADR-102), shown as two legs; corrections; archive. Row-level security has no local
 meaning (one person per store) and is recorded as such. **Done when:** parity scenarios for every
-balance-changing path pass, and the account deleted with its records (ADR-081), whose all-or-nothing **waits on
-jZenDev/jZen#232** (until then a resumable delete and integrity issues for what remains).
+balance-changing path pass, and the account deleted with its records (ADR-081), all or nothing through
+jZenDev/jZen#232's `ZenStore.writeAll` (merged and consumed; the interim "resumable delete" this line once allowed is withdrawn
+and was never built, ADR-113).
 **List and filter semantics** (phase-0 §0.3 rows 5.46–5.53): the record list's date, account, category,
 `type`, `abs(amount)` range and search filters and its `date desc, id` order, answered over transfers
 **expanded into their two legs first**, so `type=transfer` and an amount range behave per leg as on the
@@ -304,7 +315,7 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | Issue | What | Units |
 |---|---|---|
 | jZenDev/jZen#231 | device verification of jZen Local | 12 (release gate); ADR-100 rows marked #231 |
-| jZenDev/jZen#232 | multi-record write | 5, 8b |
+| jZenDev/jZen#232 | multi-record write — **merged (PR #248, jZen `e6a06c6`: `ZenStore.writeAll`), consumed by unit 5** | 5, 8b |
 | jZenDev/jZen#233 | application issues beside conflicts — **merged (PR #242), consumed by unit 4** | 4, 9 |
 | jZenDev/jZen#234 | settle many conflicts at once | 8b |
 | jZenDev/jZen#235 | intent-preserving per-field merge policy — **merged (PR #241), consumed by unit 4** | 4, 6a, 6b |
@@ -316,6 +327,7 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | jZenDev/jZen#244 | a merge policy over a group (a reset's revocation: who and when) | 4, 6a |
 | jZenDev/jZen#245 | a proto3 field set to its default differs from an unset one in the merge | 4, 5 (every write path) |
 | jZenDev/jZen#246 | save-file capability on iOS and Android | 10a (mobile half) |
+| jZenDev/jZen#251 | a write precondition, so a rule checked before a write holds when it runs (an edit cannot resurrect a record a sync just deleted) | 4, 5, 6a, 6b, 8b (every write path) |
 
 None blocks starting a unit; each is a stated limitation of that unit until it lands and is consumed.
 

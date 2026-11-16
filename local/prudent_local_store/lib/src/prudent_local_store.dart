@@ -77,19 +77,12 @@ final class PrudentLocalStore {
 
   // ── Accounts ────────────────────────────────────────────────────────────────────────────────
 
-  Future<ZenResult<Account>> putAccount(Account value) =>
-      _put(accounts, value, _Rules<Account>(id: _randomId));
+  Future<ZenResult<Account>> putAccount(Account value) => _put(accounts, value, _accountRules);
 
   Future<ZenResult<Account>> deleteAccount(String id) => accounts.delete(id);
 
-  Future<ZenResult<AccountCurrency>> putAccountCurrency(AccountCurrency value) => _put(
-    accountCurrencies,
-    value,
-    _Rules<AccountCurrency>(
-      id: (v) => _derivedId(v.id, () => DerivedIds.accountCurrency(v.accountId, v.currency)),
-      immutable: const ['accountId', 'currency'],
-    ),
-  );
+  Future<ZenResult<AccountCurrency>> putAccountCurrency(AccountCurrency value) =>
+      _put(accountCurrencies, value, _accountCurrencyRules);
 
   Future<ZenResult<AccountCurrency>> deleteAccountCurrency(String id) =>
       accountCurrencies.delete(id);
@@ -97,7 +90,7 @@ final class PrudentLocalStore {
   // ── Categories ──────────────────────────────────────────────────────────────────────────────
 
   Future<ZenResult<Category>> putCategory(Category value) =>
-      _put(categories, value, _Rules<Category>(id: _randomId));
+      _put(categories, value, _categoryRules);
 
   Future<ZenResult<Category>> deleteCategory(String id) => categories.delete(id);
 
@@ -107,38 +100,12 @@ final class PrudentLocalStore {
   /// immutable, and a correction is never edited at all, only deleted (`RecordResource.java:232`). A
   /// record that confirms an occurrence carries the id derived from it, and an imported record the
   /// id derived from its account, fingerprint and occurrence, so two devices write one record.
-  Future<ZenResult<Record>> putRecord(Record value) => _put(
-    records,
-    value,
-    _Rules<Record>(
-      id: (v) {
-        if (v.hasPlanLink()) {
-          return _derivedId(v.id, () => DerivedIds.confirmation(v.planLink.occurrenceId));
-        }
-        if (v.hasImportKey()) {
-          return _derivedId(
-            v.id,
-            () => DerivedIds.imported(
-              v.posting.accountId,
-              v.importKey.fingerprint,
-              v.importKey.occurrence,
-            ),
-          );
-        }
-        return _randomId(v);
-      },
-      immutable: const ['correction', 'planLink', 'importKey'],
-      onUpdate: (current, next) => current.hasCorrection()
-          ? 'records/${next.id} is a correction, which is never edited: delete it and correct again.'
-          : null,
-    ),
-  );
+  Future<ZenResult<Record>> putRecord(Record value) => _put(records, value, _recordRules);
 
   Future<ZenResult<Record>> deleteRecord(String id) => records.delete(id);
 
   /// A transfer is written once and never edited, only deleted (`RecordResource.java:217`).
-  Future<ZenResult<Transfer>> addTransfer(Transfer value) =>
-      _put(transfers, value, _Rules<Transfer>(id: _randomId, writeOnce: true));
+  Future<ZenResult<Transfer>> addTransfer(Transfer value) => _put(transfers, value, _transferRules);
 
   Future<ZenResult<Transfer>> deleteTransfer(String id) => transfers.delete(id);
 
@@ -222,15 +189,28 @@ final class PrudentLocalStore {
   // ── Settings ────────────────────────────────────────────────────────────────────────────────
 
   /// The one settings record. It is created, edited, never deleted.
-  Future<ZenResult<Settings>> putSettings(Settings value) => _put(
-    settings,
-    value,
-    _Rules<Settings>(
-      id: (v) => v.id == DerivedIds.settings
-          ? null
-          : 'The settings record has the id "${DerivedIds.settings}", not "${v.id}".',
-    ),
-  );
+  Future<ZenResult<Settings>> putSettings(Settings value) => _put(settings, value, _settingsRules);
+
+  // ── Several records as one ──────────────────────────────────────────────────────────────────
+
+  /// Writes every operation of [batch] as one, through jZen's `ZenStore.writeAll`
+  /// (jZenDev/jZen#232): all of it reaches the disk, or none of it does, even if the device loses
+  /// power half way. Each operation is held to exactly the rules its single-record method applies —
+  /// the id, the immutable fields, write-once — against the records as they stand now, and if any
+  /// one is refused, nothing is written.
+  ///
+  /// Atomic on this device only: another device receives the records one by one (a sync is per
+  /// record), so a screen there can briefly show part of a batch. Every batch Prudent writes is
+  /// therefore one whose parts are each a valid state on their own, or whose half-arrived state the
+  /// integrity checks name (an account deleted before its records arrive deleted is a dangling
+  /// reference for one sync).
+  Future<ZenResult<void>> writeAll(StoreBatch batch) {
+    final zenBatch = ZenBatch();
+    for (final step in batch._steps) {
+      if (step(zenBatch) case final error?) return Future.value(ZenResult.err(error));
+    }
+    return zen.writeAll(zenBatch);
+  }
 
   // ── The rules ───────────────────────────────────────────────────────────────────────────────
 
@@ -251,32 +231,92 @@ final class PrudentLocalStore {
 
   static const int _idTag = 1;
 
+  static final _accountRules = _Rules<Account>(id: _randomId);
+
+  static final _accountCurrencyRules = _Rules<AccountCurrency>(
+    id: (v) => _derivedId(v.id, () => DerivedIds.accountCurrency(v.accountId, v.currency)),
+    immutable: const ['accountId', 'currency'],
+  );
+
+  static final _categoryRules = _Rules<Category>(id: _randomId);
+
+  /// An ordinary record or a correction. The correction intent, the plan link and the import key are
+  /// immutable, and a correction is never edited at all, only deleted (`RecordResource.java:232`). A
+  /// record that confirms an occurrence carries the id derived from it, and an imported record the
+  /// id derived from its account, fingerprint and occurrence, so two devices write one record.
+  static final _recordRules = _Rules<Record>(
+    id: (v) {
+      if (v.hasPlanLink()) {
+        return _derivedId(v.id, () => DerivedIds.confirmation(v.planLink.occurrenceId));
+      }
+      if (v.hasImportKey()) {
+        return _derivedId(
+          v.id,
+          () => DerivedIds.imported(
+            v.posting.accountId,
+            v.importKey.fingerprint,
+            v.importKey.occurrence,
+          ),
+        );
+      }
+      return _randomId(v);
+    },
+    immutable: const ['correction', 'planLink', 'importKey'],
+    onUpdate: (current, next) => current.hasCorrection()
+        ? 'records/${next.id} is a correction, which is never edited: delete it and correct again.'
+        : null,
+  );
+
+  /// A transfer is written once and never edited, only deleted (`RecordResource.java:217`).
+  static final _transferRules = _Rules<Transfer>(id: _randomId, writeOnce: true);
+
+  /// The one settings record. It is created, edited, never deleted.
+  static final _settingsRules = _Rules<Settings>(
+    id: (v) => v.id == DerivedIds.settings
+        ? null
+        : 'The settings record has the id "${DerivedIds.settings}", not "${v.id}".',
+  );
+
   Future<ZenResult<T>> _put<T extends GeneratedMessage>(
     ZenCollection<T> collection,
     T value,
     _Rules<T> rules,
   ) {
+    if (_admit(collection, value, rules) case final error?) {
+      return Future.value(ZenResult.err(error));
+    }
+    return collection.put(value.getField(_idTag) as String, value);
+  }
+
+  /// Null when [rules] allow writing [value] over what [collection] holds now; otherwise why not.
+  static ZenError? _admit<T extends GeneratedMessage>(
+    ZenCollection<T> collection,
+    T value,
+    _Rules<T> rules,
+  ) {
     final id = value.getField(_idTag) as String;
-    if (rules.id(value) case final problem?) return _refuse(problem);
+    if (rules.id(value) case final problem?) return ZenValidationError(problem);
     final existing = collection.get(id);
     // Only the store's own "does not exist" means there is nothing to check. Any other failure —
     // above all a stored record whose bytes no longer decode — is returned as it is: writing past
     // it would skip every rule below for exactly the record nobody can read, and overwrite it.
-    if (existing case ZenFailure(:final error) when error is! ZenNotFoundError) {
-      return Future.value(ZenResult.err(error));
-    }
+    if (existing case ZenFailure(:final error) when error is! ZenNotFoundError) return error;
     if (existing case ZenSuccess(data: final current)) {
       if (rules.writeOnce) {
-        return _refuse('${collection.name}/$id is written once and never edited.');
+        return ZenValidationError('${collection.name}/$id is written once and never edited.');
       }
       for (final name in rules.immutable) {
         if (!_sameField(current, value, name)) {
-          return _refuse('${collection.name}/$id: "$name" is written once and never changed.');
+          return ZenValidationError(
+            '${collection.name}/$id: "$name" is written once and never changed.',
+          );
         }
       }
-      if (rules.onUpdate?.call(current, value) case final problem?) return _refuse(problem);
+      if (rules.onUpdate?.call(current, value) case final problem?) {
+        return ZenValidationError(problem);
+      }
     }
-    return collection.put(id, value);
+    return null;
   }
 
   /// Whether field [name] serialises to the same bytes in [a] and [b] — exactly what the store
@@ -352,4 +392,55 @@ final class _Rules<T extends GeneratedMessage> {
     this.writeOnce = false,
     this.onUpdate,
   });
+}
+
+/// Writes and deletes for [PrudentLocalStore.writeAll], named like the store's own methods and held
+/// to the same rules. Nothing is checked or written until `writeAll` runs it.
+///
+/// Only the collections the ledger writes together are here (unit 5: an account with its currencies
+/// and the default setting, an account deleted with its records). A later unit that writes several
+/// records as one adds its own methods, each delegating to the single-record rules.
+final class StoreBatch {
+  final PrudentLocalStore _store;
+  final List<ZenError? Function(ZenBatch)> _steps = [];
+
+  /// A batch for [store]; run it with [PrudentLocalStore.writeAll] on the same store.
+  StoreBatch(this._store);
+
+  /// How many operations the batch holds.
+  int get length => _steps.length;
+
+  void putAccount(Account value) => _put(_store.accounts, value, PrudentLocalStore._accountRules);
+
+  void deleteAccount(String id) => _delete(_store.accounts, id);
+
+  void putAccountCurrency(AccountCurrency value) =>
+      _put(_store.accountCurrencies, value, PrudentLocalStore._accountCurrencyRules);
+
+  void deleteAccountCurrency(String id) => _delete(_store.accountCurrencies, id);
+
+  void putCategory(Category value) =>
+      _put(_store.categories, value, PrudentLocalStore._categoryRules);
+
+  void putRecord(Record value) => _put(_store.records, value, PrudentLocalStore._recordRules);
+
+  void deleteRecord(String id) => _delete(_store.records, id);
+
+  void deleteTransfer(String id) => _delete(_store.transfers, id);
+
+  void putSettings(Settings value) =>
+      _put(_store.settings, value, PrudentLocalStore._settingsRules);
+
+  void _put<T extends GeneratedMessage>(ZenCollection<T> collection, T value, _Rules<T> rules) =>
+      _steps.add((batch) {
+        if (PrudentLocalStore._admit(collection, value, rules) case final error?) return error;
+        batch.put(collection, value.getField(PrudentLocalStore._idTag) as String, value);
+        return null;
+      });
+
+  void _delete<T extends GeneratedMessage>(ZenCollection<T> collection, String id) =>
+      _steps.add((batch) {
+        batch.delete(collection, id);
+        return null;
+      });
 }

@@ -13,6 +13,129 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-113 — Prudent Local's ledger reproduces the server's account, category, record, transfer, correction and settings rules over the store, writes several records only through `ZenStore.writeAll`, and never computes a figure from a value two devices disagree about
+
+**Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 5 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);
+phase-0 §0.3 rows 5.1–5.53, X.1, X.2; findings F-01, F-06, F-09, F-10. **Builds on:** ADR-081 (account deleted with its records),
+ADR-101, ADR-102, ADR-105, ADR-106, ADR-107, ADR-109, ADR-111. **jZen:** consumes jZenDev/jZen#232 (PR #248, `ZenStore.writeAll`) at
+`JZEN_REF` `e6a06c6`; files jZenDev/jZen#251.
+
+### Decision
+
+- **Where it lives: `local/prudent_local_store`, `lib/src/ledger/`, not a new package.** ADR-101's shape puts the rules in pure Dart
+  that the parity suite can run on the VM, and the Local app's `LocalPrudentRepository` (unit 9, Flutter) adapts them. The ledger
+  writes only through `PrudentLocalStore` (ADR-111: the only write path) and its checks join that package's integrity runner, so a
+  sixth package would only add a pubspec, a task and a gate scope around one dependency edge. Pure-text rules stay in
+  `prudent_local_core` (below), so the golden vectors still run with one dependency.
+- **`Ledger` is the server's resource methods, check for check, in the server's order.** It takes the wire request messages the
+  shared screens already build and answers wire messages through `WireMapper`, as `ZenResult`s. A rule's refusal is a `ZenError`
+  shaped as the server's (`LedgerErrors`: `internalData` `code` = `invalid`/`not_found`/`conflict`, `status`, `rule`), so
+  `failureCode(error)` reads it unchanged; the store's own errors (a record in conflict, a storage failure) are returned as they are
+  and carry no status. A figure that leaves the 64-bit range is an error, never a wrapped value (ADR-107).
+- **Several records are written as one only through `ZenStore.writeAll`.** `PrudentLocalStore.writeAll(StoreBatch)` holds each
+  operation to exactly the single-record rules (id, immutable fields, write-once; refactored into one `_admit`) and passes the batch
+  to jZen; one refused operation writes nothing. Used for an account with its currencies and the default setting, an account
+  update that drops a currency, a record whose statement key must go, the starter categories, the correction-intent repair, and
+  **an account deleted with its records** (ADR-081): every record on it, every transfer touching it (both legs, one record here),
+  its currencies and the default setting naming it, in one batch — all or nothing, on this device. **No resumable or partial delete
+  was built**; the plan's interim clause is withdrawn. A record of the account that two devices disagree about is put in the batch,
+  so the store refuses the whole delete until it is settled. Another device receives the batch record by record (#232's stated
+  limit); what a half-arrived batch, or a record added meanwhile, leaves behind is a dangling-reference issue (ADR-111).
+- **A figure never reads a disputed value — excluded and named, consistently** (carried-forward finding 2 of PR #256). While a
+  record is in conflict `ZenCollection.get`/`list` show each disputed field from its latest version, which is a wall-clock choice;
+  summing it would let two clocks decide a balance. So `LedgerView` leaves out of every figure, on every device alike, a record
+  whose conflict touches its posting or its existence (delete against edit), a transfer in conflict, and an account currency whose
+  opening is disputed (counted as zero), and `AccountBalances.unsettled` names what was left out. A conflict about anything else
+  (note, title, category, date, display position) leaves the money agreed, and it is counted. A correction is refused (409) while
+  its balance is unsettled — a delta from a guess would be wrong money. The record list still lists a disputed record as the store
+  shows it, because the person has to see what they settle. Flagging alone (counting the shown side) was rejected for the clock
+  reason; excluding without naming was rejected because a figure that silently drops money reads as settled.
+- **The default account is the settings record's one field** (ADR-102); creating, updating or deleting an account writes it in the
+  same batch, and nothing is written when it does not change. An absent settings record reads as `PLN` and is not written by
+  "Start fresh", which would be a choice nobody made; a reset writes `PLN` explicitly, as the person's action.
+- **Presence-exact writes** (jZenDev/jZen#245): every store record is built fresh from the request with only non-default fields set,
+  so a false flag, a zero opening or an empty description is absent, never an explicit default that conflicts with another device's
+  edit. Restoring a category clears `archived` rather than setting it false.
+- **Search and name order (ADR-106) are `SearchRules` in the core**, method for method with `prudent.text.TextRules`, and pass the
+  server's own vector files (read from `server/src/test/resources/text-rules/`, never copied). **The fold is a table from the JVM**,
+  `simple_lower_case.dart`, generated from a new golden file `fold.json` that `GoldenVectorsTest` writes from
+  `TextRules.foldCodePoint` for every code point: the Dart VM's `String.toLowerCase` follows an older Unicode than the JDK and
+  disagreed on **437 code points** (U+037F, Cherokee, Georgian Mtavruli, Latin and Cyrillic additions), which the exhaustive test
+  found on its first run. Java's `isBlank`/`trim` are used, not Dart's (finding 1 of PR #252): a search of only control characters is
+  not blank, trims to the empty term and matches every record, as on the server; U+FEFF, U+0085 and U+00A0 are neither blank nor
+  trimmed. Pinned by new server vectors t18–t22 and m11, which `TextRulesTest` runs against Java too.
+- **The record list** expands each transfer into its two legs first, then applies every filter per row as the server does (dates
+  inclusive, account, category never a leg, `type` trimmed and upper-cased as Java does — `ıncome` is income — amount bounds on
+  `abs`, search last), ordered `date desc, id`. A row of `Long.MIN_VALUE` under an amount bound is an error, as Postgres' `abs()` is.
+- **The correction-intent check (D7) records what each correction saw.** `CorrectionIntent` gains `repeated string seen_corrections`
+  (field 3, immutable with the rest): the other corrections of its account and currency the device held. Two corrections neither of
+  which names the other were made apart, and their deltas together overshoot — `correction.made_apart`, one issue per group, with
+  "delete one" and "replace the group by one correction to the balance one of them asked for" (one `writeAll`). A balance alone
+  cannot tell this: a later record legitimately moves a balance away from what a correction saw. A record a correction did not see
+  is **not** flagged: with deltas the merged balance is the server's for one of the two orders, and no clock may choose.
+- **Row-level security has no local meaning** (§0.3 X.1, X.2): one person per store, whose encryption is the boundary. There is no
+  "another user's account" to answer 404 for; every lookup is the store's.
+- **Issues stay `IntegrityIssue`, shaped on `zen_ui_store`'s `ZenIssue`** (finding 5 of PR #256): the new check adds no field and no
+  type. Nothing needed was missing from jZen there.
+- **The parity suite's local side is now `StoreBackend`** (`package:prudent_local_store/parity.dart`): the ledger over a real
+  encrypted store, one per scenario. Unit 3's in-memory `LocalRulesBackend` is deleted, as ADR-107 planned. Both backends read answers
+  through one set of `ParityReaders` in the core (Local's wire messages via `toProto3Json`) and build requests with the same helpers,
+  so they cannot observe differently by accident. `budget.set` and `reset.create` keep unit 3's rule set as stand-ins until unit 6a.
+  List observations keep only rows of names the scenario bound (the run shares one server user), group rows by date in the order
+  answered, compare one date as a set, and state `idOrder` from each side's own ids. Running each scenario through `StoreBackend`
+  against its stated server outcomes is `test/parity/scenarios_local_test.dart` in the store package (the core keeps the parse check).
+- **New jZen gap, filed: jZenDev/jZen#251.** `put`, `delete` and `ZenBatch` take no application precondition, so a rule checked
+  before a write runs outside the store's write turn; a sync already queued can deliver a delete in between, and the edit then
+  brings the record back with no conflict. A stated limitation of every write path until it lands; no Prudent-side lock or copy.
+
+### What this supersedes, and why
+
+- **"the account deleted with its records (ADR-081), whose all-or-nothing waits on jZenDev/jZen#232 (until then a resumable delete
+  and integrity issues for what remains)"** (plan, unit 5) → **withdrawn: all or nothing through `writeAll`.** *Why:* #232 merged
+  before this unit; the user's rule is to consume a fix after it merges and never build an interim copy.
+- **"`CorrectionIntent`: the balance asked for and the balance it saw"** (ADR-102, §0.2 `Record` row; ADR-111's store message) →
+  **refined: plus the corrections it saw.** *Why:* the two figures cannot tell two corrections made apart from a correction followed
+  by ordinary records; without causal information the check would either miss the double correction or fire on every later record.
+  Still immutable, still one group, under a new field number.
+- **"`LocalRulesBackend` is unit 3's stand-in … the store-backed backend of units 4–5 replaces it under the same operation names"**
+  (ADR-107) → **done; it lives in `prudent_local_store`, not the core.** *Why:* the store depends on the core, so the core cannot
+  hold a backend over the store.
+- **"A Dart implementation folds each code point … with `toLowerCase()` and special-cases U+0130"** (ADR-106) → **corrected: a
+  table from the JVM.** *Why:* measured — 437 code points differ on the Dart VM.
+- **§0.3 test column for rows 5.1–5.53** → filled with the tests that exist (that document is updated in the same change).
+
+### Found, not fixed here
+
+- **The server answers 500 to an account update that reorders held currencies** (`PUT /api/v1/accounts/{id}` with `[EUR, PLN]` →
+  `[PLN, EUR, …]`): Hibernate rewrites the `@OrderColumn` element collection in place and violates
+  `prudent_account_balance_unique_currency` (SQLSTATE 23505) — row 5.5's "declared order is kept" holds only for appends and drops
+  at the end. Local reorders fine. The parity scenarios do not reorder; a server fix is its own change.
+
+### Consequence
+
+Verified on 2026-11-16 in the worktree against jZen `e6a06c6`: `dart test` — `prudent_local_core` 2 143 green (the fold over all
+1 114 112 code points, every search and name-order vector), `prudent_local_store` 223 green (the existing 168, the ledger's rules, the
+writeAll atomicity, ten two-device cases through `ZenFolderCloud`: records added on both kept; note and amount edits merge; two
+amounts, two openings and an edit against a delete are left out of every figure and named on both devices, and the delete with
+records is refused whole; a dispute about a note is counted; an account deleted with its records while the other device adds a
+record and a transfer leaves two dangling-reference issues on both, settled once; two corrections made apart are one issue, settled
+by replacement or by deleting one; two devices starting fresh write five starters once). **The parity suite against a live Quarkus
+on the local Supabase: all 13 scenarios agree**, including `record_list_filters`, `record_list_order` and the account delete with
+records. Three deliberate mutations each turned it red (amount bound exclusive: `record_list_filters`; a correction one cent off:
+four scenarios; a transfer leg not always a transfer: `record_list_filters`), and the file was restored byte for byte.
+`GoldenVectorsTest` and `TextRulesTest` green; `dart analyze --fatal-infos --fatal-warnings` clean in the core, the store and
+`tools/prudent_parity_server`; `verify_boundaries.py` and its tests pass.
+
+### Not verified
+
+- `task` does not load from a git worktree (ADR-065): `task test:e2e`, `verify:contracts`, `verify:analyze`, `test:local-store`,
+  `test:local-core` and `verify:golden` ran only as their underlying commands here (the parity half of `test:e2e` against a server
+  built and started from this worktree, on port 8095), and run as tasks in CI. The client e2e half was not run.
+- No device, no CloudKit, no screen: figures and issues reach no UI until unit 9. The interleaving behind jZenDev/jZen#251 is
+  reasoned from the code, not reproduced.
+
+---
+
 ## ADR-112 — Prudent Local reads an Erste statement and keys its rows exactly as the server does: the parser and the fingerprint ported to pure Dart, held to the JVM over the whole failure catalogue
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 8a of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).

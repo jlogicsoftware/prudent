@@ -1,0 +1,245 @@
+{
+  "name": "ledger_transfers",
+  "description": "A transfer changes two balances by its two legs (across currencies with different amounts), is refused for every malformed request, is never edited through the record routes, and its delete restores both balances.",
+  "rules": [
+    "5.14",
+    "5.21",
+    "5.27",
+    "5.28",
+    "5.29",
+    "5.30",
+    "5.31",
+    "5.32"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "as": "current",
+      "outcome": "accepted",
+      "input": {
+        "name": "Current",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "50000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "euro",
+      "outcome": "accepted",
+      "input": {
+        "name": "Euro",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "balances": [
+          {
+            "currency": "EUR",
+            "amountMinor": "1000"
+          },
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "transfer.create",
+      "as": "fx",
+      "outcome": "accepted",
+      "input": {
+        "title": "  Exchange  ",
+        "fromAccount": "$current",
+        "toAccount": "$euro",
+        "fromAmountMinor": "10000",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "2300",
+        "toCurrency": "eur",
+        "date": "2026-10-10"
+      }
+    },
+    {
+      "comment": "A blank title becomes \"Transfer\"; a balance may go below zero.",
+      "op": "transfer.create",
+      "as": "small",
+      "outcome": "accepted",
+      "input": {
+        "title": " ",
+        "fromAccount": "$euro",
+        "toAccount": "$current",
+        "fromAmountMinor": "1",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "1",
+        "toCurrency": "PLN",
+        "date": "2026-10-11"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$current"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$euro"
+      }
+    },
+    {
+      "comment": "5.27",
+      "op": "transfer.create",
+      "outcome": "refused",
+      "input": {
+        "title": "x",
+        "fromAccount": "$current",
+        "toAccount": "$euro",
+        "fromAmountMinor": "0",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "1",
+        "toCurrency": "EUR",
+        "date": "2026-10-10"
+      }
+    },
+    {
+      "comment": "5.27",
+      "op": "transfer.create",
+      "outcome": "refused",
+      "input": {
+        "title": "x",
+        "fromAccount": "$current",
+        "toAccount": "$euro",
+        "fromAmountMinor": "1",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "-1",
+        "toCurrency": "EUR",
+        "date": "2026-10-10"
+      }
+    },
+    {
+      "comment": "5.28: two different accounts.",
+      "op": "transfer.create",
+      "outcome": "refused",
+      "input": {
+        "title": "x",
+        "fromAccount": "$current",
+        "toAccount": "$current",
+        "fromAmountMinor": "1",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "1",
+        "toCurrency": "PLN",
+        "date": "2026-10-10"
+      }
+    },
+    {
+      "comment": "5.28",
+      "op": "transfer.create",
+      "outcome": "refused",
+      "input": {
+        "title": "x",
+        "fromAccount": "not-an-id",
+        "toAccount": "$euro",
+        "fromAmountMinor": "1",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "1",
+        "toCurrency": "EUR",
+        "date": "2026-10-10"
+      }
+    },
+    {
+      "comment": "5.29: Current holds no EUR.",
+      "op": "transfer.create",
+      "outcome": "refused",
+      "input": {
+        "title": "x",
+        "fromAccount": "$current",
+        "toAccount": "$euro",
+        "fromAmountMinor": "1",
+        "fromCurrency": "EUR",
+        "toAmountMinor": "1",
+        "toCurrency": "EUR",
+        "date": "2026-10-10"
+      }
+    },
+    {
+      "comment": "5.29",
+      "op": "transfer.create",
+      "outcome": "refused",
+      "input": {
+        "title": "x",
+        "fromAccount": "$current",
+        "toAccount": "$euro",
+        "fromAmountMinor": "1",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "1",
+        "toCurrency": "USD",
+        "date": "2026-10-10"
+      }
+    },
+    {
+      "comment": "5.32",
+      "op": "transfer.create",
+      "outcome": "refused",
+      "input": {
+        "title": "x",
+        "fromAccount": "$current",
+        "toAccount": "$euro",
+        "fromAmountMinor": "1",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "1",
+        "toCurrency": "EUR",
+        "date": "10/10/2026"
+      }
+    },
+    {
+      "comment": "A transfer id is not a record id: 404 on both sides.",
+      "op": "record.delete",
+      "outcome": "refused",
+      "input": {
+        "record": "$fx"
+      }
+    },
+    {
+      "comment": "5.31: both legs go.",
+      "op": "transfer.delete",
+      "outcome": "accepted",
+      "input": {
+        "transfer": "$fx"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$current"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$euro"
+      }
+    },
+    {
+      "comment": "Gone: 404.",
+      "op": "transfer.delete",
+      "outcome": "refused",
+      "input": {
+        "transfer": "$fx"
+      }
+    },
+    {
+      "op": "transfer.delete",
+      "outcome": "refused",
+      "input": {
+        "transfer": "not-an-id"
+      }
+    }
+  ]
+}

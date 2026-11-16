@@ -279,7 +279,16 @@ account id is written in the server's form, so keys moved in by ADR-110 match). 
 `ImportFailureCatalogue` (written by `ImportGoldenVectors`, which checks each against the catalogue first); `ImportRule` names the server's 45 codes,
 5 of them for unit 8b; no statement text reaches a refusal, `toString` or log (`import_privacy_test.dart`). NFC is `unorm_dart` (with a workaround
 at U+D7A4), root upper-casing the JDK's table (`tool/generate_root_upper_case.dart`). Sessions, duplicates and the commit are unit 8b's.
-No Local app or screen exists yet.
+Unit 5 (ADR-113) is the ledger: `Ledger` in `local/prudent_local_store/lib/src/ledger/` holds every account,
+category, record, transfer, correction and settings rule of §0.3 rows 5.1–5.53, wire requests in and wire messages out, refusals
+shaped as the server's (`LedgerErrors`). Several records are written as one only through jZen's `ZenStore.writeAll`
+(`PrudentLocalStore.writeAll(StoreBatch)`, jZenDev/jZen#232 at `JZEN_REF` `e6a06c6`), so an account deleted with its records is
+all or nothing. A figure never reads a value two devices disagree about: a disputed posting, transfer or opening counts in no
+balance and is named (`AccountBalances.unsettled`), and a correction is refused until it is settled. Search and name order are the
+core's `SearchRules`, whose fold is a table from the JVM (`golden/fold.json`; the Dart VM's `toLowerCase` differs on 437 code
+points). `CorrectionIntent.seen_corrections` feeds the `correction.made_apart` check. The parity suite's local side is
+`StoreBackend` (`package:prudent_local_store/parity.dart`); thirteen scenarios agree with the live server. Open: jZenDev/jZen#251
+(no write precondition), and the server's 500 on an account update that reorders currencies. No Local app or screen exists yet.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

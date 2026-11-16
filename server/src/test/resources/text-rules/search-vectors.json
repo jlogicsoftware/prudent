@@ -17,7 +17,12 @@
     {"id": "t14", "search": "ıİ", "term": "ıi", "note": "dotless i has no lower-case change"},
     {"id": "t15", "search": "STRASSE ß ẞ", "term": "strasse ß ß"},
     {"id": "t16", "search": "ΟΔΥΣΣΕΥΣ", "term": "οδυσσευσ", "note": "no final-sigma rule: a final Σ folds to σ"},
-    {"id": "t17", "search": "😀A", "term": "😀a", "note": "astral code points pass through"}
+    {"id": "t17", "search": "😀A", "term": "😀a", "note": "astral code points pass through"},
+    {"id": "t18", "search": "\u0001", "term": "", "note": "a control character is not white space to isBlank, and trim() removes it: the empty term, which every non-null field contains (m11)"},
+    {"id": "t19", "search": " \u0001\u001f ", "term": "", "note": "the same for any run of code points up to U+0020 that is not all white space"},
+    {"id": "t20", "search": "\ufeff", "term": "\ufeff", "note": "the byte-order mark is neither white space nor trimmed; Dart's own trim() would remove it"},
+    {"id": "t21", "search": "\u0085", "term": "\u0085", "note": "NEXT LINE is not Character.isWhitespace and is above U+0020; Dart's own trim() would remove it"},
+    {"id": "t22", "search": "\u00a0\u0001", "term": "\u00a0", "note": "trim() removes the trailing control and keeps the no-break space"}
   ],
   "match": [
     {"id": "m01", "term": "50%", "fields": ["Fee 50% off", "50 off", null], "matches": [true, false, false], "note": "% is a literal character"},
@@ -29,6 +34,7 @@
     {"id": "m07", "term": "\u0457\u0436\u0430", "fields": ["\u0407\u0436\u0430 \u0432 \u043c\u0456\u0441\u0442\u0456", "\u0406\u0436\u0430", "\u042f\u0436\u0430"], "matches": [true, false, false]},
     {"id": "m08", "term": "ii", "fields": ["İIstanbul", "ıi"], "matches": [true, false]},
     {"id": "m09", "term": "ß", "fields": ["Straße", "STRASSE"], "matches": [true, false], "note": "ß does not fold to ss"},
-    {"id": "m10", "term": "σ", "fields": ["ΟΔΥΣΣΕΥΣ", "Οδυς"], "matches": [true, false], "note": "ς (final sigma) is a different code point from σ and is not folded to it"}
+    {"id": "m10", "term": "σ", "fields": ["ΟΔΥΣΣΕΥΣ", "Οδυς"], "matches": [true, false], "note": "ς (final sigma) is a different code point from σ and is not folded to it"},
+    {"id": "m11", "term": "", "fields": ["Bread", "", null], "matches": [true, true, false], "note": "the empty term (t18) is in every field that is present, so a search of only control characters matches every record"}
   ]
 }

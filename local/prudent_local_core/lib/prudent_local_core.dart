@@ -19,5 +19,6 @@ export 'src/iso4217.dart';
 export 'src/java_text.dart';
 export 'src/local_ids.dart';
 export 'src/minor_units.dart';
+export 'src/record_types.dart';
 export 'src/refusal.dart';
 export 'src/text_rules.dart';

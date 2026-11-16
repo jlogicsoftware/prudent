@@ -1,0 +1,48 @@
+{
+  "name": "ledger_settings",
+  "description": "The main currency is an ISO-4217 label, normalised, reset to PLN by a blank value, and never checked against the accounts. The settings are the parity run's one user's, so this scenario sets before it reads.",
+  "rules": [
+    "5.44",
+    "5.45"
+  ],
+  "steps": [
+    {
+      "comment": "5.45: no account holds USD; it is a label.",
+      "op": "settings.update",
+      "outcome": "accepted",
+      "input": {
+        "mainCurrency": " usd "
+      }
+    },
+    {
+      "comment": "The dotless i folds to I, as on the server (ADR-107).",
+      "op": "settings.update",
+      "outcome": "accepted",
+      "input": {
+        "mainCurrency": "\u0131nr"
+      }
+    },
+    {
+      "op": "settings.update",
+      "outcome": "refused",
+      "input": {
+        "mainCurrency": "EURO"
+      }
+    },
+    {
+      "comment": "Blank resets to the default.",
+      "op": "settings.update",
+      "outcome": "accepted",
+      "input": {
+        "mainCurrency": "   "
+      }
+    },
+    {
+      "op": "settings.update",
+      "outcome": "accepted",
+      "input": {
+        "mainCurrency": ""
+      }
+    }
+  ]
+}

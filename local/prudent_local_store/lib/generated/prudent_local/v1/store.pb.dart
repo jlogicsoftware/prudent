@@ -486,10 +486,12 @@ class CorrectionIntent extends $pb.GeneratedMessage {
   factory CorrectionIntent({
     $fixnum.Int64? targetMinor,
     $fixnum.Int64? seenMinor,
+    $core.Iterable<$core.String>? seenCorrections,
   }) {
     final result = create();
     if (targetMinor != null) result.targetMinor = targetMinor;
     if (seenMinor != null) result.seenMinor = seenMinor;
+    if (seenCorrections != null) result.seenCorrections.addAll(seenCorrections);
     return result;
   }
 
@@ -509,6 +511,7 @@ class CorrectionIntent extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..aInt64(1, _omitFieldNames ? '' : 'targetMinor')
     ..aInt64(2, _omitFieldNames ? '' : 'seenMinor')
+    ..pPS(3, _omitFieldNames ? '' : 'seenCorrections')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -547,6 +550,14 @@ class CorrectionIntent extends $pb.GeneratedMessage {
   $core.bool hasSeenMinor() => $_has(1);
   @$pb.TagNumber(2)
   void clearSeenMinor() => $_clearField(2);
+
+  /// The other corrections of the same account and currency this device held when it wrote this one
+  /// (ADR-113). Two corrections neither of which names the other were made without seeing each other —
+  /// on two devices offline — and both deltas together overshoot what either person asked for; that
+  /// is the integrity issue of D7. A balance alone cannot tell it: a later record legitimately moves a
+  /// balance away from what a correction saw.
+  @$pb.TagNumber(3)
+  $pb.PbList<$core.String> get seenCorrections => $_getList(2);
 }
 
 /// The occurrence a confirmation completed (ADR-040). Immutable. A link to a deleted plan reads as

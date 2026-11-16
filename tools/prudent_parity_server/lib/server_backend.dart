@@ -12,6 +12,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:prudent_local_core/parity.dart';
+import 'package:prudent_local_store/parity.dart';
 import 'package:zen_identity/zen_identity.dart';
 import 'package:zen_transport/zen_transport.dart';
 
@@ -59,9 +60,17 @@ final class ServerSession {
 
   /// One request under `/api/v1/`, path segments percent-encoded one by one (a currency of
   /// `" chf "` is a path segment with spaces in it, as the server receives it).
-  Future<_Answer> _send(String method, List<String> segments, [Map<String, Object?>? body]) async {
+  Future<_Answer> _send(
+    String method,
+    List<String> segments, [
+    Map<String, Object?>? body,
+    Map<String, String>? query,
+  ]) async {
     final base = Uri.parse(baseUrl);
-    final uri = base.replace(pathSegments: [...base.pathSegments, 'api', 'v1', ...segments]);
+    final uri = base.replace(
+      pathSegments: [...base.pathSegments, 'api', 'v1', ...segments],
+      queryParameters: query == null || query.isEmpty ? null : query,
+    );
     final request = http.Request(method, uri)
       ..headers.addAll({
         'Content-Type': ZenTransportFormat.json.contentType,
@@ -96,6 +105,25 @@ final class ServerBackend extends ParityBackend {
     'record.create': _createRecord,
     'budget.set': _setBudget,
     'reset.create': _createReset,
+    // Unit 5, the ledger (ADR-113). Request bodies are built by the local backend's own helpers
+    // (StoreBackend.recordBody and its siblings), so both sides send the same request.
+    'account.get': _getAccount,
+    'account.update': _updateAccount,
+    'account.delete': _deleteAccount,
+    'account.list': _listAccounts,
+    'category.update': _updateCategory,
+    'category.archive': _archiveCategory,
+    'category.restore': _restoreCategory,
+    'category.delete': _deleteCategory,
+    'category.list': _listCategories,
+    'record.update': _updateRecord,
+    'record.delete': _deleteRecord,
+    'record.list': _listRecords,
+    'transfer.create': _createTransfer,
+    'transfer.delete': _deleteTransfer,
+    'correction.create': _createCorrection,
+    'correction.delete': _deleteCorrection,
+    'settings.update': _updateSettings,
   };
 
   /// Nothing to set up: the session is the suite's, and a scenario's rows are its own (see
@@ -106,8 +134,12 @@ final class ServerBackend extends ParityBackend {
   @override
   Future<void> close() async {}
 
-  Future<_Answer> _send(String method, List<String> segments, [Map<String, Object?>? body]) =>
-      _session._send(method, segments, body);
+  Future<_Answer> _send(
+    String method,
+    List<String> segments, [
+    Map<String, Object?>? body,
+    Map<String, String>? query,
+  ]) => _session._send(method, segments, body, query);
 
   Future<StepResult> _createAccount(Map<String, Object?> input, ParityBindings bindings) async {
     final answer = await _send('POST', ['accounts'], input);
@@ -138,30 +170,10 @@ final class ServerBackend extends ParityBackend {
   }
 
   Future<StepResult> _createRecord(Map<String, Object?> input, ParityBindings bindings) async {
-    final answer = await _send(
-      'POST',
-      ['records'],
-      {
-        'title': input['title'],
-        'amountMinor': input['amountMinor'],
-        'date': input['date'],
-        'categoryId': bindings.resolve(input['category']),
-        'accountId': bindings.resolve(input['account']),
-        'currency': input['currency'],
-        if (input.containsKey('payee')) 'payee': input['payee'],
-        if (input.containsKey('note')) 'note': input['note'],
-      },
-    );
+    final answer = await _send('POST', ['records'], StoreBackend.recordBody(input, bindings));
     return answer.observe(
       (body) => StepResult(
-        ParityObservation.accepted({
-          'title': _string(body, 'title'),
-          'amountMinor': _int64(body, 'amountMinor'),
-          'currency': _string(body, 'currency'),
-          'date': _string(body, 'date'),
-          'payee': body['payee'] as String?,
-          'note': body['note'] as String?,
-        }),
+        ParityObservation.accepted(StoreBackend.recordObservation(body)),
         createdId: _string(body, 'id'),
       ),
     );
@@ -209,6 +221,174 @@ final class ServerBackend extends ParityBackend {
         }),
         createdId: _string(body, 'id'),
       ),
+    );
+  }
+
+  // ── Unit 5: the ledger ──────────────────────────────────────────────────────────────────────
+
+  /// A path segment for an id: a bound name's id, or a literal the scenario sends on purpose.
+  static String _id(Map<String, Object?> input, String key, ParityBindings bindings) =>
+      bindings.idOrLiteral(input[key])!;
+
+  Future<StepResult> _getAccount(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['accounts', _id(input, 'account', bindings)]);
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.account(body))),
+    );
+  }
+
+  Future<StepResult> _updateAccount(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('PUT', [
+      'accounts',
+      _id(input, 'account', bindings),
+    ], Map<String, Object?>.of(input)..remove('account'));
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.account(body))),
+    );
+  }
+
+  Future<StepResult> _deleteAccount(Map<String, Object?> input, ParityBindings bindings) async {
+    final flag = input['deleteRecords'] as bool?;
+    final answer = await _send(
+      'DELETE',
+      ['accounts', _id(input, 'account', bindings)],
+      null,
+      flag == null ? null : {'deleteRecords': '$flag'},
+    );
+    return answer.observe((_) => StepResult(ParityObservation.accepted()));
+  }
+
+  Future<StepResult> _listAccounts(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['accounts']);
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted({
+          'accounts': ParityReaders.boundNames(
+            (body['accounts'] as List<Object?>?) ?? const [],
+            bindings,
+          ),
+        }),
+      ),
+    );
+  }
+
+  Future<StepResult> _updateCategory(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('PUT', [
+      'categories',
+      _id(input, 'category', bindings),
+    ], Map<String, Object?>.of(input)..remove('category'));
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.category(body))),
+    );
+  }
+
+  Future<StepResult> _archiveCategory(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', ['categories', _id(input, 'category', bindings), 'archive']);
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.category(body))),
+    );
+  }
+
+  Future<StepResult> _restoreCategory(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', ['categories', _id(input, 'category', bindings), 'restore']);
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.category(body))),
+    );
+  }
+
+  Future<StepResult> _deleteCategory(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('DELETE', ['categories', _id(input, 'category', bindings)]);
+    return answer.observe((_) => StepResult(ParityObservation.accepted()));
+  }
+
+  Future<StepResult> _listCategories(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['categories']);
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted({
+          'categories': ParityReaders.boundNames(
+            (body['categories'] as List<Object?>?) ?? const [],
+            bindings,
+          ),
+        }),
+      ),
+    );
+  }
+
+  Future<StepResult> _updateRecord(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('PUT', [
+      'records',
+      _id(input, 'record', bindings),
+    ], StoreBackend.recordBody(input, bindings));
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(StoreBackend.recordObservation(body))),
+    );
+  }
+
+  Future<StepResult> _deleteRecord(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('DELETE', ['records', _id(input, 'record', bindings)]);
+    return answer.observe((_) => StepResult(ParityObservation.accepted()));
+  }
+
+  /// `GET /api/v1/records` with the scenario's filters as query parameters, under the server's names.
+  Future<StepResult> _listRecords(Map<String, Object?> input, ParityBindings bindings) async {
+    final query = <String, String>{
+      for (final key in const ['dateFrom', 'dateTo', 'type', 'amountMin', 'amountMax', 'search'])
+        if (input[key] case final String value) key: value,
+      'accountId': ?bindings.idOrLiteral(input['account']),
+      'categoryId': ?bindings.idOrLiteral(input['category']),
+    };
+    final answer = await _send('GET', ['records'], null, query);
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(
+          ParityReaders.recordList((body['records'] as List<Object?>?) ?? const [], bindings),
+        ),
+      ),
+    );
+  }
+
+  Future<StepResult> _createTransfer(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', ['transfers'], StoreBackend.transferBody(input, bindings));
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(ParityReaders.transfer(body, bindings)),
+        createdId: _string(body, 'id'),
+      ),
+    );
+  }
+
+  Future<StepResult> _deleteTransfer(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('DELETE', ['transfers', _id(input, 'transfer', bindings)]);
+    return answer.observe((_) => StepResult(ParityObservation.accepted()));
+  }
+
+  Future<StepResult> _createCorrection(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', [
+      'corrections',
+    ], StoreBackend.correctionBody(input, bindings));
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(ParityReaders.record(body, bindings)),
+        createdId: _string(body, 'id'),
+      ),
+    );
+  }
+
+  Future<StepResult> _deleteCorrection(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('DELETE', ['corrections', _id(input, 'correction', bindings)]);
+    return answer.observe((_) => StepResult(ParityObservation.accepted()));
+  }
+
+  /// The settings are the suite's one user's, shared by every scenario: a scenario sets them before
+  /// it reads them, and this step observes what a read answers after the write.
+  Future<StepResult> _updateSettings(Map<String, Object?> input, ParityBindings bindings) async {
+    final written = await _send('PUT', ['settings'], input);
+    if (written.status != 200) return written.observe((_) => throw StateError('unreachable'));
+    final answer = await _send('GET', ['settings']);
+    return answer.observe(
+      (body) =>
+          StepResult(ParityObservation.accepted({'mainCurrency': _string(body, 'mainCurrency')})),
     );
   }
 

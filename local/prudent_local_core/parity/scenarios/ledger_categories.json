@@ -1,0 +1,223 @@
+{
+  "name": "ledger_categories",
+  "description": "A category: what a create refuses, a full replacement that keeps the archived state, archive and restore refused when they change nothing, a delete refused while a record names it, and name order.",
+  "rules": [
+    "5.38",
+    "5.39",
+    "5.40",
+    "5.41",
+    "5.42",
+    "5.52"
+  ],
+  "steps": [
+    {
+      "comment": "5.38",
+      "op": "category.create",
+      "outcome": "refused",
+      "input": {
+        "title": " ",
+        "iconKey": "food"
+      }
+    },
+    {
+      "comment": "5.39: not a permitted icon.",
+      "op": "category.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Cart",
+        "iconKey": "cart"
+      }
+    },
+    {
+      "op": "category.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Nothing",
+        "iconKey": ""
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "zyw",
+      "outcome": "accepted",
+      "input": {
+        "title": "\u017bywno\u015b\u0107",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "zak",
+      "outcome": "accepted",
+      "input": {
+        "title": "Zakupy",
+        "iconKey": "leisure"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "zr",
+      "outcome": "accepted",
+      "input": {
+        "title": "\u0179r\u00f3d\u0142o",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "apt",
+      "outcome": "accepted",
+      "input": {
+        "title": "apteka",
+        "iconKey": "medicine"
+      }
+    },
+    {
+      "comment": "5.52: apteka, Zakupy, then the acute Z, then the dotted Z.",
+      "op": "category.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "category.update",
+      "outcome": "accepted",
+      "input": {
+        "category": "$zak",
+        "title": "  Zakupy  ",
+        "iconKey": "restaurant",
+        "description": " weekly ",
+        "colorArgb": 4283215696,
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.archive",
+      "outcome": "accepted",
+      "input": {
+        "category": "$zak"
+      }
+    },
+    {
+      "comment": "5.41: already archived (409).",
+      "op": "category.archive",
+      "outcome": "refused",
+      "input": {
+        "category": "$zak"
+      }
+    },
+    {
+      "comment": "An edit keeps the archived state.",
+      "op": "category.update",
+      "outcome": "accepted",
+      "input": {
+        "category": "$zak",
+        "title": "Zakupy",
+        "iconKey": "restaurant",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "category.restore",
+      "outcome": "accepted",
+      "input": {
+        "category": "$zak"
+      }
+    },
+    {
+      "comment": "5.41: not archived (409).",
+      "op": "category.restore",
+      "outcome": "refused",
+      "input": {
+        "category": "$zak"
+      }
+    },
+    {
+      "op": "category.update",
+      "outcome": "refused",
+      "input": {
+        "category": "$zak",
+        "title": "Zakupy",
+        "iconKey": "nope"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "wallet",
+      "outcome": "accepted",
+      "input": {
+        "name": "Wallet",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "record.create",
+      "as": "plasters",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$apt",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "2026-10-01",
+        "title": "Plasters"
+      }
+    },
+    {
+      "comment": "5.42: a record names it (409).",
+      "op": "category.delete",
+      "outcome": "refused",
+      "input": {
+        "category": "$apt"
+      }
+    },
+    {
+      "comment": "Archiving is the way out; the record keeps it.",
+      "op": "category.archive",
+      "outcome": "accepted",
+      "input": {
+        "category": "$apt"
+      }
+    },
+    {
+      "op": "record.delete",
+      "outcome": "accepted",
+      "input": {
+        "record": "$plasters"
+      }
+    },
+    {
+      "op": "category.delete",
+      "outcome": "accepted",
+      "input": {
+        "category": "$apt"
+      }
+    },
+    {
+      "op": "category.delete",
+      "outcome": "refused",
+      "input": {
+        "category": "$apt"
+      }
+    },
+    {
+      "op": "category.archive",
+      "outcome": "refused",
+      "input": {
+        "category": "not-an-id"
+      }
+    },
+    {
+      "op": "category.list",
+      "outcome": "accepted",
+      "input": {}
+    }
+  ]
+}

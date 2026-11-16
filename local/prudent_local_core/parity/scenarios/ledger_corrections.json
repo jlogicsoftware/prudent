@@ -1,0 +1,196 @@
+{
+  "name": "ledger_corrections",
+  "description": "A correction is the delta from the derived balance to the one asked for: refused when it changes nothing, titled by default, deleted only by its own route, and never edited.",
+  "rules": [
+    "5.22",
+    "5.33",
+    "5.34",
+    "5.35",
+    "5.36",
+    "5.37"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Groceries",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "wallet",
+      "outcome": "accepted",
+      "input": {
+        "name": "Wallet",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "10000"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "record.create",
+      "as": "market",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-2575",
+        "currency": "PLN",
+        "date": "2026-10-02",
+        "title": "Market"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet"
+      }
+    },
+    {
+      "comment": "7000 - 7425 = -425, titled by default.",
+      "op": "correction.create",
+      "as": "fix",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "currency": "pln",
+        "balanceMinor": "7000",
+        "date": "2026-10-05"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet"
+      }
+    },
+    {
+      "comment": "5.34: nothing to correct.",
+      "op": "correction.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$wallet",
+        "currency": "PLN",
+        "balanceMinor": "7000",
+        "date": "2026-10-06",
+        "title": "Again"
+      }
+    },
+    {
+      "op": "correction.create",
+      "as": "eurfix",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "currency": "EUR",
+        "balanceMinor": "-120",
+        "date": "2026-10-06",
+        "title": "  Cash count  ",
+        "note": "  coins  "
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet"
+      }
+    },
+    {
+      "comment": "5.35: not held.",
+      "op": "correction.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$wallet",
+        "currency": "USD",
+        "balanceMinor": "1",
+        "date": "2026-10-06"
+      }
+    },
+    {
+      "op": "correction.create",
+      "outcome": "refused",
+      "input": {
+        "account": "not-an-id",
+        "currency": "PLN",
+        "balanceMinor": "1",
+        "date": "2026-10-06"
+      }
+    },
+    {
+      "op": "correction.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$wallet",
+        "currency": "PLN",
+        "balanceMinor": "1",
+        "date": "2026-13-01"
+      }
+    },
+    {
+      "comment": "5.22: a correction is not edited (409).",
+      "op": "record.update",
+      "outcome": "refused",
+      "input": {
+        "record": "$fix",
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-1",
+        "currency": "PLN",
+        "date": "2026-10-05",
+        "title": "x"
+      }
+    },
+    {
+      "comment": "5.22: nor deleted as a record (409).",
+      "op": "record.delete",
+      "outcome": "refused",
+      "input": {
+        "record": "$fix"
+      }
+    },
+    {
+      "comment": "An ordinary record is no correction: 404.",
+      "op": "correction.delete",
+      "outcome": "refused",
+      "input": {
+        "correction": "$market"
+      }
+    },
+    {
+      "op": "correction.delete",
+      "outcome": "accepted",
+      "input": {
+        "correction": "$fix"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet"
+      }
+    },
+    {
+      "op": "correction.delete",
+      "outcome": "refused",
+      "input": {
+        "correction": "$fix"
+      }
+    }
+  ]
+}
