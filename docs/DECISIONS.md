@@ -128,6 +128,57 @@ derived-id domain changed, the correction no longer immutable. `dart analyze --f
 
 ---
 
+## ADR-110 — The privacy export carries each imported record's statement key beside the record, and the server-connected app saves it to a file where the platform can; the clipboard copy stays
+
+**Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 10a of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245), finding F-02 of
+`docs/plans/prudent-local-phase0.md`. **Builds on:** ADR-071 (the export), ADR-083 (no CocoaPods), ADR-091 (the key), ADR-100 (T14), ADR-103 (the move
+into Local), ADR-108 (the shared package). (ADR-109 is the boundaries PR.)
+
+### Decision
+
+- **`DataExport.record_import_keys` (field 16) is a list of `ExportImportKey { record_id, fingerprint, occurrence }`**, one entry for each record whose
+  `prudent_record.import_fingerprint` is set and none for any other, so an ordinary record exports with nothing and a person who never imported a
+  statement has an empty list. The exporter copies the two columns as stored: the fingerprint string, whose `v1:` prefix is its version (ADR-091), and the
+  occurrence. There is no second version field, because a second spelling of the version could disagree with the first; a reader that does not know the
+  prefix refuses the file. Adding a field does not change `format_version` (still 1).
+- **Beside the record, not on `Record`.** ADR-091 said the key is "never on the wire"; `Record` is the shape of every record answer, so a field there would
+  put a digest of statement text into each list, create and update response. This is the one place the key is handed back, to the person who owns it, in
+  the export that already holds every other fact about them. ADR-091's sentence "it is not in the data export" is superseded by this one; the digest is not
+  secret (ADR-091), so the file is exactly as sensitive as the rest of the export and says so.
+- **The coverage is derived, not remembered.** `PrivacyCoverageTest` finds every `import_*` column of `prudent_record` from the schema and fails unless they
+  are exactly the two that `ExportImportKey` carries, and unless the message's fields are `record_id`, `fingerprint`, `occurrence`; a third column cannot be
+  added without deciding whether it is exported. `PrivacyImportKeysTest` proves the key survives the export exactly over both transports (including two rows
+  of one fingerprint told apart only by occurrence), that an ordinary record and an empty ledger export no key, and that a neighbour's key is never in the
+  export. The two hand-kept lists (`openapi.yaml`'s `ExportImportKey` schema, `PrudentProtoReflection`) are updated and `verify:reflection` checks the second.
+- **"Save to a file" sits beside the copy on "Privacy and data"** (`PrivacyScreen`, `packages/prudent_ui/lib/privacy/`). It writes the same text the copy
+  makes (`PrivacyActions.exportFile`: the indented JSON, UTF-8, named `prudent-export-<day of the export>.json`) through `ExportFileSaver`, an injectable
+  function like the statement picker, defaulting to `file_selector`'s `getSaveLocation` + `XFile.saveTo` on macOS, Windows and Linux and to the browser's
+  download on the web. The shared package already depends on `file_selector` (ADR-093), whose Apple implementations ship Swift packages (ADR-083), so no new
+  dependency and no plugin in `client/` is needed; the function stays in `prudent_ui` because it names no server code (ADR-108).
+- **The warning comes before the button, in words, in en, uk and pl:** the file is not encrypted, holds all the person's finances in plain text, should be
+  kept somewhere private and deleted once used (ADR-100, T14). It is on the screen, not in a dialog that can be dismissed unread, and the success message
+  repeats the deletion advice.
+- **iOS and Android get no "Save to a file" yet.** `file_selector_ios` and `file_selector_android` implement no save location and the framework has no
+  save-file capability, so the button is absent there (`exportFileSavingSupportedProvider`, `!zenIsMobile`) and only the copy is offered. Hand-rolling a
+  plugin choice is what CLAUDE.md forbids; the gap is recorded in `docs/jzen/README.md` with proposed issue text, and the mobile half of unit 10a waits for
+  it (a phone user with a server account cannot move to Local by file until then).
+- **The clipboard copy stays in the server-connected app.** T14 refuses the clipboard as the *Local* app's export channel; the server app's copy is a
+  convenience the person already has, and removing it would take away the only export on a phone. It now carries its own sentence saying the clipboard is
+  shared with other apps and, on some devices, with the person's other devices, and the Local app never reads an export from it (ADR-103).
+- **Save failures are shown, never swallowed:** a refused write shows "The file could not be saved" and logs the exception; a cancelled panel says nothing,
+  because nothing was asked for.
+
+### Consequence
+
+Unit 10b can rely on the export carrying each imported record's key, so statements imported before the move are recognised after it. **Verified:** the
+server suite (1279 tests, including the new ones), `verify:contracts`, `verify:reflection`, the client suite (539 tests, including that a saved file reads
+back as an `DataExport` equal to the one the server sent, key included), `verify:controls`, `verify:analyze`, `verify:boundaries`, `verify:swiftpm`.
+**Not verified:** the save panel on any real platform (the saver is faked in tests; macOS, Windows, Linux and the web download were not run), the web
+download's file name in a browser, a real export (every figure and key in the tests is synthetic), and that a Local import accepts the file (unit 10b).
+
+---
+
+
 ## ADR-109 — `task verify:boundaries` keeps the server out of `local/` and Local out of `client/` and `packages/`; the parity harness moves to `tools/`
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** ground rules and unit 11 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).

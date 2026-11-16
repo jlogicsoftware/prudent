@@ -11,6 +11,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:prudent/auth/identity_settings_session.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/generated/prudent/v1/privacy.pb.dart';
+import 'package:prudent_ui/privacy/export_file_saver.dart';
 import 'package:prudent_ui/privacy/privacy_screen.dart';
 import 'package:prudent_ui/providers.dart';
 import 'package:prudent/server_prudent_repository.dart';
@@ -24,6 +26,19 @@ import 'zen_fields.dart';
 import 'zen_platform_skip.dart';
 
 const _headers = {'X-Zen-Transport': 'json'};
+
+/// A synthetic export that carries one statement-import key (ADR-091), because the file has to keep it.
+final _exportBody = {
+  'formatVersion': 1,
+  'exportedAtMs': '1794700800000',
+  'profile': {'email': 'alice@example.com'},
+  'records': [
+    {'id': 'r1', 'title': 'Synthetic', 'amountMinor': '-500', 'currency': 'PLN'},
+  ],
+  'recordImportKeys': [
+    {'recordId': 'r1', 'fingerprint': 'v1:${'ab' * 32}', 'occurrence': 2},
+  ],
+};
 
 class _Identity implements IdentityRepository {
   int logouts = 0;
@@ -80,11 +95,22 @@ void main() {
   late _Identity identity;
   late List<String> erased;
   late String? copied;
+  late List<({String name, Uint8List bytes})> saved;
+  bool cancelSave = false;
+  bool failSave = false;
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(WidgetTester tester, {bool canSave = true}) async {
     identity = _Identity();
     erased = [];
     copied = null;
+    // The screen is a lazy list; a tall surface keeps every button built, so a finder can see it.
+    tester.view
+      ..physicalSize = const Size(800, 2000)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    saved = [];
+    cancelSave = false;
+    failSave = false;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (
       call,
     ) async {
@@ -105,10 +131,7 @@ void main() {
       httpClient: MockClient((request) async {
         if (request.url.path == '/api/v1/privacy/export') {
           return http.Response(
-            jsonEncode({
-              'formatVersion': 1,
-              'profile': {'email': 'alice@example.com'},
-            }),
+            jsonEncode(_exportBody),
             200,
             headers: _headers,
           );
@@ -131,6 +154,13 @@ void main() {
           prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
           identityRepositoryProvider.overrideWithValue(identity),
           identitySettingsSession,
+          exportFileSavingSupportedProvider.overrideWithValue(canSave),
+          exportFileSaverProvider.overrideWithValue((name, bytes) async {
+            if (failSave) throw const FormatException('disk refused');
+            if (cancelSave) return false;
+            saved.add((name: name, bytes: bytes));
+            return true;
+          }),
         ],
         child: const MaterialApp(
           localizationsDelegates: [
@@ -171,6 +201,66 @@ void main() {
     expect(copied!.split('\n').length, greaterThan(2), reason: 'a single line is not readable');
     expect((jsonDecode(copied!) as Map)['profile'], {'email': 'alice@example.com'});
     expect(find.text('Your data was copied to the clipboard.'), findsOneWidget);
+  });
+
+  testWidgets('warns that the file is not encrypted before the save button, in the open', (
+    tester,
+  ) async {
+    await pump(tester);
+
+    expect(find.textContaining('The file is not encrypted'), findsOneWidget);
+    expect(button('Save to a file'), findsOneWidget);
+    final warning = tester.getTopLeft(find.textContaining('The file is not encrypted')).dy;
+    expect(warning, lessThan(tester.getTopLeft(button('Save to a file')).dy));
+    expect(find.textContaining('shared with other apps'), findsOneWidget);
+  });
+
+  testWidgets('a saved file reads back as an equal DataExport, import key included', (
+    tester,
+  ) async {
+    await pump(tester);
+
+    await tester.tap(button('Save to a file'));
+    await tester.pumpAndSettle();
+
+    expect(saved, hasLength(1));
+    expect(saved.single.name, 'prudent-export-2026-11-15.json');
+    final read = DataExport()
+      ..mergeFromProto3Json(jsonDecode(utf8.decode(saved.single.bytes)));
+    final sent = DataExport()..mergeFromProto3Json(_exportBody);
+    expect(read, sent);
+    expect(read.recordImportKeys.single.fingerprint, 'v1:${'ab' * 32}');
+    expect(read.recordImportKeys.single.occurrence, 2);
+    expect(find.textContaining('Your data was saved'), findsOneWidget);
+    expect(copied, isNull, reason: 'saving a file must not also copy to the clipboard');
+  });
+
+  testWidgets('cancelling the save panel says nothing; a refused write says so', (tester) async {
+    await pump(tester);
+
+    cancelSave = true;
+    await tester.tap(button('Save to a file'));
+    await tester.pumpAndSettle();
+    expect(saved, isEmpty);
+    expect(find.textContaining('was saved'), findsNothing);
+    expect(find.textContaining('could not be saved'), findsNothing);
+
+    cancelSave = false;
+    failSave = true;
+    await tester.tap(button('Save to a file'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('could not be saved'), findsOneWidget);
+  });
+
+  testWidgets('where no file can be saved only the copy is offered, still with its warning', (
+    tester,
+  ) async {
+    await pump(tester, canSave: false);
+
+    expect(button('Save to a file'), findsNothing);
+    expect(find.textContaining('The file is not encrypted'), findsNothing);
+    expect(button('Copy my data'), findsOneWidget);
+    expect(find.textContaining('shared with other apps'), findsOneWidget);
   });
 
   testWidgets('deletion needs the address, and a refusal keeps the form open and the user in', (

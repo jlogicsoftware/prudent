@@ -237,6 +237,9 @@ beside the clipboard copy, with a warning that the file is not encrypted (ADR-10
 ADR. **Done when:** `PrivacyCoverageTest` sees the new fields, `verify:contracts` passes, and a saved file
 round-trips.
 
+**Status (ADR-110):** built on the server and on macOS, Windows, Linux and web; the key travels as `record_import_keys` beside the record. **Open:** "Save to a file" on iOS and
+Android waits for a framework save-file capability (docs/jzen/README.md), and the save panel has not been run on a real platform.
+
 ### Unit 10b — Moving data in
 As decided in ADR-103: the export read from a file into an empty store, opening amounts rebuilt from the
 exported balances (finding F-03), transfers joined into one record, ids remapped, refused whole unless every
