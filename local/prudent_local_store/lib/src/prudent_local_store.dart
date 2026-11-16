@@ -54,7 +54,11 @@ final class PrudentLocalStore {
       records = zen.collection('records', Record.fromBuffer),
       transfers = zen.collection('transfers', Transfer.fromBuffer),
       budgets = zen.collection('budgets', Budget.fromBuffer),
-      budgetResets = zen.collection('budget_resets', BudgetCarryOverReset.fromBuffer),
+      budgetResets = zen.collection(
+        'budget_resets',
+        BudgetCarryOverReset.fromBuffer,
+        mergePolicies: StorePolicies.budgetResets,
+      ),
       goals = zen.collection('goals', Goal.fromBuffer, mergePolicies: StorePolicies.goals),
       goalAllocations = zen.collection('goal_allocations', GoalAllocation.fromBuffer),
       plans = zen.collection('plans', Plan.fromBuffer),
@@ -353,10 +357,10 @@ final class PrudentLocalStore {
 /// two values, the same on every device whatever arrived first. Every other field keeps the store's
 /// default: two different values are a conflict for the person.
 ///
-/// A carry-over reset's revocation is a same-intent field too, but it is a *group* — who and when —
-/// and jZen's policies decide a single scalar or timestamp field only. Two devices revoking one reset
-/// therefore stay a conflict for the person until the framework can merge a group by one of its
-/// fields (jZenDev/jZen#244).
+/// A carry-over reset's revocation is a same-intent field that is a *group* — who and when. It
+/// merges by its time with jZen's group policy (`ZenMergePolicy.earliestBy`, jZenDev/jZen#244,
+/// consumed in ADR-114), which keeps the whole earlier version, so the author is never taken from
+/// the other device than the time beside it.
 abstract final class StorePolicies {
   /// `Goal.status_changed_at_ms`: completing (or archiving) one goal on two devices keeps the first
   /// moment. The status itself stays a plain field, so completing on one device and archiving on
@@ -368,6 +372,16 @@ abstract final class StorePolicies {
   /// `OccurrenceState.reminder_read_at_ms`: a reminder read on two devices keeps the first moment.
   static final Map<int, ZenMergePolicy> occurrences = {
     _tag(OccurrenceState(), 'reminderReadAtMs'): ZenMergePolicy.earliest,
+  };
+
+  /// `BudgetCarryOverReset.revocation`: a reset revoked on two devices keeps the first revocation,
+  /// who and when together, ordered by `Revocation.at_ms`. Revoking on one device against no
+  /// revocation on the other is not a disagreement (the revocation is only ever added), so nothing
+  /// else changes. Field numbers pinned by merge_table_test.
+  static final Map<int, ZenMergePolicy> budgetResets = {
+    _tag(BudgetCarryOverReset(), 'revocation'): ZenMergePolicy.earliestBy(
+      _tag(Revocation(), 'atMs'),
+    ),
   };
 
   static int _tag(GeneratedMessage message, String name) => message.info_.byName[name]!.tagNumber;
