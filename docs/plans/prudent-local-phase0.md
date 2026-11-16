@@ -654,7 +654,7 @@ By design (recorded so they are not mistaken for gaps):
 | X.4 | Dormancy warnings and erasure | `DormancyWarningMailer.java`; `java/retention/` | there is no account to go dormant |
 | X.5 | Sign-in record deletion | `SignInRecordEraser.java` | there is no sign-in |
 | X.6 | Readiness, request ids | `HealthResource.java`; `RequestIdFilter` | there is no request |
-| X.7 | Row locks (`FOR UPDATE` on goals, the import's account, a confirmed occurrence) | `GoalEntity.java:102,131`; `LedgerImportCommitter.java`; `OccurrenceResource.java:192` | on one device the store serialises writes; across devices the answer is 0.2 (ids, integrity checks), not a lock |
+| X.7 | Row locks (`FOR UPDATE` on goals, the import's account, a confirmed occurrence) | `GoalEntity.java:102,131`; `LedgerImportCommitter.java`; `OccurrenceResource.java:192` | on one device the store serialises writes, and each write carries the version it was decided against as a precondition checked in its turn (ADR-115: changed meanwhile → 409 under X.7); across devices the answer is 0.2 (ids, integrity checks), not a lock |
 
 ### Findings
 

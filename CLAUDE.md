@@ -271,8 +271,11 @@ on the device or derived from natural keys (`DerivedIds`), `PrudentLocalStore` (
 never-deleted records), jZen's `ZenMergePolicy.earliest` on the goal-status and reminder-read times and nothing else (no last-writer-wins),
 `WireMapper` (presence-exact, derived figures as inputs) and the `IntegrityRunner`, whose `IntegrityCheck`s list what a merge broke across
 records with actions and fix nothing; units 5–8 add checks. `task test:local-store` proves every §0.2 row through two encrypted stores
-synced by `ZenFolderCloud`. A reset revoked on two devices stays a conflict (jZenDev/jZen#244), and a field set to its default differs from
-an unset one in the merge (jZenDev/jZen#245). The issues reach no screen until the Local app wraps them in `zen_ui_store`'s `ZenIssueSource`
+synced by `ZenFolderCloud`. A reset revoked on two devices stays a conflict (jZenDev/jZen#244). Since ADR-115 (jZen `4fa887a`) a top-level
+field set to its default is stored as unset (jZenDev/jZen#245; no synced collection declares `explicitPresence`, a nested group still compares its
+bytes, jZenDev/jZen#255), and every write carries its rules and the version it was decided against as the store's `expect`
+(`WriteExpects.asRead`, jZenDev/jZen#251): a record a sync deleted or changed in between refuses the write (404, or 409 under §0.3 X.7)
+rather than coming back or being written over. The issues reach no screen until the Local app wraps them in `zen_ui_store`'s `ZenIssueSource`
 (unit 9). Unit 8a (ADR-112) is the Erste parse stage in `prudent_local_core/lib/src/imports/`: `parseErsteStatement(bytes, today:)` is
 the server's upload bounds, `ErsteStatementImporter` and `ParsedStatements.validate`, and `RowFingerprints` the `v1` key byte for byte (a Local
 account id is written in the server's form, so keys moved in by ADR-110 match). `test/golden/erste_import.json` holds it to every parse-stage case of
@@ -287,8 +290,7 @@ all or nothing. A figure never reads a value two devices disagree about: a dispu
 balance and is named on every read that answers a balance (`Settled<T>`, `AccountBalances.unsettled`), and a correction is refused until it is settled. Search and name order are the
 core's `SearchRules`, whose fold is a table from the JVM (`golden/fold.json`; the Dart VM's `toLowerCase` differs on 437 code
 points). `CorrectionIntent.seen_corrections` feeds the `correction.made_apart` check. The parity suite's local side is
-`StoreBackend` (`package:prudent_local_store/parity.dart`); thirteen scenarios agree with the live server. Open: jZenDev/jZen#251
-(no write precondition), and the server's 500 on an account update that reorders currencies (jlogicsoftware/prudent#261).
+`StoreBackend` (`package:prudent_local_store/parity.dart`); thirteen scenarios agree with the live server. Open: the server's 500 on an account update that reorders currencies (jlogicsoftware/prudent#261).
 Unit 8b (ADR-114) is statement import: `ImportWorkflow` in `local/prudent_local_store/lib/src/imports/` is the server's three phases,
 destination checks, row decisions, defaults, duplicates and commit, check for check, answering the wire `ImportSession`; sessions are the
 device-only collection `import_sessions` of the ledger's store (`collection(syncs: false)`, jZenDev/jZen#252), one record per session,
@@ -298,8 +300,7 @@ each row once; every session write and the commit's batch carry `expect` precond
 between the checks and the write refuses it whole. All 291 catalogue cases and the server's commit-failure cases pass through the
 workflow; parity scenarios `import_sessions` and `import_destination` agree with the live server. Differing category choices on two
 devices are plain two-device conflicts for jZen's sweep (#234, wired by unit 9); a reset's revocation merges by its time
-(`ZenMergePolicy.earliestBy`, #244); `import_sessions` declares explicit presence (#245). #245 and #251 are not yet applied to the unit
-4/5 collections and ledger writes. Unit 6a (ADR-116)
+(`ZenMergePolicy.earliestBy`, #244); `import_sessions` declares explicit presence (#245), the only collection that does (ADR-118). Unit 6a (ADR-116)
 adds budgets, carry-over resets, goals and envelopes to the ledger as two parts of its library (`ledger_budgets.dart`, `ledger_goals.dart`):
 rows 6.1–6.28, 6.46–6.50, 6.54 in the server's order; the summary, carry-over, free money and progress derived from settled values only,
 `Settled.unsettled` keyed by the figure's category, currency or goal; a reset or `ALLOCATE` refused while its figure is unsettled; every

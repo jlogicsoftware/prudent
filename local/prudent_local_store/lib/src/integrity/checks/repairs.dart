@@ -4,11 +4,17 @@ import 'package:zen_core/zen_core.dart';
 import '../../../generated/prudent_local/v1/store.pb.dart';
 import '../../derived_ids.dart';
 import '../../prudent_local_store.dart';
+import '../../write_expect.dart';
 import '../integrity_issue.dart';
 import '../store_snapshot.dart';
 
 /// The actions the store-model checks offer, each one ordinary write through [PrudentLocalStore]'s
 /// rules — so a repair can be refused like any other write, and is then shown, never retried.
+///
+/// A delete acts on the record as it stands when the store runs it. A repair that writes a value
+/// carries what it was built from as its precondition (ADR-115): an edit from the record as it was
+/// read when the person acted, a re-creation from "still deleted" — so a sync arriving in between
+/// is never written over (a record another device restored is not reset to the defaults here).
 abstract final class Repairs {
   static IntegrityAction deleteRecord(PrudentLocalStore store, String id) =>
       IntegrityAction.now('delete_record', () => store.deleteRecord(id));
@@ -39,6 +45,7 @@ abstract final class Repairs {
             includeInTotal: true,
             includeInOverview: true,
           ),
+          expect: WriteExpects.asRead(null),
         ),
       );
 
@@ -46,7 +53,10 @@ abstract final class Repairs {
   static IntegrityAction recreateCategory(PrudentLocalStore store, String id) =>
       IntegrityAction.withText(
         'recreate_category',
-        (title) => store.putCategory(Category(id: id, title: title.trim())),
+        (title) => store.putCategory(
+          Category(id: id, title: title.trim()),
+          expect: WriteExpects.asRead(null),
+        ),
       );
 
   /// Gives [currency] to [accountId] with an opening amount of zero, after its other currencies.
@@ -69,6 +79,8 @@ abstract final class Repairs {
           openingMinor: Int64.ZERO,
           position: position,
         ),
+        // Another device may have added the currency meanwhile, with an opening of its own.
+        expect: WriteExpects.asRead(null),
       ),
     );
   }
@@ -89,6 +101,7 @@ abstract final class Repairs {
         store.records.get(record.id),
         (current) => store.putRecord(
           current.deepCopy()..posting = (current.posting.deepCopy()..accountId = accountId),
+          expect: WriteExpects.asRead(current),
         ),
       ),
     );
@@ -107,7 +120,10 @@ abstract final class Repairs {
       choices,
       (categoryId) => _write(
         store.records.get(record.id),
-        (current) => store.putRecord(current.deepCopy()..categoryId = categoryId),
+        (current) => store.putRecord(
+          current.deepCopy()..categoryId = categoryId,
+          expect: WriteExpects.asRead(current),
+        ),
       ),
     );
   }
@@ -126,6 +142,7 @@ abstract final class Repairs {
         store.plans.get(plan.id),
         (current) => store.putPlan(
           current.deepCopy()..posting = (current.posting.deepCopy()..accountId = accountId),
+          expect: WriteExpects.asRead(current),
         ),
       ),
     );
@@ -143,7 +160,10 @@ abstract final class Repairs {
       choices,
       (categoryId) => _write(
         store.plans.get(plan.id),
-        (current) => store.putPlan(current.deepCopy()..categoryId = categoryId),
+        (current) => store.putPlan(
+          current.deepCopy()..categoryId = categoryId,
+          expect: WriteExpects.asRead(current),
+        ),
       ),
     );
   }
@@ -157,7 +177,8 @@ abstract final class Repairs {
       snapshot.accounts.values.where((a) => a.active).map((a) => a.id);
 
   /// Applies [write] to the record as it stands *when the person acts*, not as it stood when the
-  /// issue was found, so an edit made in between is not undone.
+  /// issue was found, so an edit made in between is not undone; [write] passes the same record as
+  /// its precondition, so one made between this read and the write is not undone either.
   static Future<ZenResult<Object?>> _write<T>(
     ZenResult<T> current,
     Future<ZenResult<Object?>> Function(T current) write,

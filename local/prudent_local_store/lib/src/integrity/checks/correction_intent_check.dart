@@ -5,6 +5,7 @@ import 'package:zen_core/zen_core.dart';
 import '../../../generated/prudent_local/v1/store.pb.dart';
 import '../../ledger/ledger_view.dart';
 import '../../prudent_local_store.dart';
+import '../../write_expect.dart';
 import '../integrity_issue.dart';
 import '../integrity_runner.dart';
 import '../store_snapshot.dart';
@@ -131,8 +132,10 @@ final class CorrectionIntentCheck implements IntegrityCheck {
       return ZenResult.err(ZenUnknownError('A figure left the range of minor units ($e).'));
     }
     final batch = StoreBatch(store);
+    // Every figure above was computed from these versions: one a sync deletes or changes before
+    // the batch runs refuses the whole replacement, rather than writing a delta from a stale sum.
     for (final r in group) {
-      batch.deleteRecord(r.id);
+      batch.deleteRecord(r.id, expect: WriteExpects.asRead(r));
     }
     if (delta != 0) {
       final replacement = Record(
@@ -156,7 +159,7 @@ final class CorrectionIntentCheck implements IntegrityCheck {
       }
       if (without != 0) replacement.correction.seenMinor = Int64(without);
       if (target.hasNote()) replacement.note = target.note;
-      batch.putRecord(replacement);
+      batch.putRecord(replacement, expect: WriteExpects.asRead(null));
     }
     return store.writeAll(batch);
   }

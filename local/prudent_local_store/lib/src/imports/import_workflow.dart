@@ -13,6 +13,7 @@ import '../ledger/ledger.dart';
 import '../ledger/ledger_errors.dart';
 import '../ledger/ledger_view.dart';
 import '../prudent_local_store.dart';
+import '../write_expect.dart';
 import 'import_mapper.dart';
 import 'import_text.dart';
 
@@ -507,7 +508,7 @@ final class ImportWorkflow {
     // the keys the ledger holds are still what this plan was made from.
     final batch = StoreBatch(ledger);
     for (final record in plan.records) {
-      batch.putRecord(record, expect: (current) => current == null ? null : _changedMeanwhile);
+      batch.putRecord(record, expect: WriteExpects.asRead(null, changed: () => _changedMeanwhile));
     }
     batch.putImportSession(
       completed,
@@ -902,14 +903,19 @@ final class ImportWorkflow {
   }
 
   /// Writes [session] over [over], the session this operation read (null for a new one), and only
-  /// if the store still holds exactly that when the write takes its turn (jZenDev/jZen#251).
+  /// if the store still holds exactly that — the same bytes — when the write takes its turn
+  /// (jZenDev/jZen#251, `WriteExpects.asRead` as every Local write, ADR-115).
   Future<LocalImportSession> _put(
     LocalImportSession session, {
     required LocalImportSession? over,
   }) async => readOrThrow(
     await ledger.putImportSession(
       session,
-      expect: (current) => current == over ? null : _changedMeanwhile,
+      expect: WriteExpects.asRead(
+        over,
+        gone: () => _changedMeanwhile,
+        changed: () => _changedMeanwhile,
+      ),
     ),
   );
 

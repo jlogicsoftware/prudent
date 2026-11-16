@@ -141,7 +141,8 @@ and fails on a one-cent difference.
 `IntegrityRunner` with the store model's six checks; `task test:local-store`. The wire messages moved to the pure-Dart
 `packages/prudent_proto` so the store can map to them. Consumed jZenDev/jZen#233 and #235 (`JZEN_REF` `6301f0e`); filed
 jZenDev/jZen#244 (a reset's revocation is a group, so two revocations stay a conflict) and #245 (an explicit default differs
-from an unset field). Not here: import sessions (8b), the checks that need figures (envelopes 6a, skipped-and-paid 6b,
+from an unset field; consumed by ADR-115 at `4fa887a`, which also made every write's rules a precondition run in the store's
+write turn, jZenDev/jZen#251). Not here: import sessions (8b), the checks that need figures (envelopes 6a, skipped-and-paid 6b,
 correction intent 5), the `ZenIssueSource` wiring (unit 9, Flutter), the CloudKit backend (unit 9).
 Map every proto message into `zen_store`; device-minted UUIDs (the server minted ids because
 "an id from an untrusted client is not identity" — locally the device is the only authority, so the
@@ -173,7 +174,8 @@ nothing and no resumable delete exists; `SearchRules` (search fold, `compareName
 and to a JVM table of every code point's fold (the Dart VM's `toLowerCase` differs on 437); the correction-intent integrity check
 (`CorrectionIntent.seen_corrections`); `StoreBackend`, which replaced unit 3's in-memory parity backend; parity scenarios
 `ledger_records`, `ledger_transfers`, `ledger_corrections`, `ledger_accounts`, `ledger_categories`, `ledger_settings`,
-`record_list_filters`, `record_list_order`. Filed jZenDev/jZen#251 (no write precondition). Found: the server answers 500 to an
+`record_list_filters`, `record_list_order`. Filed jZenDev/jZen#251 (no write precondition; consumed by ADR-115: every write carries
+the version it was decided against, so an edit cannot bring back a record a sync just deleted). Found: the server answers 500 to an
 account update that reorders held currencies (row 5.5; jlogicsoftware/prudent#261).
 Categories move here from unit 6, because a record is refused by its category's kind and archived
 flag (finding F-01). Balances derived; a transfer as one immutable record (ADR-102), shown as two legs; corrections; archive. Row-level security has no local
@@ -357,10 +359,11 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | jZenDev/jZen#239 | erase everywhere | 9 (ADR-100 T24) |
 | jZenDev/jZen#240 | screen-capture protection | 9 (ADR-100 T15) |
 | jZenDev/jZen#244 | a merge policy over a group (a reset's revocation: who and when) — **merged (PR #249), consumed by unit 8b (ADR-114)**; unit 6a relies on it (ADR-116) | 4, 6a |
-| jZenDev/jZen#245 | a proto3 field set to its default differs from an unset one in the merge — **merged (PR #254, jZen `4fa887a`); consumed by unit 8b for the import sessions (ADR-114); the unit 4/5 collections are a separate change** | 4, 5 (every write path), 8b |
+| jZenDev/jZen#245 | a proto3 field set to its default differs from an unset one in the merge — **merged (PR #254, jZen `4fa887a`); consumed by unit 8b for the import sessions (ADR-114) and for the unit 4/5 collections by ADR-115** | 4, 5 (every write path), 8b |
 | jZenDev/jZen#246 | save-file capability on iOS and Android | 10a (mobile half) — fixed by PR #254, consumed (ADR-117) |
 | jZenDev/jZen#252 | an atomic write across synced and device-only data — **merged (PR #254, jZen `4fa887a`), consumed by unit 8b: sessions are a device-only collection, the commit one `writeAll` (ADR-114)** | 8b |
-| jZenDev/jZen#251 | a write precondition, so a rule checked before a write holds when it runs (an edit cannot resurrect a record a sync just deleted) — **merged (PR #254, jZen `4fa887a`); consumed by unit 8b's session and commit writes (ADR-114); the unit 4/5 write paths are a separate change** | 4, 5, 6a, 6b, 8b (every write path) |
+| jZenDev/jZen#251 | a write precondition, so a rule checked before a write holds when it runs (an edit cannot resurrect a record a sync just deleted) — **merged (PR #254, jZen `4fa887a`); consumed by unit 8b's session and commit writes (ADR-114) and for units 4 and 5 by ADR-115** (`WriteExpects.asRead`); 6a and 6b pass it on their own write paths | 4, 5, 6a, 6b, 8b (every write path) |
+| jZenDev/jZen#255 | the presence rule of #245 inside a nested message (a posting, a schedule, a reminder setting) | 4, 5, 6b (every writer of a group builds it with its defaults unset until then) |
 
 None blocks starting a unit; each is a stated limitation of that unit until it lands and is consumed.
 

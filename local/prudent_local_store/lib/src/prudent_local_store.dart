@@ -7,6 +7,7 @@ import 'package:zen_store/zen_store.dart';
 import '../generated/prudent_local/v1/imports.pb.dart';
 import '../generated/prudent_local/v1/store.pb.dart';
 import 'derived_ids.dart';
+import 'write_expect.dart';
 
 /// Prudent Local's collections on one open [ZenStore], and the only way to write them.
 ///
@@ -93,23 +94,35 @@ final class PrudentLocalStore {
   String get deviceId => zen.deviceId;
 
   // ── Accounts ────────────────────────────────────────────────────────────────────────────────
+  //
+  // Every write takes an optional [WriteExpect]: what the caller decided the write against, checked
+  // by the store inside the write's turn together with the rules below (ADR-115). A write that
+  // edits a record it read passes `WriteExpects.asRead(theRecordItRead)`, so a sync that deleted or
+  // changed it in between refuses the write instead of being written over.
 
-  Future<ZenResult<Account>> putAccount(Account value) => _put(accounts, value, _accountRules);
+  Future<ZenResult<Account>> putAccount(Account value, {WriteExpect<Account>? expect}) =>
+      _put(accounts, value, _accountRules, expect);
 
-  Future<ZenResult<Account>> deleteAccount(String id) => accounts.delete(id);
+  Future<ZenResult<Account>> deleteAccount(String id, {WriteExpect<Account>? expect}) =>
+      accounts.delete(id, expect: expect);
 
-  Future<ZenResult<AccountCurrency>> putAccountCurrency(AccountCurrency value) =>
-      _put(accountCurrencies, value, _accountCurrencyRules);
+  Future<ZenResult<AccountCurrency>> putAccountCurrency(
+    AccountCurrency value, {
+    WriteExpect<AccountCurrency>? expect,
+  }) => _put(accountCurrencies, value, _accountCurrencyRules, expect);
 
-  Future<ZenResult<AccountCurrency>> deleteAccountCurrency(String id) =>
-      accountCurrencies.delete(id);
+  Future<ZenResult<AccountCurrency>> deleteAccountCurrency(
+    String id, {
+    WriteExpect<AccountCurrency>? expect,
+  }) => accountCurrencies.delete(id, expect: expect);
 
   // ── Categories ──────────────────────────────────────────────────────────────────────────────
 
-  Future<ZenResult<Category>> putCategory(Category value) =>
-      _put(categories, value, _categoryRules);
+  Future<ZenResult<Category>> putCategory(Category value, {WriteExpect<Category>? expect}) =>
+      _put(categories, value, _categoryRules, expect);
 
-  Future<ZenResult<Category>> deleteCategory(String id) => categories.delete(id);
+  Future<ZenResult<Category>> deleteCategory(String id, {WriteExpect<Category>? expect}) =>
+      categories.delete(id, expect: expect);
 
   // ── Records and transfers ───────────────────────────────────────────────────────────────────
 
@@ -117,7 +130,11 @@ final class PrudentLocalStore {
   /// immutable, and a correction is never edited at all, only deleted (`RecordResource.java:232`). A
   /// record that confirms an occurrence carries the id derived from it, and an imported record the
   /// id derived from its account, fingerprint and occurrence, so two devices write one record.
-  Future<ZenResult<Record>> putRecord(Record value) => _put(records, value, _recordRules);
+  Future<ZenResult<Record>> putRecord(Record value, {WriteExpect<Record>? expect}) =>
+      _put(records, value, _recordRules, expect);
+
+  Future<ZenResult<Record>> deleteRecord(String id, {WriteExpect<Record>? expect}) =>
+      records.delete(id, expect: expect);
 
   // ── Import sessions (device-only) ───────────────────────────────────────────────────────────
 
@@ -125,15 +142,15 @@ final class PrudentLocalStore {
   /// stands then (jZenDev/jZen#251), so a rule checked before the write still holds when it runs.
   Future<ZenResult<LocalImportSession>> putImportSession(
     LocalImportSession value, {
-    ZenError? Function(LocalImportSession? current)? expect,
-  }) => _put(importSessions, value, _importSessionRules, expect: expect);
-
-  Future<ZenResult<Record>> deleteRecord(String id) => records.delete(id);
+    WriteExpect<LocalImportSession>? expect,
+  }) => _put(importSessions, value, _importSessionRules, expect);
 
   /// A transfer is written once and never edited, only deleted (`RecordResource.java:217`).
-  Future<ZenResult<Transfer>> addTransfer(Transfer value) => _put(transfers, value, _transferRules);
+  Future<ZenResult<Transfer>> addTransfer(Transfer value, {WriteExpect<Transfer>? expect}) =>
+      _put(transfers, value, _transferRules, expect);
 
-  Future<ZenResult<Transfer>> deleteTransfer(String id) => transfers.delete(id);
+  Future<ZenResult<Transfer>> deleteTransfer(String id, {WriteExpect<Transfer>? expect}) =>
+      transfers.delete(id, expect: expect);
 
   // ── Budgets and carry-over resets ───────────────────────────────────────────────────────────
   //
@@ -142,20 +159,16 @@ final class PrudentLocalStore {
   // A refusal it returns is the write's result, so a rule checked against one state never lands on
   // another — above all, an edit never brings back a record a sync just deleted.
 
-  Future<ZenResult<Budget>> putBudget(
-    Budget value, {
-    ZenError? Function(Budget? current)? expect,
-  }) => _put(budgets, value, _budgetRules, expect: expect);
+  Future<ZenResult<Budget>> putBudget(Budget value, {WriteExpect<Budget>? expect}) =>
+      _put(budgets, value, _budgetRules, expect);
 
-  Future<ZenResult<Budget>> deleteBudget(
-    String id, {
-    ZenError? Function(Budget? current)? expect,
-  }) => budgets.delete(id, expect: expect);
+  Future<ZenResult<Budget>> deleteBudget(String id, {WriteExpect<Budget>? expect}) =>
+      budgets.delete(id, expect: expect);
 
   /// Records a reset, unrevoked. It is an audit entry: never edited, never deleted (ADR-046).
   Future<ZenResult<BudgetCarryOverReset>> addBudgetReset(
     BudgetCarryOverReset value, {
-    ZenError? Function(BudgetCarryOverReset? current)? expect,
+    WriteExpect<BudgetCarryOverReset>? expect,
   }) {
     if (value.hasRevocation()) {
       return _refuse('A carry-over reset is recorded unrevoked; revoke it with revokeBudgetReset.');
@@ -164,7 +177,7 @@ final class PrudentLocalStore {
       budgetResets,
       value,
       _Rules<BudgetCarryOverReset>(id: _randomId, writeOnce: true),
-      expect: expect,
+      expect,
     );
   }
 
@@ -187,18 +200,13 @@ final class PrudentLocalStore {
       case ZenSuccess(:final data):
         if (data.hasRevocation()) return _refuse('budget_resets/$id is already revoked.');
         final next = data.deepCopy()..revocation = Revocation(by: deviceId, atMs: Int64(atMs));
-        return _put(
-          budgetResets,
-          next,
-          _resetRevocationRules,
-          expect: (now) {
-            if (now == null) return ZenNotFoundError('budget_resets/$id does not exist.');
-            if (now.hasRevocation()) {
-              return ZenValidationError('budget_resets/$id is already revoked.');
-            }
-            return expect?.call(now);
-          },
-        );
+        return _put(budgetResets, next, _resetRevocationRules, (now) {
+          if (now == null) return ZenNotFoundError('budget_resets/$id does not exist.');
+          if (now.hasRevocation()) {
+            return ZenValidationError('budget_resets/$id is already revoked.');
+          }
+          return expect?.call(now);
+        });
     }
   }
 
@@ -223,19 +231,15 @@ final class PrudentLocalStore {
   // ── Goals and allocations ───────────────────────────────────────────────────────────────────
 
   /// A goal is retired, never deleted (ADR-049); its currency and creation time never change.
-  Future<ZenResult<Goal>> putGoal(Goal value, {ZenError? Function(Goal? current)? expect}) =>
-      _put(goals, value, _goalRules, expect: expect);
+  Future<ZenResult<Goal>> putGoal(Goal value, {WriteExpect<Goal>? expect}) =>
+      _put(goals, value, _goalRules, expect);
 
   /// Append-only, as on the server (ADR-050): written once, never edited or deleted.
   Future<ZenResult<GoalAllocation>> addGoalAllocation(
     GoalAllocation value, {
-    ZenError? Function(GoalAllocation? current)? expect,
-  }) => _put(
-    goalAllocations,
-    value,
-    _Rules<GoalAllocation>(id: _randomId, writeOnce: true),
-    expect: expect,
-  );
+    WriteExpect<GoalAllocation>? expect,
+  }) =>
+      _put(goalAllocations, value, _Rules<GoalAllocation>(id: _randomId, writeOnce: true), expect);
 
   static final _goalRules = _Rules<Goal>(
     id: _randomId,
@@ -244,27 +248,35 @@ final class PrudentLocalStore {
 
   // ── Plans and occurrences ───────────────────────────────────────────────────────────────────
 
-  Future<ZenResult<Plan>> putPlan(Plan value) => _put(plans, value, _planRules);
+  Future<ZenResult<Plan>> putPlan(Plan value, {WriteExpect<Plan>? expect}) =>
+      _put(plans, value, _planRules, expect);
 
-  Future<ZenResult<Plan>> deletePlan(String id) => plans.delete(id);
+  Future<ZenResult<Plan>> deletePlan(String id, {WriteExpect<Plan>? expect}) =>
+      plans.delete(id, expect: expect);
 
-  Future<ZenResult<OccurrenceState>> putOccurrenceState(OccurrenceState value) =>
-      _put(occurrences, value, _occurrenceRules);
+  Future<ZenResult<OccurrenceState>> putOccurrenceState(
+    OccurrenceState value, {
+    WriteExpect<OccurrenceState>? expect,
+  }) => _put(occurrences, value, _occurrenceRules, expect);
 
-  Future<ZenResult<OccurrenceState>> deleteOccurrenceState(String id) => occurrences.delete(id);
+  Future<ZenResult<OccurrenceState>> deleteOccurrenceState(
+    String id, {
+    WriteExpect<OccurrenceState>? expect,
+  }) => occurrences.delete(id, expect: expect);
 
   // ── Settings ────────────────────────────────────────────────────────────────────────────────
 
   /// The one settings record. It is created, edited, never deleted.
-  Future<ZenResult<Settings>> putSettings(Settings value) => _put(settings, value, _settingsRules);
+  Future<ZenResult<Settings>> putSettings(Settings value, {WriteExpect<Settings>? expect}) =>
+      _put(settings, value, _settingsRules, expect);
 
   // ── Several records as one ──────────────────────────────────────────────────────────────────
 
   /// Writes every operation of [batch] as one, through jZen's `ZenStore.writeAll`
   /// (jZenDev/jZen#232): all of it reaches the disk, or none of it does, even if the device loses
   /// power half way. Each operation is held to exactly the rules its single-record method applies —
-  /// the id, the immutable fields, write-once — against the records as they stand now, and if any
-  /// one is refused, nothing is written.
+  /// the id, the immutable fields, write-once, and its [WriteExpect] — against the records as they
+  /// stand when the batch takes its turn, and if any one is refused, nothing is written.
   ///
   /// Atomic on this device only: another device receives the records one by one (a sync is per
   /// record), so a screen there can briefly show part of a batch. Every batch Prudent writes is
@@ -374,45 +386,50 @@ final class PrudentLocalStore {
   Future<ZenResult<T>> _put<T extends GeneratedMessage>(
     ZenCollection<T> collection,
     T value,
-    _Rules<T> rules, {
-    ZenError? Function(T? current)? expect,
-  }) {
-    if (_admit(collection, value, rules) case final error?) {
-      return Future.value(ZenResult.err(error));
+    _Rules<T> rules,
+    WriteExpect<T>? expect,
+  ) {
+    if (rules.id(value) case final problem?) {
+      return Future.value(ZenResult.err(ZenValidationError(problem)));
     }
-    return collection.put(value.getField(_idTag) as String, value, expect: expect);
+    return collection.put(
+      value.getField(_idTag) as String,
+      value,
+      expect: _admitting(collection, value, rules, expect),
+    );
   }
 
-  /// Null when [rules] allow writing [value] over what [collection] holds now; otherwise why not.
-  static ZenError? _admit<T extends GeneratedMessage>(
+  /// The precondition the store runs inside the write's turn: the caller's [expect] first, then
+  /// [rules] — write-once, the immutable fields, a further refusal of an update — against the record
+  /// as it stands *then*. Checked any earlier, a sync's receive queued before the write could change
+  /// the record in between, and the rule would hold only for a version that is no longer there.
+  ///
+  /// A stored record whose bytes no longer decode never reaches this: the store answers its decode
+  /// failure for it, so a write never goes past exactly the record nobody can read.
+  static WriteExpect<T> _admitting<T extends GeneratedMessage>(
     ZenCollection<T> collection,
     T value,
     _Rules<T> rules,
-  ) {
+    WriteExpect<T>? expect,
+  ) => (current) {
+    if (expect?.call(current) case final error?) return error;
+    if (current == null) return null;
     final id = value.getField(_idTag) as String;
-    if (rules.id(value) case final problem?) return ZenValidationError(problem);
-    final existing = collection.get(id);
-    // Only the store's own "does not exist" means there is nothing to check. Any other failure —
-    // above all a stored record whose bytes no longer decode — is returned as it is: writing past
-    // it would skip every rule below for exactly the record nobody can read, and overwrite it.
-    if (existing case ZenFailure(:final error) when error is! ZenNotFoundError) return error;
-    if (existing case ZenSuccess(data: final current)) {
-      if (rules.writeOnce) {
-        return ZenValidationError('${collection.name}/$id is written once and never edited.');
-      }
-      for (final name in rules.immutable) {
-        if (!_sameField(current, value, name)) {
-          return ZenValidationError(
-            '${collection.name}/$id: "$name" is written once and never changed.',
-          );
-        }
-      }
-      if (rules.onUpdate?.call(current, value) case final problem?) {
-        return ZenValidationError(problem);
+    if (rules.writeOnce) {
+      return ZenValidationError('${collection.name}/$id is written once and never edited.');
+    }
+    for (final name in rules.immutable) {
+      if (!_sameField(current, value, name)) {
+        return ZenValidationError(
+          '${collection.name}/$id: "$name" is written once and never changed.',
+        );
       }
     }
+    if (rules.onUpdate?.call(current, value) case final problem?) {
+      return ZenValidationError(problem);
+    }
     return null;
-  }
+  };
 
   /// Whether field [name] serialises to the same bytes in [a] and [b] — exactly what the store
   /// compares when it merges, so "unchanged" here means "no version of it to merge".
@@ -530,63 +547,69 @@ final class StoreBatch {
   /// How many operations the batch holds.
   int get length => _steps.length;
 
-  void putAccount(Account value) => _put(_store.accounts, value, PrudentLocalStore._accountRules);
+  void putAccount(Account value, {WriteExpect<Account>? expect}) =>
+      _put(_store.accounts, value, PrudentLocalStore._accountRules, expect);
 
-  void deleteAccount(String id) => _delete(_store.accounts, id);
+  void deleteAccount(String id, {WriteExpect<Account>? expect}) =>
+      _delete(_store.accounts, id, expect);
 
-  void putAccountCurrency(AccountCurrency value) =>
-      _put(_store.accountCurrencies, value, PrudentLocalStore._accountCurrencyRules);
+  void putAccountCurrency(AccountCurrency value, {WriteExpect<AccountCurrency>? expect}) =>
+      _put(_store.accountCurrencies, value, PrudentLocalStore._accountCurrencyRules, expect);
 
-  void deleteAccountCurrency(String id) => _delete(_store.accountCurrencies, id);
+  void deleteAccountCurrency(String id, {WriteExpect<AccountCurrency>? expect}) =>
+      _delete(_store.accountCurrencies, id, expect);
 
-  void putCategory(Category value) =>
-      _put(_store.categories, value, PrudentLocalStore._categoryRules);
+  void putCategory(Category value, {WriteExpect<Category>? expect}) =>
+      _put(_store.categories, value, PrudentLocalStore._categoryRules, expect);
 
-  /// [expect] as for `ZenBatch.put` (jZenDev/jZen#251): run when the batch does, and a refusal
-  /// fails the whole batch.
-  void putRecord(Record value, {ZenError? Function(Record? current)? expect}) =>
-      _put(_store.records, value, PrudentLocalStore._recordRules, expect: expect);
+  void putRecord(Record value, {WriteExpect<Record>? expect}) =>
+      _put(_store.records, value, PrudentLocalStore._recordRules, expect);
 
-  void putImportSession(
-    LocalImportSession value, {
-    ZenError? Function(LocalImportSession? current)? expect,
-  }) => _put(_store.importSessions, value, PrudentLocalStore._importSessionRules, expect: expect);
+  void putImportSession(LocalImportSession value, {WriteExpect<LocalImportSession>? expect}) =>
+      _put(_store.importSessions, value, PrudentLocalStore._importSessionRules, expect);
 
-  void putPlan(Plan value) => _put(_store.plans, value, PrudentLocalStore._planRules);
+  void putPlan(Plan value, {WriteExpect<Plan>? expect}) =>
+      _put(_store.plans, value, PrudentLocalStore._planRules, expect);
 
-  void deletePlan(String id) => _delete(_store.plans, id);
+  void deletePlan(String id, {WriteExpect<Plan>? expect}) => _delete(_store.plans, id, expect);
 
-  void putOccurrenceState(OccurrenceState value) =>
-      _put(_store.occurrences, value, PrudentLocalStore._occurrenceRules);
+  void putOccurrenceState(OccurrenceState value, {WriteExpect<OccurrenceState>? expect}) =>
+      _put(_store.occurrences, value, PrudentLocalStore._occurrenceRules, expect);
 
-  void deleteOccurrenceState(String id) => _delete(_store.occurrences, id);
+  void deleteOccurrenceState(String id, {WriteExpect<OccurrenceState>? expect}) =>
+      _delete(_store.occurrences, id, expect);
 
-  void deleteRecord(String id) => _delete(_store.records, id);
+  void deleteRecord(String id, {WriteExpect<Record>? expect}) =>
+      _delete(_store.records, id, expect);
 
-  void deleteTransfer(String id) => _delete(_store.transfers, id);
+  void deleteTransfer(String id, {WriteExpect<Transfer>? expect}) =>
+      _delete(_store.transfers, id, expect);
 
-  void putSettings(Settings value) =>
-      _put(_store.settings, value, PrudentLocalStore._settingsRules);
+  void putSettings(Settings value, {WriteExpect<Settings>? expect}) =>
+      _put(_store.settings, value, PrudentLocalStore._settingsRules, expect);
 
   void _put<T extends GeneratedMessage>(
     ZenCollection<T> collection,
     T value,
-    _Rules<T> rules, {
-    ZenError? Function(T? current)? expect,
-  }) => _steps.add((batch) {
-    if (PrudentLocalStore._admit(collection, value, rules) case final error?) return error;
+    _Rules<T> rules,
+    WriteExpect<T>? expect,
+  ) => _steps.add((batch) {
+    if (rules.id(value) case final problem?) return ZenValidationError(problem);
     batch.put(
       collection,
       value.getField(PrudentLocalStore._idTag) as String,
       value,
-      expect: expect,
+      expect: PrudentLocalStore._admitting(collection, value, rules, expect),
     );
     return null;
   });
 
-  void _delete<T extends GeneratedMessage>(ZenCollection<T> collection, String id) =>
-      _steps.add((batch) {
-        batch.delete(collection, id);
-        return null;
-      });
+  void _delete<T extends GeneratedMessage>(
+    ZenCollection<T> collection,
+    String id,
+    WriteExpect<T>? expect,
+  ) => _steps.add((batch) {
+    batch.delete(collection, id, expect: expect);
+    return null;
+  });
 }

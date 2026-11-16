@@ -30,10 +30,12 @@ typedef AccountParts = ({Account account, List<AccountCurrency> currencies, bool
 /// - **The default account is a setting here** and `Account.is_default` on the wire.
 ///
 /// **Field presence is copied exactly**: a field is set on the output only when it is set on the
-/// input. The protobuf runtime serialises a field explicitly set to its default (`note: ''`), and
-/// zen_store compares serialised fields, so a mapper that filled in defaults would hand the store
-/// edits nobody made — and those can conflict with another device's real change (jZenDev/jZen#245).
-/// The round trip is therefore byte-for-byte, which is what `wire_mapper_test` checks.
+/// input, so the round trip is byte-for-byte, which is what `wire_mapper_test` checks. The protobuf
+/// runtime serialises a field explicitly set to its default (`note: ''`). Since jZenDev/jZen#245 the
+/// store keeps such a field of a record as unset, but it still compares a nested group (a posting, a
+/// schedule) by its bytes (jZenDev/jZen#255), and a write answers the value it was given rather than
+/// the stored one: a mapper that filled in defaults would make the one conflict with another
+/// device's edit about nothing, and the other differ from the next read of the same record.
 ///
 /// A value that cannot be represented the other way is refused with an [ArgumentError], never
 /// guessed at: a wire record that is a transfer leg, a leg pair that does not form one transfer,

@@ -1,5 +1,6 @@
 import '../../../generated/prudent_local/v1/store.pb.dart';
 import '../../prudent_local_store.dart';
+import '../../write_expect.dart';
 import '../integrity_issue.dart';
 import '../integrity_runner.dart';
 import '../store_snapshot.dart';
@@ -44,6 +45,8 @@ final class CategoryKindCheck implements IntegrityCheck {
             'category_takes_both',
             () => store.putCategory(
               category.deepCopy()..kind = CategoryDirection.CATEGORY_DIRECTION_UNSPECIFIED,
+              // Built from the category as the check saw it: never written over a later edit.
+              expect: WriteExpects.asRead(category),
             ),
           ),
           ?Repairs.moveRecordToCategory(store, record, fits),

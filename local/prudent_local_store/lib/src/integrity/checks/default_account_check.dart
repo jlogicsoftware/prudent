@@ -3,6 +3,7 @@ import 'package:zen_core/zen_core.dart';
 import '../../../generated/prudent_local/v1/store.pb.dart';
 import '../../derived_ids.dart';
 import '../../prudent_local_store.dart';
+import '../../write_expect.dart';
 import '../integrity_issue.dart';
 import '../integrity_runner.dart';
 import '../store_snapshot.dart';
@@ -55,7 +56,7 @@ final class DefaultAccountCheck implements IntegrityCheck {
       case ZenSuccess(:final data):
         final next = data.deepCopy();
         change(next);
-        return store.putSettings(next);
+        return store.putSettings(next, expect: WriteExpects.asRead(data));
       case ZenFailure(:final error):
         return Future.value(ZenResult.err(error));
     }
