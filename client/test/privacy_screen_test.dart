@@ -14,6 +14,7 @@ import 'package:prudent/auth/identity_settings_session.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:prudent_proto/generated/prudent/v1/privacy.pb.dart';
 import 'package:prudent_ui/privacy/export_file_saver.dart';
+import 'package:zen_save_file/zen_save_file.dart';
 import 'package:prudent_ui/privacy/privacy_screen.dart';
 import 'package:prudent_ui/providers.dart';
 import 'package:prudent/server_prudent_repository.dart';
@@ -102,7 +103,7 @@ void main() {
   Object? throwOnSave;
   bool byDownload = false;
 
-  Future<void> pump(WidgetTester tester, {bool canSave = true, bool download = false}) async {
+  Future<void> pump(WidgetTester tester, {bool download = false}) async {
     identity = _Identity();
     erased = [];
     copied = null;
@@ -159,11 +160,10 @@ void main() {
           prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
           identityRepositoryProvider.overrideWithValue(identity),
           identitySettingsSession,
-          exportFileSavingSupportedProvider.overrideWithValue(canSave),
           exportFileSavedByDownloadProvider.overrideWithValue(byDownload),
           exportFileSaverProvider.overrideWithValue((name, bytes) async {
             if (throwOnSave != null) throw throwOnSave!;
-            if (failSave) throw const FormatException('disk refused');
+            if (failSave) throw const ZenSaveFileError('disk refused');
             if (cancelSave) return false;
             saved.add((name: name, bytes: bytes));
             return true;
@@ -257,6 +257,7 @@ void main() {
     await tester.tap(button('Save to a file'));
     await tester.pumpAndSettle();
     expect(find.textContaining('could not be saved'), findsOneWidget);
+    expect(find.textContaining('disk refused'), findsNothing, reason: 'the cause is logged, not shown');
   });
 
   testWidgets('an Error from the platform still stops the spinner; the screen stays usable', (
@@ -287,15 +288,27 @@ void main() {
     expect(find.textContaining('Your data was saved'), findsNothing);
   });
 
-  testWidgets('where no file can be saved only the copy is offered, still with its warning', (
-    tester,
-  ) async {
-    await pump(tester, canSave: false);
+  group('saveExportFile over a fake of the framework port', () {
+    final bytes = Uint8List.fromList(utf8.encode('{"a":1}'));
 
-    expect(button('Save to a file'), findsNothing);
-    expect(find.textContaining('The file is not encrypted'), findsNothing);
-    expect(button('Copy my data'), findsOneWidget);
-    expect(find.textContaining('shared with other apps'), findsOneWidget);
+    test('passes the name, the bytes and the JSON type through, and reports a write', () async {
+      final port = _FakeSavePort();
+      expect(await saveExportFile('x.json', bytes, port: port), isTrue);
+      expect(port.calls.single, ('x.json', bytes, 'application/json'));
+    });
+
+    test('a cancel is false, not an error', () async {
+      final port = _FakeSavePort()..cancel = true;
+      expect(await saveExportFile('x.json', bytes, port: port), isFalse);
+    });
+
+    test('a refused write throws ZenSaveFileError', () async {
+      final port = _FakeSavePort()..refuse = true;
+      await expectLater(
+        saveExportFile('x.json', bytes, port: port),
+        throwsA(isA<ZenSaveFileError>()),
+      );
+    });
   });
 
   testWidgets('deletion needs the address, and a refusal keeps the form open and the user in', (
@@ -325,4 +338,18 @@ void main() {
     expect(find.text('Delete all your data?'), findsOneWidget, reason: 'the form closed');
     expect(identity.logouts, 0, reason: 'a refused erasure signed the person out');
   });
+}
+
+class _FakeSavePort implements ZenSaveFilePort {
+  final calls = <(String, Uint8List, String)>[];
+  bool cancel = false;
+  bool refuse = false;
+
+  @override
+  Future<bool> save(String name, Uint8List bytes, String mimeType) async {
+    if (refuse) throw const ZenSaveFileError('no space');
+    if (cancel) return false;
+    calls.add((name, bytes, mimeType));
+    return true;
+  }
 }

@@ -13,6 +13,48 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-117 — The server-connected app saves the privacy export through jZen's `zen_save_file` on every platform, so iOS and Android get "Save to a file" too
+
+**Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 10a (mobile half) of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
+**Builds on:** ADR-083 (no CocoaPods), ADR-103, ADR-110 (which left iOS and Android open; ADR-110 is accepted and not edited).
+**jZen:** consumes jZenDev/jZen#246 (fixed by PR #254, which merged without closing the issue, so it still showed open on 2026-11-16) at
+`JZEN_REF` `4fa887a`.
+
+### Decision
+
+- **One save path, the framework's.** `saveExportFile` is now `zenSaveFile(name, bytes, mimeType: 'application/json')` from `zen_save_file`
+  (`path:` dependency of `packages/prudent_ui` and `client/`). It returns true once written and false on a cancel, and throws `ZenSaveFileError`
+  when the platform refuses the write. `file_selector` is no longer used for the export; it stays only for the statement picker (ADR-093), a different
+  job (choosing a file to read), where its API fits.
+- **No platform branch.** `exportFileSavingSupportedProvider` is deleted, so the screen offers "Save to a file", with the not-encrypted warning ahead of
+  it, on iOS, Android, macOS, Windows, Linux and web. I did not keep `file_selector` on desktop and web: `zen_save_file` covers them with the same call
+  (the save panel, a download), and a second path would be a second thing to keep equal for no gain.
+- **Unchanged:** the warning before the button, a cancel saying nothing, the `finally` that resets the in-progress flag, the web's "handed to your
+  browser's downloads" wording (`exportFileSavedByDownloadProvider`), and the localized `privacyExportSaveFailed` sentence in en, uk and pl.
+  A refused write (`ZenSaveFileError`) is caught as an `Exception` and goes to the log with its stack; the screen shows only the localized sentence, never the cause. An `Error`
+  that is not a `ZenSaveFileError` still propagates.
+- **Boundaries.** `zen_save_file` depends on `file_picker`, `flutter` and `meta` only, so `prudent_ui` still imports no transport, identity or
+  secure-store package (`task verify:boundaries`, check E).
+- **Swift Package Manager (ADR-083).** `file_picker` resolves on iOS and macOS through its Swift package `file_picker_darwin`: the runners gained the
+  plugin registration (`client/macos/Flutter/GeneratedPluginRegistrant.swift`) and no Podfile, Pods directory or `[CP]` phase; `verify_no_cocoapods.py`
+  stays green.
+- **`JZEN_REF` moves from `e6a06c6` to `4fa887a`** in `ci.yml` and `audit.yml`; the only jZen change in that range this repository consumes is
+  `zen_save_file`.
+
+### Tests
+
+`client/test/privacy_screen_test.dart`: the screen over a fake `ExportFileSaver` (save round-trips to an equal `DataExport`, cancel is silent, a
+`ZenSaveFileError` shows the sentence, an `Error` still stops the spinner, web wording) and `saveExportFile` over a fake `ZenSaveFilePort`
+(name, bytes and `application/json` pass through; cancel is false; a refused write throws `ZenSaveFileError`). The test that the button is absent where
+no save exists is removed with the provider.
+
+### Not verified
+
+The save sheet on a real iOS or Android device, and on a real macOS, Windows or Linux desktop, has not been seen: the suite stands in for the plugin.
+That belongs to unit 12, together with one thing not checked at all: on Linux the save moved from `file_selector_linux` (GTK) to `file_picker_linux`, whose runtime requirements (a dialog helper such as zenity or kdialog) were not read; a desktop without it would show the failure sentence. Built here, debug, with no CocoaPods: the macOS app (`flutter build macos`), the iOS simulator runner (`--simulator --no-codesign`) and the Android debug APK; `task verify:swiftpm`'s script (`scripts/verify_no_cocoapods.py`), `verify_boundaries.py` and `verify_controls.py` pass, and `flutter analyze --fatal-infos --fatal-warnings` is clean in `client/` and `packages/prudent_ui`. None was launched. `task` does not load from a worktree (ADR-065), so the scripts were run directly. CI's `android-runner` is the Android check of record.
+
+---
+
 ## ADR-114 — Prudent Local imports a statement through the server's three phases in a device-only collection, and commits every row and the completed session as one `writeAll` whose record ids derive from the row keys
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 8b of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);

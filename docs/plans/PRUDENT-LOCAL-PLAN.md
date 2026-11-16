@@ -267,8 +267,8 @@ beside the clipboard copy, with a warning that the file is not encrypted (ADR-10
 ADR. **Done when:** `PrivacyCoverageTest` sees the new fields, `verify:contracts` passes, and a saved file
 round-trips.
 
-**Status (ADR-110):** built on the server and on macOS, Windows, Linux and web; the key travels as `record_import_keys` beside the record. **Open:** "Save to a file" on iOS and
-Android waits for a framework save-file capability (jZenDev/jZen#246), and the save panel has not been run on a real platform.
+**Status (ADR-110, ADR-117):** built on the server and on every platform of the server-connected app; the key travels as `record_import_keys` beside the record, and "Save to a file" is
+`zenSaveFile` (jZenDev/jZen#246, PR #254) on iOS, Android, macOS, Windows, Linux and web. **Open:** the save sheet has not been run on a real device or platform; that belongs to unit 12.
 
 ### Unit 10b — Moving data in
 As decided in ADR-103: the export read from a file into an empty store, opening amounts rebuilt from the
@@ -341,7 +341,7 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | jZenDev/jZen#240 | screen-capture protection | 9 (ADR-100 T15) |
 | jZenDev/jZen#244 | a merge policy over a group (a reset's revocation: who and when) — **merged (PR #249), consumed by unit 8b (ADR-114)** | 4, 6a |
 | jZenDev/jZen#245 | a proto3 field set to its default differs from an unset one in the merge — **merged (PR #254, jZen `4fa887a`); consumed by unit 8b for the import sessions (ADR-114); the unit 4/5 collections are a separate change** | 4, 5 (every write path), 8b |
-| jZenDev/jZen#246 | save-file capability on iOS and Android | 10a (mobile half) |
+| jZenDev/jZen#246 | save-file capability on iOS and Android | 10a (mobile half) — fixed by PR #254, consumed (ADR-117) |
 | jZenDev/jZen#252 | an atomic write across synced and device-only data — **merged (PR #254, jZen `4fa887a`), consumed by unit 8b: sessions are a device-only collection, the commit one `writeAll` (ADR-114)** | 8b |
 | jZenDev/jZen#251 | a write precondition, so a rule checked before a write holds when it runs (an edit cannot resurrect a record a sync just deleted) — **merged (PR #254, jZen `4fa887a`); consumed by unit 8b's session and commit writes (ADR-114); the unit 4/5 write paths are a separate change** | 4, 5, 6a, 6b, 8b (every write path) |
 
