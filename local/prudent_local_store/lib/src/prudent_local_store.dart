@@ -259,6 +259,12 @@ final class PrudentLocalStore {
     final id = value.getField(_idTag) as String;
     if (rules.id(value) case final problem?) return _refuse(problem);
     final existing = collection.get(id);
+    // Only the store's own "does not exist" means there is nothing to check. Any other failure —
+    // above all a stored record whose bytes no longer decode — is returned as it is: writing past
+    // it would skip every rule below for exactly the record nobody can read, and overwrite it.
+    if (existing case ZenFailure(:final error) when error is! ZenNotFoundError) {
+      return Future.value(ZenResult.err(error));
+    }
     if (existing case ZenSuccess(data: final current)) {
       if (rules.writeOnce) {
         return _refuse('${collection.name}/$id is written once and never edited.');
