@@ -50,8 +50,9 @@ final class Settled<T> {
   /// The wire answer, its figures computed from settled values only.
   final T value;
 
-  /// By account id, the records, transfers and account currencies its balances leave out, sorted;
-  /// an account with nothing left out is absent.
+  /// By what each figure belongs to — an account's balances, a budget summary's category, free
+  /// money's currency, a goal's progress (unit 6a, ADR-116) — the ids of what it leaves out, sorted;
+  /// a figure with nothing left out is absent.
   final Map<String, List<String>> unsettled;
 
   const Settled(this.value, this.unsettled);
@@ -85,12 +86,18 @@ final class LedgerView {
   final Map<String, Plan> plans;
   final Map<String, Budget> budgets;
   final Map<String, BudgetCarryOverReset> budgetResets;
+  final Map<String, Goal> goals;
+  final Map<String, GoalAllocation> goalAllocations;
   final Settings? settings;
 
   /// Every record in conflict, with each device's value (the deleting side omitted).
   final Map<String, ZenConflict<Record>> recordConflicts;
   final Map<String, ZenConflict<Transfer>> transferConflicts;
   final Map<String, ZenConflict<AccountCurrency>> currencyConflicts;
+  final Map<String, ZenConflict<Account>> accountConflicts;
+  final Map<String, ZenConflict<Budget>> budgetConflicts;
+  final Map<String, ZenConflict<BudgetCarryOverReset>> resetConflicts;
+  final Map<String, ZenConflict<Goal>> goalConflicts;
 
   LedgerView._({
     required this.accounts,
@@ -101,10 +108,16 @@ final class LedgerView {
     required this.plans,
     required this.budgets,
     required this.budgetResets,
+    required this.goals,
+    required this.goalAllocations,
     required this.settings,
     required this.recordConflicts,
     required this.transferConflicts,
     required this.currencyConflicts,
+    required this.accountConflicts,
+    required this.budgetConflicts,
+    required this.resetConflicts,
+    required this.goalConflicts,
   });
 
   /// Reads the ledger's collections of [store]; throws [LedgerReadFailure] with the store's error.
@@ -124,10 +137,16 @@ final class LedgerView {
       plans: all(store.plans),
       budgets: all(store.budgets),
       budgetResets: all(store.budgetResets),
+      goals: all(store.goals),
+      goalAllocations: all(store.goalAllocations),
       settings: readOrThrow(store.settings.list()).firstOrNull,
       recordConflicts: disputed(store.records),
       transferConflicts: disputed(store.transfers),
       currencyConflicts: disputed(store.accountCurrencies),
+      accountConflicts: disputed(store.accounts),
+      budgetConflicts: disputed(store.budgets),
+      resetConflicts: disputed(store.budgetResets),
+      goalConflicts: disputed(store.goals),
     );
   }
 
@@ -156,6 +175,35 @@ final class LedgerView {
       }
     }
   }
+
+  /// [recordValues] for budgets: a budget one device deleted and another re-planned still names its
+  /// category on the other side, so "this category still has budgets" reads it (unit 6a).
+  Iterable<Budget> budgetValues() => _values(budgets, budgetConflicts);
+
+  /// [recordValues] for carry-over resets (unit 6a).
+  Iterable<BudgetCarryOverReset> resetValues() => _values(budgetResets, resetConflicts);
+
+  /// Every value of goal [id] any device holds: the one shown and each side of its conflict. A rule
+  /// about a goal's state (money goes into an active goal only) holds only when it holds on every
+  /// side, because which side the person keeps is theirs to say (unit 6a).
+  List<Goal> goalSides(String id) => [
+    ?goals[id],
+    for (final side in goalConflicts[id]?.sides ?? const <ZenConflictSide<Goal>>[]) ?side.value,
+  ];
+
+  static Iterable<T> _values<T>(Map<String, T> shown, Map<String, ZenConflict<T>> conflicts) sync* {
+    yield* shown.values;
+    for (final conflict in conflicts.values) {
+      for (final side in conflict.sides) {
+        if (side.value case final value?) yield value;
+      }
+    }
+  }
+
+  /// Whether a conflict on a record touches any of [tags] or the record's existence: then a figure
+  /// that reads one of those fields would read a value two devices disagree about (ADR-113).
+  static bool disputes<T>(ZenConflict<T>? conflict, Set<int> tags) =>
+      conflict != null && (conflict.isDeleteConflict || conflict.fields.any(tags.contains));
 
   /// The account currencies of [accountId], in display order (position, then code).
   List<AccountCurrency> currenciesOf(String accountId) =>

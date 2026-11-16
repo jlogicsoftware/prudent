@@ -1,0 +1,216 @@
+{
+  "name": "carry_over",
+  "description": "Carry-over is the sum of plan minus actual over a category's earlier budgeted months in one currency, passing unchanged through months with no budget (whose spending counts in no carry-over), included in remaining, and recalculated when an earlier budget or record changes. Currency NOK in 2032 is this scenario's own.",
+  "rules": [
+    "6.6",
+    "6.7"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "as": "wallet",
+      "outcome": "accepted",
+      "input": {
+        "name": "Wallet",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "NOK",
+            "amountMinor": "1000000"
+          }
+        ],
+        "isActive": true
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Food",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "travel",
+      "outcome": "accepted",
+      "input": {
+        "title": "Travel",
+        "iconKey": "leisure",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2032-01",
+        "currency": "NOK",
+        "amountMinor": "10000"
+      }
+    },
+    {
+      "op": "record.create",
+      "as": "jan",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-7000",
+        "currency": "NOK",
+        "date": "2032-01-10",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-4000",
+        "currency": "NOK",
+        "date": "2032-02-10",
+        "title": "February, no budget"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2032-03",
+        "currency": "NOK",
+        "amountMinor": "10000"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-12500",
+        "currency": "NOK",
+        "date": "2032-03-10",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2032-05",
+        "currency": "NOK",
+        "amountMinor": "10000"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$travel",
+        "month": "2032-02",
+        "currency": "NOK",
+        "amountMinor": "3000"
+      }
+    },
+    {
+      "comment": "6.6: January's 3000 underspend passes through February unchanged.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2032-03",
+        "currency": "NOK"
+      }
+    },
+    {
+      "comment": "Into May: 3000 from January, -2500 from March, nothing from February or April.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2032-05",
+        "currency": "NOK"
+      }
+    },
+    {
+      "comment": "An earlier budget edited: the carry-over follows.",
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2032-01",
+        "currency": "NOK",
+        "amountMinor": "9000"
+      }
+    },
+    {
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2032-05",
+        "currency": "NOK"
+      }
+    },
+    {
+      "op": "record.update",
+      "outcome": "accepted",
+      "input": {
+        "record": "$jan",
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-1000",
+        "currency": "NOK",
+        "date": "2032-01-10",
+        "title": "Spend"
+      }
+    },
+    {
+      "comment": "An earlier record edited: the carry-over follows.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2032-05",
+        "currency": "NOK"
+      }
+    },
+    {
+      "op": "record.delete",
+      "outcome": "accepted",
+      "input": {
+        "record": "$jan"
+      }
+    },
+    {
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2032-05",
+        "currency": "NOK"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$travel",
+        "month": "2032-05",
+        "currency": "NOK",
+        "amountMinor": "3000"
+      }
+    },
+    {
+      "comment": "Two categories, each with its own carry-over, and the totals.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2032-05",
+        "currency": "NOK"
+      }
+    }
+  ]
+}

@@ -1,0 +1,288 @@
+{
+  "name": "free_money",
+  "description": "Free money per currency is the current balance of the active accounts marked eligible for goals less every envelope in that currency; the contributing accounts are listed in name order; it may go negative after a later spend, and an ALLOCATE above it is refused. ISK and KZT are this scenario's own currencies.",
+  "rules": [
+    "6.26",
+    "6.27",
+    "6.54"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "as": "zeta",
+      "outcome": "accepted",
+      "input": {
+        "name": "Zeta",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "ISK",
+            "amountMinor": "5000"
+          }
+        ],
+        "isActive": true,
+        "eligibleForGoals": true
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "alpha",
+      "outcome": "accepted",
+      "input": {
+        "name": "alpha",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "ISK",
+            "amountMinor": "3000"
+          }
+        ],
+        "isActive": true,
+        "eligibleForGoals": true
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "cma",
+      "outcome": "accepted",
+      "input": {
+        "name": "\u0106ma",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "ISK",
+            "amountMinor": "2000"
+          }
+        ],
+        "isActive": true,
+        "eligibleForGoals": true
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "beta",
+      "outcome": "accepted",
+      "input": {
+        "name": "Beta",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "ISK",
+            "amountMinor": "1000"
+          }
+        ],
+        "isActive": true,
+        "eligibleForGoals": true
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "sleeping",
+      "outcome": "accepted",
+      "input": {
+        "name": "Sleeping",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "ISK",
+            "amountMinor": "1000"
+          }
+        ],
+        "eligibleForGoals": true
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "daily",
+      "outcome": "accepted",
+      "input": {
+        "name": "Daily",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "ISK",
+            "amountMinor": "7000"
+          }
+        ],
+        "isActive": true
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Food",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "comment": "6.27: 11000 eligible from four accounts in name order; the inactive and the ineligible ones count nothing.",
+      "op": "freemoney.get",
+      "outcome": "accepted",
+      "input": {
+        "currency": "ISK"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "house",
+      "outcome": "accepted",
+      "input": {
+        "name": "House",
+        "currency": "ISK",
+        "targetAmountMinor": "1000000"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "empty",
+      "outcome": "accepted",
+      "input": {
+        "name": "Empty",
+        "currency": "KZT",
+        "targetAmountMinor": "100"
+      }
+    },
+    {
+      "comment": "A goal's currency is listed even at zero.",
+      "op": "freemoney.get",
+      "outcome": "accepted",
+      "input": {
+        "currency": "KZT"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "8000",
+        "target": "$house"
+      }
+    },
+    {
+      "op": "freemoney.get",
+      "outcome": "accepted",
+      "input": {
+        "currency": "ISK"
+      }
+    },
+    {
+      "comment": "6.26: more than the 3000 free (409).",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "3001",
+        "target": "$house"
+      }
+    },
+    {
+      "comment": "Exactly the free money is allowed.",
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "3000",
+        "target": "$house"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$alpha",
+        "category": "$food",
+        "amountMinor": "-2500",
+        "currency": "ISK",
+        "date": "2026-11-01",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "transfer.create",
+      "outcome": "accepted",
+      "input": {
+        "title": "Out",
+        "fromAccount": "$zeta",
+        "toAccount": "$daily",
+        "fromAmountMinor": "1000",
+        "fromCurrency": "ISK",
+        "toAmountMinor": "1000",
+        "toCurrency": "ISK",
+        "date": "2026-11-02"
+      }
+    },
+    {
+      "comment": "6.27: a later spend and a transfer out leave it negative (-3500).",
+      "op": "freemoney.get",
+      "outcome": "accepted",
+      "input": {
+        "currency": "ISK"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "1",
+        "target": "$house"
+      }
+    },
+    {
+      "comment": "A WITHDRAW is never capped.",
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_WITHDRAW",
+        "amountMinor": "500",
+        "source": "$house"
+      }
+    },
+    {
+      "comment": "No longer eligible: it leaves the list.",
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$beta",
+        "name": "Beta",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "balances": [
+          {
+            "currency": "ISK",
+            "amountMinor": "1000"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "Active again: it joins.",
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$sleeping",
+        "name": "Sleeping",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "eligibleForGoals": true,
+        "balances": [
+          {
+            "currency": "ISK",
+            "amountMinor": "1000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "freemoney.get",
+      "outcome": "accepted",
+      "input": {
+        "currency": "ISK"
+      }
+    }
+  ]
+}

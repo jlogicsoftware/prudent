@@ -299,7 +299,13 @@ between the checks and the write refuses it whole. All 291 catalogue cases and t
 workflow; parity scenarios `import_sessions` and `import_destination` agree with the live server. Differing category choices on two
 devices are plain two-device conflicts for jZen's sweep (#234, wired by unit 9); a reset's revocation merges by its time
 (`ZenMergePolicy.earliestBy`, #244); `import_sessions` declares explicit presence (#245). #245 and #251 are not yet applied to the unit
-4/5 collections and ledger writes. `JZEN_REF` is `4fa887a`. No Local app or screen exists yet.
+4/5 collections and ledger writes. Unit 6a (ADR-116)
+adds budgets, carry-over resets, goals and envelopes to the ledger as two parts of its library (`ledger_budgets.dart`, `ledger_goals.dart`):
+rows 6.1–6.28, 6.46–6.50, 6.54 in the server's order; the summary, carry-over, free money and progress derived from settled values only,
+`Settled.unsettled` keyed by the figure's category, currency or goal; a reset or `ALLOCATE` refused while its figure is unsettled; every
+write rechecking its rule inside the store's turn through jZen's `expect` (#251), edits against the exact version read;
+`EnvelopeBelowZeroCheck` and `ArchivedGoalMoneyCheck`; `GoalArithmetic` held to `golden/goal_progress.json`; ten parity scenarios (`budget_*`, `carry_over*`, `goal*`, `free_money`) agree with the live server.
+`JZEN_REF` is `4fa887a`. No Local app or screen exists yet.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

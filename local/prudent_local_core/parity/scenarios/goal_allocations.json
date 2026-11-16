@@ -1,0 +1,371 @@
+{
+  "name": "goal_allocations",
+  "description": "Envelope entries are ALLOCATE (target only), WITHDRAW (source only) or MOVE (both, different, one currency), with a positive amount and a note of at most 500 characters; money goes into an active goal and out of an active or completed one; an envelope never goes below zero nor overflows; entries are append-only. Currencies CZK and RON are this scenario's own.",
+  "rules": [
+    "6.16",
+    "6.19",
+    "6.20",
+    "6.21",
+    "6.22",
+    "6.23",
+    "6.24",
+    "6.25"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "as": "pot",
+      "outcome": "accepted",
+      "input": {
+        "name": "Pot",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "CZK",
+            "amountMinor": "1000000"
+          }
+        ],
+        "isActive": true,
+        "eligibleForGoals": true
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "a",
+      "outcome": "accepted",
+      "input": {
+        "name": "A",
+        "currency": "CZK",
+        "targetAmountMinor": "100000"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "b",
+      "outcome": "accepted",
+      "input": {
+        "name": "B",
+        "currency": "CZK",
+        "targetAmountMinor": "100000"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "lei",
+      "outcome": "accepted",
+      "input": {
+        "name": "Lei",
+        "currency": "RON",
+        "targetAmountMinor": "100000"
+      }
+    },
+    {
+      "comment": "The note is stripped.",
+      "op": "allocation.create",
+      "as": "first",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "30000",
+        "target": "$a",
+        "note": "  first  "
+      }
+    },
+    {
+      "comment": "6.19: a kind is required.",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_UNSPECIFIED",
+        "amountMinor": "100",
+        "target": "$a"
+      }
+    },
+    {
+      "comment": "6.20: a positive amount.",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "0",
+        "target": "$a"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "100",
+        "target": "$a",
+        "note": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+      }
+    },
+    {
+      "comment": "6.19: ALLOCATE takes no source.",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "100",
+        "source": "$b",
+        "target": "$a"
+      }
+    },
+    {
+      "comment": "6.19: and needs a target.",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_WITHDRAW",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_WITHDRAW",
+        "amountMinor": "100",
+        "source": "$a",
+        "target": "$b"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_MOVE",
+        "amountMinor": "100",
+        "source": "$a"
+      }
+    },
+    {
+      "comment": "6.19: not to the goal it is in.",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_MOVE",
+        "amountMinor": "100",
+        "source": "$a",
+        "target": "$a"
+      }
+    },
+    {
+      "comment": "A malformed goal id in a body is a 400.",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "100",
+        "target": "not-an-id"
+      }
+    },
+    {
+      "comment": "6.21: never between currencies (400).",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_MOVE",
+        "amountMinor": "100",
+        "source": "$a",
+        "target": "$lei"
+      }
+    },
+    {
+      "comment": "6.24: not more than the envelope holds (409).",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_WITHDRAW",
+        "amountMinor": "30001",
+        "source": "$a"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "as": "move",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_MOVE",
+        "amountMinor": "10000",
+        "source": "$a",
+        "target": "$b"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "as": "out",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_WITHDRAW",
+        "amountMinor": "5000",
+        "source": "$b"
+      }
+    },
+    {
+      "comment": "A: 20000, B: 5000, Lei: 0 \u2014 the sums of their entries.",
+      "op": "envelope.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "goal.complete",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$b"
+      }
+    },
+    {
+      "comment": "6.23: a completed goal takes no money (409).",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "100",
+        "target": "$b"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_MOVE",
+        "amountMinor": "100",
+        "source": "$a",
+        "target": "$b"
+      }
+    },
+    {
+      "comment": "6.23: but money comes out of it.",
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_WITHDRAW",
+        "amountMinor": "1000",
+        "source": "$b"
+      }
+    },
+    {
+      "comment": "6.16: a goal holding money is not archived (409).",
+      "op": "goal.archive",
+      "outcome": "refused",
+      "input": {
+        "goal": "$a"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_MOVE",
+        "amountMinor": "20000",
+        "source": "$a",
+        "target": "$b"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_WITHDRAW",
+        "amountMinor": "20000",
+        "source": "$a"
+      }
+    },
+    {
+      "comment": "Empty, it can be.",
+      "op": "goal.archive",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$a"
+      }
+    },
+    {
+      "comment": "6.23: an archived goal takes no money.",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "100",
+        "target": "$a"
+      }
+    },
+    {
+      "comment": "6.23: nor gives any (409 before the envelope check).",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_WITHDRAW",
+        "amountMinor": "1",
+        "source": "$a"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "big",
+      "outcome": "accepted",
+      "input": {
+        "name": "Big",
+        "currency": "CZK",
+        "targetAmountMinor": "100000"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "100",
+        "target": "$big"
+      }
+    },
+    {
+      "comment": "6.25: an envelope cannot overflow (400), checked before the free money.",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "9223372036854775807",
+        "target": "$big"
+      }
+    },
+    {
+      "comment": "Without an overflow it is the free money that refuses (409).",
+      "op": "allocation.create",
+      "outcome": "refused",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "9223372036854775807",
+        "target": "$lei"
+      }
+    },
+    {
+      "op": "allocation.get",
+      "outcome": "accepted",
+      "input": {
+        "allocation": "$first"
+      }
+    },
+    {
+      "op": "allocation.get",
+      "outcome": "refused",
+      "input": {
+        "allocation": "not-an-id"
+      }
+    },
+    {
+      "op": "envelope.list",
+      "outcome": "accepted",
+      "input": {}
+    }
+  ]
+}

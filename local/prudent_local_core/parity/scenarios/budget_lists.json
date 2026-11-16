@@ -1,0 +1,204 @@
+{
+  "name": "budget_lists",
+  "description": "The budget list's month and category filters and its month, currency, category order; the reset history's category and currency filters and its newest-first order; malformed filters refused. Currencies GBP and AUD in 2034 are this scenario's own.",
+  "rules": [
+    "6.48",
+    "6.49",
+    "6.50"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Food",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "home",
+      "outcome": "accepted",
+      "input": {
+        "title": "Home",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2034-02",
+        "currency": "GBP",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2034-01",
+        "currency": "GBP",
+        "amountMinor": "200"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2034-01",
+        "currency": "AUD",
+        "amountMinor": "300"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$home",
+        "month": "2034-03",
+        "currency": "AUD",
+        "amountMinor": "400"
+      }
+    },
+    {
+      "comment": "6.48: ordered by month, then currency, then category.",
+      "op": "budget.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "budget.list",
+      "outcome": "accepted",
+      "input": {
+        "month": "2034-01"
+      }
+    },
+    {
+      "op": "budget.list",
+      "outcome": "accepted",
+      "input": {
+        "category": "$home"
+      }
+    },
+    {
+      "op": "budget.list",
+      "outcome": "accepted",
+      "input": {
+        "month": "2034-01",
+        "category": "$food"
+      }
+    },
+    {
+      "op": "budget.list",
+      "outcome": "refused",
+      "input": {
+        "month": "2034-13"
+      }
+    },
+    {
+      "comment": "A malformed category filter is a 400.",
+      "op": "budget.list",
+      "outcome": "refused",
+      "input": {
+        "category": "not-an-id"
+      }
+    },
+    {
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2034-01",
+        "currency": "AUD"
+      }
+    },
+    {
+      "op": "reset.create",
+      "as": "r1",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2034-02",
+        "currency": "GBP",
+        "note": "first"
+      }
+    },
+    {
+      "op": "reset.create",
+      "as": "r2",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2034-03",
+        "currency": "AUD",
+        "note": "second"
+      }
+    },
+    {
+      "op": "reset.create",
+      "as": "r3",
+      "outcome": "accepted",
+      "input": {
+        "category": "$home",
+        "month": "2034-04",
+        "currency": "AUD",
+        "note": "third"
+      }
+    },
+    {
+      "op": "reset.revoke",
+      "outcome": "accepted",
+      "input": {
+        "reset": "$r1"
+      }
+    },
+    {
+      "comment": "6.50: newest first, revoked ones included.",
+      "op": "reset.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "reset.list",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food"
+      }
+    },
+    {
+      "op": "reset.list",
+      "outcome": "accepted",
+      "input": {
+        "currency": " aud "
+      }
+    },
+    {
+      "op": "reset.list",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "currency": "AUD"
+      }
+    },
+    {
+      "op": "reset.list",
+      "outcome": "refused",
+      "input": {
+        "category": "not-an-id"
+      }
+    },
+    {
+      "op": "reset.list",
+      "outcome": "refused",
+      "input": {
+        "currency": "AUDD"
+      }
+    }
+  ]
+}

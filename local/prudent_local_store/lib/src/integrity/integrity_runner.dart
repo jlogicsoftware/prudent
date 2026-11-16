@@ -1,11 +1,13 @@
 import 'package:zen_core/zen_core.dart';
 
 import '../prudent_local_store.dart';
+import 'checks/archived_goal_money_check.dart';
 import 'checks/category_kind_check.dart';
 import 'checks/correction_intent_check.dart';
 import 'checks/dangling_reference_check.dart';
 import 'checks/default_account_check.dart';
 import 'checks/duplicate_account_number_check.dart';
+import 'checks/envelope_below_zero_check.dart';
 import 'checks/held_currency_check.dart';
 import 'checks/live_reset_slot_check.dart';
 import 'integrity_issue.dart';
@@ -54,10 +56,18 @@ final class IntegrityRunner {
     const CorrectionIntentCheck(),
   ]);
 
+  /// The checks of budgets and goals (unit 6a). The third of its rules a merge can break — two live
+  /// resets for one slot — is the store model's [LiveResetSlotCheck].
+  static final List<IntegrityCheck> goalChecks = List.unmodifiable(<IntegrityCheck>[
+    const EnvelopeBelowZeroCheck(),
+    const ArchivedGoalMoneyCheck(),
+  ]);
+
   /// Every check that exists so far, which is what the Local app runs.
   static final List<IntegrityCheck> allChecks = List.unmodifiable(<IntegrityCheck>[
     ...storeModelChecks,
     ...ledgerChecks,
+    ...goalChecks,
   ]);
 
   final PrudentLocalStore store;

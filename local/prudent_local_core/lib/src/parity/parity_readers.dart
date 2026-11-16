@@ -121,4 +121,139 @@ abstract final class ParityReaders {
   static List<String> boundNames(List<Object?> rows, ParityBindings bindings) => [
     for (final row in rows.cast<Map<String, Object?>>()) ?bindings.nameOf(row['id'] as String?),
   ];
+
+  // ── Unit 6a: budgets, resets, goals, allocations ───────────────────────────────────────────
+
+  /// A list of [rows] narrowed to those whose [key] names something this scenario bound, each read
+  /// by [read], **in the order the backend answered**.
+  static List<Map<String, Object?>> boundRows(
+    List<Object?> rows,
+    ParityBindings bindings,
+    String key,
+    Map<String, Object?> Function(Map<String, Object?> row) read,
+  ) => [
+    for (final row in rows.cast<Map<String, Object?>>())
+      if (bindings.nameOf(row[key] as String?) != null) read(row),
+  ];
+
+  /// A budget slot: its category by bound name, month, currency and amount.
+  static Map<String, Object?> budget(Map<String, Object?> body, ParityBindings bindings) => {
+    'category': bindings.nameOf(body['categoryId'] as String?),
+    'month': string(body, 'month'),
+    'currency': string(body, 'currency'),
+    'amountMinor': int64(body, 'amountMinor'),
+  };
+
+  /// The budget summary (rows 6.5–6.7, 6.12): every figure, the items of bound categories as a set
+  /// ordered by name (the server orders them by category id, and ids differ between the backends),
+  /// and whether the backend did answer them in ascending id order (`idOrder`), which both must.
+  static Map<String, Object?> budgetSummary(Map<String, Object?> body, ParityBindings bindings) {
+    final rows = ((body['items'] as List<Object?>?) ?? const []).cast<Map<String, Object?>>();
+    var ascending = true;
+    for (var i = 1; i < rows.length; i++) {
+      if (string(rows[i], 'categoryId').compareTo(string(rows[i - 1], 'categoryId')) <= 0) {
+        ascending = false;
+      }
+    }
+    final items = [
+      for (final row in rows)
+        if (bindings.nameOf(row['categoryId'] as String?) case final name?)
+          {
+            'category': name,
+            'planMinor': int64(row, 'planMinor'),
+            'actualMinor': int64(row, 'actualMinor'),
+            'carryOverMinor': int64(row, 'carryOverMinor'),
+            'remainingMinor': int64(row, 'remainingMinor'),
+            'carryOverResetMonth': string(row, 'carryOverResetMonth'),
+          },
+    ]..sort((a, b) => a['category']!.compareTo(b['category']!));
+    return {
+      'month': string(body, 'month'),
+      'currency': string(body, 'currency'),
+      'items': items,
+      'totalPlanMinor': int64(body, 'totalPlanMinor'),
+      'totalActualMinor': int64(body, 'totalActualMinor'),
+      'totalCarryOverMinor': int64(body, 'totalCarryOverMinor'),
+      'totalRemainingMinor': int64(body, 'totalRemainingMinor'),
+      'idOrder': ascending ? 'ascending' : 'not ascending',
+    };
+  }
+
+  /// A carry-over reset: what it bounds and discards, its note, and whether it is revoked (who and
+  /// when are a user on the server and a device locally, and a clock, so they are not compared).
+  static Map<String, Object?> reset(Map<String, Object?> body, ParityBindings bindings) => {
+    'category': bindings.nameOf(body['categoryId'] as String?),
+    'month': string(body, 'month'),
+    'currency': string(body, 'currency'),
+    'discardedMinor': int64(body, 'discardedMinor'),
+    'note': string(body, 'note'),
+    'revoked': body['revokedAtMs'] != null,
+  };
+
+  /// A goal: every field but its id and its two times.
+  static Map<String, Object?> goal(Map<String, Object?> body) => {
+    'name': string(body, 'name'),
+    'currency': string(body, 'currency'),
+    'targetAmountMinor': int64(body, 'targetAmountMinor'),
+    'targetDate': body['targetDate'] as String?,
+    'status': enumName(body, 'status', 'GOAL_STATUS_UNSPECIFIED'),
+  };
+
+  /// An envelope entry: its kind, its goals by bound name, currency, amount and note.
+  static Map<String, Object?> allocation(Map<String, Object?> body, ParityBindings bindings) => {
+    'kind': enumName(body, 'kind', 'GOAL_ALLOCATION_KIND_UNSPECIFIED'),
+    'source': bindings.nameOf(body['sourceGoalId'] as String?),
+    'target': bindings.nameOf(body['targetGoalId'] as String?),
+    'currency': string(body, 'currency'),
+    'amountMinor': int64(body, 'amountMinor'),
+    'note': string(body, 'note'),
+  };
+
+  /// An envelope: its goal by bound name, currency and amount.
+  static Map<String, Object?> envelope(Map<String, Object?> body, ParityBindings bindings) => {
+    'goal': bindings.nameOf(body['goalId'] as String?),
+    'currency': string(body, 'currency'),
+    'amountMinor': int64(body, 'amountMinor'),
+  };
+
+  /// Free money in one [currency] (rows 6.26, 6.27, 6.54), or `{'listed': false}` when the answer
+  /// has no entry for it. The server's figures are the whole user's (ADR-107), so a scenario that
+  /// reads free money owns its currency; the contributing accounts are the bound ones, in the order
+  /// the backend listed them.
+  static Map<String, Object?> freeMoney(
+    Map<String, Object?> body,
+    String currency,
+    ParityBindings bindings,
+  ) {
+    for (final row
+        in ((body['currencies'] as List<Object?>?) ?? const []).cast<Map<String, Object?>>()) {
+      if (string(row, 'currency') != currency) continue;
+      return {
+        'listed': true,
+        'eligibleMinor': int64(row, 'eligibleMinor'),
+        'allocatedMinor': int64(row, 'allocatedMinor'),
+        'freeMinor': int64(row, 'freeMinor'),
+        'accounts': [
+          for (final id in ((row['eligibleAccountIds'] as List<Object?>?) ?? const []))
+            ?bindings.nameOf(id as String?),
+        ],
+      };
+    }
+    return {'listed': false};
+  }
+
+  /// One goal's progress (row 6.28): every figure and the guidance; an absent contribution is null.
+  static Map<String, Object?> goalProgress(Map<String, Object?> body, ParityBindings bindings) => {
+    'goal': bindings.nameOf(body['goalId'] as String?),
+    'currency': string(body, 'currency'),
+    'allocatedMinor': int64(body, 'allocatedMinor'),
+    'targetAmountMinor': int64(body, 'targetAmountMinor'),
+    'remainingMinor': int64(body, 'remainingMinor'),
+    'progressPercent': (body['progressPercent'] as int?) ?? 0,
+    'guidance': enumName(body, 'guidance', 'GOAL_GUIDANCE_UNSPECIFIED'),
+    'monthlyContributionMinor': body.containsKey('monthlyContributionMinor')
+        ? int64(body, 'monthlyContributionMinor')
+        : null,
+    'monthsRemaining': body['monthsRemaining'] as int?,
+  };
 }
