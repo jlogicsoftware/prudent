@@ -606,30 +606,30 @@ kind, account, amount, currency, title) in date order) and **`record_list_order`
 
 | # | Rule | Where it lives today | Test |
 |---|---|---|---|
-| 8.1 | Three phases and their transitions (parsed → previewed (→ previewed) → committed; discarded; expired) | `CHECK import_sessions.sql:49`; `ImportWorkflow.java:179–261` | `import_workflow_test` |
-| 8.2 | A statement is read once and never stored | `ImportWorkflow.java:93–120`; ADR-089 | `import_workflow_test` (no file bytes in either store) |
-| 8.3 | A session expires after 24 hours; a read ends an overdue one; a sweep deletes the rest | `ImportWorkflow.java:86,133,393` | `import_expiry_test` (sweep at launch and on a timer) |
-| 8.4 | Bounds: empty or oversized upload, row count, open sessions ≤ 10, field length, list size | `ImportWorkflow.java:68–101`; `ImportSessionResource.java:81` | catalogue cases |
-| 8.5 | Destination: the person's, active, holding the currency, accepted by the importer's identity check, at preview and again at commit | `ImportWorkflow.java:458–505` | catalogue cases |
+| 8.1 | Three phases and their transitions (parsed → previewed (→ previewed) → committed; discarded; expired) | `CHECK import_sessions.sql:49`; `ImportWorkflow.java:179–261` | **Covered (ADR-114):** `local/prudent_local_store/test/import_workflow_test.dart` ("the phases"); parity `import_sessions` |
+| 8.2 | A statement is read once and never stored | `ImportWorkflow.java:93–120`; ADR-089 | **Covered (ADR-114):** `import_workflow_test` (the session holds rows and a digest only; nothing of the summary row) |
+| 8.3 | A session expires after 24 hours; a read ends an overdue one; a sweep deletes the rest | `ImportWorkflow.java:86,133,393` | **Covered (ADR-114):** `import_workflow_test` ("expiry"); `import_commit_failure_test` (expired mid-flow) |
+| 8.4 | Bounds: empty or oversized upload, row count, open sessions ≤ 10, field length, list size | `ImportWorkflow.java:68–101`; `ImportSessionResource.java:81` | **Covered (ADR-114):** `import_failure_matrix_test` (the bounds' catalogue cases); `import_workflow_test` (ten open sessions); parity `import_sessions` |
+| 8.5 | Destination: the person's, active, holding the currency, accepted by the importer's identity check, at preview and again at commit | `ImportWorkflow.java:458–505` | **Covered (ADR-114):** `import_workflow_test` ("the destination"); `import_commit_failure_test`; parity `import_destination` |
 | 8.6 | The whole file is validated before any row (44 rule codes) | `ErsteStatementImporter.java`; `ErsteCsv.java`; `ParsedStatements.java`; ADR-090/094 | `ImportFailureCatalogue` ported; `import_failure_matrix_test` |
 | 8.7 | An own-account transfer becomes a plain record with `transfer.own_account` | `ErsteStatementImporter.java`; ADR-092 | catalogue case |
 | 8.8 | A moved amount column is refused whole (`layout.amount_column`) | `ErsteStatementImporter.java`; ADR-094 | catalogue case |
 | 8.9 | Fingerprint: versioned SHA-256 of the row's fields plus an occurrence number | `RowFingerprints.java:108–178`; `CHECK import_fingerprints.sql:28–38` | `fingerprints_parity_test` (golden vectors) |
-| 8.10 | Duplicates are rows whose key a record of the destination already holds | `ImportDuplicateStage.java:37–79` | `import_duplicates_test` |
-| 8.11 | One record per (account, fingerprint, occurrence) | unique `import_fingerprints.sql:59`; shape `:43–49` | deterministic id; `two_device_import_test` |
-| 8.12 | Row decisions: category, note ≤ 500, include only a duplicate, rejected rows unchangeable | `ImportWorkflow.java:300–377`; `CHECK import_commit.sql:30–40` | `import_rows_test` |
-| 8.13 | Defaults per direction only while open | `CHECK import_commit.sql:57`; `ImportWorkflow.java` | `import_rows_test` |
-| 8.14 | Every accepted row has a category at commit | `ImportWorkflow.java:254–261` | `import_commit_test` |
-| 8.15 | The commit names the accepted count it confirms | `ImportWorkflow.java:242–247` | `import_commit_test` |
-| 8.16 | One transaction, account locked, ordinary records through the record writer | `LedgerImportCommitter.java:54–172`; ADR-092 | `import_commit_test` — **locally all-or-nothing needs jZenDev/jZen#232; until then an idempotent, resumable commit (D3 ids) and a validation pass before the first write** |
-| 8.17 | A repeated commit answers the stored counts | `CHECK import_commit.sql:48–55` | `import_commit_test` |
-| 8.18 | Failures between preview and commit have rule codes | `LedgerImportCommitter.java:144,172`; ADR-094 | `ImportCommitFailureTest` ported |
-| 8.19 | Rows are deleted when a session ends | `ImportWorkflow.java:393–425` | `import_expiry_test` |
+| 8.10 | Duplicates are rows whose key a record of the destination already holds | `ImportDuplicateStage.java:37–79` | **Covered (ADR-114):** `import_workflow_test` ("duplicates"); `import_two_devices_test`; parity `import_sessions` |
+| 8.11 | One record per (account, fingerprint, occurrence) | unique `import_fingerprints.sql:59`; shape `:43–49` | **Covered (ADR-114):** `DerivedIds.imported`; `import_workflow_test` (id from the key); `import_two_devices_test` (each row once) |
+| 8.12 | Row decisions: category, note ≤ 500, include only a duplicate, rejected rows unchangeable | `ImportWorkflow.java:300–377`; `CHECK import_commit.sql:30–40` | **Covered (ADR-114):** `import_workflow_test` ("row decisions"); parity `import_sessions` |
+| 8.13 | Defaults per direction only while open | `CHECK import_commit.sql:57`; `ImportWorkflow.java` | **Covered (ADR-114):** `import_workflow_test` (defaults by sign, cleared at the end); parity `import_sessions` |
+| 8.14 | Every accepted row has a category at commit | `ImportWorkflow.java:254–261` | **Covered (ADR-114):** `import_workflow_test`; parity `import_sessions` |
+| 8.15 | The commit names the accepted count it confirms | `ImportWorkflow.java:242–247` | **Covered (ADR-114):** `import_workflow_test`; parity `import_sessions` |
+| 8.16 | One transaction, account locked, ordinary records through the record writer | `LedgerImportCommitter.java:54–172`; ADR-092 | **Covered (ADR-114): one `ZenStore.writeAll` (jZenDev/jZen#232), a write-ahead plan across the two stores (jZenDev/jZen#252).** `import_commit_failure_test` (a crash inside the batch, a crash between the stores, an unmatched plan); no interim was built |
+| 8.17 | A repeated commit answers the stored counts | `CHECK import_commit.sql:48–55` | **Covered (ADR-114):** `import_workflow_test`; `import_commit_failure_test` (two concurrent commits); parity `import_sessions` |
+| 8.18 | Failures between preview and commit have rule codes | `LedgerImportCommitter.java:144,172`; ADR-094 | **Covered (ADR-114):** `local/prudent_local_store/test/import_commit_failure_test.dart` (the server's ImportCommitFailureTest); parity `import_destination` |
+| 8.19 | Rows are deleted when a session ends | `ImportWorkflow.java:393–425` | **Covered (ADR-114):** `import_workflow_test` (commit, discard, expiry, sweep) |
 | 8.20 | Row invariants: number positive and unique, writable rows complete, code iff rejected, amount nonzero | `CHECK import_sessions.sql:86–96` | `import_rows_test` |
 | 8.21 | The statement identity is a 64-hex digest, kept only while open | `CHECK import_sessions.sql:51` | `import_workflow_test` |
 | 8.22 | No statement text in an answer or a log line | `ImportRejectedException.java`; ADR-094 | `import_logging_test` (mirrors `ImportKeyLoggingTest`) |
 | 8.23 | The bank's sequence number is not an identifier for Erste | `StatementImporter.java` (`stableExternalId`) | `fingerprints_parity_test` |
-| 8.24 | list — sessions by `state` (exact name, an unknown one refused), `limit` 1–100 defaulting to 50, ordered `created_at desc, id` | `ImportSessionResource.java:73–81,338–345`; `ImportSessionEntity.java:157–182` | `import_workflow_test` |
+| 8.24 | list — sessions by `state` (exact name, an unknown one refused), `limit` 1–100 defaulting to 50, ordered `created_at desc, id` | `ImportSessionResource.java:73–81,338–345`; `ImportSessionEntity.java:157–182` | **Covered (ADR-114):** `import_workflow_test` ("the list") |
 | 8.25 | An unknown format id is refused without echoing it; formats are listed sorted | `ImportFormats.java:64,76–82` | `import_failure_matrix_test` |
 
 ### Unit 9 — the application (5 rules)
