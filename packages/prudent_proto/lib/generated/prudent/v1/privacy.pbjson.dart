@@ -143,6 +143,14 @@ const DataExport$json = {
       '6': '.prudent.v1.ImportRow',
       '10': 'importRows'
     },
+    {
+      '1': 'record_import_keys',
+      '3': 16,
+      '4': 3,
+      '5': 11,
+      '6': '.prudent.v1.ExportImportKey',
+      '10': 'recordImportKeys'
+    },
   ],
 };
 
@@ -162,7 +170,24 @@ final $typed_data.Uint8List dataExportDescriptor = $convert.base64Decode(
     'Bnb2FsX2FsbG9jYXRpb25zGA0gAygLMhoucHJ1ZGVudC52MS5Hb2FsQWxsb2NhdGlvblIPZ29h'
     'bEFsbG9jYXRpb25zEkIKD2ltcG9ydF9zZXNzaW9ucxgOIAMoCzIZLnBydWRlbnQudjEuSW1wb3'
     'J0U2Vzc2lvblIOaW1wb3J0U2Vzc2lvbnMSNgoLaW1wb3J0X3Jvd3MYDyADKAsyFS5wcnVkZW50'
-    'LnYxLkltcG9ydFJvd1IKaW1wb3J0Um93cw==');
+    'LnYxLkltcG9ydFJvd1IKaW1wb3J0Um93cxJJChJyZWNvcmRfaW1wb3J0X2tleXMYECADKAsyGy'
+    '5wcnVkZW50LnYxLkV4cG9ydEltcG9ydEtleVIQcmVjb3JkSW1wb3J0S2V5cw==');
+
+@$core.Deprecated('Use exportImportKeyDescriptor instead')
+const ExportImportKey$json = {
+  '1': 'ExportImportKey',
+  '2': [
+    {'1': 'record_id', '3': 1, '4': 1, '5': 9, '10': 'recordId'},
+    {'1': 'fingerprint', '3': 2, '4': 1, '5': 9, '10': 'fingerprint'},
+    {'1': 'occurrence', '3': 3, '4': 1, '5': 5, '10': 'occurrence'},
+  ],
+};
+
+/// Descriptor for `ExportImportKey`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List exportImportKeyDescriptor = $convert.base64Decode(
+    'Cg9FeHBvcnRJbXBvcnRLZXkSGwoJcmVjb3JkX2lkGAEgASgJUghyZWNvcmRJZBIgCgtmaW5nZX'
+    'JwcmludBgCIAEoCVILZmluZ2VycHJpbnQSHgoKb2NjdXJyZW5jZRgDIAEoBVIKb2NjdXJyZW5j'
+    'ZQ==');
 
 @$core.Deprecated('Use eraseAccountRequestDescriptor instead')
 const EraseAccountRequest$json = {
