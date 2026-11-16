@@ -142,7 +142,7 @@ and fails on a one-cent difference.
 `packages/prudent_proto` so the store can map to them. Consumed jZenDev/jZen#233 and #235 (`JZEN_REF` `6301f0e`); filed
 jZenDev/jZen#244 (a reset's revocation is a group, so two revocations stay a conflict) and #245 (an explicit default differs
 from an unset field). Not here: import sessions (8b), the checks that need figures (envelopes 6a, skipped-and-paid 6b,
-correction intent 5), the `ZenIssueSource` wiring (unit 9, Flutter), CloudKit (#236).
+correction intent 5), the `ZenIssueSource` wiring (unit 9, Flutter), the CloudKit backend (unit 9).
 Map every proto message into `zen_store`; device-minted UUIDs (the server minted ids because
 "an id from an untrusted client is not identity" — locally the device is the only authority, so the
 reason changes, and the ADR says so); per-field merge as decided in 0.2, through Local's own store messages and a mapper to the wire messages
@@ -301,7 +301,7 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | jZenDev/jZen#233 | application issues beside conflicts — **merged (PR #242), consumed by unit 4** | 4, 9 |
 | jZenDev/jZen#234 | settle many conflicts at once | 8b |
 | jZenDev/jZen#235 | intent-preserving per-field merge policy — **merged (PR #241), consumed by unit 4** | 4, 6a, 6b |
-| jZenDev/jZen#236 | CloudKit record names in plaintext | 4 (ADR-100 T7) |
+| jZenDev/jZen#236 | CloudKit record names in plaintext — **merged (PR #243, jZen `cf36d77`: HMAC-hashed names)**, consumed when unit 9 wires CloudKit | 4, 9 (ADR-100 T7) |
 | jZenDev/jZen#237 | rekey / remove a device | 9 (ADR-100 T3) |
 | jZenDev/jZen#238 | refuse the unencrypted folder in release | 11 (ADR-100 T18) |
 | jZenDev/jZen#239 | erase everywhere | 9 (ADR-100 T24) |

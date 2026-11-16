@@ -18,8 +18,9 @@ import 'package:prudent_local_core/prudent_local_core.dart';
 ///
 /// **What enters an id.** Only random ids, a currency code, a month, a date, a fingerprint (itself a
 /// digest) and fixed words — never an amount, a title, a payee or an account number. On CloudKit a
-/// record's name is visible to Apple (ADR-100 T7, jZenDev/jZen#236): an id derived from a budget slot
-/// still shows which months and currencies have one, which T7 records until that issue lands.
+/// record's name was `<collection>:<id>` in plaintext, so an id derived from a budget slot would show
+/// Apple which months and currencies have one (ADR-100 T7). jZenDev/jZen#236 hashes record names with
+/// an HMAC; the Local app consumes it when it wires CloudKit (unit 9).
 abstract final class DerivedIds {
   static const String _domain = 'prudent-local/derived-id/v1';
 

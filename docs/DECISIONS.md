@@ -83,7 +83,9 @@ per-field table of `docs/plans/prudent-local-phase0.md` §0.2 (frozen by ADR-102
   `verify:boundaries` checks F and H (ADR-109) cover the package with no exemption; check G (pure Dart) now names
   `local/prudent_local_store` and `packages/prudent_proto` beside the core and reads generated sources too, and check E's pubspec scan
   reads every package under `packages/`, so the wire messages cannot bring the transport one hop under Local where F, which reads
-  `local/` pubspecs, would not see it. `scripts/test_verify_boundaries.py` plants each new violation; both were also proved red on the
+  `local/` pubspecs, would not see it. Check F also refuses any `path:` dependency of a `local/` pubspec that lands outside `local/`,
+  `packages/` or a jZen client package other than the four server ones, whatever key it sits under (resolved lexically from the
+  repository root). Flow-style one-line dependencies are still not read, as ADR-109 records. `scripts/test_verify_boundaries.py` plants each new violation; both were also proved red on the
   real tree and removed. `JZEN_REF` moves to `6301f0e` in both workflows.
 
 ### What this supersedes, and why
@@ -118,7 +120,8 @@ derived-id domain changed, the correction no longer immutable. `dart analyze --f
 
 - `task` does not load from a git worktree (ADR-065), so `task verify:contracts`, `task generate` (the `zenstore:` include),
   `task verify:analyze`, `task test:local-store` and `task zen:test:client` ran only in CI; locally their underlying commands were run.
-- No device, no CloudKit (jZenDev/jZen#236 is open; no CloudKit backend is wired), no Flutter surface: the issues reach no screen until
+- No device, no CloudKit backend (unit 9 wires it; jZenDev/jZen#236, hashed record names, merged in jZen `cf36d77` and is not yet
+  consumed), no Flutter surface: the issues reach no screen until
   unit 9. The ledger's multi-record writes wait on jZenDev/jZen#232 (unit 5). The parity suite still runs unit 3's in-memory backend; a
   store-backed one is unit 5's.
 - A write path that is not presence-exact can still raise a conflict about nothing until jZenDev/jZen#245 lands.

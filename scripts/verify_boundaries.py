@@ -32,6 +32,7 @@ its own equivalent is Python rather than sh.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from dataclasses import dataclass
@@ -327,7 +328,8 @@ def check_local_is_server_free(root: Path) -> "list[Hit]":
     section-blind on purpose: a dev dependency is in the graph the tests and the parity suite run
     in, and an override can swap a clean dependency for the transport). There is no exemption: the
     parity harness, which needs the transport, lives in `tools/` (ADR-109), and nothing under
-    `local/` may depend on it."""
+    `local/` may depend on it. Every `path:` dependency must also land inside `local/` or
+    `packages/`, or on a jZen client package other than those four (ADR-111)."""
     packages = local_packages(root)
     sources = [f for p in packages for f in package_sources(p)]
     if not sources:
@@ -344,7 +346,34 @@ def check_local_is_server_free(root: Path) -> "list[Hit]":
         root,
         lambda rel, t: harness_dep.match(t) is not None,
     )
+    for package in packages:
+        hits += _scan(
+            [package / "pubspec.yaml"],
+            root,
+            lambda rel, t, package=package: _path_out_of_bounds(root, package, t),
+        )
     return hits
+
+
+LOCAL_PATH_DEP = re.compile(r"^[ \t]+path[ \t]*:[ \t]*['\"]?([^'\"#]+?)['\"]?[ \t]*(?:#.*)?$")
+
+
+def _path_out_of_bounds(root: Path, package: Path, line: str) -> bool:
+    """Whether a `path:` line of a `local/` pubspec points anywhere but `local/`, `packages/`, or a jZen
+    client package that cannot reach the server. A name check alone would miss a server package or
+    `client/` reached under a key that is not its name; the target is what matters. Resolved
+    lexically (no symlinks), from the repository root, so the sibling checkout reads as `../jZen/…`
+    in a clone and in a worktree alike."""
+    m = LOCAL_PATH_DEP.match(line)
+    if m is None:
+        return False
+    target = os.path.normpath(os.path.join(os.path.relpath(package, root), m.group(1).strip()))
+    parts = Path(target).as_posix().split("/")
+    if parts[0] in (LOCAL_SCOPE, "packages") and ".." not in parts:
+        return False
+    if parts[:3] == ["..", "jZen", "client"] and len(parts) == 4:
+        return parts[3] in SERVER_ONLY_PACKAGES
+    return True
 
 
 def check_local_core_is_pure_dart(root: Path) -> "list[Hit]":
@@ -431,7 +460,7 @@ CHECKS = (
      "packages/prudent_ui imports, or a package under packages/ depends on, the transport, identity or the keystore:",
      "packages/ depend on, and prudent_ui imports, neither zen_transport nor zen_identity (nor what wraps them)"),
     (check_local_is_server_free,
-     "a package under local/ depends on or imports the server's packages, or on the parity harness:",
+     "a package under local/ depends on or imports the server's packages, the parity harness, or a path outside local/, packages/ and jZen's server-free client packages:",
      "no package under local/ reaches the server (no exemption)"),
     (check_local_core_is_pure_dart,
      "a pure-Dart package (the Local core, the Local store, the wire messages) depends on or imports Flutter:",

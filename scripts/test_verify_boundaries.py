@@ -322,6 +322,34 @@ class NothingOutsideLocalUsesLocal(unittest.TestCase):
         self.assertEqual(rc, 0, out)
 
 
+class LocalPathDependenciesStayInBounds(unittest.TestCase):
+    """ADR-111: a `local/` pubspec's `path:` may reach local/, packages/ or a server-free jZen client package."""
+
+    def _pubspec(self, key: str, path: str) -> str:
+        return f"name: prudent_local_store\ndependencies:\n  {key}:\n    path: {path}\n"
+
+    def test_the_real_shapes_pass(self) -> None:
+        for path in ("../prudent_local_core", "../../packages/prudent_proto", "../../../jZen/client/zen_store", "'../../../jZen/client/zen_core'"):
+            with self.subTest(path=path):
+                rc, out = run_gate(local={"prudent_local_store/pubspec.yaml": self._pubspec("x", path)})
+                self.assertEqual(rc, 0, out)
+
+    def test_a_path_out_of_bounds_is_refused_whatever_its_key(self) -> None:
+        for path in (
+            "../../client",
+            "../../tools/prudent_parity_server",
+            "../../../jZen/client/zen_transport",
+            "../../../jZen/client/zen_identity",
+            "../../../jZen/server",
+            "/abs/elsewhere",
+            "../../packages/../client",
+        ):
+            with self.subTest(path=path):
+                rc, out = run_gate(local={"prudent_local_store/pubspec.yaml": self._pubspec("innocent", path)})
+                self.assertEqual(rc, 1, out)
+                self.assertIn("local/prudent_local_store/pubspec.yaml", out)
+
+
 class WirePackageAndStoreAreGuarded(unittest.TestCase):
     """ADR-111: the store and the wire messages are pure Dart, and the wire messages reach no server."""
 
