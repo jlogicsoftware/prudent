@@ -6,9 +6,11 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import prudent.error.PrudentException;
+import prudent.text.TextRules;
 
 /**
  * The {@code prudent_category} table (active-record Panache entity).
@@ -107,9 +109,11 @@ public class CategoryEntity extends PanacheEntityBase {
     }
   }
 
-  /** Every category owned by one user, in a stable order. */
+  /** Every category owned by one user, in {@link TextRules#compareNames name order} (ADR-106). */
   public static List<CategoryEntity> listOwnedBy(UUID userId) {
-    return list("userId = ?1 order by title", userId);
+    List<CategoryEntity> categories = new ArrayList<>(list("userId = ?1", userId));
+    categories.sort((a, b) -> TextRules.compareNames(a.title, a.id, b.title, b.id));
+    return categories;
   }
 
   /**

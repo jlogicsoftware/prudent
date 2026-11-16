@@ -19,6 +19,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import prudent.imports.RowKey;
 import prudent.plan.OccurrenceState;
+import prudent.text.TextRules;
 
 /**
  * The {@code prudent_record} table — the individual transactions (active-record Panache entity).
@@ -480,8 +481,9 @@ public class RecordEntity extends PanacheEntityBase {
    * single currency, at the cost of comparing magnitudes across currencies that are not really
    * comparable.
    *
-   * <p>{@code search} is a case-insensitive substring match against {@code title}, {@code payee},
-   * or {@code note}.
+   * <p>{@code search} is a plain substring match against {@code title}, {@code payee} or {@code
+   * note}, folded as {@link TextRules#fold} says; {@code %} and {@code _} are ordinary characters.
+   * It runs in Java over the rows the other criteria selected (ADR-106).
    */
   public static List<RecordEntity> search(
       UUID userId,
@@ -530,15 +532,16 @@ public class RecordEntity extends PanacheEntityBase {
       jpql.append(" and abs(amountMinor) <= :amountMax");
       params.put("amountMax", amountMax);
     }
-    if (search != null && !search.isBlank()) {
-      jpql.append(
-          " and (lower(title) like :search or lower(payee) like :search or lower(note) like"
-              + " :search)");
-      params.put("search", "%" + search.trim().toLowerCase() + "%");
-    }
     jpql.append(" order by date desc, id");
 
-    return list(jpql.toString(), params);
+    List<RecordEntity> rows = list(jpql.toString(), params);
+    String term = TextRules.searchTerm(search);
+    if (term == null) {
+      return rows;
+    }
+    // The text match is not SQL: LIKE treats % and _ as wildcards and lower() follows the
+    // database's locale, neither of which a second implementation can copy (ADR-106).
+    return rows.stream().filter(r -> TextRules.matchesAny(term, r.title, r.payee, r.note)).toList();
   }
 
   public static Map<UUID, Map<String, Long>> netByAccountForUser(UUID userId) {

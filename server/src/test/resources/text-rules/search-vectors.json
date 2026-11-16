@@ -1,0 +1,34 @@
+{
+  "description": "Expected behaviour of TextRules.searchTerm and matchesAny (ADR-106). Synthetic data only (ADR-088). 'search' is the raw query value; 'term' is the folded term or null when the search is ignored; 'matches' lists, per candidate field value, whether the term is found. A null field never matches.",
+  "term": [
+    {"id": "t01", "search": null, "term": null},
+    {"id": "t02", "search": "", "term": null},
+    {"id": "t03", "search": "   ", "term": null},
+    {"id": "t04", "search": "\t\n\u2003", "term": null},
+    {"id": "t05", "search": "  Corner Shop  ", "term": "corner shop"},
+    {"id": "t06", "search": "\u00a0", "term": "\u00a0", "note": "NBSP is not white space to String.isBlank, and trim() only removes code points up to U+0020"},
+    {"id": "t07", "search": "\u00a0a\u00a0", "term": "\u00a0a\u00a0"},
+    {"id": "t08", "search": "\u2003a", "term": "\u2003a", "note": "em space is white space for isBlank but trim() keeps it"},
+    {"id": "t09", "search": "50%", "term": "50%"},
+    {"id": "t10", "search": "a_b\\c", "term": "a_b\\c"},
+    {"id": "t11", "search": "ŁÓDŹ", "term": "łódź"},
+    {"id": "t12", "search": "\u0407\u0416\u0410\u041a \u0490\u0430\u043d\u043e\u043a", "term": "\u0457\u0436\u0430\u043a \u0491\u0430\u043d\u043e\u043a"},
+    {"id": "t13", "search": "İI", "term": "ii", "note": "U+0130 folds to plain i (simple mapping), U+0049 to i"},
+    {"id": "t14", "search": "ıİ", "term": "ıi", "note": "dotless i has no lower-case change"},
+    {"id": "t15", "search": "STRASSE ß ẞ", "term": "strasse ß ß"},
+    {"id": "t16", "search": "ΟΔΥΣΣΕΥΣ", "term": "οδυσσευσ", "note": "no final-sigma rule: a final Σ folds to σ"},
+    {"id": "t17", "search": "😀A", "term": "😀a", "note": "astral code points pass through"}
+  ],
+  "match": [
+    {"id": "m01", "term": "50%", "fields": ["Fee 50% off", "50 off", null], "matches": [true, false, false], "note": "% is a literal character"},
+    {"id": "m02", "term": "%", "fields": ["100%", "100", null], "matches": [true, false, false]},
+    {"id": "m03", "term": "_", "fields": ["a_b", "ab", "a b"], "matches": [true, false, false]},
+    {"id": "m04", "term": "a_b", "fields": ["a_b", "axb"], "matches": [true, false]},
+    {"id": "m05", "term": "\\", "fields": ["c:\\tmp", "c:/tmp"], "matches": [true, false]},
+    {"id": "m06", "term": "łódź", "fields": ["ŁÓDŹ trip", "Lodz trip"], "matches": [true, false], "note": "ł is not l"},
+    {"id": "m07", "term": "\u0457\u0436\u0430", "fields": ["\u0407\u0436\u0430 \u0432 \u043c\u0456\u0441\u0442\u0456", "\u0406\u0436\u0430", "\u042f\u0436\u0430"], "matches": [true, false, false]},
+    {"id": "m08", "term": "ii", "fields": ["İIstanbul", "ıi"], "matches": [true, false]},
+    {"id": "m09", "term": "ß", "fields": ["Straße", "STRASSE"], "matches": [true, false], "note": "ß does not fold to ss"},
+    {"id": "m10", "term": "σ", "fields": ["ΟΔΥΣΣΕΥΣ", "Οδυς"], "matches": [true, false], "note": "ς (final sigma) is a different code point from σ and is not folded to it"}
+  ]
+}

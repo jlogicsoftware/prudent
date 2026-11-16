@@ -497,10 +497,10 @@ category's kind and archived checks (finding F-01).
 | 5.46 | list — record filters `dateFrom`/`dateTo` (inclusive), `accountId`, `categoryId`; malformed dates or ids refused | `RecordResource.java:72–75,245–270`; `RecordEntity.java:486–515` | parity scenario `record_list_filters` |
 | 5.47 | list — `type`: expense = negative, no transfer, not a correction; income = the positive counterpart; transfer = any transfer leg; correction = any correction. Trimmed, case-insensitive; an unknown type refused | `RecordType.java:24–35`; `RecordEntity.java:516–524` | `record_list_filters` |
 | 5.48 | list — `amountMin`/`amountMax` compare `abs(amount)`, inclusive, in any currency; a negative bound refused | `RecordResource.java:77–78,273–276`; `RecordEntity.java:525–532` | `record_list_filters` |
-| 5.49 | list — `search`: trimmed, lower-cased substring over title, payee and note; blank ignored | `RecordResource.java:79`; `RecordEntity.java:533–538` | `record_list_filters` (finding F-09) |
+| 5.49 | list — `search`: blank ignored (`String.isBlank`); otherwise trimmed (`String.trim`), folded by the simple per-code-point lower-case rule, and matched as a plain substring of the folded title, payee or note; `%`, `_`, `\` are ordinary characters | `TextRules.java`; `RecordEntity.search` (was SQL `LIKE`, `RecordEntity.java:533–538`) | `search-vectors.json` (unit 4a, ADR-106); `record_list_filters` (finding F-09, fixed) |
 | 5.50 | list — records ordered `date desc, id` | `RecordEntity.java:196,539` | `record_list_order` (finding F-11) |
-| 5.51 | list — accounts ordered by name | `AccountEntity.java:132` | `accounts_test` (finding F-10) |
-| 5.52 | list — categories ordered by title | `CategoryEntity.java:112` | `categories_test` (finding F-10) |
+| 5.51 | list — accounts ordered by `TextRules.compareNames` (folded primary weights with Polish and Ukrainian letters placed in their alphabets, then exact code points, then id text) | `AccountEntity.listOwnedBy` (was `order by name`, `AccountEntity.java:132`) | `name-order-vectors.json` (unit 4a, ADR-106); `accounts_test` (finding F-10, fixed) |
+| 5.52 | list — categories ordered by `TextRules.compareNames` | `CategoryEntity.listOwnedBy` (was `order by title`, `CategoryEntity.java:112`) | `name-order-vectors.json` (unit 4a, ADR-106); `categories_test` (finding F-10, fixed) |
 | 5.53 | list — `deleteRecords` defaults to false (the refusal stands) | `AccountResource.java:180–182` | `account_delete_test` |
 
 #### List, filter and order semantics (units 5 and 6)
@@ -524,9 +524,10 @@ differs (ADR-102):
   server (0.4) are normalised to 32 lower-case hex characters (dashes removed) so text order stays byte
   order. Two server routes tie-break with Java's `UUID.compareTo`, which compares signed halves and is a
   different order (`OccurrenceResource.java:302`, `ReminderResource.java:192`; finding F-11).
-- **Name order is a collation.** Accounts, categories and free-money accounts are ordered by the
-  database's default collation, which no migration pins; Dart's `compareTo` orders by UTF-16 code unit.
-  Polish and Ukrainian names differ (finding F-10).
+- **Name order is a stated rule (ADR-106).** Accounts, categories and free-money accounts were ordered by
+  the database's default collation, which no migration pins; Dart's `compareTo` orders by UTF-16 code unit,
+  and Polish and Ukrainian names differ (finding F-10). Unit 4a replaced it with `TextRules.compareNames`,
+  which Dart reproduces from `name-order-vectors.json`.
 
 Parity scenarios: **`record_list_filters`** (ordinary records, a correction, a cross-currency transfer
 with different amounts on each side; each filter alone and combined; compared as multisets of (date,
@@ -590,7 +591,7 @@ kind, account, amount, currency, title) in date order) and **`record_list_order`
 | 6.51 | list — upcoming: `days` defaults to 30, 1–366, today through today + days inclusive; overdue is its own route; ordered date, id | `OccurrenceResource.java:74–77,102–106,286–303` | parity scenario `occurrences` (finding F-11) |
 | 6.52 | list — due reminders ordered by occurrence date, id | `ReminderResource.java:192` | `reminders_test` (finding F-11) |
 | 6.53 | list — plans ordered `start_date, id`; a plan's occurrences by date | `PlanEntity.java:122`; `PlanOccurrenceEntity.java:113,148,160` | `plans_test` |
-| 6.54 | list — free-money accounts ordered by name, id | `FreeMoney.java:72` | `free_money` (finding F-10) |
+| 6.54 | list — free-money accounts ordered by `TextRules.compareNames` (which ends in id text) | `FreeMoney.calculate` (was `Comparator` on `String.compareTo`, i.e. UTF-16 order, not the database's; `FreeMoney.java:72`) | `name-order-vectors.json` (unit 4a, ADR-106); `free_money` (finding F-10, fixed) |
 
 ### Unit 7 — analytics (4 rules)
 
@@ -682,10 +683,16 @@ By design (recorded so they are not mistaken for gaps):
   a `%` or `_` the person types matches anything, and `lower()` follows the database's locale while
   Dart's `toLowerCase` does not. Local cannot copy this faithfully and should not; the server should
   escape the pattern (its own small change and ADR) and both then do a plain case-insensitive
-  substring. Owner: unit 5, with that server fix before it.
+  substring. **Resolved by unit 4a (ADR-106):** the server now applies the match in Java by a fixed rule
+  (`TextRules`), with expected behaviour in `server/src/test/resources/text-rules/search-vectors.json`;
+  unit 5 implements the same rule in Dart and reads that file.
 - **F-10 — Name order is the database's unpinned collation** (accounts, categories, free-money
   accounts). Owner: units 5 and 6a: pin one collation on both sides (or compare names in parity by a
-  stated rule) before the parity suite covers lists.
+  stated rule) before the parity suite covers lists. **Resolved by unit 4a (ADR-106):** a stated rule,
+  `TextRules.compareNames`, applied in Java to all three lists (the free-money list was in fact
+  `String.compareTo`, not the database's order), with expected behaviour in
+  `server/src/test/resources/text-rules/name-order-vectors.json`; units 5 and 6a implement it in Dart and
+  read that file.
 - **F-11 — Three id orders.** Postgres orders UUIDs by bytes (= lower-case hex text, which is Local's
   order); Java's `UUID.compareTo` (used at `OccurrenceResource.java:302` and `ReminderResource.java:192`)
   compares signed halves. Ids differ between server and Local anyway, so order within one date is

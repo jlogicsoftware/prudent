@@ -13,6 +13,55 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-106 — The record search and the order of names are rules of Prudent's own, applied in Java, so a second implementation can reproduce them exactly
+
+**Date:** 2026-11-15. **Status:** accepted. Closes phase-0 findings F-09 and F-10 (`docs/plans/prudent-local-phase0.md`); jlogicsoftware/prudent#245. Ships as unit 4a of the Prudent Local plan, before unit 5.
+
+### Context
+
+Two things a person sees on screen were decided by the database, not by Prudent:
+
+- **Record search** was `lower(title) like '%term%'` (and payee, note), the term lower-cased in Java. `%` and `_` in what the person typed were wildcards (a search for `50%` matched `500 off`), and `lower()` followed the database's locale, which no migration pins.
+- **Name order** was `order by name` / `order by title` in the database's default collation (accounts, categories), and `String.compareTo` — UTF-16 code unit order — for the free-money accounts. Neither is pinned, and the two disagreed with each other.
+
+Prudent Local (ADR-101) must show the same lists and cannot copy a database's locale. The server is the specification, so the specification has to be something a Dart program can implement exactly.
+
+### Decision
+
+**Neither rule asks the database any more.** The search keeps every other filter in SQL and applies the text match in Java to the rows they selected; names are sorted in Java after loading. Both rules live in `prudent.text.TextRules`, are per-code-point and context-free, and have no locale, no normalisation and no ICU. No migration: no column, index or collation changed.
+
+**Search.** A `null` or blank search is ignored, as before (`String.isBlank`: Unicode white space, which excludes U+00A0, U+2007 and U+202F). Otherwise the term is `String.trim()`med — every leading and trailing code point at or below U+0020 — and folded. A record matches when its folded title, payee or note (a null one never matches) contains the folded term as a plain substring. `%`, `_` and `\` are ordinary characters; there is no pattern and so nothing to escape (the brief suggested an explicit `ESCAPE` clause; with the match in Java there is no `LIKE` to escape, and the fold could not be done in SQL anyway).
+
+**The fold** is Unicode's *simple* lower-case mapping, one code point to one code point (`Character.toLowerCase(int)`). Consequences, all in the vectors: `Ł`→`ł`, U+0407 → U+0457, `Σ`→`σ` always (a final `ς` stays `ς`: no final-sigma rule), `ß` is unchanged and **does not** match `ss`, `ẞ` (U+1E9E) folds to `ß`, Turkish `İ` (U+0130) folds to plain `i` and so does `I`, while dotless `ı` is unchanged and matches neither. Polish and Ukrainian letters are distinct from their Latin or base lookalikes: `ł` does not match `l`, U+0457 does not match U+0456. A Dart implementation folds each code point of a one-code-point string with `toLowerCase()` and special-cases U+0130 → `i` (the only code point whose full mapping is longer than one code point). The rule follows the Unicode tables of the JDK that runs the server, which can change only for newly assigned letters.
+
+**Name order** compares, in turn: (1) the sequence of *primary weights* of the folded code points, shorter first when one is a prefix of the other; (2) the code points of the names as written, so `A` sorts before `a` only to break an exact fold tie; (3) the id as lower-case text, which is also Postgres's byte order for a UUID. A code point's weight is four times its value, so code point order is the baseline (digits, then `_`, then letters; ASCII Latin before other Latin letters before Cyrillic), with these tailorings, which put letters where a Polish or Ukrainian reader looks for them:
+
+- Polish, each right after its base letter: `ą`, `ć`, `ę`, `ł`, `ń`, `ó`, `ś`, `ź`, `ż` (`ź` then `ż` after `z`).
+- Ukrainian: U+0491 after U+0433, U+0454 after U+0435, U+0456 and U+0457 after U+0438 (then U+0439, which already follows U+0438 in Unicode).
+
+Weight is `base*4 + 1` (and `+2` for the second letter after a base), which fits between `base*4` and the next code point's weight. Every other code point keeps its own position.
+
+### What a person sees
+
+The previous order depended on how the database was created, so no one could rely on it. Against the test database (an en_US-style collation) the old order differed in two checked ways: names that differ only in case listed lower case first (`a`, `A`), and `Lazienka` with its stroke letter (U+0141) sorted after `Zupa`. The new rule lists `A`, `a` and puts that name between `Lato` and `Mleko`. The Ukrainian cases (the letter U+0407 after U+0418 and before U+0419, U+0491 after U+0433) agreed with that database already and are pinned by the rule rather than changed by it; a database in the C locale would have put the capital U+0407 before every other Cyrillic capital. Names in other scripts or with other diacritics (`E` with acute, `u` with umlaut, Turkish `s` with cedilla) are in code point order, **after `z`**: this rule is a reading order for the two languages Prudent ships beyond English, not a general collation. Digits sort as characters (`10 PLN` before `2 PLN`). An existing person's lists may reorder once on upgrade; no data changes.
+
+### Not done, on purpose
+
+- **Unicode normalisation.** `ą` typed as `a` plus a combining ogonek orders by its two parts, and a name typed both ways does not match in search. A keyboard produces the composed form; normalising would need a table Dart does not ship. Revisit if import or paste produces decomposed names.
+- **A full collation (ICU `und-x-icu`, UCA).** It would order every script well, but Dart cannot reproduce it exactly without implementing the algorithm and carrying the tables, and the database would have to have ICU at the same version; a rule two codebases can state in a paragraph and test with a file is worth more here than a better order for scripts Prudent does not ship.
+- **Search in the database, for scale.** The list is unpaginated by design (`records.proto`); a search now loads the rows the other filters select, as an unfiltered list already does. If a ledger grows to where that hurts, the answer is a stored folded column written by the same rule, not a locale-dependent function.
+- **Other id orders (F-11)** are untouched.
+
+### Proof
+
+`server/src/test/resources/text-rules/search-vectors.json` and `name-order-vectors.json` hold the expected behaviour, synthetic only (ADR-088; Cyrillic letters are written as `\u` escapes because the repository publishes English text). `TextRulesTest` runs them against `TextRules` (every vector permutation sorted twenty times), and `TextRulesApiTest` drives the rules through the record search, the account and category lists and the free-money position over a real database. Run against the previous production code (the four changed files taken from `main`, the tests kept), four of its eight tests fail: a `%` search returns the record containing `500` as well, an `_` search returns `axb` for `a_b`, accounts named `b B a A` list as `a A b B`, and the free-money contributors list in UTF-16 order (`Lato`, `Zupa`, then the stroke-L name). The other four (the Polish and Ukrainian list orders and the `\u0142` fold, which that database already got right) pass on both, and pin the rule. Prudent Local's parity suite reads the same two files.
+
+### Consequences
+
+The server change is user-visible on the persistent app: search no longer treats `%` and `_` as wildcards, and lists of accounts, categories and free-money accounts may appear in a different order. The contract is unchanged (no proto, no route, no OpenAPI difference). Unit 3's parity suite and unit 5's Dart code consume the vectors; a rule change is a new ADR and a new vector, never an edit of either.
+
+---
+
 ## ADR-105 — Screens depend on an abstract `PrudentRepository`; the server's HTTP version is `ServerPrudentRepository`
 
 **Date:** 2026-11-15. **Status:** accepted. **Plan:** unit 1 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
