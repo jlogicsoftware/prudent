@@ -1,0 +1,5 @@
+.dart_tool/
+# A local path override for a git worktree, where ../../../jZen does not resolve, and the lock it
+# would record (absolute paths). Never committed; `dart pub get` resolves both in CI.
+pubspec_overrides.yaml
+pubspec.lock

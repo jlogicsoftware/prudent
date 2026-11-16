@@ -244,6 +244,13 @@ proves. A file whose amount column has moved (a positive card or BLIK row, or th
 real change of the bank's format, the export steps beyond what the user reported (whether a file can hold several accounts and the filters' effect on it are open), a run on a device or with the native file picker, the client against the real server, and any
 Polish or Ukrainian string reviewed by a native speaker.
 
+Prudent Local (jlogicsoftware/prudent#245, `docs/plans/PRUDENT-LOCAL-PLAN.md`) has its phase-0 decisions (ADR-100 to ADR-103) and unit 3
+(ADR-107): `local/prudent_local_core` is pure Dart and reproduces the server's money, currency, account-number, date, month and text
+rules method for method, held to the JVM by `test/golden/*.json` that `GoldenVectorsTest` writes and checks (`task golden:generate`,
+`task verify:golden`, also in `test:server`); `task test:local-core` runs its tests. The parity suite runs each scenario in
+`local/prudent_local_core/parity/scenarios/` through the live server and the local code (`local/prudent_parity_server`, inside
+`task test:e2e`) and compares every figure exactly. No Local store, app or screen exists yet.
+
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
 (ADR-065, #45) they were run against a real GCP project and a real Supabase project made for the

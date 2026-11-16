@@ -13,6 +13,98 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-107 — Prudent Local's domain core reproduces the server's rule methods exactly, held to them by golden vectors from the JVM and by a parity suite of data scenarios run through the live server
+
+**Date:** 2026-11-15. **Status:** accepted. **Plan:** unit 3 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);
+rows 3.1–3.8 and findings F-04, F-07, F-11 of `docs/plans/prudent-local-phase0.md` §0.3. **Builds on:** ADR-088 (synthetic data
+only), ADR-090 (account numbers), ADR-101 (the package shape), ADR-102 (ids, money under merge).
+
+### Decision
+
+- **Two packages under `local/`.** `local/prudent_local_core` is pure Dart (its only dependency is `crypto`, for SHA-256): the rules
+  and the local side of the parity harness, as ADR-101 says. `local/prudent_parity_server` is a test-only package holding the
+  harness's **server** side, because that side needs `zen_transport` and `zen_identity`, which the core must never import, and the
+  server-connected app's `pubspec.yaml` must name no Local package (ADR-101), so it cannot live under `client/`.
+- **One Dart function per Java method, named after it** (`javaTrim`, `javaStrip`, `javaIsBlank`, `codePointCount`, `javaUtf8`,
+  `Currencies`, `AccountNumbers`, `CivilDate.parse` = `LocalDate.parse` strict, `CivilMonth.parse` = `BudgetResource.parseMonth`,
+  `addExact`/`subtractExact`/`negateExact`/`signum`, `TextRules` per call site). The server is the specification; where the plan's
+  one-line summary and the code disagree, **the code wins**:
+  - Account numbers get **no NFC** and **ASCII-only** upper-casing (the plan said "NFC, root-locale upper-casing"):
+    `AccountNumbers.java` does neither, so `e`+U+0301, `é`, `ı` and `ß` are refused, never folded into another number.
+  - Currencies **are** upper-cased in the root locale, with Java's consequences reproduced: the server accepts `"ınr"` as INR,
+    `"ſek"` as SEK and `"ßp"` as SSP, and so does Local. Recorded here as the server's behaviour, not endorsed; changing it is a
+    server change with its own ADR, after which the golden file changes and Local follows.
+  - "Text is trimmed" is three different rules on the server and stays three here: `trim()` (code units ≤ U+0020: titles, names,
+    payees, record notes, import-row notes), `strip()` (Java white space, not the no-break spaces: allocation and reset notes), and
+    `isBlank()` for "required". A title of only U+0001 is not blank and trims to the empty string, which the server stores; Local
+    stores it too.
+- **F-04 resolved: a note's 500 characters are code points** (`runes`), as Postgres `char_length` and Java `codePointCount` count;
+  a lone surrogate counts one. A note of 500 emoji (1000 UTF-16 units) is accepted on both sides.
+- **The identity token hashes Java's UTF-8**, which writes a lone surrogate as `?` (Dart's encoder writes U+FFFD), so the token is
+  the server's for every input.
+- **Money is a Dart `int`** (the VM's 64-bit integer; Prudent Local has no web build), and every sum goes through the exact
+  operations, which throw `MoneyOverflow` where Java throws `ArithmeticException` — never a wrapped balance. `wireMinorUnitDigits`
+  (2) is the one fixed wire scale; `client/lib/money.dart`'s `minorUnitDigits` is a second copy until unit 2 moves that file into the
+  shared package, which should then read this one.
+- **Local ids are 32 lower-case hex characters compared as text** (= Postgres' byte order of a `uuid`, not Java's signed
+  `UUID.compareTo`; F-11). `LocalIds.fromServerId` reads only the form the server writes; `UUID.fromString`'s leniency (`1-1-1-1-1`,
+  upper case, signs, non-ASCII digits) is shown in the vectors and refused, since a looser reader would make two spellings of one id
+  two records. Who mints ids stays unit 4's.
+- **Golden vectors come from the server's own methods.** `server/src/test/java/prudent/parity/GoldenVectorsTest.java` (plain JUnit,
+  no Docker) writes `local/prudent_local_core/test/golden/*.json` with `-Dprudent.golden.write=true` (`task golden:generate`) and
+  otherwise **fails when a committed file differs from what the server answers today** (`task verify:golden`; it also runs in
+  `test:server`, so CI's backend job enforces it). Package-private rules are reached through test-side accessors
+  (`RecordRulesAccess`, `BudgetRulesAccess`), not copies. The money and id vectors are the exception: the server keeps no
+  repository class for either, so `money.json` and `ids.json` come from the JDK calls the server makes (`Math.addExact`,
+  `subtractExact`, `negateExact`; `UUID.toString`, `UUID.fromString`, `UUID.compareTo`) and from Postgres' documented `uuid` byte
+  order, not from a Prudent method. Files are ASCII with `\uXXXX` escapes, the only way a lone surrogate
+  survives a file. Hostile inputs: combining marks, every white space Java and Unicode disagree on, U+FEFF, U+200B, controls, the
+  Turkish i, ligatures, astral characters, lone surrogates, negative zero (`-0000` years, `"-0"` amounts), `Long.MIN/MAX_VALUE`.
+  Where a table is involved the vectors are **exhaustive**: `Character.isWhitespace` and `(?U)\s` for all 1 114 112 code points,
+  every A–Z triple for ISO-4217, every code point that root-upper-cases to ASCII capitals. The ISO-4217 table is the running JDK's,
+  which is the point: a JDK update that changes it fails `GoldenVectorsTest`, and `lib/src/iso4217.dart` is edited to match (its
+  test compares the two sets).
+- **The parity suite is data run through two backends.** A scenario is a JSON file in
+  `local/prudent_local_core/parity/scenarios/` (name, description, the §0.3 rows it covers, steps of `op` + `input`, `as` to bind an
+  id, optional `outcome` the **server** must answer). `ParityEngine` runs each step on the server and locally and compares the
+  observations **exactly**: same keys, same strings, figures as decimal text of minor units; a double in an observation, an unknown
+  operation or a broken binding fails the scenario, never skips a step; refusals compare by status (message texts are prose).
+  Units 4–8 add scenarios as files and operations as entries in each backend's `ops` table; the format, engine and comparison do not
+  change. `LocalRulesBackend` is unit 3's stand-in, enforcing only unit-3 rules over an in-memory model; the store-backed backend of
+  units 4–5 replaces it under the same operation names, and any server rule it lacks shows as a difference, never a pass.
+- **One server user per suite run, not per scenario.** Registration hits zen-ratelimit's production auth limit (which `%dev` keeps)
+  on the second run inside the window; bending the limit for the suite was rejected. Each scenario creates and binds its own
+  accounts and categories, so none reads another's rows; a later list operation must filter to its scenario's bound ids, or argue
+  for a user per scenario.
+- **F-07 for the harness: no implicit "today".** No unit-3 operation depends on the date; a later operation that does takes `asOf`
+  in its input, on both backends.
+- **Where it runs.** `task test:local-core` (`dart pub get`, `dart test` in the core) in CI's gates job; both packages are analysed
+  by ADR-104's `task verify:analyze` (`dart analyze --fatal-infos --fatal-warnings`), which until now covered only `client/`; the parity suite inside `task test:e2e`, after the e2e suite, against the same live
+  Quarkus server, either one failing fails the gate.
+
+### What this supersedes, and why
+
+- **"account-number normalisation (NFC, white space, root-locale upper-casing, ADR-090)"** (plan, unit 3) → **corrected to what
+  `AccountNumbers.java` does: Unicode `White_Space` removed, ASCII upper-cased, no NFC.** *Why:* the server is the specification
+  (plan, ground rules); porting the summary would make Local accept numbers the server refuses.
+- **"`client/` — the only Dart package in the repository"** (ADR-104, `verify:analyze`'s summary) → **refined: `verify:analyze`
+  also runs `dart analyze --fatal-infos --fatal-warnings` in both `local/` packages.** *Why:* the gate's reason (a declared rule
+  nothing runs is decoration) holds for every Dart package, and a second analyzer task would be two gates for one rule.
+- **"Test that will prove it locally"** column of §0.3 rows 3.1–3.8 → **filled with the tests that now exist** (that document's
+  table is updated in the same change). Row 3.3's `multi_currency` and the others are parity scenarios that run against the live
+  server.
+
+### Consequence
+
+Verified on 2026-11-15: `GoldenVectorsTest` writes and then checks the six files; a one-character change to `currencies.json` makes it
+fail. `dart test` in `local/prudent_local_core`: 2 088 tests green, and five deliberate mutations of the port (U+0085 dropped from
+White_Space, negative-zero years allowed, the long s not folded, U+FFFD for a lone surrogate, `negateExact(MIN)` not throwing) each
+turned it red. The parity suite against a live local Quarkus + Supabase: all five scenarios agree; a deliberate one-cent error in the
+local balance turned three of them red (`balances.PLN — server "8767", local "8768"`), and green again once removed. CI's gates, backend and e2e
+jobs ran the same checks green on the pull request (jlogicsoftware/prudent#253).
+
+---
+
 ## ADR-106 — The record search and the order of names are rules of Prudent's own, applied in Java, so a second implementation can reproduce them exactly
 
 **Date:** 2026-11-15. **Status:** accepted. Closes phase-0 findings F-09 and F-10 (`docs/plans/prudent-local-phase0.md`); jlogicsoftware/prudent#245. Ships as unit 4a of the Prudent Local plan, before unit 5.

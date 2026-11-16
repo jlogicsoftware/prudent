@@ -64,7 +64,7 @@ includes:
 #   generate            Regenerate every cross-language artifact — no gate, always green
 #   verify:contracts    generate, then FAIL if the tree drifted (was Prudent's sync:contracts)
 #   generate:proto[:java|:dart] / generate:api[:schema|:ts] / generate:l10n   the loop's parts
-#   verify:analyze      flutter analyze (incl. the riverpod_lint plugin) in client/, infos fatal
+#   verify:analyze      flutter analyze (incl. riverpod_lint) in client/, dart analyze in local/, infos fatal
 #   test:client         Every Dart/Flutter suite
 #   build:runners       Every delivery runner this host can build; skips are announced
 #   run:supabase / run:server / run:client / run:admin / run:dev   the local stack — #78/#81/#89
@@ -172,6 +172,36 @@ tasks:
     cmds:
       - ./mvnw -B test
 
+  test:local-core:
+    desc: Prudent Local's domain core — analyzer, golden vectors and the parity engine (pure Dart, no server)
+    summary: |
+      Unit 3 of docs/plans/PRUDENT-LOCAL-PLAN.md (ADR-107). Triggers the native tools only:
+      `dart pub get` and `dart test` in local/prudent_local_core (the server's rules ported to
+      Dart, held to the JVM by test/golden/*.json, plus the parity engine's own tests, which prove
+      a one-cent difference fails). local/prudent_parity_server's suite needs the live stack and
+      runs in test:e2e; both packages are analysed by verify:analyze.
+    cmds:
+      - cd local/prudent_local_core && dart pub get && dart test
+
+  golden:generate:
+    desc: Regenerate prudent_local_core's golden vectors from the server's own rule methods
+    summary: |
+      Writes local/prudent_local_core/test/golden/*.json from GoldenVectorsTest (ADR-107). Read the
+      diff afterwards and change the Dart port until `task test:local-core` passes; the files are
+      never edited by hand.
+    dir: "{{.SERVER_DIR}}"
+    cmds:
+      - ./mvnw -B test -Dtest=GoldenVectorsTest -Dsurefire.failIfNoSpecifiedTests=false -Dprudent.golden.write=true
+
+  verify:golden:
+    desc: Fail when the committed golden vectors are not what the server's rules answer today
+    summary: |
+      The drift gate of ADR-107, alone and in seconds (no Docker). The same test also runs inside
+      test:server, so CI's backend job enforces it.
+    dir: "{{.SERVER_DIR}}"
+    cmds:
+      - ./mvnw -B test -Dtest=GoldenVectorsTest -Dsurefire.failIfNoSpecifiedTests=false
+
   verify:boundaries:
     desc: Fail if the client reaches past Prudent's own server
     summary: |
@@ -210,7 +240,8 @@ tasks:
 
       Runs `flutter gen-l10n` first (the analyzer needs Prudent's generated localizations, which are
       built and never committed), then `flutter analyze --fatal-infos --fatal-warnings` in client/ —
-      the only Dart package in the repository — so an info-level lint, which is what riverpod_lint
+      — and then `dart analyze` with the same flags in local/prudent_local_core and
+      local/prudent_parity_server (ADR-107) — so an info-level lint, which is what riverpod_lint
       and most of flutter_lints report, fails the build like an error does.
 
       client/lib/generated/ and client/lib/l10n/generated/ are excluded in analysis_options.yaml
@@ -224,6 +255,9 @@ tasks:
     cmds:
       - flutter gen-l10n
       - flutter analyze --fatal-infos --fatal-warnings
+      # Prudent Local's pure-Dart packages (ADR-107): the same severity, through `dart analyze`.
+      - cd ../local/prudent_local_core && dart pub get && dart analyze --fatal-infos --fatal-warnings
+      - cd ../local/prudent_parity_server && dart pub get && dart analyze --fatal-infos --fatal-warnings
 
   verify:controls:
     desc: Fail if client screens use raw Material controls zen_ui_widgets replaces
@@ -991,8 +1025,14 @@ tasks:
         # compiled test).
         ( cd {{.CLIENT_DIR}} && ZEN_API_URL="${API}" dart test integration_test/e2e_test.dart )
         rc=$?
+        # The server/local parity suite (ADR-107) against the same live server: every scenario in
+        # local/prudent_local_core/parity/scenarios through Quarkus and through prudent_local_core,
+        # compared to the cent. Run even when the e2e suite failed, and either failing fails the gate.
+        ( cd local/prudent_parity_server && dart pub get && ZEN_API_URL="${API}" dart test )
+        parity_rc=$?
         stop_server
-        exit "${rc}"
+        [ "${rc}" -ne 0 ] && exit "${rc}"
+        exit "${parity_rc}"
 
   # ---------------------------------------------------------------------------
   # Deploy (Phase 5). NOTHING HERE NAMES AN ENVIRONMENT.

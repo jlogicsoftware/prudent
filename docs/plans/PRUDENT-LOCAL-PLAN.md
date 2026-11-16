@@ -121,6 +121,8 @@ shared package of 0.1. `client/` consumes it. **Done when:** `client/` builds, t
 within a stated tolerance.
 
 ### Unit 3 — Domain core and the parity suite
+**Built: ADR-107** — `local/prudent_local_core` (rules, golden vectors from `GoldenVectorsTest`, the parity engine) and
+`local/prudent_parity_server` (the server side, run in `task test:e2e`). Scenarios live in `local/prudent_local_core/parity/scenarios/`.
 Port the pure rules to Dart: money and currency handling (`Currencies`), identifier rules,
 account-number normalisation (NFC, white space, root-locale upper-casing, ADR-090), validation.
 Build the parity harness: a scenario script runs through the server (real Quarkus in
