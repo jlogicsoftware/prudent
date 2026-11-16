@@ -17,6 +17,7 @@ import jakarta.persistence.UniqueConstraint;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import prudent.text.TextRules;
 
 /**
  * The {@code prudent_account} table — where the money is (active-record Panache entity).
@@ -127,9 +128,11 @@ public class AccountEntity extends PanacheEntityBase {
   @OrderColumn(name = "position")
   public List<AccountBalance> balances = new ArrayList<>();
 
-  /** Every account owned by one user, in a stable order. */
+  /** Every account owned by one user, in {@link TextRules#compareNames name order} (ADR-105). */
   public static List<AccountEntity> listOwnedBy(UUID userId) {
-    return list("userId = ?1 order by name", userId);
+    List<AccountEntity> accounts = new ArrayList<>(list("userId = ?1", userId));
+    accounts.sort((a, b) -> TextRules.compareNames(a.name, a.id, b.name, b.id));
+    return accounts;
   }
 
   /**

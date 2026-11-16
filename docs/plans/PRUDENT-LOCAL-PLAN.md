@@ -143,6 +143,17 @@ jZenDev/jZen#233 lands, and the timestamp rule moves into the store with jZenDev
 sessions, each with its own encrypted store, merge disjoint edits and surface the conflicts of 0.2,
 through `ZenFolderCloud` (as `two_devices_test` does in jZen).
 
+### Unit 4a — Server search and name order
+Two server behaviours Local cannot reproduce faithfully and no other unit owned (findings F-09, F-10): the
+record search was a SQL `LIKE` with unescaped `%`/`_` and a locale-dependent `lower()`, and account, category
+and free-money names were ordered by an unpinned collation. The server now applies both as rules of its own, in
+Java (`prudent.text.TextRules`): a per-code-point simple lower-case fold with a plain substring match, and a
+name order that places Polish and Ukrainian letters in their alphabets. No migration, no contract change.
+**Done when:** the server suite is green with tests that fail on the old behaviour, and the expected-behaviour
+vectors (`server/src/test/resources/text-rules/search-vectors.json`, `name-order-vectors.json`) are on `main`
+for units 3 and 5 to consume. ADR-105. **Must land before unit 5.** It is user-visible on the persistent app
+(search no longer treats `%`/`_` as wildcards; lists may reorder once).
+
 ### Unit 5 — Ledger: accounts, records, transfers, corrections, categories, settings
 Categories move here from unit 6, because a record is refused by its category's kind and archived
 flag (finding F-01). Balances derived; a transfer as one immutable record (ADR-102), shown as two legs; corrections; archive. Row-level security has no local
@@ -153,8 +164,8 @@ jZenDev/jZen#232** (until then a resumable delete and integrity issues for what 
 `type`, `abs(amount)` range and search filters and its `date desc, id` order, answered over transfers
 **expanded into their two legs first**, so `type=transfer` and an amount range behave per leg as on the
 server; order within one date is compared as a set, because ids differ between server and Local. The
-search waits on a server fix that escapes `LIKE` wildcards (finding F-09); name order needs one pinned
-collation (F-10). Parity scenarios `record_list_filters` and `record_list_order`.
+search and name order implement `TextRules` (unit 4a, ADR-105: findings F-09 and F-10) in Dart and pass its
+vector files. Parity scenarios `record_list_filters` and `record_list_order`.
 
 ### Unit 6a — Budgets, carry-over resets, goals, allocations
 Budget slots by derived id, the summary, carry-over and its resets; goal states, envelopes, free money,
@@ -267,8 +278,8 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | F-06 | Account deletion with records and the import commit are one server transaction; `zen_store` has no multi-record write | units 5 and 8b; jZenDev/jZen#232 |
 | F-07 | The server's "today" is UTC or the plan's zone; the device's is local | unit 3 harness, unit 6b (`asOf` pinned) |
 | F-08 | Reminder lead days: Java allows `{0,1,2,3,7}`, the schema `0–365`; the Java set is the rule | unit 6b |
-| F-09 | The record search is an unescaped SQL `LIKE` (`%`, `_` are wildcards) with locale-dependent `lower()` | a server fix (own ADR) before unit 5 |
-| F-10 | Accounts, categories and free-money accounts are ordered by the database's unpinned collation | units 5 and 6a |
+| F-09 | The record search is an unescaped SQL `LIKE` (`%`, `_` are wildcards) with locale-dependent `lower()` | unit 4a (server fix, ADR-105; Dart side in unit 5) |
+| F-10 | Accounts, categories and free-money accounts are ordered by the database's unpinned collation | unit 4a (server rule, ADR-105); units 5 and 6a (Dart side) |
 | F-11 | Ids order three ways: Postgres bytes (= Local's hex text), Java's signed `UUID.compareTo` in two routes | unit 3, unit 6b |
 
 ## jZen issues Prudent Local waits on

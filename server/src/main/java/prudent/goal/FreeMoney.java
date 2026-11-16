@@ -1,7 +1,6 @@
 package prudent.goal;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -9,6 +8,7 @@ import java.util.UUID;
 import prudent.account.AccountBalance;
 import prudent.account.AccountEntity;
 import prudent.record.RecordEntity;
+import prudent.text.TextRules;
 
 /**
  * What a user may still set aside for goals, per currency (M4, jlogicsoftware/prudent#65,
@@ -67,9 +67,9 @@ public final class FreeMoney {
     Map<String, List<UUID>> sources = new TreeMap<>();
     Map<String, Long> allocated = new TreeMap<>();
 
-    // Name order, then id, so the list of contributing accounts is the same on every call.
+    // Name order (TextRules.compareNames, ADR-105), then id, so the list of contributing accounts is the same on every call.
     List<AccountEntity> ordered = new ArrayList<>(accounts);
-    ordered.sort(Comparator.comparing((AccountEntity a) -> a.name).thenComparing(a -> a.id));
+    ordered.sort((a, b) -> TextRules.compareNames(a.name, a.id, b.name, b.id));
     for (AccountEntity account : ordered) {
       if (!account.fundsGoals()) {
         continue;
