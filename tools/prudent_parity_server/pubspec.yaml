@@ -1,7 +1,7 @@
 name: prudent_parity_server
 description: >-
   The server side of Prudent Local's parity harness (ADR-107): runs each parity scenario through
-  the live Quarkus server and through prudent_local_core, and compares every figure exactly.
+  the live Quarkus server and through Prudent Local's ledger, and compares every figure exactly.
   Test-only; nothing ships from here.
 publish_to: none
 version: 0.1.0
@@ -17,6 +17,9 @@ dependencies:
   http: ^1.2.2
   prudent_local_core:
     path: ../../local/prudent_local_core
+  # The local side of the comparison: the ledger over a real store (StoreBackend, ADR-113).
+  prudent_local_store:
+    path: ../../local/prudent_local_store
   # jZen's packages from the sibling checkout, as client/ consumes them (ADR-001). Session cookies
   # and the CSRF header come from zen_transport's session client; registration from zen_identity.
   zen_core:

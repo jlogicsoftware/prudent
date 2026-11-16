@@ -449,59 +449,59 @@ category's kind and archived checks (finding F-01).
 
 | # | Rule | Where it lives today | Test |
 |---|---|---|---|
-| 5.1 | An account needs a name | `AccountResource.java:258` | `accounts_test` (mirrors `AccountResourceTest`) |
-| 5.2 | An account needs a type; `UNSPECIFIED` is refused | `AccountResource.java:265` | `accounts_test` |
-| 5.3 | An account holds at least one currency | `AccountResource.java:341` | `accounts_test` |
-| 5.4 | Each currency once per account, ISO-4217 | `AccountResource.java:350,355`; unique `init.sql:69` | `accounts_test`; deterministic id (4.2) |
-| 5.5 | The declared order of an account's currencies is kept | `init.sql:64`; `AccountEntity.java:127` | `accounts_test` |
-| 5.6 | A currency with records cannot be dropped | `AccountResource.java:367` | `accounts_test`; integrity check after merge |
-| 5.7 | A currency with plans cannot be dropped | `AccountResource.java:375` | `accounts_test`; integrity check |
-| 5.8 | At most one default account | `AccountEntity.java:174` | settings field (0.2); `two_devices_test` |
-| 5.9 | An account number is unique per person | `AccountResource.java:288,306`; unique `account_number.sql:27` | `accounts_test`; integrity check |
-| 5.10 | An account with records cannot be deleted (no cascade) | `AccountResource.java:200`; FK `init.sql:113` | `accounts_test` |
-| 5.11 | An account with plans cannot be deleted | `AccountResource.java:210`; FK `plans.sql:24` | `accounts_test` |
-| 5.12 | Delete with records removes every record, both legs of a transfer, and reopens confirmed occurrences | `AccountResource.java:172`; `RecordEntity.java:268`; ADR-081 | `account_delete_test` (mirrors `AccountResourceTest`); orphan integrity check |
-| 5.13 | `eligible_for_goals` is off by default | `account_goal_eligibility.sql:15` | `accounts_test` |
-| 5.14 | Balance = opening + net of records per currency, derived | `AccountMapper.java:86`; `RecordEntity.java:332,544`; ADR-014 | parity scenario `balances` |
-| 5.15 | A record needs a title | `RecordWriter.java:43` | `records_test` |
-| 5.16 | A record's amount is nonzero; the sign is its direction | `RecordWriter.java:52` | `records_test` |
-| 5.17 | A record's account and category are the person's | `RecordWriter.java:62,68` | `records_test` |
-| 5.18 | The account holds the record's currency | `RecordWriter.java:92` | `records_test`; integrity check |
-| 5.19 | The category's kind accepts the record's sign | `CategoryEntity.java:76–89` | `records_test`; integrity check |
-| 5.20 | An archived category takes no new record | `CategoryEntity.java:103–106` | `records_test` |
-| 5.21 | A transfer leg is not edited directly | `RecordResource.java:217–221` | structural (transfer is immutable, 0.2 D4) |
-| 5.22 | A correction is not edited directly | `RecordResource.java:232–236` | `records_test` |
-| 5.23 | A record's date is a valid date | `RecordWriter.java:137` | `records_test` |
-| 5.24 | Deletes are hard; no soft delete | `init.sql:125–128` | `records_test` (a deleted record is in no figure) |
-| 5.25 | Plan link: both ids or neither | `CHECK record_plan_link.sql:21` | `records_test` |
-| 5.26 | Deleting a confirming record reopens its occurrence | `RecordResource.java:193` | structural (completion is derived, 0.2) |
-| 5.27 | A transfer's amounts are positive | `TransferResource.java:78,81` | `transfers_test` |
-| 5.28 | A transfer needs two different accounts, both the person's | `TransferResource.java:87,92,95` | `transfers_test` |
-| 5.29 | Each side's account holds its currency | `TransferResource.java:104,115` | `transfers_test` |
-| 5.30 | A transfer is two legs written together, with no category | `transfers.sql:9–15`; `TransferResource.java:74` | one record (0.2 D4); parity scenario `transfer` |
-| 5.31 | Deleting a transfer deletes both legs | `TransferResource.java:163` | `transfers_test` |
-| 5.32 | A transfer's date is valid | `TransferResource.java:183` | `transfers_test` |
-| 5.33 | A correction is the delta from the current derived balance | `CorrectionResource.java:95–110` | parity scenario `correction` |
-| 5.34 | A correction that changes nothing is refused | `CorrectionResource.java:115` | `corrections_test` (mirrors `CorrectionResourceTest`) |
-| 5.35 | A correction's account is the person's and holds the currency | `CorrectionResource.java:81–91` | `corrections_test` |
-| 5.36 | A correction's default title | `CorrectionResource.java:118–121` | `corrections_test` |
-| 5.37 | A correction is marked as such | `corrections.sql:8` | `corrections_test` |
-| 5.38 | A category needs a title | `CategoryResource.java:266` | `categories_test` (mirrors `CategoryResourceTest`) |
-| 5.39 | A category's icon is from the permitted set | `CategoryResource.java:268`; `IconKeys` | `categories_test` |
-| 5.40 | A category's kind is 0, 1 or 2 | `CategoryResource.java:273`; `CHECK category_kind.sql:10` | `categories_test` |
-| 5.41 | Archive only what is active; restore only what is archived | `CategoryResource.java:168,191` | `categories_test` (mirrors `CategoryLifecycleTest`) |
-| 5.42 | A category with records, plans, budgets or resets cannot be deleted | `CategoryResource.java:220–242`; FKs `init.sql:110`, `plans.sql:25`, `budgets.sql:21`, `carry_over_resets.sql:25` | `categories_test`; integrity check |
-| 5.43 | Starter categories are seeded once | `NewUserSetup.java:88` | `first_run_test` (first device only, deterministic ids) |
-| 5.44 | One settings record; its main currency defaults and is ISO-4217 | `init.sql:147`; `NewUserSetup.java:81`; `SettingsResource.java:82` | `settings_test` |
-| 5.45 | The main currency is a label, not checked against accounts | `SettingsResource.java:84`; ADR-009 | `settings_test` |
-| 5.46 | list — record filters `dateFrom`/`dateTo` (inclusive), `accountId`, `categoryId`; malformed dates or ids refused | `RecordResource.java:72–75,245–270`; `RecordEntity.java:486–515` | parity scenario `record_list_filters` |
-| 5.47 | list — `type`: expense = negative, no transfer, not a correction; income = the positive counterpart; transfer = any transfer leg; correction = any correction. Trimmed, case-insensitive; an unknown type refused | `RecordType.java:24–35`; `RecordEntity.java:516–524` | `record_list_filters` |
-| 5.48 | list — `amountMin`/`amountMax` compare `abs(amount)`, inclusive, in any currency; a negative bound refused | `RecordResource.java:77–78,273–276`; `RecordEntity.java:525–532` | `record_list_filters` |
-| 5.49 | list — `search`: blank ignored (`String.isBlank`); otherwise trimmed (`String.trim`), folded by the simple per-code-point lower-case rule, and matched as a plain substring of the folded title, payee or note; `%`, `_`, `\` are ordinary characters | `TextRules.java`; `RecordEntity.search` (was SQL `LIKE`, `RecordEntity.java:533–538`) | `search-vectors.json` (unit 4a, ADR-106); `record_list_filters` (finding F-09, fixed) |
-| 5.50 | list — records ordered `date desc, id` | `RecordEntity.java:196,539` | `record_list_order` (finding F-11) |
-| 5.51 | list — accounts ordered by `TextRules.compareNames` (folded primary weights with Polish and Ukrainian letters placed in their alphabets, then exact code points, then id text) | `AccountEntity.listOwnedBy` (was `order by name`, `AccountEntity.java:132`) | `name-order-vectors.json` (unit 4a, ADR-106); `accounts_test` (finding F-10, fixed) |
-| 5.52 | list — categories ordered by `TextRules.compareNames` | `CategoryEntity.listOwnedBy` (was `order by title`, `CategoryEntity.java:112`) | `name-order-vectors.json` (unit 4a, ADR-106); `categories_test` (finding F-10, fixed) |
-| 5.53 | list — `deleteRecords` defaults to false (the refusal stands) | `AccountResource.java:180–182` | `account_delete_test` |
+| 5.1 | An account needs a name | `AccountResource.java:258` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "accounts"; parity `ledger_accounts` |
+| 5.2 | An account needs a type; `UNSPECIFIED` is refused | `AccountResource.java:265` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "accounts"; parity `ledger_accounts` |
+| 5.3 | An account holds at least one currency | `AccountResource.java:341` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "accounts"; parity `ledger_accounts` |
+| 5.4 | Each currency once per account, ISO-4217 | `AccountResource.java:350,355`; unique `init.sql:69` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "accounts"; parity `ledger_accounts`; derived id (4.2) |
+| 5.5 | The declared order of an account's currencies is kept | `init.sql:64`; `AccountEntity.java:127` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` (declared order, reorder); parity `ledger_accounts` appends only — the server answers 500 to a reorder (ADR-113) |
+| 5.6 | A currency with records cannot be dropped | `AccountResource.java:367` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_accounts`; `integrity_test.dart` (held currency) |
+| 5.7 | A currency with plans cannot be dropped | `AccountResource.java:375` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; `integrity_test.dart` (held currency) |
+| 5.8 | At most one default account | `AccountEntity.java:174` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` (one settings field); parity `ledger_accounts` (`isDefault`) |
+| 5.9 | An account number is unique per person | `AccountResource.java:288,306`; unique `account_number.sql:27` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_accounts`; `integrity_test.dart` (duplicate number) |
+| 5.10 | An account with records cannot be deleted (no cascade) | `AccountResource.java:200`; FK `init.sql:113` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_accounts` |
+| 5.11 | An account with plans cannot be deleted | `AccountResource.java:210`; FK `plans.sql:24` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` |
+| 5.12 | Delete with records removes every record, both legs of a transfer, and reopens confirmed occurrences | `AccountResource.java:172`; `RecordEntity.java:268`; ADR-081 | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` (every kind, both legs, the default; `writeAll` all or nothing); parity `ledger_accounts`; `ledger_two_devices_test.dart` (a disputed record refuses the whole delete; a record added meanwhile is a dangling reference) |
+| 5.13 | `eligible_for_goals` is off by default | `account_goal_eligibility.sql:15` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` (absent = off) |
+| 5.14 | Balance = opening + net of records per currency, derived | `AccountMapper.java:86`; `RecordEntity.java:332,544`; ADR-014 | **Covered (ADR-113):** parity `ledger_records`, `ledger_transfers`, `ledger_corrections`, `ledger_accounts`; `ledger_two_devices_test.dart` (a disputed value counts in no figure) |
+| 5.15 | A record needs a title | `RecordWriter.java:43` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "records"; parity `ledger_records` |
+| 5.16 | A record's amount is nonzero; the sign is its direction | `RecordWriter.java:52` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_records` |
+| 5.17 | A record's account and category are the person's | `RecordWriter.java:62,68` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_records` |
+| 5.18 | The account holds the record's currency | `RecordWriter.java:92` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_records`; `integrity_test.dart` |
+| 5.19 | The category's kind accepts the record's sign | `CategoryEntity.java:76–89` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` (only when the category or the sign changes); parity `ledger_records`; `integrity_test.dart` |
+| 5.20 | An archived category takes no new record | `CategoryEntity.java:103–106` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_records` |
+| 5.21 | A transfer leg is not edited directly | `RecordResource.java:217–221` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` (a leg id is refused, 409); parity `ledger_transfers`; structural (one record) |
+| 5.22 | A correction is not edited directly | `RecordResource.java:232–236` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_corrections` |
+| 5.23 | A record's date is a valid date | `RecordWriter.java:137` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_records` |
+| 5.24 | Deletes are hard; no soft delete | `init.sql:125–128` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_records` |
+| 5.25 | Plan link: both ids or neither | `CHECK record_plan_link.sql:21` | **Covered (ADR-113):** structural: `PlanLink` is one immutable field (ADR-111) |
+| 5.26 | Deleting a confirming record reopens its occurrence | `RecordResource.java:193` | **Covered (ADR-113):** structural: completion is derived from the confirming record (unit 6b observes it) |
+| 5.27 | A transfer's amounts are positive | `TransferResource.java:78,81` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "transfers"; parity `ledger_transfers` |
+| 5.28 | A transfer needs two different accounts, both the person's | `TransferResource.java:87,92,95` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_transfers` |
+| 5.29 | Each side's account holds its currency | `TransferResource.java:104,115` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_transfers` |
+| 5.30 | A transfer is two legs written together, with no category | `transfers.sql:9–15`; `TransferResource.java:74` | **Covered (ADR-113):** one store record (ADR-102); `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_transfers` |
+| 5.31 | Deleting a transfer deletes both legs | `TransferResource.java:163` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_transfers` |
+| 5.32 | A transfer's date is valid | `TransferResource.java:183` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_transfers` |
+| 5.33 | A correction is the delta from the current derived balance | `CorrectionResource.java:95–110` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "corrections"; parity `ledger_corrections`; `ledger_two_devices_test.dart` (refused while unsettled; corrections made apart) |
+| 5.34 | A correction that changes nothing is refused | `CorrectionResource.java:115` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_corrections` |
+| 5.35 | A correction's account is the person's and holds the currency | `CorrectionResource.java:81–91` | **Covered (ADR-113):** parity `ledger_corrections` |
+| 5.36 | A correction's default title | `CorrectionResource.java:118–121` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_corrections` |
+| 5.37 | A correction is marked as such | `corrections.sql:8` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_corrections` |
+| 5.38 | A category needs a title | `CategoryResource.java:266` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "categories"; parity `ledger_categories` |
+| 5.39 | A category's icon is from the permitted set | `CategoryResource.java:268`; `IconKeys` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_categories` |
+| 5.40 | A category's kind is 0, 1 or 2 | `CategoryResource.java:273`; `CHECK category_kind.sql:10` | **Covered (ADR-113):** the wire enum (an unknown value does not decode); `CategoryDirection.valueOf` |
+| 5.41 | Archive only what is active; restore only what is archived | `CategoryResource.java:168,191` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_categories` |
+| 5.42 | A category with records, plans, budgets or resets cannot be deleted | `CategoryResource.java:220–242`; FKs `init.sql:110`, `plans.sql:25`, `budgets.sql:21`, `carry_over_resets.sql:25` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` (records, plans, budgets, resets); parity `ledger_categories`; `integrity_test.dart` |
+| 5.43 | Starter categories are seeded once | `NewUserSetup.java:88` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` (derived ids, only an empty store); `ledger_two_devices_test.dart` (two devices start fresh, five records) |
+| 5.44 | One settings record; its main currency defaults and is ISO-4217 | `init.sql:147`; `NewUserSetup.java:81`; `SettingsResource.java:82` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "settings"; parity `ledger_settings` |
+| 5.45 | The main currency is a label, not checked against accounts | `SettingsResource.java:84`; ADR-009 | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_settings` |
+| 5.46 | list — record filters `dateFrom`/`dateTo` (inclusive), `accountId`, `categoryId`; malformed dates or ids refused | `RecordResource.java:72–75,245–270`; `RecordEntity.java:486–515` | **Covered (ADR-113):** parity `record_list_filters`; `local/prudent_local_store/test/ledger_test.dart` "the record list" |
+| 5.47 | list — `type`: expense = negative, no transfer, not a correction; income = the positive counterpart; transfer = any transfer leg; correction = any correction. Trimmed, case-insensitive; an unknown type refused | `RecordType.java:24–35`; `RecordEntity.java:516–524` | **Covered (ADR-113):** parity `record_list_filters`; `local/prudent_local_store/test/ledger_test.dart` |
+| 5.48 | list — `amountMin`/`amountMax` compare `abs(amount)`, inclusive, in any currency; a negative bound refused | `RecordResource.java:77–78,273–276`; `RecordEntity.java:525–532` | **Covered (ADR-113):** parity `record_list_filters`; `local/prudent_local_store/test/ledger_test.dart` (Long.MIN_VALUE fails as Postgres does) |
+| 5.49 | list — `search`: blank ignored (`String.isBlank`); otherwise trimmed (`String.trim`), folded by the simple per-code-point lower-case rule, and matched as a plain substring of the folded title, payee or note; `%`, `_`, `\` are ordinary characters | `TextRules.java`; `RecordEntity.search` (was SQL `LIKE`, `RecordEntity.java:533–538`) | **Covered (ADR-113):** parity `record_list_filters`; `local/prudent_local_core/test/search_rules_test.dart` over `search-vectors.json` and `golden/fold.json` |
+| 5.50 | list — records ordered `date desc, id` | `RecordEntity.java:196,539` | **Covered (ADR-113):** parity `record_list_order` (within a date as a set; each side's ids ascend) |
+| 5.51 | list — accounts ordered by `TextRules.compareNames` (folded primary weights with Polish and Ukrainian letters placed in their alphabets, then exact code points, then id text) | `AccountEntity.listOwnedBy` (was `order by name`, `AccountEntity.java:132`) | **Covered (ADR-113):** `search_rules_test.dart` over `name-order-vectors.json`; `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_accounts` |
+| 5.52 | list — categories ordered by `TextRules.compareNames` | `CategoryEntity.listOwnedBy` (was `order by title`, `CategoryEntity.java:112`) | **Covered (ADR-113):** `search_rules_test.dart` over `name-order-vectors.json`; `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_categories` |
+| 5.53 | list — `deleteRecords` defaults to false (the refusal stands) | `AccountResource.java:180–182` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_accounts` |
 
 #### List, filter and order semantics (units 5 and 6)
 

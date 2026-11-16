@@ -1,0 +1,494 @@
+{
+  "name": "ledger_records",
+  "description": "Every way an ordinary record changes a balance: create, edit (amount, sign, currency, account), delete; and every refusal of RecordWriter.apply in its order, so the same first reason refuses on both sides.",
+  "rules": [
+    "5.14",
+    "5.15",
+    "5.16",
+    "5.17",
+    "5.18",
+    "5.19",
+    "5.20",
+    "5.22",
+    "5.23",
+    "5.24"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Groceries",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "salary",
+      "outcome": "accepted",
+      "input": {
+        "title": "Salary",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "any",
+      "outcome": "accepted",
+      "input": {
+        "title": "Anything",
+        "iconKey": "food"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "old",
+      "outcome": "accepted",
+      "input": {
+        "title": "Old",
+        "iconKey": "leisure"
+      }
+    },
+    {
+      "op": "category.archive",
+      "outcome": "accepted",
+      "input": {
+        "category": "$old"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "main",
+      "outcome": "accepted",
+      "input": {
+        "name": "Main",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "10000"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "500"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "spare",
+      "outcome": "accepted",
+      "input": {
+        "name": "Spare",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "record.create",
+      "as": "bread",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-1250",
+        "currency": "PLN",
+        "date": "2026-10-03",
+        "title": "Bread",
+        "payee": "  Corner shop  ",
+        "note": "rye"
+      }
+    },
+    {
+      "op": "record.create",
+      "as": "pay",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "category": "$salary",
+        "amountMinor": "300000",
+        "currency": "pln",
+        "date": "2026-10-01",
+        "title": "October pay"
+      }
+    },
+    {
+      "op": "record.create",
+      "as": "coffee",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "category": "$any",
+        "amountMinor": "-75",
+        "currency": "EUR",
+        "date": "2026-10-04",
+        "title": "Coffee",
+        "note": "   "
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "comment": "5.19: an expense-only category refuses income.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "1250",
+        "currency": "PLN",
+        "date": "2026-10-03",
+        "title": "Refund?"
+      }
+    },
+    {
+      "comment": "5.19: an income-only category refuses an expense.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "category": "$salary",
+        "amountMinor": "-1",
+        "currency": "PLN",
+        "date": "2026-10-03",
+        "title": "Payback"
+      }
+    },
+    {
+      "comment": "5.20: an archived category takes no new record (409).",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "category": "$old",
+        "amountMinor": "-1",
+        "currency": "PLN",
+        "date": "2026-10-03",
+        "title": "Old habit"
+      }
+    },
+    {
+      "comment": "5.18: the account does not hold USD.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-1",
+        "currency": "USD",
+        "date": "2026-10-03",
+        "title": "Dollars"
+      }
+    },
+    {
+      "comment": "3.2: not ISO-4217.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-1",
+        "currency": "XYZ",
+        "date": "2026-10-03",
+        "title": "Nothing"
+      }
+    },
+    {
+      "comment": "5.23: no such date.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-1",
+        "currency": "PLN",
+        "date": "2026-02-30",
+        "title": "Leap"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-1",
+        "currency": "PLN",
+        "date": "",
+        "title": "Dateless"
+      }
+    },
+    {
+      "comment": "5.15: a blank title.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-1",
+        "currency": "PLN",
+        "date": "2026-10-03",
+        "title": " \t "
+      }
+    },
+    {
+      "comment": "5.16: zero moves nothing.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "0",
+        "currency": "PLN",
+        "date": "2026-10-03",
+        "title": "Zero"
+      }
+    },
+    {
+      "comment": "5.17: an account id that is not one is a 400 in a body.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "not-an-id",
+        "category": "$food",
+        "amountMinor": "-1",
+        "currency": "PLN",
+        "date": "2026-10-03",
+        "title": "Nowhere"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "category": "not-an-id",
+        "amountMinor": "-1",
+        "currency": "PLN",
+        "date": "2026-10-03",
+        "title": "Uncategorised"
+      }
+    },
+    {
+      "comment": "Every rule broken at once: the first in RecordWriter order (the title) decides, a 400 either way.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "0",
+        "currency": "XYZ",
+        "date": "2026-02-30",
+        "title": " "
+      }
+    },
+    {
+      "comment": "A new amount; the note is not sent, so it is cleared.",
+      "op": "record.update",
+      "outcome": "accepted",
+      "input": {
+        "record": "$bread",
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-1500",
+        "currency": "PLN",
+        "date": "2026-10-03",
+        "title": "Bread",
+        "payee": "Corner shop"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "comment": "Moved to another account and day.",
+      "op": "record.update",
+      "outcome": "accepted",
+      "input": {
+        "record": "$bread",
+        "account": "$spare",
+        "category": "$food",
+        "amountMinor": "-1500",
+        "currency": "PLN",
+        "date": "2026-10-05",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$spare"
+      }
+    },
+    {
+      "comment": "5.18 on edit: the new account does not hold EUR.",
+      "op": "record.update",
+      "outcome": "refused",
+      "input": {
+        "record": "$bread",
+        "account": "$spare",
+        "category": "$food",
+        "amountMinor": "-1500",
+        "currency": "EUR",
+        "date": "2026-10-05",
+        "title": "Bread"
+      }
+    },
+    {
+      "comment": "5.20 on edit: moving into an archived category is new.",
+      "op": "record.update",
+      "outcome": "refused",
+      "input": {
+        "record": "$coffee",
+        "account": "$main",
+        "category": "$old",
+        "amountMinor": "-75",
+        "currency": "EUR",
+        "date": "2026-10-04",
+        "title": "Coffee"
+      }
+    },
+    {
+      "comment": "A sign change in a category that takes either.",
+      "op": "record.update",
+      "outcome": "accepted",
+      "input": {
+        "record": "$coffee",
+        "account": "$main",
+        "category": "$any",
+        "amountMinor": "75",
+        "currency": "EUR",
+        "date": "2026-10-04",
+        "title": "Coffee back"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "comment": "The category now refuses income; the record already in it keeps it.",
+      "op": "category.update",
+      "outcome": "accepted",
+      "input": {
+        "category": "$any",
+        "title": "Anything",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "comment": "Neither the category nor the direction changed, so the kind is not checked again (RecordWriter.apply).",
+      "op": "record.update",
+      "outcome": "accepted",
+      "input": {
+        "record": "$coffee",
+        "account": "$main",
+        "category": "$any",
+        "amountMinor": "80",
+        "currency": "EUR",
+        "date": "2026-10-04",
+        "title": "Coffee back"
+      }
+    },
+    {
+      "op": "record.update",
+      "outcome": "accepted",
+      "input": {
+        "record": "$coffee",
+        "account": "$main",
+        "category": "$any",
+        "amountMinor": "-80",
+        "currency": "EUR",
+        "date": "2026-10-04",
+        "title": "Coffee"
+      }
+    },
+    {
+      "comment": "The direction changed, so the kind is checked and refuses.",
+      "op": "record.update",
+      "outcome": "refused",
+      "input": {
+        "record": "$coffee",
+        "account": "$main",
+        "category": "$any",
+        "amountMinor": "80",
+        "currency": "EUR",
+        "date": "2026-10-04",
+        "title": "Coffee"
+      }
+    },
+    {
+      "comment": "No such record: 404.",
+      "op": "record.update",
+      "outcome": "refused",
+      "input": {
+        "record": "not-an-id",
+        "account": "$main",
+        "category": "$any",
+        "amountMinor": "1",
+        "currency": "EUR",
+        "date": "2026-10-04",
+        "title": "x"
+      }
+    },
+    {
+      "op": "record.delete",
+      "outcome": "accepted",
+      "input": {
+        "record": "$pay"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "comment": "5.24: a hard delete; it is gone.",
+      "op": "record.delete",
+      "outcome": "refused",
+      "input": {
+        "record": "$pay"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$spare"
+      }
+    }
+  ]
+}

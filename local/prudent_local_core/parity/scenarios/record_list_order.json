@@ -1,0 +1,165 @@
+{
+  "name": "record_list_order",
+  "description": "The record list is ordered date descending, and within one date by id, ascending. Ids differ between the server and Local, so within a date the rows are compared as a set, and each side states that its own ids ascend.",
+  "rules": [
+    "5.50"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Groceries",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "g",
+      "outcome": "accepted",
+      "input": {
+        "name": "Gamma",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "d",
+      "outcome": "accepted",
+      "input": {
+        "name": "Delta",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$g",
+        "category": "$food",
+        "amountMinor": "-1",
+        "currency": "PLN",
+        "date": "2026-08-02",
+        "title": "Second day, first written"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$g",
+        "category": "$food",
+        "amountMinor": "-2",
+        "currency": "PLN",
+        "date": "2026-08-01",
+        "title": "First day"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$g",
+        "category": "$food",
+        "amountMinor": "-3",
+        "currency": "PLN",
+        "date": "2026-08-03",
+        "title": "Third day"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$g",
+        "category": "$food",
+        "amountMinor": "-4",
+        "currency": "PLN",
+        "date": "2026-08-02",
+        "title": "Second day, second written"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$g",
+        "category": "$food",
+        "amountMinor": "-5",
+        "currency": "PLN",
+        "date": "2026-08-02",
+        "title": "Second day, third written"
+      }
+    },
+    {
+      "op": "transfer.create",
+      "outcome": "accepted",
+      "input": {
+        "title": "Across",
+        "fromAccount": "$g",
+        "toAccount": "$d",
+        "fromAmountMinor": "6",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "6",
+        "toCurrency": "PLN",
+        "date": "2026-08-02"
+      }
+    },
+    {
+      "op": "correction.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$d",
+        "currency": "PLN",
+        "balanceMinor": "0",
+        "date": "2026-08-01"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$g",
+        "category": "$food",
+        "amountMinor": "-7",
+        "currency": "PLN",
+        "date": "+12026-01-01",
+        "title": "Far future"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$g"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "dateFrom": "2026-08-02",
+        "dateTo": "2026-08-02"
+      }
+    }
+  ]
+}

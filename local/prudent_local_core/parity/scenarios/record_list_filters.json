@@ -1,0 +1,473 @@
+{
+  "name": "record_list_filters",
+  "description": "The record list answers each filter as the server does, over transfers expanded into their two legs first: dates inclusive, account (only that leg), category (never a leg), type (trimmed, without case; a leg is a transfer, never income or expense), abs(amount) per leg in any currency, and the search (ADR-106) over title, payee and note. Rows of other scenarios on the run's shared user are left out of the observation. Every amount bound is paired with an account, because Postgres would fail abs() on another scenario's Long.MIN_VALUE row.",
+  "rules": [
+    "5.46",
+    "5.47",
+    "5.48",
+    "5.49"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Groceries",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "salary",
+      "outcome": "accepted",
+      "input": {
+        "title": "Salary",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "a",
+      "outcome": "accepted",
+      "input": {
+        "name": "Alpha",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "100000"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "b",
+      "outcome": "accepted",
+      "input": {
+        "name": "Beta",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "balances": [
+          {
+            "currency": "EUR",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "category": "$food",
+        "amountMinor": "-1250",
+        "currency": "PLN",
+        "date": "2026-09-01",
+        "title": "Bread",
+        "payee": "Bakery 50% off",
+        "note": "rye_loaf"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "category": "$food",
+        "amountMinor": "-9900",
+        "currency": "PLN",
+        "date": "2026-09-15",
+        "title": "\u0141\u00f3d\u017a trip",
+        "payee": "\u0141\u00d3D\u0179 rail"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "category": "$salary",
+        "amountMinor": "500000",
+        "currency": "PLN",
+        "date": "2026-09-30",
+        "title": "September pay"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "category": "$food",
+        "amountMinor": "-2300",
+        "currency": "EUR",
+        "date": "2026-09-15",
+        "title": "Market",
+        "note": "C:\\\\tmp"
+      }
+    },
+    {
+      "op": "correction.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "currency": "PLN",
+        "balanceMinor": "580000",
+        "date": "2026-09-20",
+        "note": "count"
+      }
+    },
+    {
+      "op": "transfer.create",
+      "outcome": "accepted",
+      "input": {
+        "title": "To savings",
+        "fromAccount": "$a",
+        "toAccount": "$b",
+        "fromAmountMinor": "10000",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "2300",
+        "toCurrency": "EUR",
+        "date": "2026-09-15"
+      }
+    },
+    {
+      "comment": "Everything of this scenario: each transfer as its two legs.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "comment": "5.46: both dates inclusive.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "dateFrom": "2026-09-15",
+        "dateTo": "2026-09-20"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "dateFrom": "2026-09-30"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "dateTo": "2026-09-01"
+      }
+    },
+    {
+      "comment": "Blank is no filter.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "dateFrom": "  ",
+        "dateTo": ""
+      }
+    },
+    {
+      "comment": "A malformed date is refused.",
+      "op": "record.list",
+      "outcome": "refused",
+      "input": {
+        "dateFrom": "2026-9-1"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "refused",
+      "input": {
+        "dateTo": "2026-09-31"
+      }
+    },
+    {
+      "comment": "Only the leg on Beta.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$b"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "dateFrom": "2026-09-15",
+        "dateTo": "2026-09-15"
+      }
+    },
+    {
+      "comment": "A malformed id is refused.",
+      "op": "record.list",
+      "outcome": "refused",
+      "input": {
+        "account": "not-an-id"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "category": "$salary",
+        "dateFrom": "2026-09-30"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "refused",
+      "input": {
+        "category": "42"
+      }
+    },
+    {
+      "comment": "5.47",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "type": "expense"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "type": "income"
+      }
+    },
+    {
+      "comment": "Both legs, on both accounts.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "type": "transfer"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "type": "correction"
+      }
+    },
+    {
+      "comment": "Trimmed and without case.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "type": "  TrAnSfEr \t"
+      }
+    },
+    {
+      "comment": "A dotless i upper-cases to I, as on the server.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "type": "\u0131ncome"
+      }
+    },
+    {
+      "comment": "Blank is no filter.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "type": "   "
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "refused",
+      "input": {
+        "type": "refund"
+      }
+    },
+    {
+      "comment": "5.48: abs(amount), inclusive; the 100.00 PLN leg matches, the 23.00 EUR leg and the 23.00 EUR expense do not.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "amountMin": "9900"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$b",
+        "amountMin": "2300",
+        "amountMax": "2300"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "amountMin": "2300",
+        "amountMax": "2300"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "amountMax": "1250"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "amountMin": "0",
+        "amountMax": "0"
+      }
+    },
+    {
+      "comment": "A negative bound is refused.",
+      "op": "record.list",
+      "outcome": "refused",
+      "input": {
+        "account": "$a",
+        "amountMin": "-1"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "refused",
+      "input": {
+        "account": "$a",
+        "amountMax": "-5"
+      }
+    },
+    {
+      "comment": "5.49: folded, a plain substring of title, payee or note.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "search": "BREAD"
+      }
+    },
+    {
+      "comment": "% is a character, not a wildcard.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "search": "50%"
+      }
+    },
+    {
+      "comment": "_ too.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "search": "e_l"
+      }
+    },
+    {
+      "comment": "A backslash too.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "search": "c:\\"
+      }
+    },
+    {
+      "comment": "\u0141 folds to \u0142, and is not L.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "search": "\u0142\u00f3d\u017a"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "search": "lodz"
+      }
+    },
+    {
+      "comment": "A transfer leg is searched by its title.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "search": "savings"
+      }
+    },
+    {
+      "comment": "A correction by its note.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "search": "COUNT"
+      }
+    },
+    {
+      "comment": "Blank is ignored.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "search": " \t "
+      }
+    },
+    {
+      "comment": "Only control characters: not blank, trimmed to nothing, and the empty term is in every title.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "search": "\u0001"
+      }
+    },
+    {
+      "comment": "A no-break space is neither blank nor trimmed: it is searched for, and nothing holds one.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "search": "\u00a0"
+      }
+    },
+    {
+      "comment": "Combined.",
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "type": "expense",
+        "dateFrom": "2026-09-10",
+        "search": "trip"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$a",
+        "category": "$food",
+        "amountMin": "2000",
+        "dateTo": "2026-09-15"
+      }
+    }
+  ]
+}

@@ -213,13 +213,15 @@ const CorrectionIntent$json = {
   '2': [
     {'1': 'target_minor', '3': 1, '4': 1, '5': 3, '10': 'targetMinor'},
     {'1': 'seen_minor', '3': 2, '4': 1, '5': 3, '10': 'seenMinor'},
+    {'1': 'seen_corrections', '3': 3, '4': 3, '5': 9, '10': 'seenCorrections'},
   ],
 };
 
 /// Descriptor for `CorrectionIntent`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List correctionIntentDescriptor = $convert.base64Decode(
     'ChBDb3JyZWN0aW9uSW50ZW50EiEKDHRhcmdldF9taW5vchgBIAEoA1ILdGFyZ2V0TWlub3ISHQ'
-    'oKc2Vlbl9taW5vchgCIAEoA1IJc2Vlbk1pbm9y');
+    'oKc2Vlbl9taW5vchgCIAEoA1IJc2Vlbk1pbm9yEikKEHNlZW5fY29ycmVjdGlvbnMYAyADKAlS'
+    'D3NlZW5Db3JyZWN0aW9ucw==');
 
 @$core.Deprecated('Use planLinkDescriptor instead')
 const PlanLink$json = {

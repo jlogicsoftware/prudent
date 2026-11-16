@@ -214,7 +214,9 @@ tasks:
       local/prudent_local_store: every row of the per-field merge table (ADR-102) through two real
       encrypted stores synced by jZen's ZenFolderCloud, the store's structural write rules, the
       derived-id vectors, the mapper's byte-for-byte round trip, each integrity check and its actions,
-      and the two-device suite that is the unit's done-when. Needs no server and no Flutter.
+      and the two-device suite that is the unit's done-when; and unit 5's ledger (ADR-113): every rule,
+      the all-or-nothing writes, its two-device cases, and every parity scenario through StoreBackend
+      against its stated server outcome. Needs no server and no Flutter.
     cmds:
       - cd local/prudent_local_store && dart pub get && dart test
 
@@ -1078,7 +1080,7 @@ tasks:
         ( cd {{.CLIENT_DIR}} && ZEN_API_URL="${API}" dart test integration_test/e2e_test.dart )
         rc=$?
         # The server/local parity suite (ADR-107) against the same live server: every scenario in
-        # local/prudent_local_core/parity/scenarios through Quarkus and through prudent_local_core,
+        # local/prudent_local_core/parity/scenarios through Quarkus and through Local's ledger (ADR-113),
         # compared to the cent. Run even when the e2e suite failed, and either failing fails the gate.
         ( cd tools/prudent_parity_server && dart pub get && ZEN_API_URL="${API}" dart test )
         parity_rc=$?

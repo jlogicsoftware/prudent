@@ -90,6 +90,12 @@ message Posting {
 message CorrectionIntent {
   int64 target_minor = 1;
   int64 seen_minor = 2;
+  // The other corrections of the same account and currency this device held when it wrote this one
+  // (ADR-113). Two corrections neither of which names the other were made without seeing each other —
+  // on two devices offline — and both deltas together overshoot what either person asked for; that
+  // is the integrity issue of D7. A balance alone cannot tell it: a later record legitimately moves a
+  // balance away from what a correction saw.
+  repeated string seen_corrections = 3;
 }
 
 // The occurrence a confirmation completed (ADR-040). Immutable. A link to a deleted plan reads as

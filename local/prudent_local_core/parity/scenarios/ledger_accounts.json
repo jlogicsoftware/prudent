@@ -1,0 +1,411 @@
+{
+  "name": "ledger_accounts",
+  "description": "An account: what a create refuses, a full replacement (opening amounts move the balance; a currency in use cannot be dropped), the one default, a unique account number, name order, and a delete that is refused while records remain unless they go with it \u2014 both legs of a transfer included.",
+  "rules": [
+    "5.1",
+    "5.2",
+    "5.3",
+    "5.4",
+    "5.5",
+    "5.6",
+    "5.8",
+    "5.9",
+    "5.10",
+    "5.12",
+    "5.13",
+    "5.14",
+    "5.51",
+    "5.53"
+  ],
+  "steps": [
+    {
+      "comment": "5.1",
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "  ",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "5.2: UNSPECIFIED is what an omitted type decodes to.",
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Typeless",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "5.3",
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Empty",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": []
+      }
+    },
+    {
+      "comment": "5.4",
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Twice",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "pln",
+            "amountMinor": "1"
+          },
+          {
+            "currency": "PLN",
+            "amountMinor": "2"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "z",
+      "outcome": "accepted",
+      "input": {
+        "name": "Zupa",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "100"
+          }
+        ],
+        "isDefault": true,
+        "includeInTotal": true
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "l",
+      "outcome": "accepted",
+      "input": {
+        "name": "\u0141azienka",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "300"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "200"
+          }
+        ],
+        "accountNumber": "pl 61 1090 1014 0000 0000 0000 0000"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "lato",
+      "outcome": "accepted",
+      "input": {
+        "name": "Lato",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "isActive": true,
+        "eligibleForGoals": true
+      }
+    },
+    {
+      "comment": "5.9: the same number, spelled differently, is taken (409).",
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Copy",
+        "type": "ACCOUNT_TYPE_CARD",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "PL61109010140000000000000000"
+      }
+    },
+    {
+      "comment": "5.51: Lato, the stroke-L name, then Zupa.",
+      "op": "account.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "account.get",
+      "outcome": "accepted",
+      "input": {
+        "account": "$z"
+      }
+    },
+    {
+      "comment": "A new opening and a new currency, appended; it becomes the default and Zupa stops being it. The server answers 500 to a PUT that reorders held currencies, so no scenario reorders them (ADR-113).",
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l",
+        "name": "\u0141azienka",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "isDefault": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "350"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "200"
+          },
+          {
+            "currency": "USD",
+            "amountMinor": "5"
+          }
+        ],
+        "accountNumber": "PL61109010140000000000000000"
+      }
+    },
+    {
+      "op": "account.get",
+      "outcome": "accepted",
+      "input": {
+        "account": "$z"
+      }
+    },
+    {
+      "op": "account.get",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Groceries",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l",
+        "category": "$food",
+        "amountMinor": "-50",
+        "currency": "USD",
+        "date": "2026-10-01",
+        "title": "Gum"
+      }
+    },
+    {
+      "comment": "5.6: USD has a record (409).",
+      "op": "account.update",
+      "outcome": "refused",
+      "input": {
+        "account": "$l",
+        "name": "\u0141azienka",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "isDefault": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "350"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "EUR is unused and goes; the default flag is cleared, so no account is the default. A full replacement: the number is sent again to keep it.",
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l",
+        "name": "\u0141azienka",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "350"
+          },
+          {
+            "currency": "USD",
+            "amountMinor": "5"
+          }
+        ],
+        "accountNumber": "PL61109010140000000000000000"
+      }
+    },
+    {
+      "op": "account.get",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l"
+      }
+    },
+    {
+      "op": "account.get",
+      "outcome": "accepted",
+      "input": {
+        "account": "$z"
+      }
+    },
+    {
+      "comment": "5.9 on update.",
+      "op": "account.update",
+      "outcome": "refused",
+      "input": {
+        "account": "$lato",
+        "name": "Lato",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "61 1090 1014 0000 0000 0000 0000"
+      }
+    },
+    {
+      "op": "transfer.create",
+      "outcome": "accepted",
+      "input": {
+        "title": "Move",
+        "fromAccount": "$z",
+        "toAccount": "$l",
+        "fromAmountMinor": "40",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "40",
+        "toCurrency": "PLN",
+        "date": "2026-10-02"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$z",
+        "category": "$food",
+        "amountMinor": "-10",
+        "currency": "PLN",
+        "date": "2026-10-03",
+        "title": "Tea"
+      }
+    },
+    {
+      "op": "correction.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$z",
+        "currency": "PLN",
+        "balanceMinor": "1",
+        "date": "2026-10-04"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$z"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l"
+      }
+    },
+    {
+      "comment": "5.10: records remain and the flag is absent.",
+      "op": "account.delete",
+      "outcome": "refused",
+      "input": {
+        "account": "$z"
+      }
+    },
+    {
+      "comment": "5.53: false is the default.",
+      "op": "account.delete",
+      "outcome": "refused",
+      "input": {
+        "account": "$z",
+        "deleteRecords": false
+      }
+    },
+    {
+      "comment": "5.12: the record, the correction and both legs of the transfer go with it, in one write.",
+      "op": "account.delete",
+      "outcome": "accepted",
+      "input": {
+        "account": "$z",
+        "deleteRecords": true
+      }
+    },
+    {
+      "op": "account.get",
+      "outcome": "refused",
+      "input": {
+        "account": "$z"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l"
+      }
+    },
+    {
+      "op": "account.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "comment": "An account with nothing in it needs no flag.",
+      "op": "account.delete",
+      "outcome": "accepted",
+      "input": {
+        "account": "$lato"
+      }
+    },
+    {
+      "op": "account.delete",
+      "outcome": "refused",
+      "input": {
+        "account": "$lato"
+      }
+    },
+    {
+      "op": "account.get",
+      "outcome": "refused",
+      "input": {
+        "account": "not-an-id"
+      }
+    }
+  ]
+}

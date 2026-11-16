@@ -4,8 +4,8 @@ library;
 
 // The parity suite (ADR-107, unit 3 of docs/plans/PRUDENT-LOCAL-PLAN.md): every scenario in
 // local/prudent_local_core/parity/scenarios runs through the live Quarkus server and through
-// prudent_local_core, and every step's answer must be the same — figures to the cent, normalised
-// text character for character, refusals by status.
+// Prudent Local's ledger over a real store (StoreBackend, ADR-113), and every step's answer must be
+// the same — figures to the cent, normalised text character for character, refusals by status.
 //
 // Run by `task test:e2e` after the server is healthy, with ZEN_API_URL pointing at it. Without the
 // variable this suite FAILS rather than skips: a parity suite that quietly ran nothing would read as
@@ -13,6 +13,7 @@ library;
 import 'dart:io';
 
 import 'package:prudent_local_core/parity.dart';
+import 'package:prudent_local_store/parity.dart';
 import 'package:prudent_parity_server/server_backend.dart';
 import 'package:test/test.dart';
 
@@ -44,7 +45,7 @@ void main() {
       final scenario = ParityScenario.parse(file.readAsStringSync());
       final report = await ParityEngine(
         server: ServerBackend(session),
-        local: LocalRulesBackend(),
+        local: StoreBackend(),
       ).run(scenario);
       expect(report.matches, isTrue, reason: report.describe());
     });

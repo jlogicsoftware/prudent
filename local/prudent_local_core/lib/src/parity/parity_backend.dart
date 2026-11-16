@@ -40,6 +40,26 @@ final class ParityBindings {
 
   /// [reference] is `"$name"`; answers the id bound to `name`, and fails loudly for a name nothing
   /// bound — a typo in a scenario must not become a request with an empty id.
+  /// The name bound to [id], or null when this scenario bound nothing to it — a row another scenario
+  /// made, on the server's one user per run (ADR-107), which a list observation leaves out.
+  String? nameOf(String? id) {
+    if (id == null) return null;
+    for (final MapEntry(:key, :value) in _ids.entries) {
+      if (value == id) return key;
+    }
+    return null;
+  }
+
+  /// [resolve] for a `"\$name"` reference; any other string is passed through as it is, so a
+  /// scenario can send a malformed id on purpose. Null stays null.
+  String? idOrLiteral(Object? value) {
+    if (value == null) return null;
+    if (value is! String) {
+      throw FormatException('Expected an id or a "\$name" reference, got $value.');
+    }
+    return value.startsWith(r'$') ? resolve(value) : value;
+  }
+
   String resolve(Object? reference) {
     if (reference is! String || !reference.startsWith(r'$')) {
       throw FormatException('Expected a "\$name" reference, got $reference.');

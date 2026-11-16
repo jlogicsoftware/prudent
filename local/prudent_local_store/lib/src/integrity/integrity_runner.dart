@@ -2,6 +2,7 @@ import 'package:zen_core/zen_core.dart';
 
 import '../prudent_local_store.dart';
 import 'checks/category_kind_check.dart';
+import 'checks/correction_intent_check.dart';
 import 'checks/dangling_reference_check.dart';
 import 'checks/default_account_check.dart';
 import 'checks/duplicate_account_number_check.dart';
@@ -48,13 +49,23 @@ final class IntegrityRunner {
     const LiveResetSlotCheck(),
   ]);
 
+  /// The ledger's checks (unit 5, ADR-113).
+  static final List<IntegrityCheck> ledgerChecks = List.unmodifiable(<IntegrityCheck>[
+    const CorrectionIntentCheck(),
+  ]);
+
+  /// Every check that exists so far, which is what the Local app runs.
+  static final List<IntegrityCheck> allChecks = List.unmodifiable(<IntegrityCheck>[
+    ...storeModelChecks,
+    ...ledgerChecks,
+  ]);
+
   final PrudentLocalStore store;
   final List<IntegrityCheck> checks;
 
-  /// Evaluates [checks] over [store] (by default [storeModelChecks]). Check names must be
-  /// unique.
+  /// Evaluates [checks] over [store] (by default [allChecks]). Check names must be unique.
   IntegrityRunner(this.store, {List<IntegrityCheck>? checks})
-    : checks = List.unmodifiable(checks ?? storeModelChecks) {
+    : checks = List.unmodifiable(checks ?? allChecks) {
     final names = this.checks.map((c) => c.name).toList();
     if (names.toSet().length != names.length) {
       throw ArgumentError.value(names, 'checks', 'name a check twice');
