@@ -42,6 +42,11 @@ dependencies:
     path: ../../../jZen/client/zen_ui_navigation
   zen_ui_widgets:
     path: ../../../jZen/client/zen_ui_widgets
+  # "Save these bytes to a file the person chooses" on every platform (jZenDev/jZen#246, ADR-117).
+  # Built on file_picker, whose Apple side is a Swift package; it depends on neither transport nor
+  # identity, so verify:boundaries stays green.
+  zen_save_file:
+    path: ../../../jZen/client/zen_save_file
 
   # Local reminders (ADR-056 to ADR-058) and the statement file picker (ADR-093): device capabilities
   # the screens use, with nothing in them that talks to a server.

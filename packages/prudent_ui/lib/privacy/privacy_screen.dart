@@ -17,9 +17,9 @@ import 'privacy_actions.dart';
 /// either button.
 ///
 /// The copy goes to the clipboard as readable JSON, or, where the platform can, to a file the person
-/// chooses (unit 10a, ADR-110). The file is the way to carry the data to Prudent Local (ADR-103); it
-/// is not encrypted and the screen says so before the button, not after it. On iOS and Android there
-/// is no file save yet, so only the clipboard copy is offered there.
+/// chooses (unit 10a, ADR-110, ADR-117), on every platform. The file is the way to carry the data to
+/// Prudent Local (ADR-103); it is not encrypted and the screen says so before the button, not after
+/// it.
 class PrivacyScreen extends ConsumerStatefulWidget {
   const PrivacyScreen({super.key});
 
@@ -62,7 +62,8 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
     } on ZenError catch (error) {
       message = error.message.isEmpty ? t.privacyExportFailed : error.message;
     } on Exception catch (error, stack) {
-      // The platform refused the write. Say so; the details go to the log, not the screen.
+      // The platform refused the write (a ZenSaveFileError), or building the file failed. Say so;
+      // the details go to the log, not the screen.
       developer.log('saving the export failed', error: error, stackTrace: stack);
       message = t.privacyExportSaveFailed;
     } finally {
@@ -74,7 +75,6 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canSave = ref.watch(exportFileSavingSupportedProvider);
     final t = PrudentLocalizations.of(context);
     final theme = Theme.of(context);
 
@@ -89,20 +89,18 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
           const SizedBox(height: 12),
           Text(t.privacyPolicyLimits, style: theme.textTheme.bodyLarge),
           const SizedBox(height: 24),
-          if (canSave) ...[
-            Text(t.privacyExportSaveWarning, style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: ZenButton(
-                label: t.privacyExportSaveAction,
-                variant: ZenButtonVariant.secondary,
-                isLoading: _exporting,
-                onPressed: () => _save(t),
-              ),
+          Text(t.privacyExportSaveWarning, style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ZenButton(
+              label: t.privacyExportSaveAction,
+              variant: ZenButtonVariant.secondary,
+              isLoading: _exporting,
+              onPressed: () => _save(t),
             ),
-            const SizedBox(height: 16),
-          ],
+          ),
+          const SizedBox(height: 16),
           Text(t.privacyExportHint, style: theme.textTheme.bodyMedium),
           const SizedBox(height: 4),
           Text(t.privacyExportCopyWarning, style: theme.textTheme.bodySmall),
