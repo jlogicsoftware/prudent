@@ -238,7 +238,7 @@ ADR. **Done when:** `PrivacyCoverageTest` sees the new fields, `verify:contracts
 round-trips.
 
 **Status (ADR-110):** built on the server and on macOS, Windows, Linux and web; the key travels as `record_import_keys` beside the record. **Open:** "Save to a file" on iOS and
-Android waits for a framework save-file capability (jZenDev/jZen#247), and the save panel has not been run on a real platform.
+Android waits for a framework save-file capability (jZenDev/jZen#246), and the save panel has not been run on a real platform.
 
 ### Unit 10b — Moving data in
 As decided in ADR-103: the export read from a file into an empty store, opening amounts rebuilt from the
@@ -311,7 +311,7 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | jZenDev/jZen#240 | screen-capture protection | 9 (ADR-100 T15) |
 | jZenDev/jZen#244 | a merge policy over a group (a reset's revocation: who and when) | 4, 6a |
 | jZenDev/jZen#245 | a proto3 field set to its default differs from an unset one in the merge | 4, 5 (every write path) |
-| jZenDev/jZen#247 | save-file capability on iOS and Android | 10a (mobile half) |
+| jZenDev/jZen#246 | save-file capability on iOS and Android | 10a (mobile half) |
 
 None blocks starting a unit; each is a stated limitation of that unit until it lands and is consumed.
 
