@@ -89,6 +89,26 @@ message DataExport {
   // The rows still held by sessions that have not ended; each names its session. Normally empty or
   // short: a session's rows are deleted when it ends.
   repeated ImportRow import_rows = 15;
+  // The statement-import key of every record a statement import wrote, so a statement imported
+  // before the data moved elsewhere is still recognised afterwards (ADR-091, ADR-103, unit 10a).
+  // One entry per imported record and none for any other, so a person who never imported a
+  // statement has an empty list. Added in format_version 1: adding a field does not bump it.
+  repeated ExportImportKey record_import_keys = 16;
+}
+
+// The `(fingerprint, occurrence)` key ADR-091 stores on a record a statement import wrote, handed
+// back beside the record rather than on `Record` itself: `Record` is the shape of every API answer,
+// and the key is a digest of statement text that no screen shows and no other route should carry.
+// A digest, not statement text; not secret (ADR-091), so the file that holds it is as sensitive as
+// the rest of the export.
+message ExportImportKey {
+  // `Record.id` of the record this key belongs to; always one of this export's `records`.
+  string record_id = 1;
+  // A scheme prefix and 64 lower-case hex characters, e.g. `v1:` + digest. The prefix is the
+  // fingerprint's version: a reader that does not know it must refuse the file, not guess.
+  string fingerprint = 2;
+  // Which of the statement rows with this fingerprint the record came from, 1-based.
+  int32 occurrence = 3;
 }
 
 // POST /api/v1/privacy/erase.

@@ -6667,6 +6667,20 @@ export interface components {
             importSessions?: components["schemas"]["ImportSession"][];
             /** @description The rows still held by sessions that have not ended; each names its session. */
             importRows?: components["schemas"]["ImportRow"][];
+            /** @description The statement-import key of every record a statement import wrote, none for any other (ADR-091, ADR-103). Beside the record, not on it: `Record` never carries the key. */
+            recordImportKeys?: components["schemas"]["ExportImportKey"][];
+        };
+        /** @description The `(fingerprint, occurrence)` key a statement import stored on one record. A digest, not statement text. */
+        ExportImportKey: {
+            /** @description `Record.id` of the record this key belongs to. */
+            recordId?: string;
+            /** @description A scheme prefix and 64 lower-case hex characters, e.g. `v1:` + digest. */
+            fingerprint?: string;
+            /**
+             * Format: int32
+             * @description Which of the statement rows with this fingerprint the record came from, 1-based.
+             */
+            occurrence?: number;
         };
         /** @description Body for POST /api/v1/privacy/erase. IRREVERSIBLE: it deletes every record, account, category, plan, budget and goal the caller owns. Refused unless the caller repeats the address the account signs in with. */
         EraseAccountRequest: {

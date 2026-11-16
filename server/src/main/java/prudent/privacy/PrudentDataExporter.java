@@ -28,6 +28,7 @@ import prudent.plan.PlanEntity;
 import prudent.plan.PlanMapper;
 import prudent.plan.PlanOccurrenceEntity;
 import prudent.proto.v1.DataExport;
+import prudent.proto.v1.ExportImportKey;
 import prudent.proto.v1.ExportProfile;
 import prudent.record.RecordEntity;
 import prudent.record.RecordMapper;
@@ -108,7 +109,19 @@ public class PrudentDataExporter {
                 AccountEntity.listOwnedBy(userId), RecordEntity.netByAccountForUser(userId))
             .getAccountsList());
     CategoryEntity.listOwnedBy(userId).forEach(c -> export.addCategories(categories.toProto(c)));
-    RecordEntity.listOwnedBy(userId).forEach(r -> export.addRecords(records.toProto(r)));
+    for (RecordEntity record : RecordEntity.listOwnedBy(userId)) {
+      export.addRecords(records.toProto(record));
+      // The statement-import key travels beside the record, not on it: `Record` is every API
+      // answer's shape and the key never goes on the wire there (ADR-091). Both columns are set
+      // together or neither is (a CHECK), so one test is enough.
+      if (record.importFingerprint != null) {
+        export.addRecordImportKeys(
+            ExportImportKey.newBuilder()
+                .setRecordId(record.id.toString())
+                .setFingerprint(record.importFingerprint)
+                .setOccurrence(record.importOccurrence));
+      }
+    }
 
     for (PlanEntity plan : PlanEntity.listOwnedBy(userId)) {
       export.addPlans(plans.toProto(plan));

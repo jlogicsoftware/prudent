@@ -185,7 +185,9 @@ every row a user owns in any lifecycle state (readable JSON, never cached), and 
 anonymises the profile in one transaction, refused unless the body repeats the account's address. The deletion is
 `PrudentDataEraser`, shared with the retention observer; `PrivacyCoverageTest` derives its coverage from the database's own schema, so
 a table with a `user_id` that the exporter and eraser do not know fails the suite. Settings has a "Privacy and data" detail (copy to
-the clipboard, delete). `docs/privacy-policy.md` is the published policy. Both request routes delete the person's Supabase sign-in
+the clipboard, save to a file, delete). The export also carries each imported record's statement key beside the record (`record_import_keys`, ADR-110,
+unit 10a), so a statement imported before a move to Prudent Local is still recognised; "Save to a file" warns first that the file is not encrypted, and is
+absent on iOS and Android until the framework has a save-file capability (jZenDev/jZen#246). `docs/privacy-policy.md` is the published policy. Both request routes delete the person's Supabase sign-in
 record too (ADR-075, jlogicsoftware/prudent#173): `SignInRecordEraser` calls GoTrue's admin delete with `SUPABASE_SECRET_KEY`,
 last in the erasure's transaction, so a refusal is a 503 with nothing erased; a dormancy-erased person keeps theirs (the operator
 deletes it). `task test:e2e` proves the deletion against a real local Supabase; no deployed service has the key yet. Dormancy erasure

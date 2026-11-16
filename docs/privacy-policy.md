@@ -81,6 +81,15 @@ and analytics are not in it because they are calculated from the rest on every r
 The same document is `GET /api/v1/privacy/export` for anyone who would rather call the API; it is
 never cached.
 
+**Settings → Privacy and data → Save to a file** writes the same document to a file you choose
+(macOS, Windows, Linux and the web, where the browser decides where it goes; not yet on iOS and
+Android, which keep the clipboard copy). **The file is not encrypted:** it holds all of your finances
+in plain text, so keep it somewhere private and delete it when you have used it. The document also
+carries, for each record a statement import wrote, that record's import key — a fingerprint (a
+digest) and a number that let Prudent recognise the same statement row again after you move your data
+elsewhere. It is never the statement's text. The clipboard copy is shared with other apps and, on some
+devices, with your other devices.
+
 ## Deleting it
 
 **Settings → Privacy and data → Delete my data.** You are asked to type your email address, then:
@@ -108,7 +117,7 @@ It cannot be undone. Copy your data first if you want to keep it.
   deleted it, until they expire. The persistent proof-of-concept environment has none today
   (ADR-068); the operator defines retention when it does (#47), and that period is how long an
   erased person's data can still exist in one.
-- **A copy you made.** What you copied to your clipboard or saved is yours to handle.
+- **A copy you made.** What you copied to your clipboard or saved to a file (unencrypted) is yours to handle.
 
 ### If you cannot sign in
 

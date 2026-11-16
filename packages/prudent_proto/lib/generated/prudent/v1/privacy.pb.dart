@@ -168,6 +168,7 @@ class DataExport extends $pb.GeneratedMessage {
     $core.Iterable<$7.GoalAllocation>? goalAllocations,
     $core.Iterable<$8.ImportSession>? importSessions,
     $core.Iterable<$8.ImportRow>? importRows,
+    $core.Iterable<ExportImportKey>? recordImportKeys,
   }) {
     final result = create();
     if (formatVersion != null) result.formatVersion = formatVersion;
@@ -185,6 +186,8 @@ class DataExport extends $pb.GeneratedMessage {
     if (goalAllocations != null) result.goalAllocations.addAll(goalAllocations);
     if (importSessions != null) result.importSessions.addAll(importSessions);
     if (importRows != null) result.importRows.addAll(importRows);
+    if (recordImportKeys != null)
+      result.recordImportKeys.addAll(recordImportKeys);
     return result;
   }
 
@@ -229,6 +232,8 @@ class DataExport extends $pb.GeneratedMessage {
         subBuilder: $8.ImportSession.create)
     ..pPM<$8.ImportRow>(15, _omitFieldNames ? '' : 'importRows',
         subBuilder: $8.ImportRow.create)
+    ..pPM<ExportImportKey>(16, _omitFieldNames ? '' : 'recordImportKeys',
+        subBuilder: ExportImportKey.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -331,6 +336,100 @@ class DataExport extends $pb.GeneratedMessage {
   /// short: a session's rows are deleted when it ends.
   @$pb.TagNumber(15)
   $pb.PbList<$8.ImportRow> get importRows => $_getList(14);
+
+  /// The statement-import key of every record a statement import wrote, so a statement imported
+  /// before the data moved elsewhere is still recognised afterwards (ADR-091, ADR-103, unit 10a).
+  /// One entry per imported record and none for any other, so a person who never imported a
+  /// statement has an empty list. Added in format_version 1: adding a field does not bump it.
+  @$pb.TagNumber(16)
+  $pb.PbList<ExportImportKey> get recordImportKeys => $_getList(15);
+}
+
+/// The `(fingerprint, occurrence)` key ADR-091 stores on a record a statement import wrote, handed
+/// back beside the record rather than on `Record` itself: `Record` is the shape of every API answer,
+/// and the key is a digest of statement text that no screen shows and no other route should carry.
+/// A digest, not statement text; not secret (ADR-091), so the file that holds it is as sensitive as
+/// the rest of the export.
+class ExportImportKey extends $pb.GeneratedMessage {
+  factory ExportImportKey({
+    $core.String? recordId,
+    $core.String? fingerprint,
+    $core.int? occurrence,
+  }) {
+    final result = create();
+    if (recordId != null) result.recordId = recordId;
+    if (fingerprint != null) result.fingerprint = fingerprint;
+    if (occurrence != null) result.occurrence = occurrence;
+    return result;
+  }
+
+  ExportImportKey._();
+
+  factory ExportImportKey.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ExportImportKey.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ExportImportKey',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'prudent.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'recordId')
+    ..aOS(2, _omitFieldNames ? '' : 'fingerprint')
+    ..aI(3, _omitFieldNames ? '' : 'occurrence')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ExportImportKey clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ExportImportKey copyWith(void Function(ExportImportKey) updates) =>
+      super.copyWith((message) => updates(message as ExportImportKey))
+          as ExportImportKey;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ExportImportKey create() => ExportImportKey._();
+  @$core.override
+  ExportImportKey createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ExportImportKey getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ExportImportKey>(create);
+  static ExportImportKey? _defaultInstance;
+
+  /// `Record.id` of the record this key belongs to; always one of this export's `records`.
+  @$pb.TagNumber(1)
+  $core.String get recordId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set recordId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRecordId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRecordId() => $_clearField(1);
+
+  /// A scheme prefix and 64 lower-case hex characters, e.g. `v1:` + digest. The prefix is the
+  /// fingerprint's version: a reader that does not know it must refuse the file, not guess.
+  @$pb.TagNumber(2)
+  $core.String get fingerprint => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set fingerprint($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasFingerprint() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearFingerprint() => $_clearField(2);
+
+  /// Which of the statement rows with this fingerprint the record came from, 1-based.
+  @$pb.TagNumber(3)
+  $core.int get occurrence => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set occurrence($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasOccurrence() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearOccurrence() => $_clearField(3);
 }
 
 /// POST /api/v1/privacy/erase.

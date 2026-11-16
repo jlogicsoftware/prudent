@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,6 +25,20 @@ class PrivacyActions {
     final result = await _repository.exportData();
     final data = result.fold((export) => export, (error) => throw error);
     return const JsonEncoder.withIndent('  ').convert(data.toProto3Json());
+  }
+
+  /// The same export as a file's content: UTF-8 of [exportJson]'s text, and the name to offer for
+  /// it, built from the moment the server made the export so the name says which copy it is.
+  /// Throws the server's [ZenError] when it refuses.
+  Future<ExportFile> exportFile() async {
+    final result = await _repository.exportData();
+    final data = result.fold((export) => export, (error) => throw error);
+    final text = const JsonEncoder.withIndent('  ').convert(data.toProto3Json());
+    final made = DateTime.fromMillisecondsSinceEpoch(data.exportedAtMs.toInt(), isUtc: true);
+    final day =
+        '${made.year.toString().padLeft(4, '0')}-${made.month.toString().padLeft(2, '0')}-'
+        '${made.day.toString().padLeft(2, '0')}';
+    return ExportFile(name: 'prudent-export-$day.json', bytes: Uint8List.fromList(utf8.encode(text)));
   }
 
   /// Erases the user's data on the server, then makes this device forget it and signs out.
@@ -57,6 +72,14 @@ class PrivacyActions {
       await _ref.read(settingsSessionProvider)?.signOut();
     }
   }
+}
+
+/// An export ready to be written to a file: its suggested name and its bytes.
+class ExportFile {
+  const ExportFile({required this.name, required this.bytes});
+
+  final String name;
+  final Uint8List bytes;
 }
 
 final privacyActionsProvider = Provider<PrivacyActions>(PrivacyActions.new);

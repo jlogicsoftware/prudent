@@ -27,6 +27,7 @@ import prudent.proto.v1.CurrencyFreeMoney;
 import prudent.proto.v1.DataExport;
 import prudent.proto.v1.DueReminder;
 import prudent.proto.v1.EraseAccountRequest;
+import prudent.proto.v1.ExportImportKey;
 import prudent.proto.v1.ExportProfile;
 import prudent.proto.v1.GetFreeMoneyResponse;
 import prudent.proto.v1.Goal;
@@ -131,6 +132,7 @@ import prudent.proto.v1.UpdateSettingsRequest;
       DataExport.class,
       DueReminder.class,
       EraseAccountRequest.class,
+      ExportImportKey.class,
       ExportProfile.class,
       GetFreeMoneyResponse.class,
       Goal.class,

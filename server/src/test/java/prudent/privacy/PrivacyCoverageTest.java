@@ -97,6 +97,37 @@ class PrivacyCoverageTest {
     }
   }
 
+  /**
+   * Columns the export carries beside the record rather than on it (unit 10a, ADR-091): found from
+   * the schema so that a third {@code import_*} column on a record cannot be added without someone
+   * deciding whether it belongs in {@code DataExport.record_import_keys}.
+   */
+  @Test
+  void everyImportColumnOfARecordIsCarriedByTheExportsImportKeys() {
+    @SuppressWarnings("unchecked")
+    List<String> columns =
+        QuarkusTransaction.requiringNew()
+            .call(
+                () ->
+                    entityManager
+                        .createNativeQuery(
+                            "select column_name from information_schema.columns"
+                                + " where table_schema = 'public' and table_name = 'prudent_record'"
+                                + " and column_name like 'import\\_%' order by column_name")
+                        .getResultList());
+    assertEquals(
+        List.of("import_fingerprint", "import_occurrence"),
+        columns,
+        "prudent_record has an import column that ExportImportKey does not carry — add it to"
+            + " privacy.proto and PrudentDataExporter, then to this list");
+    // And the proto message names exactly those two (record_id is the link, not a column).
+    assertEquals(
+        List.of("record_id", "fingerprint", "occurrence"),
+        prudent.proto.v1.ExportImportKey.getDescriptor().getFields().stream()
+            .map(com.google.protobuf.Descriptors.FieldDescriptor::getName)
+            .toList());
+  }
+
   @Test
   @TestSecurity(user = PrudentTest.ALICE)
   void everyUserOwnedTableIsInTheExport() {
