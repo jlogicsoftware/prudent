@@ -1,0 +1,102 @@
+// Prudent Local's statement import sessions (unit 8b, ADR-114): what one session holds on THIS
+// DEVICE ONLY, in the second, unsynced store of ADR-102 (`ImportSessionStore`). They are not the
+// wire messages of proto/prudent/v1/imports.proto; `ImportMapper` produces those.
+//
+// NEVER SYNCED. A session holds normalised statement rows — descriptions, counterparties, their
+// account numbers — for at most 24 hours, and deletes them when it ends (ADR-089). Syncing it would
+// copy statement text to every device and to the sync service for no gain: only the records a
+// commit writes travel, through the ledger's own store, and two devices that commit one statement
+// converge because those records' ids derive from the row keys (ADR-102 D3). So no field here has a
+// merge class: there is no second device to merge with.
+//
+// ONE SESSION IS ONE RECORD, rows included, so every change to a session — a phase, a row decision,
+// the end that deletes its rows — is one write of one record, which zen_store makes atomic.
+//
+// NEVER RENUMBER OR REUSE A FIELD: an app update reads the sessions an older version wrote.
+syntax = "proto3";
+
+package prudent_local.v1;
+
+// The server's ImportState (ADR-089), value for value with the wire's ImportSessionState.
+enum ImportPhase {
+  IMPORT_PHASE_UNSPECIFIED = 0;
+  IMPORT_PHASE_PARSED = 1;
+  IMPORT_PHASE_PREVIEWED = 2;
+  IMPORT_PHASE_COMMITTED = 3;
+  IMPORT_PHASE_DISCARDED = 4;
+  IMPORT_PHASE_EXPIRED = 5;
+}
+
+// The server's RowStatus, value for value with the wire's ImportRowStatus.
+enum ImportRowKind {
+  IMPORT_ROW_KIND_UNSPECIFIED = 0;
+  IMPORT_ROW_KIND_ACCEPTED = 1;
+  IMPORT_ROW_KIND_DUPLICATE = 2;
+  IMPORT_ROW_KIND_REJECTED = 3;
+}
+
+// One normalised statement row: the server's ImportRowEntity. Personal data; it exists only while
+// its session is PARSED or PREVIEWED.
+message LocalImportRow {
+  int32 row_number = 1;
+  ImportRowKind kind = 2;
+  // A rule code, set exactly on a rejected row.
+  string rejection_code = 3;
+  optional string transaction_date = 4;
+  optional string booking_date = 5;
+  optional int64 amount_minor = 6;
+  // The statement's text, as the exact UTF-8 bytes of what the importer returned. Not `string`:
+  // Dart's UTF-8 decoder, which the protobuf runtime reads every string with, drops a leading
+  // U+FEFF, and a row whose counterparty is only that mark would then be fingerprinted as an empty
+  // one — another key than the server's for the same row (ADR-114). `ImportText` reads them back.
+  optional bytes description = 7;
+  optional bytes counterparty = 8;
+  optional bytes counterparty_account = 9;
+  optional bytes external_id = 10;
+  // `duplicate.already_imported` on a DUPLICATE row; empty otherwise.
+  string duplicate_code = 11;
+  optional string category_id = 12;
+  optional string note = 13;
+  bool include_duplicate = 14;
+  string hint_code = 15;
+  // The row's key in the destination account (ADR-091): set by a preview with a destination, for
+  // every row that is not rejected; cleared by the next preview before it is set again.
+  optional string fingerprint = 16;
+  optional int32 occurrence = 17;
+}
+
+// A commit under way (ADR-114): written to the session BEFORE the ledger records, because the
+// session and the ledger are two stores and no write spans both. It names the records the commit
+// writes in one `writeAll` and the counts it will answer. Finding all of them in the ledger later
+// means that write happened, and the session is completed with these counts; finding any missing
+// means it did not, and the plan is dropped so that nothing is counted that was not written.
+message CommitPlan {
+  repeated string record_ids = 1;
+  int32 written = 2;
+  int32 already_imported = 3;
+}
+
+// Collection `import_sessions` of the unsynced store, a random id: the server's ImportSessionEntity.
+message LocalImportSession {
+  string id = 1;
+  string format_id = 2;
+  ImportPhase phase = 3;
+  optional string account_id = 4;
+  string currency = 5;
+  int64 created_at_ms = 6;
+  int64 phase_changed_at_ms = 7;
+  int64 expires_at_ms = 8;
+  int32 accepted_rows = 9;
+  int32 duplicate_rows = 10;
+  int32 rejected_rows = 11;
+  // In row_number order; empty once the session has ended.
+  repeated LocalImportRow rows = 12;
+  optional int32 committed_written = 13;
+  optional int32 committed_already_imported = 14;
+  optional string default_expense_category_id = 15;
+  optional string default_income_category_id = 16;
+  // ParsedStatement.identityOf of the statement's own account (64 hex), kept only while open.
+  optional string statement_identity = 17;
+  // Present only between the two writes of a commit (see CommitPlan).
+  CommitPlan commit_plan = 18;
+}
