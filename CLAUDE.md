@@ -290,15 +290,16 @@ points). `CorrectionIntent.seen_corrections` feeds the `correction.made_apart` c
 `StoreBackend` (`package:prudent_local_store/parity.dart`); thirteen scenarios agree with the live server. Open: jZenDev/jZen#251
 (no write precondition), and the server's 500 on an account update that reorders currencies (jlogicsoftware/prudent#261).
 Unit 8b (ADR-114) is statement import: `ImportWorkflow` in `local/prudent_local_store/lib/src/imports/` is the server's three phases,
-destination checks, row decisions, defaults, duplicates and commit, check for check, answering the wire `ImportSession`; sessions live in
-`ImportSessionStore`, a second `ZenStore` it opens itself and never syncs (ADR-102), one record per session, rows' text kept as bytes
-(Dart's UTF-8 decoder drops a leading U+FEFF, `ImportText`). The commit writes every row in one `writeAll` through `Ledger.importedRecord`,
-ids `DerivedIds.imported`, so two devices that commit one statement end with each row once; because the ledger and the sessions are two
-stores it is three writes — a `CommitPlan` on the session first — and the next access completes or drops an interrupted one by what the
-ledger holds (jZenDev/jZen#252 filed). All 291 catalogue cases and the server's commit-failure cases pass through the workflow; parity
-scenarios `import_sessions` and `import_destination` agree with the live server. Differing category choices on two devices are plain
-two-device conflicts for jZen's sweep (#234, wired by unit 9); a reset's revocation merges by its time (`ZenMergePolicy.earliestBy`,
-#244). `JZEN_REF` is `e1d79a2`. No Local app or screen exists yet.
+destination checks, row decisions, defaults, duplicates and commit, check for check, answering the wire `ImportSession`; sessions are the
+device-only collection `import_sessions` of the ledger's store (`collection(syncs: false)`, jZenDev/jZen#252), one record per session,
+rows' text kept as bytes (Dart's UTF-8 decoder drops a leading U+FEFF, `ImportText`). The commit writes every row and the completed
+session in one `writeAll` through `Ledger.importedRecord`, ids `DerivedIds.imported`, so two devices that commit one statement end with
+each row once; every session write and the commit's batch carry `expect` preconditions (jZenDev/jZen#251), so a change a sync lands
+between the checks and the write refuses it whole. All 291 catalogue cases and the server's commit-failure cases pass through the
+workflow; parity scenarios `import_sessions` and `import_destination` agree with the live server. Differing category choices on two
+devices are plain two-device conflicts for jZen's sweep (#234, wired by unit 9); a reset's revocation merges by its time
+(`ZenMergePolicy.earliestBy`, #244); `import_sessions` declares explicit presence (#245). #245 and #251 are not yet applied to the unit
+4/5 collections and ledger writes. `JZEN_REF` is `4fa887a`. No Local app or screen exists yet.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

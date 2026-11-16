@@ -1,16 +1,18 @@
 // Prudent Local's statement import sessions (unit 8b, ADR-114): what one session holds on THIS
-// DEVICE ONLY, in the second, unsynced store of ADR-102 (`ImportSessionStore`). They are not the
-// wire messages of proto/prudent/v1/imports.proto; `ImportMapper` produces those.
+// DEVICE ONLY, in the device-only collection `import_sessions` of the ledger's own store
+// (`ZenStore.collection(syncs: false)`, jZenDev/jZen#252). They are not the wire messages of
+// proto/prudent/v1/imports.proto; `ImportMapper` produces those.
 //
 // NEVER SYNCED. A session holds normalised statement rows — descriptions, counterparties, their
 // account numbers — for at most 24 hours, and deletes them when it ends (ADR-089). Syncing it would
 // copy statement text to every device and to the sync service for no gain: only the records a
-// commit writes travel, through the ledger's own store, and two devices that commit one statement
-// converge because those records' ids derive from the row keys (ADR-102 D3). So no field here has a
-// merge class: there is no second device to merge with.
+// commit writes travel, and two devices that commit one statement converge because those records'
+// ids derive from the row keys (ADR-102 D3). So no field here has a merge class: there is no second
+// device to merge with. Being a collection of the ledger's store, a session is written in the same
+// `writeAll` as the records its commit writes.
 //
 // ONE SESSION IS ONE RECORD, rows included, so every change to a session — a phase, a row decision,
-// the end that deletes its rows — is one write of one record, which zen_store makes atomic.
+// the end that deletes its rows — is one write of one record.
 //
 // NEVER RENUMBER OR REUSE A FIELD: an app update reads the sessions an older version wrote.
 syntax = "proto3";
@@ -65,18 +67,9 @@ message LocalImportRow {
   optional int32 occurrence = 17;
 }
 
-// A commit under way (ADR-114): written to the session BEFORE the ledger records, because the
-// session and the ledger are two stores and no write spans both. It names the records the commit
-// writes in one `writeAll` and the counts it will answer. Finding all of them in the ledger later
-// means that write happened, and the session is completed with these counts; finding any missing
-// means it did not, and the plan is dropped so that nothing is counted that was not written.
-message CommitPlan {
-  repeated string record_ids = 1;
-  int32 written = 2;
-  int32 already_imported = 3;
-}
-
-// Collection `import_sessions` of the unsynced store, a random id: the server's ImportSessionEntity.
+// Collection `import_sessions` (device-only), a random id: the server's ImportSessionEntity. The
+// `optional` fields are declared with explicit presence (jZenDev/jZen#245): `committed_written` = 0
+// is a commit that wrote nothing, not one that never happened.
 message LocalImportSession {
   string id = 1;
   string format_id = 2;
@@ -97,6 +90,4 @@ message LocalImportSession {
   optional string default_income_category_id = 16;
   // ParsedStatement.identityOf of the statement's own account (64 hex), kept only while open.
   optional string statement_identity = 17;
-  // Present only between the two writes of a commit (see CommitPlan).
-  CommitPlan commit_plan = 18;
 }

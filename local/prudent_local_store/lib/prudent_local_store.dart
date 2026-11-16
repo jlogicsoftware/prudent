@@ -8,15 +8,14 @@
 ///   break, listed after every change and never fixed silently
 /// - [Ledger]: accounts, categories, records, transfers, corrections and settings with the server's
 ///   rules, derived balances and the record list (unit 5, ADR-113)
-/// - [ImportWorkflow], [ImportSessionStore]: statement import sessions on this device's unsynced
-///   store, duplicates, and the commit into the ledger (unit 8b, ADR-114)
+/// - [ImportWorkflow]: statement import sessions in a device-only collection, duplicates, and the
+///   commit into the ledger as one write (unit 8b, ADR-114)
 library;
 
 export 'generated/prudent_local/v1/imports.pb.dart';
 export 'generated/prudent_local/v1/store.pb.dart';
 export 'src/derived_ids.dart';
 export 'src/imports/import_mapper.dart';
-export 'src/imports/import_session_store.dart';
 export 'src/imports/import_workflow.dart';
 export 'src/integrity/checks/category_kind_check.dart';
 export 'src/integrity/checks/correction_intent_check.dart';

@@ -55,7 +55,7 @@ env:
   # wholesale and with what the committed contracts actually reflect.
   # Includes jZen #241 (per-field merge policies, jZenDev/jZen#235) and #242 (app issues beside
   # conflicts, jZenDev/jZen#233), which Prudent Local's store consumes (ADR-111).
-  JZEN_REF: e1d79a20151e99ba43abb82287170f9fa48a55d8
+  JZEN_REF: 4fa887ab2fa116b05bebd02c25d04d6fbb9301b8
 
 jobs:
   # Contract drift, the boundary gate, the Dart/Flutter suites, and the admin typecheck. Needs the

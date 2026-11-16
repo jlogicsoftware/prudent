@@ -113,18 +113,17 @@ abstract final class Erste {
   }
 }
 
-/// One device with a real encrypted ledger store and its own unsynced session store, a clock the
+/// One device with a real encrypted store — the ledger and its device-only import sessions — a clock the
 /// test moves, and the ledger and workflow over them. Nothing is mocked.
 final class ImportWorld {
   final Directory root;
   ZenStore zen;
   PrudentLocalStore store;
-  ImportSessionStore sessions;
   Ledger ledger;
   late ImportWorkflow imports;
   int nowMs;
 
-  ImportWorld._(this.root, this.zen, this.store, this.sessions, this.ledger, this.nowMs);
+  ImportWorld._(this.root, this.zen, this.store, this.ledger, this.nowMs);
 
   /// 2026-11-16 at noon UTC: the golden file's "today".
   static const start = 1794830400000;
@@ -133,8 +132,7 @@ final class ImportWorld {
     final root = await Directory.systemTemp.createTemp('prudent_local_imports');
     final zen = ok(await _openLedger(root));
     final store = PrudentLocalStore(zen);
-    final sessions = ok(await ImportSessionStore.open(_sessionsDir(root), key: _sessionKey));
-    final world = ImportWorld._(root, zen, store, sessions, Ledger(store), start);
+    final world = ImportWorld._(root, zen, store, Ledger(store), start);
     world.imports = world.workflow(maxOpenSessions: maxOpenSessions, maxRows: maxRows);
     return world;
   }
@@ -142,7 +140,6 @@ final class ImportWorld {
   ImportWorkflow workflow({int maxOpenSessions = 10, int? maxRows, ImportFaults? faults}) =>
       ImportWorkflow(
         ledger: store,
-        sessions: sessions,
         nowMs: () => nowMs,
         maxOpenSessions: maxOpenSessions,
         maxRows: maxRows ?? 5000,
@@ -150,8 +147,6 @@ final class ImportWorld {
       );
 
   static final _ledgerKey = List.filled(32, 7);
-  static final _sessionKey = List.filled(32, 9);
-  static Directory _sessionsDir(Directory root) => Directory('${root.path}/sessions');
 
   static Future<ZenResult<ZenStore>> _openLedger(
     Directory root, {
@@ -164,22 +159,19 @@ final class ImportWorld {
     afterFileReplaced: afterFileReplaced,
   );
 
-  /// Closes both stores and opens them again from their directories, as a relaunch does — the way
+  /// Closes the store and opens it again from its directory, as a relaunch does — the way
   /// a crash is followed by the next start of the app. [afterFileReplaced] is jZen's test hook that
   /// stops a `writeAll` half way.
   Future<void> reopen({Future<void> Function(int replaced, int total)? afterFileReplaced}) async {
     await zen.close();
-    await sessions.close();
     zen = ok(await _openLedger(root, afterFileReplaced: afterFileReplaced));
     store = PrudentLocalStore(zen);
-    sessions = ok(await ImportSessionStore.open(_sessionsDir(root), key: _sessionKey));
     ledger = Ledger(store);
     imports = workflow();
   }
 
   Future<void> dispose() async {
     await zen.close();
-    await sessions.close();
     await root.delete(recursive: true);
   }
 
@@ -235,7 +227,7 @@ final class ImportWorld {
   Future<int> net(String accountId) async =>
       ok(await ledger.accountBalances(accountId)).minor['PLN']!;
 
-  /// Every byte of both stores' readable state: each collection's records and conflicts. Equal
+  /// Every byte of the store's readable state: each collection's records and conflicts. Equal
   /// snapshots mean nothing was written.
   String snapshot() {
     final out = StringBuffer();
@@ -250,7 +242,7 @@ final class ImportWorld {
     all('records', store.records);
     all('transfers', store.transfers);
     all('settings', store.settings);
-    all('import_sessions', sessions.sessions);
+    all('import_sessions', store.importSessions);
     return out.toString();
   }
 

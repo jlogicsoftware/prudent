@@ -284,84 +284,9 @@ class LocalImportRow extends $pb.GeneratedMessage {
   void clearOccurrence() => $_clearField(17);
 }
 
-/// A commit under way (ADR-114): written to the session BEFORE the ledger records, because the
-/// session and the ledger are two stores and no write spans both. It names the records the commit
-/// writes in one `writeAll` and the counts it will answer. Finding all of them in the ledger later
-/// means that write happened, and the session is completed with these counts; finding any missing
-/// means it did not, and the plan is dropped so that nothing is counted that was not written.
-class CommitPlan extends $pb.GeneratedMessage {
-  factory CommitPlan({
-    $core.Iterable<$core.String>? recordIds,
-    $core.int? written,
-    $core.int? alreadyImported,
-  }) {
-    final result = create();
-    if (recordIds != null) result.recordIds.addAll(recordIds);
-    if (written != null) result.written = written;
-    if (alreadyImported != null) result.alreadyImported = alreadyImported;
-    return result;
-  }
-
-  CommitPlan._();
-
-  factory CommitPlan.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory CommitPlan.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CommitPlan',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'prudent_local.v1'),
-      createEmptyInstance: create)
-    ..pPS(1, _omitFieldNames ? '' : 'recordIds')
-    ..aI(2, _omitFieldNames ? '' : 'written')
-    ..aI(3, _omitFieldNames ? '' : 'alreadyImported')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CommitPlan clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CommitPlan copyWith(void Function(CommitPlan) updates) =>
-      super.copyWith((message) => updates(message as CommitPlan)) as CommitPlan;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static CommitPlan create() => CommitPlan._();
-  @$core.override
-  CommitPlan createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static CommitPlan getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CommitPlan>(create);
-  static CommitPlan? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $pb.PbList<$core.String> get recordIds => $_getList(0);
-
-  @$pb.TagNumber(2)
-  $core.int get written => $_getIZ(1);
-  @$pb.TagNumber(2)
-  set written($core.int value) => $_setSignedInt32(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasWritten() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearWritten() => $_clearField(2);
-
-  @$pb.TagNumber(3)
-  $core.int get alreadyImported => $_getIZ(2);
-  @$pb.TagNumber(3)
-  set alreadyImported($core.int value) => $_setSignedInt32(2, value);
-  @$pb.TagNumber(3)
-  $core.bool hasAlreadyImported() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearAlreadyImported() => $_clearField(3);
-}
-
-/// Collection `import_sessions` of the unsynced store, a random id: the server's ImportSessionEntity.
+/// Collection `import_sessions` (device-only), a random id: the server's ImportSessionEntity. The
+/// `optional` fields are declared with explicit presence (jZenDev/jZen#245): `committed_written` = 0
+/// is a commit that wrote nothing, not one that never happened.
 class LocalImportSession extends $pb.GeneratedMessage {
   factory LocalImportSession({
     $core.String? id,
@@ -381,7 +306,6 @@ class LocalImportSession extends $pb.GeneratedMessage {
     $core.String? defaultExpenseCategoryId,
     $core.String? defaultIncomeCategoryId,
     $core.String? statementIdentity,
-    CommitPlan? commitPlan,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -404,7 +328,6 @@ class LocalImportSession extends $pb.GeneratedMessage {
     if (defaultIncomeCategoryId != null)
       result.defaultIncomeCategoryId = defaultIncomeCategoryId;
     if (statementIdentity != null) result.statementIdentity = statementIdentity;
-    if (commitPlan != null) result.commitPlan = commitPlan;
     return result;
   }
 
@@ -441,8 +364,6 @@ class LocalImportSession extends $pb.GeneratedMessage {
     ..aOS(15, _omitFieldNames ? '' : 'defaultExpenseCategoryId')
     ..aOS(16, _omitFieldNames ? '' : 'defaultIncomeCategoryId')
     ..aOS(17, _omitFieldNames ? '' : 'statementIdentity')
-    ..aOM<CommitPlan>(18, _omitFieldNames ? '' : 'commitPlan',
-        subBuilder: CommitPlan.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -612,18 +533,6 @@ class LocalImportSession extends $pb.GeneratedMessage {
   $core.bool hasStatementIdentity() => $_has(16);
   @$pb.TagNumber(17)
   void clearStatementIdentity() => $_clearField(17);
-
-  /// Present only between the two writes of a commit (see CommitPlan).
-  @$pb.TagNumber(18)
-  CommitPlan get commitPlan => $_getN(17);
-  @$pb.TagNumber(18)
-  set commitPlan(CommitPlan value) => $_setField(18, value);
-  @$pb.TagNumber(18)
-  $core.bool hasCommitPlan() => $_has(17);
-  @$pb.TagNumber(18)
-  void clearCommitPlan() => $_clearField(18);
-  @$pb.TagNumber(18)
-  CommitPlan ensureCommitPlan() => $_ensure(17);
 }
 
 const $core.bool _omitFieldNames =

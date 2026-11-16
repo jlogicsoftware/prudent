@@ -13,13 +13,14 @@ own — ADR-001 is the first instance.
 
 ---
 
-## ADR-114 — Prudent Local imports a statement through the server's three phases on a device-only store, and commits every row as one `writeAll` whose record ids derive from the row keys
+## ADR-114 — Prudent Local imports a statement through the server's three phases in a device-only collection, and commits every row and the completed session as one `writeAll` whose record ids derive from the row keys
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 8b of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);
 phase-0 §0.3 rows 8.1–8.5, 8.10–8.19, 8.24, 8.25; finding F-06. **Builds on:** ADR-089 to ADR-094 (the server's import), ADR-102
-(sessions in a second, unsynced store; ids from natural keys), ADR-111, ADR-112 (the parser and fingerprints in Dart), ADR-113 (the
-ledger). **jZen:** consumes jZenDev/jZen#232 (`writeAll`, as unit 5), #234 (PR #250, settle many conflicts) and #244 (PR #249, a group
-merge policy) at `JZEN_REF` `e1d79a2`; files jZenDev/jZen#252.
+(sessions never synced; ids from natural keys), ADR-111, ADR-112 (the parser and fingerprints in Dart), ADR-113 (the ledger).
+**jZen:** consumes jZenDev/jZen#232 (`writeAll`, as unit 5), #234 (PR #250, settle many conflicts), #244 (PR #249, a group merge
+policy) and, from PR #254, #252 (device-only collections, filed by this unit), #251 (write preconditions) and #245 (explicit presence),
+at `JZEN_REF` `4fa887a`.
 
 ### Decision
 
@@ -30,27 +31,27 @@ merge policy) at `JZEN_REF` `e1d79a2`; files jZenDev/jZen#252.
   for word: the screens' `ImportFailure` reads only that. The five session-stage codes unit 8a named (`account.not_found`,
   `duplicate.already_imported`, `commit.category_unavailable`, `commit.account_unavailable`, `commit.row_refused`) are emitted here.
   On one device the workflow is serialised, as the server's row lock serialises two requests on one session.
-- **Sessions live in `ImportSessionStore`, a second `ZenStore` that cannot be synced** (ADR-102, fact 8 of phase 0). It opens the store
-  itself and keeps it private, so nothing can hand it to a transport; it is encrypted with its own key (loaded by the Local app,
-  unit 9). One session is one record of its own message (`proto/prudent_local/v1/imports.proto`, `LocalImportSession`), rows included,
-  so every change to a session — a phase, a row decision, the end that deletes the rows — is one atomic write. Only normalised rows and
-  the statement's identity digest are kept, never the file; the 24-hour expiry, the lazy expiry on a read, the sweep (`expireDue`,
-  run by the app at launch and on a timer) and the deletion of rows, identity and defaults when a session ends behave as on the server.
-- **The commit writes every row in one `ZenStore.writeAll`** (jZenDev/jZen#232) through `PrudentLocalStore.writeAll`, each record built
-  by the ledger's own `RecordWriter.apply` (`Ledger.importedRecord`), with the id `DerivedIds.imported(account, fingerprint,
-  occurrence)`. All refusals — the destination checked again, the confirmed count, a row without a category, a category gone
-  (`commit.category_unavailable` with rows), a row the ledger refuses (`commit.row_refused`) — come before the batch, and a refused
-  operation in the batch writes nothing. Two devices that commit one statement write the same ids, so each row ends once. A duplicate
-  the person includes takes the next free occurrence at commit time, as on the server; included on two devices offline, both choose
-  the same occurrence and it is one record.
-- **The ledger and the sessions are two stores, so a commit is three writes, and an interrupted one is settled by what the ledger
-  holds.** First the session is given a `CommitPlan` (the record ids and the counts), then the records are written as one batch, then
-  the session is completed. The next access to the session (and the sweep) completes it with the planned counts when every planned
-  record is in the ledger, and drops the plan otherwise. A storage failure keeps the plan (the journal may yet finish the batch at the
-  next opening); any other failure drops it. Without the plan a retry after a crash between the stores would write an included
-  duplicate again under the next occurrence. **No write spans the two stores in jZen; filed as jZenDev/jZen#252** (a device-only
-  collection written together with synced ones would make the commit one `writeAll`). This is not an interim copy of a framework
-  feature: it is coordination across the two stores ADR-102 decided, and it goes if #252 lands.
+- **Sessions are the device-only collection `import_sessions` of the ledger's own store** (`ZenStore.collection(syncs: false)`,
+  jZenDev/jZen#252), declared by `PrudentLocalStore` with the others, before any transport starts. Its records are never sent and a
+  record of that name arriving from a transport is refused, so statement rows reach no other device and no sync service (ADR-102);
+  they are encrypted like the ledger. One session is one record of its own message (`proto/prudent_local/v1/imports.proto`,
+  `LocalImportSession`), rows included. Only normalised rows and the statement's identity digest are kept, never the file; the
+  24-hour expiry, the lazy expiry on a read, the sweep (`expireDue`, run by the app at launch and on a timer) and the deletion of
+  rows, identity and defaults when a session ends behave as on the server. The `optional` fields are declared with explicit presence
+  (jZenDev/jZen#245), so `committed_written` = 0 — a commit that wrote nothing — is a value, not "never committed".
+- **The commit is one `ZenStore.writeAll`: every record and the completed session together** (jZenDev/jZen#232, #252), through
+  `PrudentLocalStore.writeAll`. Each record is built by the ledger's own `RecordWriter.apply` (`Ledger.importedRecord`) with the id
+  `DerivedIds.imported(account, fingerprint, occurrence)`. All refusals — the destination checked again, the confirmed count, a row
+  without a category, a category gone (`commit.category_unavailable` with rows), a row the ledger refuses (`commit.row_refused`) —
+  come before the batch, and a refused operation writes nothing. A crash leaves the records and the completed session, or neither.
+  Two devices that commit one statement write the same ids, so each row ends once. A duplicate the person includes takes the next free
+  occurrence at commit time, as on the server; included on two devices offline, both choose the same occurrence and it is one record.
+- **A rule checked before a write holds when it runs** (`expect`, jZenDev/jZen#251). Every session write expects the session to be
+  exactly the one the operation read (a new one: absent). In the commit's batch each record expects to be absent — a record of the
+  same row that a sync brought in meanwhile, perhaps under another category, is never written over — and the session's precondition
+  checks the destination, the categories and the held keys again against the store as it stands in the write's turn, by planning the
+  commit again and requiring the same records and counts. Anything that changed refuses the whole batch with the same rule a fresh
+  commit would name, or a 409 saying the ledger changed; nothing is written and the review stays.
 - **Duplicates** are rows whose key a ledger record of the destination holds on any side of a conflict (the key is immutable). A row's
   key is computed at preview for the destination account; the session row keeps the statement's text as exact UTF-8 bytes, because
   Dart's UTF-8 decoder — which the protobuf runtime reads every `string` with — drops a leading U+FEFF, and a BLIK counterparty of
@@ -66,16 +67,24 @@ merge policy) at `JZEN_REF` `e1d79a2`; files jZenDev/jZen#252.
 - **Parity:** the operations `import.create/preview/defaults/row/commit/discard` on both backends, with shared bodies and observations
   (`ImportParity`), and two scenarios, `import_sessions` and `import_destination`: counts, row statuses and codes, committed counts,
   refusals by status and the balances after each commit. Keys are never on the wire and differ anyway (the account id is part of one).
+- **Scope against units 4 and 5.** `#245`'s presence and `#251`'s preconditions are declared here only for the import's own collection
+  and writes; `StoreBatch.putRecord` gained the `expect` the commit passes. Applying them to the unit 4/5 collections and the ledger's
+  writes is a separate change.
 
 ### What this supersedes, and why
 
 - **"a one-transaction commit needs jZenDev/jZen#232 (until then the commit validates everything before the first write and is
-  idempotent and resumable)"** (plan, unit 8b; §0.3 row 8.16) → **withdrawn: one `writeAll`.** *Why:* #232 merged; no interim.
+  idempotent and resumable)"** (plan, unit 8b; §0.3 row 8.16) → **withdrawn: one `writeAll`, the session included.** *Why:* #232 and
+  #252 merged; no interim.
+- **"ImportSession, ImportRow: … in a second, unsynced store (fact 8)"** (ADR-102, phase-0 §0.2) → **a device-only collection of the
+  ledger's store.** *Why:* the same guarantee — never synced, encrypted on the device — and only one store can write the session and
+  the records as one. An earlier draft of this unit used a second store with a write-ahead plan to settle a commit interrupted between
+  the two stores; it was replaced before merge when #252 landed, and never released.
 - **"differing category choices on two devices give one conflict per row until jZenDev/jZen#234"** (plan, unit 8b; ADR-102's stated
   cost) → **withdrawn: they are swept by jZen's screen.** *Why:* #234 merged as PR #250.
 - **"a reset's revocation is a group and stays a conflict until jZenDev/jZen#244"** (ADR-111, plan unit 6a) → **merges by its time.**
   *Why:* #244 merged as PR #249.
-- **`ImportRow`'s text as `string`** (the wire's shape) → **bytes in the session store.** *Why:* the leading U+FEFF above.
+- **`ImportRow`'s text as `string`** (the wire's shape) → **bytes in the store.** *Why:* the leading U+FEFF above.
 
 ### Found, not fixed here
 
@@ -85,21 +94,23 @@ merge policy) at `JZEN_REF` `e1d79a2`; files jZenDev/jZen#252.
 
 ### Consequence
 
-Verified on 2026-11-16 in the worktree against jZen `e1d79a2`: `dart test` — `prudent_local_store` 577 green, among them
+Verified on 2026-11-16 in the worktree against jZen `4fa887a`: `dart test` — `prudent_local_store` 579 green, among them
 `import_failure_matrix_test` (all 291 cases of `test/golden/erste_import.json` uploaded through the session workflow: each refusal
-names the server's rule and rows, leaves both stores byte for byte as they were and quotes no statement text; each accepted statement
+names the server's rule and rows, leaves the store byte for byte as it was and quotes no statement text; each accepted statement
 lists its rows as the server does, keys them exactly as the server for the server's account id, and commits exactly its accepted
-rows; plus the four named workflow cases and the matrix's own, and no logging call in the import code), `import_commit_failure_test` (the server's ImportCommitFailureTest:
-categories gone, archived or of the other direction, a renumbered, inactive, currency-less or deleted destination, expiry, two
-concurrent commits, discard against commit, a ledger refusal at each row; plus a crash inside the batch at three points, completed
-whole at the next opening, a crash between the two stores completed once with an included duplicate, and an unmatched plan dropped),
-`import_workflow_test` (31 tests of phases, destination, list, expiry, bounds, rows, defaults, commit, duplicates),
-`import_two_devices_test` (two encrypted stores through `ZenFolderCloud`: one statement committed on both offline ends with each row
-once; after a sync it is all duplicates; differing defaults are four plain two-device conflicts on `category_id`, settled for all;
-an included duplicate on both is one record; no session reaches the other device or the shared folder) and `merge_table_test` (the
-revocation). `prudent_local_core` 2 791 green. **The parity suite against a live Quarkus on the local Supabase: all 15 scenarios
-agree**, the two import scenarios included. Two deliberate mutations each turned the suites red (no write-ahead plan: the crash
-test; duplicate detection off: the workflow and two-device tests), and the file was restored. `dart analyze --fatal-infos
+rows; plus the four named workflow cases, the matrix's own, and no logging call in the import code), `import_commit_failure_test`
+(the server's ImportCommitFailureTest: categories gone, archived or of the other direction, a renumbered, inactive, currency-less or
+deleted destination, expiry, two concurrent commits, discard against commit, a ledger refusal at each row; plus a crash inside the
+batch at three points, finished whole at the next opening with an included duplicate written once; and four changes landing between
+the checks and the write — a category archived, the destination deleted, the same row's record arriving under another category, the
+session discarded — each refusing the batch with nothing written), `import_workflow_test` (31 tests of phases, destination, list,
+expiry, bounds, rows, defaults, commit, duplicates), `import_two_devices_test` (two encrypted stores through `ZenFolderCloud`: one
+statement committed on both offline ends with each row once; after a sync it is all duplicates; differing defaults are four plain
+two-device conflicts on `category_id`, settled for all; an included duplicate on both is one record; no session reaches the other
+device, the shared folder or the unsent set) and `merge_table_test` (the revocation). `prudent_local_core` 2 791 green. **The parity
+suite against a live Quarkus on the local Supabase: all 15 scenarios agree**, the two import scenarios included. Deliberate mutations
+turned the suites red (duplicate detection off: the workflow and two-device tests; the session's precondition removed: three of the
+four change-in-between tests, the fourth caught by the record's own), and the file was restored. `dart analyze --fatal-infos
 --fatal-warnings` clean in the core, the store and `tools/prudent_parity_server`; `verify_boundaries.py` and
 `verify_import_fixtures.py` pass.
 
@@ -109,11 +120,10 @@ test; duplicate detection off: the workflow and two-device tests), and the file 
   `verify:analyze` and `verify:golden` ran only as their underlying commands here (the parity half of `test:e2e` against a server
   built and started from this worktree on port 8097); the client e2e half was not run. CI runs them as tasks.
 - The sweep of #234 is not driven: it is a Flutter screen and no Local app exists yet (unit 9). Only the shape it requires is proven.
-- A crash that stops a batch before jZen's journal is saved is not injected (jZen's hook runs after it); that case is covered by the
-  unmatched-plan test, which builds the state directly.
-- Between the checks and the batch, a sync can change what was checked (jZenDev/jZen#251, no write precondition; ADR-113). A plan whose
-  records were written and then one deleted before the next launch is dropped and a retry writes that row again, and an included
-  duplicate a second time; the window is a crash followed by a delete before the next access.
+- The change-in-between tests land the change before the batch is submitted (a test hook); that a sync queued behind the submission
+  runs after the batch's turn is jZen's ordering, proven by jZen's own tests for #251.
+- The device-only collection must be declared before a transport starts; `PrudentLocalStore` declares it with the others, and the
+  Local app (unit 9) must construct it before `ZenSync.start`.
 - No device, no real statement, no screen.
 
 ---

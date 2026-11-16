@@ -361,7 +361,7 @@ Stored messages (as they will be stored locally; the reason is in the last colum
 
 | Field | Class | Why |
 |---|---|---|
-| every field | Device | a session holds normalised statement rows for 24 hours and is deleted at its end (ADR-089); syncing it would copy statement text to every device and the sync service for no gain. It lives in a second, unsynced store (fact 8). Only the committed records travel, and two devices committing the same statement converge by D3 |
+| every field | Device | a session holds normalised statement rows for 24 hours and is deleted at its end (ADR-089); syncing it would copy statement text to every device and the sync service for no gain. It lives in a second, unsynced store (fact 8) — **since ADR-114, in a device-only collection of the ledger's store (jZenDev/jZen#252), which keeps that guarantee and lets the commit write the session with the records**. Only the committed records travel, and two devices committing the same statement converge by D3 |
 
 Messages that are never stored (requests, responses, calculated views) — **no merge question**:
 `CreateAccountRequest`, `UpdateAccountRequest`, `ListAccountsResponse`; `CategorySpend`,
@@ -621,7 +621,7 @@ kind, account, amount, currency, title) in date order) and **`record_list_order`
 | 8.13 | Defaults per direction only while open | `CHECK import_commit.sql:57`; `ImportWorkflow.java` | **Covered (ADR-114):** `import_workflow_test` (defaults by sign, cleared at the end); parity `import_sessions` |
 | 8.14 | Every accepted row has a category at commit | `ImportWorkflow.java:254–261` | **Covered (ADR-114):** `import_workflow_test`; parity `import_sessions` |
 | 8.15 | The commit names the accepted count it confirms | `ImportWorkflow.java:242–247` | **Covered (ADR-114):** `import_workflow_test`; parity `import_sessions` |
-| 8.16 | One transaction, account locked, ordinary records through the record writer | `LedgerImportCommitter.java:54–172`; ADR-092 | **Covered (ADR-114): one `ZenStore.writeAll` (jZenDev/jZen#232), a write-ahead plan across the two stores (jZenDev/jZen#252).** `import_commit_failure_test` (a crash inside the batch, a crash between the stores, an unmatched plan); no interim was built |
+| 8.16 | One transaction, account locked, ordinary records through the record writer | `LedgerImportCommitter.java:54–172`; ADR-092 | **Covered (ADR-114): one `ZenStore.writeAll` of the records and the completed session (jZenDev/jZen#232, #252), guarded by `expect` (#251) instead of a lock.** `import_commit_failure_test` (a crash inside the batch; four changes landing between the checks and the write); no interim was built |
 | 8.17 | A repeated commit answers the stored counts | `CHECK import_commit.sql:48–55` | **Covered (ADR-114):** `import_workflow_test`; `import_commit_failure_test` (two concurrent commits); parity `import_sessions` |
 | 8.18 | Failures between preview and commit have rule codes | `LedgerImportCommitter.java:144,172`; ADR-094 | **Covered (ADR-114):** `local/prudent_local_store/test/import_commit_failure_test.dart` (the server's ImportCommitFailureTest); parity `import_destination` |
 | 8.19 | Rows are deleted when a session ends | `ImportWorkflow.java:393–425` | **Covered (ADR-114):** `import_workflow_test` (commit, discard, expiry, sweep) |

@@ -1,6 +1,7 @@
 // Unit 8b (ADR-114): the server's ImportCommitFailureTest on Local — everything that can go wrong
-// between a preview and its commit — plus what only Local has: a crash inside the ledger's batch,
-// and a crash between the ledger's write and the session's, which are two stores.
+// between a preview and its commit — plus what only Local has: a crash inside the one batch that
+// writes the records and the completed session, and a change that lands between the commit's checks
+// and its write (a sync already queued), which the batch's preconditions refuse (jZenDev/jZen#251).
 //
 // Every refusal must name a rule and rows and quote nothing, write nothing, and leave the review
 // there to be fixed; every crash must end, after the next launch, with each row in the ledger once —
@@ -49,7 +50,6 @@ void main() {
     final read = ok(await w.imports.get(id));
     expect(read.state, wire.ImportSessionState.IMPORT_SESSION_STATE_PREVIEWED);
     expect(read.rows, hasLength(5), reason: 'the review is still there to be fixed');
-    expect(ok(w.sessions.sessions.get(id)).hasCommitPlan(), isFalse);
   }
 
   Future<void> editCategory(String id, {wire.CategoryKind? kind}) async {
@@ -261,87 +261,110 @@ void main() {
       },
     );
 
-    test('a crash inside the ledger batch leaves all of it or none, and the retry writes the '
-        'statement once', () async {
-      final landed = <bool>[];
+    test('a crash inside the batch leaves the records and the completed session together, and '
+        'an included duplicate is written once', () async {
+      ok(await w.commit((await previewed()).id, 5));
       for (var stopAfter = 0; stopAfter < 3; stopAfter++) {
         final s = await previewed();
+        ok(await w.row(s.id, 1, include: true));
+        final before = w.records().length;
         // jZen's test hook: the batch stops after `stopAfter` files are replaced, as power loss
-        // would. Reopening finishes a journaled batch or leaves every file as it was.
+        // would. Reopening finishes the journaled batch.
         await w.reopen(
           afterFileReplaced: (replaced, total) async {
             if (replaced > stopAfter) throw StateError('power lost after $replaced of $total');
           },
         );
-        final crashed = await w.commit(s.id, 5).then<Object?>((r) => r, onError: (Object e) => e);
+        final crashed = await w.commit(s.id, 1).then<Object?>((r) => r, onError: (Object e) => e);
         expect(crashed, isNot(isA<ZenSuccess<Object?>>()));
         await w.reopen();
         final read = ok(await w.imports.get(s.id));
-        final records = w.records();
-        landed.add(read.state == wire.ImportSessionState.IMPORT_SESSION_STATE_COMMITTED);
-        if (landed.last) {
-          expect(records, hasLength(5), reason: 'the batch landed whole');
-          expect((read.committedWritten, read.committedAlreadyImported), (5, 0));
-        } else {
-          expect(records, isEmpty, reason: 'the batch did not land at all');
-          expect(ok(await w.commit(s.id, 5)).committedWritten, 5);
-        }
-        expect(w.records(), hasLength(5));
-        expect(await w.net(erste), Erste.baseNet);
-        for (final r in w.records().keys) {
-          ok(await w.ledger.deleteRecord(r));
-        }
+        expect(read.state, wire.ImportSessionState.IMPORT_SESSION_STATE_COMMITTED);
+        expect((read.committedWritten, read.committedAlreadyImported), (1, 0));
+        expect(w.records(), hasLength(before + 1), reason: 'the batch landed whole, once');
+        // A retry answers the stored counts and writes nothing more.
+        expect(ok(await w.commit(s.id, 1)).committedWritten, 1);
+        expect(w.records(), hasLength(before + 1));
       }
-      // jZen's hook stops a batch after its journal is saved, so every stop here is finished by the
-      // reopening and the session is completed by what the ledger then holds. A batch that never
-      // reached its journal leaves the plan unmatched: the last test of this group.
-      expect(landed, everyElement(isTrue));
-    });
-
-    test('a crash between the ledger write and the session write is completed at the next '
-        'launch, and an included duplicate is written once', () async {
-      ok(await w.commit((await previewed()).id, 5));
-      final again = await previewed();
-      ok(await w.row(again.id, 1, include: true));
-      final dying = w.workflow(
-        faults: ImportFaults(afterLedgerWrite: () async => throw const _ProcessEnded()),
-      );
-      await expectLater(
-        dying.commit(again.id, wire.CommitImportSessionRequest(confirmedAcceptedRows: 1)),
-        throwsA(isA<_ProcessEnded>()),
-      );
-      expect(w.records(), hasLength(6), reason: 'the batch was written');
-      expect(ok(w.sessions.sessions.get(again.id)).hasCommitPlan(), isTrue);
-
-      await w.reopen();
-      final read = ok(await w.imports.get(again.id));
-      expect(read.state, wire.ImportSessionState.IMPORT_SESSION_STATE_COMMITTED);
-      expect((read.committedWritten, read.committedAlreadyImported), (1, 0));
-      // A retry answers the stored counts and writes nothing: the forced row is there once.
-      expect(ok(await w.commit(again.id, 1)).committedWritten, 1);
       final row1 = w.records().values.where((r) => r.posting.amountMinor == Int64(-710));
-      expect(row1.map((r) => r.importKey.occurrence).toList()..sort(), [1, 2]);
-      expect(w.records(), hasLength(6));
-    });
-
-    test('a plan whose records are not all in the ledger is dropped, and nothing is counted '
-        'that was not written', () async {
-      final s = await previewed();
-      // As a crash after the plan and before the batch leaves it.
-      final planned = ok(w.sessions.sessions.get(s.id)).deepCopy()
-        ..commitPlan = CommitPlan(recordIds: [w.store.newId()], written: 1);
-      ok(await w.sessions.put(planned));
-      await w.reopen();
-      ok(await w.imports.expireDue());
-      final kept = ok(w.sessions.sessions.get(s.id));
-      expect(kept.hasCommitPlan(), isFalse);
-      expect(kept.phase, ImportPhase.IMPORT_PHASE_PREVIEWED);
-      expect(ok(await w.commit(s.id, 5)).committedWritten, 5);
+      expect(row1.map((r) => r.importKey.occurrence).toList()..sort(), [1, 2, 3, 4]);
     });
   });
-}
 
-/// The process ending, thrown where a crash would stop it.
-final class _ProcessEnded implements Exception {
-  const _ProcessEnded();
+  group('a change lands between the commit\'s checks and its write (jZenDev/jZen#251)', () {
+    /// Commits [id] with [change] made after the plan and before the batch, as a sync already
+    /// queued would land; answers the refusal.
+    Future<ZenError> commitAcross(String id, Future<void> Function() change, int status) async {
+      final racing = w.workflow(faults: ImportFaults(beforeWrite: change));
+      return refused(
+        await racing.commit(id, wire.CommitImportSessionRequest(confirmedAcceptedRows: 5)),
+        status,
+      );
+    }
+
+    test(
+      'a category archived meanwhile refuses the batch by rule and rows; nothing is written',
+      () async {
+        final s = await previewed();
+        final error = await commitAcross(s.id, () async {
+          ok(await w.ledger.archiveCategory(spending));
+        }, 409);
+        assertRule(
+          error,
+          'The statement was rejected at rows 1, 2, 4, 5 (commit.category_unavailable).',
+        );
+        await assertStillOpenAndEmpty(s.id);
+      },
+    );
+
+    test('a destination deleted meanwhile refuses the batch; nothing is written', () async {
+      final s = await previewed();
+      final error = await commitAcross(s.id, () async {
+        ok(await w.ledger.deleteAccount(erste));
+      }, 409);
+      assertRule(error, 'The statement was rejected (commit.account_unavailable).');
+      expect(w.records(), isEmpty);
+    });
+
+    test('a row\'s record arriving meanwhile with another category refuses the batch instead of '
+        'writing over it, and the retry counts it as imported', () async {
+      final s = await previewed();
+      final error = await commitAcross(s.id, () async {
+        // As another device's commit of the same statement, synced in: the same id, its category.
+        final row1 = ok(w.store.importSessions.get(s.id)).rows.first;
+        ok(
+          await w.store.putRecord(
+            Record(
+              id: DerivedIds.imported(erste, row1.fingerprint, row1.occurrence),
+              title: 'theirs',
+              posting: Posting(accountId: erste, currency: 'PLN', amountMinor: Int64(-710)),
+              date: '2026-03-10',
+              categoryId: other,
+              importKey: ImportKey(fingerprint: row1.fingerprint, occurrence: row1.occurrence),
+            ),
+          ),
+        );
+      }, 409);
+      expect(error.message, contains('changed'));
+      expect(w.records(), hasLength(1), reason: 'only the record that arrived');
+      expect(w.records().values.single.categoryId, other, reason: 'not written over');
+      final again = ok(await w.preview(s.id));
+      expect((again.acceptedRows, again.duplicateRows), (4, 1));
+      expect(ok(await w.commit(s.id, 4)).committedWritten, 4);
+      expect(await w.net(erste), Erste.baseNet);
+    });
+
+    test('a session discarded meanwhile refuses the batch; nothing is written', () async {
+      final s = await previewed();
+      await commitAcross(s.id, () async {
+        // Another workflow on the same store, as a second screen of the app would be.
+        ok(await w.workflow().discard(s.id));
+      }, 409);
+      expect(w.records(), isEmpty);
+      expect(
+        ok(await w.imports.get(s.id)).state,
+        wire.ImportSessionState.IMPORT_SESSION_STATE_DISCARDED,
+      );
+    });
+  });
 }

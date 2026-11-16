@@ -1,5 +1,6 @@
 // Unit 8b (ADR-114): one statement imported on two devices. Two real sessions — two encrypted
-// ledger stores synced through jZen's ZenFolderCloud, each with its own unsynced session store —
+// stores synced through jZen's ZenFolderCloud, each holding its import sessions in a device-only
+// collection (jZenDev/jZen#252) —
 // so a record, a conflict or a figure seen here is what a person would see. Synthetic data only.
 //
 // What is proven: a statement committed on both devices offline ends with each row once on both;
@@ -22,13 +23,13 @@ import 'package:test/test.dart';
 import 'support/imports.dart' hide ok;
 import 'support/two_devices.dart';
 
-/// One device's import side: its ledger, its own session store and its workflow.
+/// One device's import side: its ledger, its store and its workflow.
 final class Importer {
   final Ledger ledger;
-  final ImportSessionStore sessions;
+  final PrudentLocalStore store;
   final ImportWorkflow imports;
 
-  Importer(this.ledger, this.sessions, this.imports);
+  Importer(this.ledger, this.store, this.imports);
 
   Future<wire.ImportSession> previewed(
     String account, {
@@ -67,24 +68,16 @@ void main() {
 
   const now = 1794830400000; // 2026-11-16 at noon UTC.
 
-  Future<Importer> importer(Device device) async {
-    final sessions = Device.ok(
-      await ImportSessionStore.open(
-        Directory('${devices.root.path}/${device.name}-sessions'),
-        key: List.filled(32, device.name.length),
-      ),
-    );
-    return Importer(
-      Ledger(device.store),
-      sessions,
-      ImportWorkflow(ledger: device.store, sessions: sessions, nowMs: () => now),
-    );
-  }
+  Importer importer(Device device) => Importer(
+    Ledger(device.store),
+    device.store,
+    ImportWorkflow(ledger: device.store, nowMs: () => now),
+  );
 
   setUp(() async {
     devices = await TwoDevices.create();
-    laptop = await importer(devices.laptop);
-    phone = await importer(devices.phone);
+    laptop = importer(devices.laptop);
+    phone = importer(devices.phone);
     erste = Device.ok(
       await laptop.ledger.createAccount(
         wire.CreateAccountRequest(
@@ -107,11 +100,7 @@ void main() {
     await devices.sync();
   });
 
-  tearDown(() async {
-    await laptop.sessions.close();
-    await phone.sessions.close();
-    await devices.dispose();
-  });
+  tearDown(() => devices.dispose());
 
   Map<String, Record> records(Device device) => {
     for (final r in Device.ok(device.store.records.list())) r.id: r,
@@ -229,8 +218,9 @@ void main() {
   test('no session reaches the other device or the shared folder', () async {
     final open = await laptop.previewed(erste, expense: food, income: income);
     await devices.sync();
-    expect(Device.ok(phone.sessions.sessions.list()), isEmpty);
-    expect(Device.ok(laptop.sessions.sessions.list()).single.id, open.id);
+    expect(Device.ok(phone.store.importSessions.list()), isEmpty);
+    expect(Device.ok(laptop.store.importSessions.list()).single.id, open.id);
+    expect(devices.laptop.zen.unsent.where((name) => name.contains('import_sessions')), isEmpty);
     // ZenFolderCloud writes payloads as they are (jZen's development transport), so the folder can
     // be read: the BLIK row's counterparty account lives only in the session, and is not there.
     final folder = Directory('${devices.root.path}/cloud');

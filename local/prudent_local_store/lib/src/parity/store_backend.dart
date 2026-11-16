@@ -14,7 +14,6 @@ import 'package:zen_store/zen_store.dart';
 
 import '../../generated/prudent_local/v1/store.pb.dart';
 import '../derived_ids.dart';
-import '../imports/import_session_store.dart';
 import '../imports/import_workflow.dart';
 import '../ledger/ledger.dart';
 import '../ledger/ledger_errors.dart';
@@ -44,7 +43,6 @@ final class StoreBackend extends ParityBackend {
   ZenStore? _zen;
   late PrudentLocalStore _store;
   late Ledger _ledger;
-  ImportSessionStore? _sessions;
   late ImportWorkflow _imports;
 
   @override
@@ -85,35 +83,19 @@ final class StoreBackend extends ParityBackend {
   Future<void> open(String scenarioName) async {
     final directory = await Directory.systemTemp.createTemp('prudent_parity_$scenarioName');
     _directory = directory;
-    final zen = _ok(
-      await ZenStore.open(
-        Directory('${directory.path}/ledger'),
-        deviceName: 'parity',
-        key: List.filled(32, 7),
-      ),
-    );
+    final zen = _ok(await ZenStore.open(directory, deviceName: 'parity', key: List.filled(32, 7)));
     _zen = zen;
     _store = PrudentLocalStore(zen);
     _ledger = Ledger(_store);
-    final sessions = _ok(
-      await ImportSessionStore.open(
-        Directory('${directory.path}/sessions'),
-        key: List.filled(32, 8),
-      ),
-    );
-    _sessions = sessions;
     // The wall clock, as the server's: its importer measures dates from today in UTC.
     _imports = ImportWorkflow(
       ledger: _store,
-      sessions: sessions,
       nowMs: () => DateTime.now().millisecondsSinceEpoch,
     );
   }
 
   @override
   Future<void> close() async {
-    await _sessions?.close();
-    _sessions = null;
     await _zen?.close();
     await _directory?.delete(recursive: true);
     _zen = null;

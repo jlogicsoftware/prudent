@@ -94,7 +94,7 @@ void main() {
       'the statement is never kept: the session holds rows and an identity digest only',
       () async {
         final s = ok(await w.upload(Erste.base(), account: erste));
-        final stored = ok(w.sessions.sessions.get(s.id));
+        final stored = ok(w.store.importSessions.get(s.id));
         expect(stored.statementIdentity, matches(RegExp(r'^[0-9a-f]{64}$')));
         final bytes = stored.writeToBuffer();
         // The summary row's owner and the statement's own account number appear nowhere.
@@ -187,9 +187,9 @@ void main() {
 
     test('the statement identity is kept while open and cleared when the session ends', () async {
       final s = await previewed();
-      expect(ok(w.sessions.sessions.get(s.id)).hasStatementIdentity(), isTrue);
+      expect(ok(w.store.importSessions.get(s.id)).hasStatementIdentity(), isTrue);
       ok(await w.commit(s.id, 5));
-      final ended = ok(w.sessions.sessions.get(s.id));
+      final ended = ok(w.store.importSessions.get(s.id));
       expect(ended.hasStatementIdentity(), isFalse);
       expect(ended.rows, isEmpty);
       expect(ended.hasDefaultExpenseCategoryId() || ended.hasDefaultIncomeCategoryId(), isFalse);
@@ -234,7 +234,7 @@ void main() {
       final s = await previewed();
       final d = ok(await w.imports.discard(s.id));
       expect(d.state, discardedState);
-      expect(ok(w.sessions.sessions.get(s.id)).rows, isEmpty);
+      expect(ok(w.store.importSessions.get(s.id)).rows, isEmpty);
       refused(await w.commit(s.id, 5), 409);
       expect(w.records(), isEmpty);
     });
@@ -251,7 +251,7 @@ void main() {
       final read = ok(await w.imports.get(s.id));
       expect(read.state, expiredState);
       expect(read.rows, isEmpty);
-      expect(ok(w.sessions.sessions.get(s.id)).rows, isEmpty);
+      expect(ok(w.store.importSessions.get(s.id)).rows, isEmpty);
     });
 
     test('the sweep expires only due sessions and deletes their rows', () async {
@@ -260,8 +260,8 @@ void main() {
       final fresh = ok(await w.upload(Erste.base()));
       w.nowMs += const Duration(hours: 12).inMilliseconds;
       expect(ok(await w.imports.expireDue()), 1);
-      expect(ok(w.sessions.sessions.get(old.id)).rows, isEmpty);
-      expect(ok(w.sessions.sessions.get(fresh.id)).rows, hasLength(5));
+      expect(ok(w.store.importSessions.get(old.id)).rows, isEmpty);
+      expect(ok(w.store.importSessions.get(fresh.id)).rows, hasLength(5));
       expect(ok(await w.imports.expireDue()), 0);
     });
   });

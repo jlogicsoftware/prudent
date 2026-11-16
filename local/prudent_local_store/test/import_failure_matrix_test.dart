@@ -124,7 +124,7 @@ void main() {
         ok(await w.defaults(session.id, expense: anything, income: anything));
         if (account == keyedAccount) {
           // The keys the server computes for this statement in this account, row for row.
-          final stored = ok(w.sessions.sessions.get(session.id));
+          final stored = ok(w.store.importSessions.get(session.id));
           final keys = [
             for (final row in stored.rows)
               if (row.hasFingerprint()) [row.fingerprint, row.occurrence],
@@ -145,7 +145,7 @@ void main() {
           written.map((r) => r.posting.amountMinor.toString()).toList()..sort(),
           acceptedAmounts,
         );
-        expect(ok(w.sessions.sessions.get(session.id)).rows, isEmpty);
+        expect(ok(w.store.importSessions.get(session.id)).rows, isEmpty);
       });
     }
   });

@@ -201,22 +201,6 @@ final $typed_data.Uint8List localImportRowDescriptor = $convert.base64Decode(
     'YXJ0eUIXChVfY291bnRlcnBhcnR5X2FjY291bnRCDgoMX2V4dGVybmFsX2lkQg4KDF9jYXRlZ2'
     '9yeV9pZEIHCgVfbm90ZUIOCgxfZmluZ2VycHJpbnRCDQoLX29jY3VycmVuY2U=');
 
-@$core.Deprecated('Use commitPlanDescriptor instead')
-const CommitPlan$json = {
-  '1': 'CommitPlan',
-  '2': [
-    {'1': 'record_ids', '3': 1, '4': 3, '5': 9, '10': 'recordIds'},
-    {'1': 'written', '3': 2, '4': 1, '5': 5, '10': 'written'},
-    {'1': 'already_imported', '3': 3, '4': 1, '5': 5, '10': 'alreadyImported'},
-  ],
-};
-
-/// Descriptor for `CommitPlan`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List commitPlanDescriptor = $convert.base64Decode(
-    'CgpDb21taXRQbGFuEh0KCnJlY29yZF9pZHMYASADKAlSCXJlY29yZElkcxIYCgd3cml0dGVuGA'
-    'IgASgFUgd3cml0dGVuEikKEGFscmVhZHlfaW1wb3J0ZWQYAyABKAVSD2FscmVhZHlJbXBvcnRl'
-    'ZA==');
-
 @$core.Deprecated('Use localImportSessionDescriptor instead')
 const LocalImportSession$json = {
   '1': 'LocalImportSession',
@@ -306,14 +290,6 @@ const LocalImportSession$json = {
       '10': 'statementIdentity',
       '17': true
     },
-    {
-      '1': 'commit_plan',
-      '3': 18,
-      '4': 1,
-      '5': 11,
-      '6': '.prudent_local.v1.CommitPlan',
-      '10': 'commitPlan'
-    },
   ],
   '8': [
     {'1': '_account_id'},
@@ -340,8 +316,7 @@ final $typed_data.Uint8List localImportSessionDescriptor = $convert.base64Decode
     'AlIYY29tbWl0dGVkQWxyZWFkeUltcG9ydGVkiAEBEkIKG2RlZmF1bHRfZXhwZW5zZV9jYXRlZ2'
     '9yeV9pZBgPIAEoCUgDUhhkZWZhdWx0RXhwZW5zZUNhdGVnb3J5SWSIAQESQAoaZGVmYXVsdF9p'
     'bmNvbWVfY2F0ZWdvcnlfaWQYECABKAlIBFIXZGVmYXVsdEluY29tZUNhdGVnb3J5SWSIAQESMg'
-    'oSc3RhdGVtZW50X2lkZW50aXR5GBEgASgJSAVSEXN0YXRlbWVudElkZW50aXR5iAEBEj0KC2Nv'
-    'bW1pdF9wbGFuGBIgASgLMhwucHJ1ZGVudF9sb2NhbC52MS5Db21taXRQbGFuUgpjb21taXRQbG'
-    'FuQg0KC19hY2NvdW50X2lkQhQKEl9jb21taXR0ZWRfd3JpdHRlbkIdChtfY29tbWl0dGVkX2Fs'
-    'cmVhZHlfaW1wb3J0ZWRCHgocX2RlZmF1bHRfZXhwZW5zZV9jYXRlZ29yeV9pZEIdChtfZGVmYX'
-    'VsdF9pbmNvbWVfY2F0ZWdvcnlfaWRCFQoTX3N0YXRlbWVudF9pZGVudGl0eQ==');
+    'oSc3RhdGVtZW50X2lkZW50aXR5GBEgASgJSAVSEXN0YXRlbWVudElkZW50aXR5iAEBQg0KC19h'
+    'Y2NvdW50X2lkQhQKEl9jb21taXR0ZWRfd3JpdHRlbkIdChtfY29tbWl0dGVkX2FscmVhZHlfaW'
+    '1wb3J0ZWRCHgocX2RlZmF1bHRfZXhwZW5zZV9jYXRlZ29yeV9pZEIdChtfZGVmYXVsdF9pbmNv'
+    'bWVfY2F0ZWdvcnlfaWRCFQoTX3N0YXRlbWVudF9pZGVudGl0eQ==');

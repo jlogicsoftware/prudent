@@ -5,7 +5,6 @@ import 'package:meta/meta.dart';
 import 'package:prudent_local_core/prudent_local_core.dart';
 import 'package:prudent_proto/generated/prudent/v1/imports.pb.dart' as wire;
 import 'package:zen_core/zen_core.dart';
-import 'package:zen_store/zen_store.dart' show ZenStorageError;
 
 import '../../generated/prudent_local/v1/imports.pb.dart';
 import '../../generated/prudent_local/v1/store.pb.dart';
@@ -15,13 +14,13 @@ import '../ledger/ledger_errors.dart';
 import '../ledger/ledger_view.dart';
 import '../prudent_local_store.dart';
 import 'import_mapper.dart';
-import 'import_session_store.dart';
 import 'import_text.dart';
 
 /// Statement import on one device (unit 8b of `docs/plans/PRUDENT-LOCAL-PLAN.md`, ADR-114): the
 /// server's `ImportWorkflow`, `ImportDuplicateStage` and `LedgerImportCommitter`, check for check
-/// and in their order, over the ledger's synced store and the device's own unsynced
-/// [ImportSessionStore].
+/// and in their order, over the ledger's store, whose `import_sessions` collection is device-only
+/// (jZenDev/jZen#252): a session never reaches another device, yet it is written in one `writeAll`
+/// with the ledger records its commit writes.
 ///
 /// - **Parse** ([create]) is the only way a session comes to exist: the upload bounds, the format,
 ///   the open-session bound, the destination, then the whole file (unit 8a), and only then one
@@ -34,20 +33,13 @@ import 'import_text.dart';
 ///   nothing. Record ids derive from the row keys, so two devices that commit one statement end with
 ///   each row once. A repeated commit answers the stored counts.
 ///
-/// **The two stores (ADR-114).** The ledger syncs and the sessions never do (ADR-102), and no write
-/// spans two stores (jZenDev/jZen#252), so a commit is three writes: the session is given a [CommitPlan] naming the
-/// records and the counts, then the records are written as one batch, then the session is completed.
-/// Whichever of those a crash interrupts, the next access to the session ([_load]) settles it by what
-/// the ledger holds: every planned record present means the batch landed, and the session is
-/// completed with the planned counts; any absent means it did not, and the plan is dropped. A retry
-/// therefore never writes a row twice — not even a duplicate the person chose to include, whose
-/// occurrence is chosen at commit time.
-///
-/// **On one device the workflow is serialised**: one operation at a time, as the server's row lock
-/// makes it. Against the [Ledger] and against a sync it is not: a rule checked here can be changed
-/// by a sync before the batch is written, because zen_store has no write precondition
-/// (jZenDev/jZen#251). The batch is still all or nothing, and what the merge breaks across records
-/// is listed by the integrity checks.
+/// **A rule checked before a write holds when it runs** (jZenDev/jZen#251). Every session write
+/// carries an `expect` that the session is still the one this operation read; the commit's batch
+/// carries one on each record (it must still be absent) and one on the session that checks the
+/// destination, the categories and the duplicates again against the store as it stands in the
+/// write's turn — after any sync already queued — and refuses the whole batch if anything changed.
+/// On one device the workflow is also serialised: one operation at a time, as the server's row
+/// lock makes it.
 ///
 /// Every answer is a [ZenResult]. A refusal carries the server's status and, where the server's
 /// message is a rule code with rows (`The statement was rejected at row 3 (amount.invalid).`), that
@@ -62,9 +54,6 @@ final class ImportWorkflow {
 
   /// The ledger the commit writes to; the destination and the categories are read from it.
   final PrudentLocalStore ledger;
-
-  /// This device's sessions.
-  final ImportSessionStore sessions;
 
   /// `prudent.import.max-open-sessions`.
   final int maxOpenSessions;
@@ -88,7 +77,6 @@ final class ImportWorkflow {
   /// measured from, by default the clock's UTC date, as the server's (`Clock.systemUTC()`).
   ImportWorkflow({
     required this.ledger,
-    required this.sessions,
     required int Function() nowMs,
     CivilDate Function()? today,
     this.maxOpenSessions = 10,
@@ -122,10 +110,7 @@ final class ImportWorkflow {
         if (limit < 1 || limit > maxListLimit) {
           throw const Refusal.invalid('8.24', 'Limit must be between 1 and $maxListLimit.');
         }
-        final all = <LocalImportSession>[];
-        for (final s in _all()) {
-          all.add(await _settle(s));
-        }
+        final all = _all();
         final chosen = [
           for (final s in all)
             if (phase == null || s.phase == phase) s,
@@ -138,10 +123,10 @@ final class ImportWorkflow {
   /// `ImportWorkflow.get`: one session, with its rows while it holds them. A session whose time has
   /// run out is expired here, so a read never shows rows that should already be gone.
   Future<ZenResult<wire.ImportSession>> get(String id) => _serial(() async {
-    var session = await _load(id);
+    var session = _load(id);
     final now = _nowMs();
     if (_holdsRows(session) && _isDue(session, now)) {
-      session = await _put(_ended(session, ImportPhase.IMPORT_PHASE_EXPIRED, now));
+      session = await _put(_ended(session, ImportPhase.IMPORT_PHASE_EXPIRED, now), over: session);
     }
     return ImportMapper.session(session, withRows: _holdsRows(session));
   });
@@ -169,8 +154,7 @@ final class ImportWorkflow {
         final now = _nowMs();
         var open = 0;
         for (final s in _all()) {
-          final settled = await _settle(s);
-          if (_holdsRows(settled) && !_isDue(settled, now)) open++;
+          if (_holdsRows(s) && !_isDue(s, now)) open++;
         }
         if (open >= maxOpenSessions) {
           throw const Refusal.conflict(
@@ -204,7 +188,7 @@ final class ImportWorkflow {
         }
 
         final session = LocalImportSession(
-          id: sessions.newId(),
+          id: ledger.newId(),
           formatId: ErsteStatementImporter.formatId,
           phase: ImportPhase.IMPORT_PHASE_PARSED,
           currency: parsed.currency,
@@ -216,7 +200,7 @@ final class ImportWorkflow {
         if (accountId != null) session.accountId = accountId;
         if (parsed.accountIdentity case final identity?) session.statementIdentity = identity;
         _recount(session);
-        return ImportMapper.session(await _put(session), withRows: true);
+        return ImportMapper.session(await _put(session, over: null), withRows: true);
       });
 
   // ── Preview ─────────────────────────────────────────────────────────────────────────────────
@@ -229,7 +213,7 @@ final class ImportWorkflow {
     wire.PreviewImportSessionRequest request,
   ) => _serial(() async {
     final named = request.hasAccountId() ? _idInBody(request.accountId, 'account') : null;
-    final current = await _load(id);
+    final current = _load(id);
     final now = _nowMs();
     if (!_holdsRows(current)) {
       throw Refusal.conflict(
@@ -257,7 +241,7 @@ final class ImportWorkflow {
     _markDuplicates(view, session);
     _recount(session);
     _transition(session, ImportPhase.IMPORT_PHASE_PREVIEWED, now);
-    return ImportMapper.session(await _put(session), withRows: true);
+    return ImportMapper.session(await _put(session, over: current), withRows: true);
   });
 
   /// `ImportDuplicateStage.apply`: clears every key; with a destination, keys every row that is not
@@ -331,7 +315,7 @@ final class ImportWorkflow {
         categoryId = _idInBody(request.categoryId, 'category');
       }
     }
-    final current = await _load(id);
+    final current = _load(id);
     final now = _nowMs();
     if (!_holdsRows(current)) {
       throw Refusal.conflict(
@@ -379,7 +363,7 @@ final class ImportWorkflow {
       row.includeDuplicate = include;
       _recount(session);
     }
-    await _put(session);
+    await _put(session, over: current);
     return wire.UpdateImportRowResponse(
       row: ImportMapper.row(session.id, row),
       acceptedRows: session.acceptedRows,
@@ -412,7 +396,7 @@ final class ImportWorkflow {
         income = _idInBody(request.defaultIncomeCategoryId, 'category');
       }
     }
-    final current = await _load(id);
+    final current = _load(id);
     final now = _nowMs();
     if (!_holdsRows(current)) {
       throw Refusal.conflict(
@@ -434,27 +418,25 @@ final class ImportWorkflow {
     } else if (clearIncome) {
       session.clearDefaultIncomeCategoryId();
     }
-    return ImportMapper.session(await _put(session));
+    return ImportMapper.session(await _put(session, over: current));
   });
 
   /// DISCARD (`ImportWorkflow.discard`): the person throws the session away; its rows go with it.
   Future<ZenResult<wire.ImportSession>> discard(String id) => _serial(() async {
-    final session = await _load(id);
+    final session = _load(id);
     return ImportMapper.session(
-      await _put(_ended(session, ImportPhase.IMPORT_PHASE_DISCARDED, _nowMs())),
+      await _put(_ended(session, ImportPhase.IMPORT_PHASE_DISCARDED, _nowMs()), over: session),
     );
   });
 
-  /// The sweep (`ImportWorkflow.expireDue`, row 8.3): settles any commit a crash interrupted, then
-  /// expires every session whose time has run out and deletes its rows. The Local app runs it at
+  /// The sweep (`ImportWorkflow.expireDue`, row 8.3): expires every session whose time has run out and deletes its rows. The Local app runs it at
   /// launch and on a timer (unit 9). Answers how many sessions it expired.
   Future<ZenResult<int>> expireDue() => _serial(() async {
     final now = _nowMs();
     var expired = 0;
     for (final s in _all()) {
-      final settled = await _settle(s);
-      if (_holdsRows(settled) && _isDue(settled, now)) {
-        await _put(_ended(settled, ImportPhase.IMPORT_PHASE_EXPIRED, now));
+      if (_holdsRows(s) && _isDue(s, now)) {
+        await _put(_ended(s, ImportPhase.IMPORT_PHASE_EXPIRED, now), over: s);
         expired++;
       }
     }
@@ -472,7 +454,7 @@ final class ImportWorkflow {
     wire.CommitImportSessionRequest request,
   ) => _serial(() async {
     final confirmed = request.confirmedAcceptedRows;
-    final session = await _load(id);
+    final session = _load(id);
     final now = _nowMs();
     if (session.phase == ImportPhase.IMPORT_PHASE_COMMITTED) {
       // A retry of a commit that went through: the same answer, not an error and not a write.
@@ -514,37 +496,73 @@ final class ImportWorkflow {
       );
     }
 
-    final (batch, plan) = _plan(view, session, accepted);
-
-    // 1. The plan, so that a crash after the batch below can be told from one before it.
-    final planned = await _put(session.deepCopy()..commitPlan = plan);
-    // 2. The records, all or nothing (jZenDev/jZen#232).
-    if (batch.length > 0) {
-      final written = await ledger.writeAll(batch);
-      if (written case ZenFailure(:final error)) {
-        // A storage failure may have saved the batch's journal, which the next opening of the store
-        // finishes: whether the records landed is then known only by looking, so the plan stays for
-        // _settle. Any other failure is a refusal made before anything was written.
-        if (error is! ZenStorageError) await _put(planned.deepCopy()..clearCommitPlan());
-        throw LedgerReadFailure(error);
-      }
+    final plan = _plan(view, session, accepted);
+    await faults?.beforeWrite?.call();
+    final completed = _ended(session, ImportPhase.IMPORT_PHASE_COMMITTED, now)
+      ..committedWritten = plan.written
+      ..committedAlreadyImported = plan.alreadyImported;
+    // The records and the completed session as one write (jZenDev/jZen#232, #252): all of it or none
+    // of it, even across a power loss. Each part says what must still hold when the write takes its
+    // turn (#251): the record is still absent, and the session, its destination, its categories and
+    // the keys the ledger holds are still what this plan was made from.
+    final batch = StoreBatch(ledger);
+    for (final record in plan.records) {
+      batch.putRecord(record, expect: (current) => current == null ? null : _changedMeanwhile);
     }
-    await faults?.afterLedgerWrite?.call();
-    // 3. The session, completed with the counts the plan names.
-    return ImportMapper.session(await _put(_completed(planned, now)));
+    batch.putImportSession(
+      completed,
+      expect: (current) => _stillHolds(current, session, accepted, plan),
+    );
+    readOrThrow(await ledger.writeAll(batch));
+    return ImportMapper.session(completed);
   });
+
+  /// The commit's precondition, run inside the batch's turn: [current] is still the [session] the
+  /// plan was made from, and planning it again over the ledger as it stands now gives the same
+  /// records — so a sync that arrived since (an account deleted or renumbered, a category archived,
+  /// the same statement's records from another device) refuses the commit, which writes nothing.
+  ZenError? _stillHolds(
+    LocalImportSession? current,
+    LocalImportSession session,
+    List<LocalImportRow> accepted,
+    _Plan plan,
+  ) {
+    if (current != session) return _changedMeanwhile;
+    try {
+      final view = LedgerView.read(ledger);
+      _checkDestination(view, session, session.accountId, atCommit: true);
+      final again = _plan(view, session, accepted);
+      final same =
+          again.written == plan.written &&
+          again.alreadyImported == plan.alreadyImported &&
+          again.records.length == plan.records.length &&
+          [for (var i = 0; i < plan.records.length; i++) again.records[i] == plan.records[i]]
+              .every((same) => same);
+      return same ? null : _changedMeanwhile;
+    } on Refusal catch (refusal) {
+      return LedgerErrors.of(refusal);
+    } on LedgerReadFailure catch (failure) {
+      return failure.error;
+    } on StateError catch (bug) {
+      return ZenUnknownError(bug.message);
+    }
+  }
+
+  /// What a write answers when what it was checked against changed before it ran.
+  static final ZenError _changedMeanwhile = LedgerErrors.of(
+    const Refusal.conflict(
+      '8.16',
+      'The ledger or the import changed while this was being done. Review the import again.',
+    ),
+  );
 
   /// `LedgerImportCommitter.commit` up to its first write: every refusal it can make, then the
   /// records of every row to write and the counts it answers, in its order — the rows not included
   /// as duplicates first (a key the account already holds is counted, not written), then each
   /// included duplicate under the next free occurrence of its fingerprint.
-  (StoreBatch, CommitPlan) _plan(
-    LedgerView view,
-    LocalImportSession session,
-    List<LocalImportRow> accepted,
-  ) {
-    final batch = StoreBatch(ledger);
-    if (accepted.isEmpty) return (batch, CommitPlan());
+  _Plan _plan(LedgerView view, LocalImportSession session, List<LocalImportRow> accepted) {
+    final records = <Record>[];
+    if (accepted.isEmpty) return _Plan(records, 0, 0);
     final uncategorised = accepted.where((row) => _categoryOf(session, row) == null).length;
     if (uncategorised > 0) {
       throw Refusal.conflict(
@@ -562,7 +580,6 @@ final class ImportWorkflow {
       }
     }
     final held = _heldKeys(view, session.accountId);
-    final ids = <String>[];
     var written = 0;
     var alreadyImported = 0;
     final forced = <LocalImportRow>[];
@@ -576,7 +593,7 @@ final class ImportWorkflow {
         alreadyImported++;
         continue;
       }
-      ids.add(_add(batch, view, session, row, key));
+      records.add(_record(view, session, row, key));
       held.add(key);
       written++;
     }
@@ -591,22 +608,16 @@ final class ImportWorkflow {
     }
     for (final row in forced) {
       final occurrence = highest.update(row.fingerprint, (n) => n + 1, ifAbsent: () => 1);
-      ids.add(_add(batch, view, session, row, RowKey(row.fingerprint, occurrence)));
+      records.add(_record(view, session, row, RowKey(row.fingerprint, occurrence)));
       written++;
     }
-    return (batch, CommitPlan(recordIds: ids, written: written, alreadyImported: alreadyImported));
+    return _Plan(records, written, alreadyImported);
   }
 
-  /// Adds the record of [row] under [key] to [batch] and answers its id. Whatever the ledger
+  /// The record of [row] under [key]. Whatever the ledger
   /// refuses, the answer names the rule and the row, never the ledger's sentence, which can quote a
   /// value it was given — and a row's values come from the statement.
-  String _add(
-    StoreBatch batch,
-    LedgerView view,
-    LocalImportSession session,
-    LocalImportRow row,
-    RowKey key,
-  ) {
+  Record _record(LedgerView view, LocalImportSession session, LocalImportRow row, RowKey key) {
     final Record record;
     try {
       faults?.beforeRow?.call(row.rowNumber);
@@ -628,8 +639,7 @@ final class ImportWorkflow {
         ImportRejection(ImportRule.commitRowRefused, row.rowNumber).message,
       );
     }
-    batch.putRecord(record);
-    return record.id;
+    return record;
   }
 
   /// `LedgerImportCommitter.requireUsableCategories`: every row whose category is gone, archived or
@@ -682,30 +692,6 @@ final class ImportWorkflow {
       return session.hasDefaultExpenseCategoryId() ? session.defaultExpenseCategoryId : null;
     }
     return session.hasDefaultIncomeCategoryId() ? session.defaultIncomeCategoryId : null;
-  }
-
-  // ── A commit a crash interrupted ────────────────────────────────────────────────────────────
-
-  /// [session] after settling a commit a crash interrupted (see the class comment): completed with
-  /// the planned counts when every planned record is in the ledger, back as it was without its plan
-  /// otherwise. A session with no plan is answered as it is.
-  Future<LocalImportSession> _settle(LocalImportSession session) async {
-    if (!session.hasCommitPlan()) return session;
-    final view = LedgerView.read(ledger);
-    bool present(String id) =>
-        view.records.containsKey(id) ||
-        (view.recordConflicts[id]?.sides.any((side) => side.value != null) ?? false);
-    if (session.commitPlan.recordIds.every(present)) {
-      return _put(_completed(session, _nowMs()));
-    }
-    return _put(session.deepCopy()..clearCommitPlan());
-  }
-
-  LocalImportSession _completed(LocalImportSession session, int now) {
-    final plan = session.commitPlan;
-    return _ended(session, ImportPhase.IMPORT_PHASE_COMMITTED, now)
-      ..committedWritten = plan.written
-      ..committedAlreadyImported = plan.alreadyImported;
   }
 
   // ── Destination and categories ──────────────────────────────────────────────────────────────
@@ -820,7 +806,7 @@ final class ImportWorkflow {
   }
 
   /// `ImportWorkflow.end`: a terminal phase, and everything the session held is deleted — its rows,
-  /// the statement's identity token, the default categories and any commit plan.
+  /// the statement's identity token and the default categories.
   static LocalImportSession _ended(LocalImportSession session, ImportPhase terminal, int now) {
     final ended = session.deepCopy();
     _transition(ended, terminal, now);
@@ -828,8 +814,7 @@ final class ImportWorkflow {
       ..rows.clear()
       ..clearStatementIdentity()
       ..clearDefaultExpenseCategoryId()
-      ..clearDefaultIncomeCategoryId()
-      ..clearCommitPlan();
+      ..clearDefaultIncomeCategoryId();
     return ended;
   }
 
@@ -899,13 +884,12 @@ final class ImportWorkflow {
 
   // ── Plumbing ────────────────────────────────────────────────────────────────────────────────
 
-  List<LocalImportSession> _all() => readOrThrow(sessions.sessions.list());
+  List<LocalImportSession> _all() => readOrThrow(ledger.importSessions.list());
 
-  /// The session [id] (404 for a malformed or unknown id, as `Ids.parse` answers), with any commit
-  /// a crash interrupted settled first.
-  Future<LocalImportSession> _load(String id) async {
+  /// The session [id] (404 for a malformed or unknown id, as `Ids.parse` answers).
+  LocalImportSession _load(String id) {
     if (!LocalIds.isValid(id)) throw const Refusal.notFound('8.1', 'No such import session.');
-    final found = sessions.sessions.get(id);
+    final found = ledger.importSessions.get(id);
     final session = switch (found) {
       ZenSuccess(:final data) => data,
       ZenFailure(:final error) when error is ZenNotFoundError => throw const Refusal.notFound(
@@ -914,11 +898,20 @@ final class ImportWorkflow {
       ),
       ZenFailure(:final error) => throw LedgerReadFailure(error),
     };
-    return _settle(session);
+    return session;
   }
 
-  Future<LocalImportSession> _put(LocalImportSession session) async =>
-      readOrThrow(await sessions.put(session));
+  /// Writes [session] over [over], the session this operation read (null for a new one), and only
+  /// if the store still holds exactly that when the write takes its turn (jZenDev/jZen#251).
+  Future<LocalImportSession> _put(
+    LocalImportSession session, {
+    required LocalImportSession? over,
+  }) async => readOrThrow(
+    await ledger.putImportSession(
+      session,
+      expect: (current) => current == over ? null : _changedMeanwhile,
+    ),
+  );
 
   /// A body's id (`Ids.parseInBody`): a malformed one is a 400 that does not echo it.
   static String _idInBody(String id, String what) {
@@ -959,9 +952,18 @@ final class ImportFaults {
   /// refusing that row.
   final void Function(int rowNumber)? beforeRow;
 
-  /// Runs after the ledger batch is written and before the session is completed; throwing here is
-  /// the process ending between the two stores' writes.
-  final Future<void> Function()? afterLedgerWrite;
+  /// Runs after the commit is planned and before its batch is written: a test changes the store
+  /// here, as a sync arriving in between would.
+  final Future<void> Function()? beforeWrite;
 
-  const ImportFaults({this.beforeRow, this.afterLedgerWrite});
+  const ImportFaults({this.beforeRow, this.beforeWrite});
+}
+
+/// The records a commit writes and the counts it answers.
+final class _Plan {
+  final List<Record> records;
+  final int written;
+  final int alreadyImported;
+
+  const _Plan(this.records, this.written, this.alreadyImported);
 }
