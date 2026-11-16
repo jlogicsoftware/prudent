@@ -12,7 +12,7 @@ environment:
 # PURE DART (ADR-101): no Flutter, and no server package — not zen_transport, not zen_identity.
 # The parity suite runs these rules on the plain Dart VM, and the Local app must be able to depend
 # on this package without pulling the server's transport into its graph. The server side of the
-# parity harness lives in ../prudent_parity_server for exactly that reason.
+# parity harness lives in ../../tools/prudent_parity_server for exactly that reason.
 dependencies:
   # SHA-256 for the account identity token (AccountNumbers.identityOf, ADR-090). The Dart team's
   # own package, pure Dart.

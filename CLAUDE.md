@@ -260,7 +260,7 @@ Prudent Local (jlogicsoftware/prudent#245, `docs/plans/PRUDENT-LOCAL-PLAN.md`) h
 (ADR-107): `local/prudent_local_core` is pure Dart and reproduces the server's money, currency, account-number, date, month and text
 rules method for method, held to the JVM by `test/golden/*.json` that `GoldenVectorsTest` writes and checks (`task golden:generate`,
 `task verify:golden`, also in `test:server`); `task test:local-core` runs its tests. The parity suite runs each scenario in
-`local/prudent_local_core/parity/scenarios/` through the live server and the local code (`local/prudent_parity_server`, inside
+`local/prudent_local_core/parity/scenarios/` through the live server and the local code (`tools/prudent_parity_server`, inside
 `task test:e2e`) and compares every figure exactly. No Local store, app or screen exists yet.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**

@@ -181,7 +181,7 @@ tasks:
       Unit 3 of docs/plans/PRUDENT-LOCAL-PLAN.md (ADR-107). Triggers the native tools only:
       `dart pub get` and `dart test` in local/prudent_local_core (the server's rules ported to
       Dart, held to the JVM by test/golden/*.json, plus the parity engine's own tests, which prove
-      a one-cent difference fails). local/prudent_parity_server's suite needs the live stack and
+      a one-cent difference fails). tools/prudent_parity_server's suite needs the live stack and
       runs in test:e2e; both packages are analysed by verify:analyze.
     cmds:
       - cd local/prudent_local_core && dart pub get && dart test
@@ -221,7 +221,11 @@ tasks:
       gone, and (E, ADR-108) the shared package packages/prudent_ui imports and depends on neither
       zen_transport nor zen_identity (nor zen_ui_identity / zen_secure_store, which wrap them), so a
       Prudent app with no server can link its screens. All of them scan client/lib AND the shared
-      package. scripts/test_verify_boundaries.py runs first and plants each violation.
+      package. (F, ADR-109) No package under local/ depends on or imports those four, with no
+      exemption (the parity harness that needs the transport lives in tools/prudent_parity_server,
+      and nothing under local/ may depend on it), (G) local/prudent_local_core is pure Dart, and (H)
+      nothing in client/ or packages/ depends on or imports a package under local/.
+      scripts/test_verify_boundaries.py runs first and plants each violation.
 
       WHY THIS MATTERS MORE THAN IT LOOKS: an app that called a third-party backend directly
       would still authenticate, still render, and still pass every other suite here — the defect
@@ -249,7 +253,7 @@ tasks:
       built and never committed; the strings belong to the shared package), then
       `flutter analyze --fatal-infos --fatal-warnings` in BOTH Flutter packages — packages/prudent_ui,
       which holds the screens (ADR-108), and client/, which holds the composition root — and then
-      `dart analyze` with the same flags in local/prudent_local_core and local/prudent_parity_server
+      `dart analyze` with the same flags in local/prudent_local_core and tools/prudent_parity_server
       (ADR-108), so an info-level lint, which is what riverpod_lint and most of flutter_lints report,
       fails the build like an error does. A package left out of this list would be a package the gate
       never reads.
@@ -267,7 +271,7 @@ tasks:
       - cd client && flutter analyze --fatal-infos --fatal-warnings
       # Prudent Local's pure-Dart packages (ADR-107): the same severity, through `dart analyze`.
       - cd local/prudent_local_core && dart pub get && dart analyze --fatal-infos --fatal-warnings
-      - cd local/prudent_parity_server && dart pub get && dart analyze --fatal-infos --fatal-warnings
+      - cd tools/prudent_parity_server && dart pub get && dart analyze --fatal-infos --fatal-warnings
 
   verify:controls:
     desc: Fail if client screens use raw Material controls zen_ui_widgets replaces
@@ -1038,7 +1042,7 @@ tasks:
         # The server/local parity suite (ADR-107) against the same live server: every scenario in
         # local/prudent_local_core/parity/scenarios through Quarkus and through prudent_local_core,
         # compared to the cent. Run even when the e2e suite failed, and either failing fails the gate.
-        ( cd local/prudent_parity_server && dart pub get && ZEN_API_URL="${API}" dart test )
+        ( cd tools/prudent_parity_server && dart pub get && ZEN_API_URL="${API}" dart test )
         parity_rc=$?
         stop_server
         [ "${rc}" -ne 0 ] && exit "${rc}"

@@ -1,6 +1,6 @@
 // Every committed parity scenario parses, names the rules it covers, and runs through the local
 // backend without an unknown operation or a broken binding. The comparison with the server is
-// local/prudent_parity_server's (it needs the live stack, task test:e2e).
+// tools/prudent_parity_server's (it needs the live stack, task test:e2e).
 import 'dart:io';
 
 import 'package:prudent_local_core/parity.dart';

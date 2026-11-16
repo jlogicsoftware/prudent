@@ -13,6 +13,53 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-109 — `task verify:boundaries` keeps the server out of `local/` and Local out of `client/` and `packages/`; the parity harness moves to `tools/`
+
+**Date:** 2026-11-16. **Status:** accepted. **Plan:** ground rules and unit 11 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
+**Builds on:** ADR-101 (pure-Dart core, no server package in Local), ADR-107 (the parity harness), ADR-108 (check E, whose pattern this follows).
+It moves a package ADR-107 placed at `local/prudent_parity_server`; ADR-107 is accepted and is not edited, so read its path as `tools/prudent_parity_server`.
+
+### Decision
+
+- **The parity harness moves to `tools/prudent_parity_server`.** It drives the *live server* through the real transport and identity packages
+  and compares the answers with `prudent_local_core`, so it needs exactly what Local must not have. A gate exemption is legitimate only for
+  content of a different category, and this is one: a test that exercises the server is not Local code. So it is placed where it belongs
+  rather than excused where it was. `tools/` is a new top-level home for repository-owned programs that are not an app or a shipped package
+  (`publish_to: none`, run by a task); the name says what it is without claiming a framework role. Only paths changed (`git mv`; the core
+  dependency is `../../local/prudent_local_core`, the scenario directory `../../local/prudent_local_core/parity/scenarios`; Taskfile, CLAUDE.md,
+  the plan and four comments name the new path); no code moved or changed.
+- **Check F — nothing under `local/` reaches the server, with no exemption.** Every package under `local/` (a directory with a `pubspec.yaml`,
+  so a package added later is covered) fails the gate if it names `zen_transport`, `zen_identity`, `zen_ui_identity` or `zen_secure_store` — the
+  four ADR-108 refuses in `packages/prudent_ui`, because the last two pull the first two in. It scans `import`/`export` in `lib/`, `bin/`,
+  `test/` and `integration_test/`, and the pubspec in **every** section: `dependencies`, `dev_dependencies` and `dependency_overrides` alike (a dev
+  dependency is in the graph the tests run in; an override can replace a clean dependency with the transport). It also fails when anything under
+  `local/` depends on `prudent_parity_server`, or the transport would be one hop away.
+- **Check G — the Local core is pure Dart.** `local/prudent_local_core` fails on a `flutter:` section, any `sdk: flutter` dependency, a dependency
+  on or import of `flutter`, `flutter_test`, `flutter_localizations`, or an import of `dart:ui` (ADR-101: the parity suite runs the core on the
+  plain VM). Other Local packages may use Flutter.
+- **Check H — nothing outside `local/` uses Local.** `client/` and every package under `packages/` fail when a pubspec names a package found under
+  `local/` (by name) or has a `path:` into `local/` (whatever it is called), or when a Dart file in `lib/`, `bin/`, `test/` or `integration_test/`
+  imports or exports one. This is the "no Local code in the web build" half of the ground rule and of unit 11 (ADR-101).
+- All three fail as stale when `local/`, `packages/`, the core or the Dart sources are missing, as every scope in this script does.
+  `scripts/test_verify_boundaries.py` plants each violation and its clean counterpart and runs first in `task verify:boundaries`, which CI runs.
+
+### Consequences
+
+- The ground rule "Local imports neither `zen_transport` nor `zen_identity`, and no Local code in the web build" is a gate, not a sentence.
+- The checks read pubspecs by indentation, as A and E do: a dependency in flow style on one line (`{zen_transport: ...}`) would not be seen. No
+  pubspec here is written that way.
+- Not covered: the Local *app* (`local/prudent_local_client`, unit 4+) has to be scanned by the same checks when it exists — F and H find it
+  without a change; G names only the core.
+
+### Not verified
+
+- The checks were proved red on deliberate violations in real files (in the PR), each then removed. No package under `local/` other than the
+  core exists yet, so the "added later" path is proved by the unit tests alone.
+- The moved harness was analysed (`dart analyze --fatal-infos --fatal-warnings`) at its new path against the sibling jZen checkout; its
+  suite needs the live stack and was not run (`task test:e2e`).
+
+---
+
 ## ADR-108 — The screens, the generated messages and the strings live in `packages/prudent_ui`, which cannot import the transport or sign-in
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 2 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).

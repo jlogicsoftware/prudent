@@ -1,6 +1,6 @@
 // The parity engine itself: that it compares exactly — one cent apart is a failure — and that it
 // never counts a step it could not run as a match (ADR-107). The server is played here by a scripted
-// backend; local/prudent_parity_server runs the same engine against the live Quarkus server.
+// backend; tools/prudent_parity_server runs the same engine against the live Quarkus server.
 import 'package:prudent_local_core/parity.dart';
 import 'package:test/test.dart';
 

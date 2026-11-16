@@ -10,7 +10,7 @@ or env override, so it cannot be pointed at another repository (docs/prudent-mig
 empty reads as a clean repository and reports green forever; jZen's own StaleScope guard exists
 for exactly that reason, and this script keeps it.
 
-Five checks. A, B, C are the shape jZen's gate proves (no provider SDK; no provider host or
+Eight checks. A, B, C are the shape jZen's gate proves (no provider SDK; no provider host or
 credential; no absolute URL outside the one compile-time base) — B additionally names Prudent's
 own retired Firebase project (`firebaseio.com`, `prudent-60fcf`), which a generic "provider" scan
 would not catch since Firebase Realtime Database is not an identity provider. D is Prudent's own:
@@ -266,6 +266,137 @@ def check_shared_package_is_server_free(root: Path) -> "list[Hit]":
     return import_hits + dep_hits
 
 
+# Prudent Local's code (ADR-101, plan unit 11): every package under `local/` — present and future —
+# is built into an app that has no server, so none of them may depend on or import the server's
+# packages. The list is the shared package's (ADR-108): the wrappers count as well as the two
+# the plan names, since `zen_ui_identity` and `zen_secure_store` pull them in.
+LOCAL_SCOPE = "local"
+LOCAL_DART_DIRS = ("lib", "bin", "test", "integration_test")
+
+# The server half of the parity harness (ADR-107) drives the LIVE server through the real transport
+# and identity packages, so it needs exactly what Local must not have. It therefore lives OUTSIDE
+# `local/`, in `tools/` (ADR-109) — it is a test, not Local code — and check F has no exemption.
+# Nothing under `local/` may depend on it, or the transport would be one hop away.
+LOCAL_SERVER_HARNESS = "prudent_parity_server"
+
+# The core is pure Dart (ADR-101): the parity suite runs it on the plain VM, without Flutter.
+LOCAL_CORE = "local/prudent_local_core"
+FLUTTER_ONLY_PACKAGES = ("flutter", "flutter_test", "flutter_localizations")
+LOCAL_FLUTTER_DEP = re.compile(r"^(?:flutter[ \t]*:|[ \t]+sdk[ \t]*:[ \t]*flutter\b)")
+LOCAL_FLUTTER_IMPORT = re.compile(
+    r"^\s*(?:import|export)\s+['\"](?:package:(?:" + "|".join(FLUTTER_ONLY_PACKAGES) + r")/|dart:ui['\"])"
+)
+LOCAL_FLUTTER_NAMED_DEP = re.compile(r"^[ \t]{2}(" + "|".join(FLUTTER_ONLY_PACKAGES) + r")[ \t]*:")
+
+
+def local_packages(root: Path) -> "list[Path]":
+    """Every package directory under `local/`: one that holds a pubspec.yaml."""
+    local_dir = root / LOCAL_SCOPE
+    if not local_dir.is_dir():
+        raise StaleScope(f"scope '{LOCAL_SCOPE}' matched no directory under {root}")
+    found = sorted(p.parent for p in local_dir.glob("*/pubspec.yaml"))
+    if not found:
+        raise StaleScope(f"scope '{LOCAL_SCOPE}' matched no package under {root}")
+    return found
+
+
+def package_sources(package: Path) -> "list[Path]":
+    return sorted(
+        f
+        for d in LOCAL_DART_DIRS
+        if (package / d).is_dir()
+        for f in (package / d).rglob("*.dart")
+        if GENERATED_DIR not in f.as_posix()
+    )
+
+
+def check_local_is_server_free(root: Path) -> "list[Hit]":
+    """F. No package under `local/` depends on, or imports, anything that can reach the server —
+    in `dependencies`, `dev_dependencies` or `dependency_overrides` alike (the pattern is
+    section-blind on purpose: a dev dependency is in the graph the tests and the parity suite run
+    in, and an override can swap a clean dependency for the transport). There is no exemption: the
+    parity harness, which needs the transport, lives in `tools/` (ADR-109), and nothing under
+    `local/` may depend on it."""
+    packages = local_packages(root)
+    sources = [f for p in packages for f in package_sources(p)]
+    if not sources:
+        raise StaleScope(f"scope '{LOCAL_SCOPE}' matched no Dart source under {root}")
+    hits = _scan(sources, root, lambda rel, t: SERVER_ONLY_IMPORT.match(t) is not None)
+    hits += _scan(
+        [p / "pubspec.yaml" for p in packages],
+        root,
+        lambda rel, t: SERVER_ONLY_DEP.match(t) is not None,
+    )
+    harness_dep = re.compile(r"^[ \t]{2}" + LOCAL_SERVER_HARNESS + r"[ \t]*:")
+    hits += _scan(
+        [p / "pubspec.yaml" for p in packages],
+        root,
+        lambda rel, t: harness_dep.match(t) is not None,
+    )
+    return hits
+
+
+def check_local_core_is_pure_dart(root: Path) -> "list[Hit]":
+    """G. `local/prudent_local_core` does not depend on, or import, Flutter."""
+    core = root / LOCAL_CORE
+    if not (core / "pubspec.yaml").is_file():
+        raise StaleScope(f"no pubspec.yaml at '{LOCAL_CORE}' in {root}")
+    sources = package_sources(core)
+    if not sources:
+        raise StaleScope(f"scope '{LOCAL_CORE}' matched no Dart source under {root}")
+    hits = _scan(sources, root, lambda rel, t: LOCAL_FLUTTER_IMPORT.match(t) is not None)
+    hits += _scan(
+        [core / "pubspec.yaml"],
+        root,
+        lambda rel, t: LOCAL_FLUTTER_DEP.match(t) is not None
+        or LOCAL_FLUTTER_NAMED_DEP.match(t) is not None,
+    )
+    return hits
+
+
+def _package_name(pubspec: Path) -> str:
+    for line in _read_lines(pubspec):
+        m = re.match(r"^name[ \t]*:[ \t]*([A-Za-z0-9_]+)", line)
+        if m:
+            return m.group(1)
+    raise StaleScope(f"{pubspec} names no package")
+
+
+def check_nothing_outside_local_uses_local(root: Path) -> "list[Hit]":
+    """H. Nothing in `client/` or `packages/` depends on, or imports, a package under `local/`
+    (ADR-101: the server-connected app and the shared package must not carry Local code, and the
+    web build must not link the local store). Matched by package name and by a `path:` into
+    `local/`, so a renamed dependency still shows."""
+    names = [_package_name(p / "pubspec.yaml") for p in local_packages(root)]
+    alt = "|".join(re.escape(n) for n in names)
+    dep = re.compile(r"^[ \t]{2}(" + alt + r")[ \t]*:")
+    path_into_local = re.compile(r"^[ \t]+path[ \t]*:.*(?:^|[/\\'\" ])local/")
+    imp = re.compile(r"^\s*(?:import|export)\s+['\"]package:(" + alt + r")/")
+
+    packages_dir = root / "packages"
+    if not packages_dir.is_dir():
+        raise StaleScope(f"scope 'packages' matched no directory under {root}")
+    pkgs = sorted(p.parent for p in packages_dir.glob("*/pubspec.yaml"))
+    if not pkgs:
+        raise StaleScope(f"scope 'packages' matched no package under {root}")
+    pubs = [p for p in pubspecs(root)] + [p / "pubspec.yaml" for p in pkgs]
+    pubs = sorted({p for p in pubs})
+    dart: "list[Path]" = []
+    for base in [root / "client"] + pkgs:
+        for d in LOCAL_DART_DIRS:
+            if (base / d).is_dir():
+                dart.extend(
+                    f
+                    for f in (base / d).rglob("*.dart")
+                    if GENERATED_DIR not in f.as_posix() and ".dart_tool" not in f.as_posix()
+                )
+    if not dart:
+        raise StaleScope(f"scopes 'client' and 'packages' matched no Dart source under {root}")
+    hits = _scan(pubs, root, lambda rel, t: dep.match(t) or path_into_local.match(t))
+    hits += _scan(sorted(dart), root, lambda rel, t: imp.match(t) is not None)
+    return hits
+
+
 CHECKS = (
     (check_provider_sdk, "a client package depends on a provider SDK or firebase_*:",
      "no client package depends on a provider SDK or firebase_*"),
@@ -278,6 +409,15 @@ CHECKS = (
     (check_shared_package_is_server_free,
      "packages/prudent_ui depends on or imports the transport, identity or the keystore:",
      "packages/prudent_ui imports neither zen_transport nor zen_identity (nor what wraps them)"),
+    (check_local_is_server_free,
+     "a package under local/ depends on or imports the server's packages, or on the parity harness:",
+     "no package under local/ reaches the server (no exemption)"),
+    (check_local_core_is_pure_dart,
+     "local/prudent_local_core depends on or imports Flutter:",
+     "local/prudent_local_core is pure Dart"),
+    (check_nothing_outside_local_uses_local,
+     "client/ or packages/ depends on or imports a package under local/:",
+     "client/ and packages/ name no package under local/"),
 )
 
 

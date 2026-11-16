@@ -2,7 +2,7 @@
 /// through two backends and compares every step exactly, and the local backend.
 ///
 /// The server backend is not here: it needs `zen_transport` and `zen_identity`, which this package
-/// must never import (ADR-101). It lives in `local/prudent_parity_server`, a test-only package.
+/// must never import (ADR-101). It lives in `tools/prudent_parity_server`, a test-only package.
 library;
 
 export 'src/parity/local_rules_backend.dart';
