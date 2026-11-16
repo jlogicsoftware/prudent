@@ -117,6 +117,38 @@ abstract final class ParityReaders {
     return {'days': days, 'idOrder': ascending ? 'ascending' : 'not ascending'};
   }
 
+  /// Spend by category (rows 7.1, 7.3): the currency and, by bound name, the spend of each
+  /// category the scenario made (the server's user is shared by the whole run, so a category of
+  /// another scenario is left out). The order of the items is the server's `TreeMap<UUID>` order,
+  /// which differs between the backends' ids and means nothing, so it is not observed.
+  static Map<String, Object?> spendByCategory(Map<String, Object?> body, ParityBindings bindings) =>
+      {
+        'currency': string(body, 'currency'),
+        'items': {
+          for (final item
+              in ((body['items'] as List<Object?>?) ?? const []).cast<Map<String, Object?>>())
+            ?bindings.nameOf(item['categoryId'] as String?): int64(item, 'amountMinor'),
+        },
+      };
+
+  /// Spend by period (row 7.2): the currency, the granularity, every period with its spend, and
+  /// whether the backend answered them oldest to newest — the one order the contract promises, which
+  /// each backend states as a fact of its own.
+  static Map<String, Object?> spendByPeriod(Map<String, Object?> body) {
+    final periods = ((body['periods'] as List<Object?>?) ?? const []).cast<Map<String, Object?>>();
+    final labels = [for (final p in periods) string(p, 'period')];
+    var ascending = true;
+    for (var i = 1; i < labels.length; i++) {
+      if (labels[i - 1].compareTo(labels[i]) >= 0) ascending = false;
+    }
+    return {
+      'currency': string(body, 'currency'),
+      'granularity': enumName(body, 'granularity', 'GRANULARITY_UNSPECIFIED'),
+      'periods': {for (final p in periods) string(p, 'period'): int64(p, 'amountMinor')},
+      'order': ascending ? 'oldest to newest' : 'not ordered',
+    };
+  }
+
   /// The names this scenario bound, in the order the backend listed them; rows of other scenarios
   /// are left out.
   static List<String> boundNames(List<Object?> rows, ParityBindings bindings) => [

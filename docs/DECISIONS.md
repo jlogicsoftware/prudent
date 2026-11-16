@@ -13,6 +13,110 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-118 — Prudent Local's analytics reproduce the server's spend by category and by period over the records, leave out of a figure what two devices disagree about and say so, and are held to the server on a generated ledger of thousands of records
+
+**Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 7 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);
+phase-0 §0.3 rows 7.1–7.3 (row 7.4, planned cash flow, is client-side and moves with the shared package in units 6b and 9). **Builds on:**
+ADR-008 (no cross-currency sums), ADR-014 (the UTC anchor), ADR-107, ADR-111, ADR-113.
+
+### Decision
+
+- **`Analytics` in `local/prudent_local_store` (`lib/src/analytics/`) answers `AnalyticsResource`'s two questions** — `spendByCategory`
+  (a year, or one month of it) and `spendByPeriod` (a trailing 1–60 months or years) — as the wire messages the shared screens read,
+  wrapped in `Settled` so what a figure leaves out travels with it (ADR-113). It reads the records collection directly, not through
+  `LedgerView` (which reads every collection), and writes nothing. The window arithmetic and every argument check are pure Dart in
+  `prudent_local_core` (`SpendWindow`), so the rules run with one dependency.
+- **What counts, as the server counts it** (`RecordEntity.expenseRows`): an ordinary record with a negative amount, in the one currency
+  asked for, dated inside the window. Income and refunds are **not** netted in (analytics counts expenses only; a budget's actual does
+  net refunds, which is unit 6a's). A transfer is a record of its own collection locally (ADR-102), so it is never read, as the server's
+  `transfer_id is null`; a correction carries its `correction` message and is skipped, as `is_correction = false`. A category that was
+  archived keeps its spend; a category cannot be deleted while records use it. The currency is required, trimmed and upper-cased,
+  validated, and echoed normalised; nothing is summed across currencies. Checks run in the server's order (currency, then year, then
+  month; currency, then granularity, then count), every refusal a 400 shaped as the server's.
+- **Windows are whole months.** A month, a year and a trailing window all reduce to a run of calendar months, so the first and last
+  day of a month are in and their neighbours out by construction, and a leap day belongs to February. "The current period" is the clock
+  in UTC (ADR-014), injected as `Analytics(store, now:)` so a test can put it at a month's edge.
+- **Order is the server's promise and no more.** Periods answer oldest to newest (the label sorts as the calendar does). Categories
+  answer in id order: the server's `TreeMap<UUID>` order carries no meaning and Local's ids differ from the server's, so, as with the
+  record list's id tie-break (ADR-107), it is never a parity property — the parity readers compare categories as a set keyed by the
+  scenario's names and each backend states its period order as a fact of its own. An empty window is an empty list, never a zero.
+- **A figure never reads a disputed value (ADR-113), per figure.** A record whose conflict touches what *this* figure reads counts in no
+  figure on any device until settled: its posting (amount, currency, account are one grouped field), its date, its existence (a delete
+  against an edit), and for the by-category figure also its category. A conflict about a title, payee or note leaves the money agreed and
+  the record is counted. So two categories chosen offline leave the record out of spend-by-category but in spend-by-period, whose figure
+  does not read it. The answer names what it left out as `Settled.unsettled`, keyed by the account(s) the disputed record touches (the
+  contract `Settled` already has for balances), **only when some side of the dispute could have counted in this figure** — the right
+  currency, a negative amount, a date inside the window — so a dispute about a January-2025 record does not make this month's figure say
+  it left something out. Because amount, currency and account are one grouped field (ADR-102), a dispute about the account alone (same amount, currency and date) also leaves
+  the record out and names it, though neither figure reads the account: conservative, and consistent with ADR-113, not "only what changes
+  the figure" in the strictest sense.
+- **The generated ledger is the parity proof.** `AnalyticsScenarios.large` (in `prudent_local_core/lib/src/parity/`) builds, from a fixed
+  seed and relative to today's UTC date, about 4 000 operations over 14 categories, 3 accounts and 4 currencies across about six years:
+  expenses, income and refunds, boundary-day records, transfers and corrections (neither is spending), some records edited (amount,
+  month, category, currency) and some deleted, some more than 70 months old so the trailing 60-month window has records on both sides of
+  its edge, and some decades old for the year window; then 4 years and 8 single months of spend by category, and 7 month and 5 year
+  windows of spend by period, per currency. It is code, not a committed file, because spend-by-period is relative to now. A small
+  committed scenario, `analytics.json`, states each rule by hand — the empty case, the edge days, the leap day, the other currency, the
+  transfer, the correction, an edit and a delete, an archived category, every refusal. Both run through the live server and Local and
+  every figure is compared exactly (`tools/prudent_parity_server`: `parity_test.dart` runs `analytics.json` with the rest;
+  `analytics_large_test.dart` runs the generated ledger). The server's analytics sum every record of its one user in a currency, and the
+  parity run shares one user across scenarios (ADR-107), so **the currencies are reserved**: SEK, NOK and DKK to `analytics.json`;
+  CZK, HUF, ISK and RON to the generated ledger (which registers a user of its own, so for it this is insurance).
+  `scenarios_test.dart` fails if any other scenario writes in them.
+
+### Where Local differs from the server, on purpose
+
+- **A sum that leaves the 64-bit range is an error**, as everywhere in Local (ADR-107, ADR-113). The server's `-amountMinor` and
+  `Long::sum` wrap silently there; that is the server's defect and is not reproduced. No parity scenario can reach it (it would need
+  records of about 2^62 minor units); a store test does.
+- **A year beyond `java.time`'s range is a 400**; the server answers 500 (an unhandled `DateTimeException`). Not reproduced.
+- **A record with no category is a read failure**, not a figure: the server's `TreeMap` would throw on the null id; no ledger rule lets it
+  be written.
+- **The clock is read per request on both sides**, so a parity run that crosses midnight UTC at the end of a month compares two
+  windows and fails; it is rerun. Recorded in `analytics_large_test.dart`.
+
+### Measured, and what was not
+
+`local/prudent_local_store/tool/analytics_benchmark.dart` builds a synthetic PLN ledger of N records (85% expenses over 20 categories
+in 4 accounts, six years; the records written in batches straight to the store, since building through the ledger is quadratic and
+would measure writes) and times each question the screens ask: a first (cold) run, then the median of 7 runs. **Reads only.**
+
+On a **MacBook with an Apple M4 Pro (14 CPUs), the Dart VM (JIT), macOS**, median times:
+
+| records | spend by category, a year | spend by month, last 12 | spend by month, last 60 | spend by year, last 5 | overview: every account with balances |
+|---|---|---|---|---|---|
+| 5 000 | 10.5 ms | 10.5 ms | 10.6 ms | 10.1 ms | 12.6 ms |
+| 20 000 | 40.2 ms | 39.3 ms | 40.0 ms | 38.6 ms | 46.2 ms |
+| 50 000 | 99.4 ms | 98.1 ms | 104.0 ms | 100.5 ms | 112.6 ms |
+
+The cost is linear, about 2 µs per record, and the six questions cost the same to within noise, which points at the read every one of
+them starts with (`ZenCollection.list()` decoding every record) rather than at the summing; it was not profiled. The same code compiled ahead of time (`dart compile exe`, closer to a release build) measured
+8.8–9.2 ms at 5 000 records and 43.6–45.2 ms at 20 000 (analytics) and 11.1 and 52.0 ms (overview); it was not run at 50 000.
+
+**Not measured: Android.** The only Android virtual device on this machine (`Pixel_9`, API 36, arm64) does not start — its system image
+directory holds a kernel and metadata but no `system.img` or ramdisk ("No initial system image for this configuration"), and fetching a
+multi-gigabyte image was not done without being asked. No Android number exists, none is inferred from the Mac's, and **the plan's
+"stated bound on the slowest target (Android)" is therefore not met by this change**; unit 12 (the real-device release gate) must run
+`runAnalyticsBenchmark` in a Flutter harness on a real mid-range Android phone at 50 000 records and write the figures in a successor ADR (this one is append-only).
+Because the cost is linear, a screen that asks two or three questions pays for the decoding each time; if the device figure is too
+slow, the remedy is one pass answering the screen's questions together, or a cache invalidated by the store's change events — not
+a different rule. Neither was built.
+
+A finding for unit 5, not analytics: building the same ledger through `Ledger.createRecord` is quadratic — 4 430 steps took 66 s alone
+on this Mac and a 50 000-record ledger written in batches of 500 straight to the store took 379 s — so an import of years of history
+(unit 8b) or a first sync is where write cost will show, not a screen.
+
+### Consequence
+
+Verified here: the analytics unit tests (one device and two), `SpendWindow`'s tests, `analytics.json` and the generated ledger against
+the **live Quarkus server** (4 430 steps, server and local, 1 min 26 s, no difference), and a deliberate one-cent error in the local
+sum producing 37 differences in `analytics.json` (the comparison is real). The analyzer (`--fatal-infos --fatal-warnings`) is clean in
+`prudent_local_core`, `prudent_local_store` and `prudent_parity_server`. The server was run from this worktree's own jar on port 8097
+against the already running local Supabase; `task` does not load from a worktree (ADR-065), so `task test:e2e`, `task
+verify:boundaries` and `task test:local-store` were not run as tasks — CI runs them.
+
+**Not verified:** any Android or iOS device; the screens (the shared Analytics screens do not yet show a "this leaves out N records"
+notice — unit 9 owes it, as for balances); planned cash flow (row 7.4); a month-end rollover during a parity run.
 ## ADR-120 — An envelope repair is one record however many devices apply it: its id derives from the entries it compensates, and it writes only over the state it was read from
 
 **Date:** 2026-11-16. **Status:** accepted. **Amends:** ADR-116 (its integrity repairs; two claims corrected below). **Plan:** unit 6a

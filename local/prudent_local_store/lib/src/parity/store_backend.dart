@@ -16,6 +16,7 @@ import 'package:zen_core/zen_core.dart';
 import 'package:zen_store/zen_store.dart';
 
 import '../imports/import_workflow.dart';
+import '../analytics/analytics.dart';
 import '../ledger/ledger.dart';
 import '../ledger/ledger_errors.dart';
 import '../ledger/ledger_view.dart';
@@ -48,6 +49,7 @@ final class StoreBackend extends ParityBackend {
   late Ledger _ledger;
   late ImportWorkflow _imports;
   late PlanLedger _plans;
+  late Analytics _analytics;
 
   @override
   late final Map<String, ParityOp> ops = {
@@ -115,6 +117,8 @@ final class StoreBackend extends ParityBackend {
     'reminder.read': _guarded(_readReminder),
     'reminder.unread': _guarded(_unreadReminder),
     'reminder.readAll': _guarded(_readAllReminders),
+    'analytics.spendByCategory': _guarded(_spendByCategory),
+    'analytics.spendByPeriod': _guarded(_spendByPeriod),
   };
 
   int _lastTick = 0;
@@ -136,6 +140,7 @@ final class StoreBackend extends ParityBackend {
     // The wall clock, as the server's: its importer measures dates from today in UTC.
     _imports = ImportWorkflow(ledger: _store, nowMs: () => DateTime.now().millisecondsSinceEpoch);
     _plans = PlanLedger(_store);
+    _analytics = Analytics(_store);
   }
 
   @override
@@ -814,6 +819,38 @@ final class StoreBackend extends ParityBackend {
     return StepResult(
       ParityObservation.accepted(ParityReaders.occurrenceList(rows, bindings, nested: true)),
     );
+  }
+
+  // ── Analytics (unit 7, ADR-118) ─────────────────────────────────────────────────────────────
+
+  /// `year`, `month` and `count` are JSON numbers; `currency` and `granularity` are sent as they
+  /// are, so a scenario can send a lower-case or invalid one on purpose.
+  Future<StepResult> _spendByCategory(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = _settled(
+      _ok(
+        await _analytics.spendByCategory(
+          currency: input['currency'] as String?,
+          year: input['year'] as int?,
+          month: input['month'] as int?,
+        ),
+      ),
+    );
+    return StepResult(
+      ParityObservation.accepted(ParityReaders.spendByCategory(_json(answer), bindings)),
+    );
+  }
+
+  Future<StepResult> _spendByPeriod(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = _settled(
+      _ok(
+        await _analytics.spendByPeriod(
+          currency: input['currency'] as String?,
+          granularity: input['granularity'] as String?,
+          count: input['count'] as int?,
+        ),
+      ),
+    );
+    return StepResult(ParityObservation.accepted(ParityReaders.spendByPeriod(_json(answer))));
   }
 
   // ── Plumbing ────────────────────────────────────────────────────────────────────────────────

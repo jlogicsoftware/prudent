@@ -167,6 +167,9 @@ final class ServerBackend extends ParityBackend {
     'import.row': _importRow,
     'import.commit': _commitImport,
     'import.discard': _discardImport,
+    // Unit 7, analytics (ADR-118): a plain GET with the scenario's values as query parameters.
+    'analytics.spendByCategory': _spendByCategory,
+    'analytics.spendByPeriod': _spendByPeriod,
   };
 
   /// Nothing to set up: the session is the suite's, and a scenario's rows are its own (see
@@ -345,6 +348,27 @@ final class ServerBackend extends ParityBackend {
       ),
     );
   }
+
+  Future<StepResult> _spendByCategory(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['analytics', 'spend-by-category'], null, _query(input));
+    return answer.observe(
+      (body) =>
+          StepResult(ParityObservation.accepted(ParityReaders.spendByCategory(body, bindings))),
+    );
+  }
+
+  Future<StepResult> _spendByPeriod(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['analytics', 'spend-by-period'], null, _query(input));
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.spendByPeriod(body))),
+    );
+  }
+
+  /// The scenario's analytics input as query parameters; an absent key is an absent parameter.
+  static Map<String, String> _query(Map<String, Object?> input) => {
+    for (final MapEntry(:key, :value) in input.entries)
+      if (value != null) key: '$value',
+  };
 
   Future<StepResult> _createTransfer(Map<String, Object?> input, ParityBindings bindings) async {
     final answer = await _send('POST', ['transfers'], StoreBackend.transferBody(input, bindings));

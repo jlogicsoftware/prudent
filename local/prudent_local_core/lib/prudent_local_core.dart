@@ -25,4 +25,5 @@ export 'src/plans/recurrence_rule.dart';
 export 'src/plans/reminder_lead_times.dart';
 export 'src/record_types.dart';
 export 'src/refusal.dart';
+export 'src/spend_windows.dart';
 export 'src/text_rules.dart';
