@@ -17,7 +17,7 @@ import 'package:prudent/imports/import_rule_messages.dart';
 import 'package:prudent/imports/import_statement_screen.dart';
 import 'package:prudent/imports/statement_picker.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 import 'package:prudent/providers.dart';
 import 'package:zen_transport/zen_transport.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
@@ -159,7 +159,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
+          prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
           accountsProvider.overrideWith(
             () => _FixedAccounts(accounts ?? [_account('acc', 'Erste')]),
           ),

@@ -31,6 +31,7 @@ import 'package:prudent/generated/prudent/v1/categories.pb.dart';
 import 'package:prudent/generated/prudent/v1/privacy.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
 import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 
 void main() {
   // ZEN_API_URL is read at RUNTIME here (Platform.environment), not via --dart-define: this is a
@@ -61,7 +62,7 @@ void main() {
     identity = SupabaseIdentityRepository(
       client: ZenClient(baseUrl: baseUrl, httpClient: session, recoverSession: recoverSession),
     );
-    prudent = PrudentRepository(
+    prudent = ServerPrudentRepository(
       client: ZenClient(baseUrl: baseUrl, httpClient: session, recoverSession: recoverSession),
     );
 
@@ -150,7 +151,7 @@ void main() {
   test('the records endpoint round-trips in both transport modes', () async {
     Future<bool> recoverSession() async => (await identity.refreshSession()).isSuccess;
 
-    final jsonRepo = PrudentRepository(
+    final jsonRepo = ServerPrudentRepository(
       client: ZenClient(
         baseUrl: baseUrl,
         httpClient: session,
@@ -158,7 +159,7 @@ void main() {
         recoverSession: recoverSession,
       ),
     );
-    final protobufRepo = PrudentRepository(
+    final protobufRepo = ServerPrudentRepository(
       client: ZenClient(
         baseUrl: baseUrl,
         httpClient: session,
@@ -184,7 +185,7 @@ void main() {
   test('an anonymous request is refused', () async {
     final anonSession = createSessionClient();
     addTearDown(anonSession.close);
-    final anon = PrudentRepository(client: ZenClient(baseUrl: baseUrl, httpClient: anonSession));
+    final anon = ServerPrudentRepository(client: ZenClient(baseUrl: baseUrl, httpClient: anonSession));
 
     final result = await anon.listRecords();
     expect(result.isFailure, isTrue);
@@ -200,7 +201,7 @@ void main() {
     erasedIdentity = SupabaseIdentityRepository(
       client: ZenClient(baseUrl: baseUrl, httpClient: erasedSession, recoverSession: recover),
     );
-    final erasedPrudent = PrudentRepository(
+    final erasedPrudent = ServerPrudentRepository(
       client: ZenClient(baseUrl: baseUrl, httpClient: erasedSession, recoverSession: recover),
     );
     final erasedEmail = 'prudent-e2e-erased-${DateTime.now().microsecondsSinceEpoch}@example.com';

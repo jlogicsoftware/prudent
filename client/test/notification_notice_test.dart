@@ -21,7 +21,7 @@ import 'package:prudent/notification/reminder_notification.dart';
 import 'package:prudent/notification/reminder_notification_outcome.dart';
 import 'package:prudent/notification/reminder_notification_scheduler.dart';
 import 'package:prudent/notification/shared_preferences_permission_memory.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 import 'package:prudent/providers.dart';
 import 'package:prudent/reminder/reminders_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -170,7 +170,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
+            prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
             reminderNotificationSyncProvider.overrideWith((ref) => pass()),
           ],
           child: MaterialApp(

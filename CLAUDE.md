@@ -44,7 +44,7 @@ tracked artifact the gate watches.
 Built and merged: the backend (`AccountResource`, `CategoryResource`, `RecordResource`,
 `SettingsResource`, `AnalyticsResource`, `HealthResource` over four Panache entities), the Flyway
 migration and its row-level security, and the client rewired onto `ZenClient` with auth and the
-navigation shell (`client/lib/prudent_repository.dart`). The third-party backend call the
+navigation shell. Screens and providers depend on the abstract `PrudentRepository` (`client/lib/prudent_repository.dart`); `ServerPrudentRepository` (`server_prudent_repository.dart`) is its HTTP implementation and only `main.dart` names it (ADR-105). The third-party backend call the
 conversion existed to remove is gone.
 
 The client's overlays (add/edit account, correction, record, category, filter) all open through jZen's

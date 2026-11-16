@@ -14,7 +14,7 @@ import 'package:prudent/generated/prudent/v1/goal_allocations.pb.dart';
 import 'package:prudent/generated/prudent/v1/goals.pb.dart';
 import 'package:prudent/generated/prudent/v1/plans.pb.dart';
 import 'package:prudent/generated/prudent/v1/records.pb.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 import 'package:prudent/record/record_filter.dart';
 import 'package:zen_transport/zen_transport.dart';
 
@@ -37,7 +37,7 @@ http.Response _jsonResponse(Map<String, dynamic> body, {int status = 200}) =>
 void main() {
   group('PrudentRepository.listRecords', () {
     test('success decodes the real records', () async {
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering(
           (request) => _jsonResponse({
             'records': [
@@ -67,7 +67,7 @@ void main() {
     test(
       'a ZenError response surfaces as ZenResult.err, not an empty list',
       () async {
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering(
             (request) => _jsonResponse({
               'code': 'unauthorized',
@@ -89,7 +89,7 @@ void main() {
     );
 
     test('a decode failure is distinguishable from an empty result', () async {
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering(
           (request) => http.Response(
             'not valid json at all {{{',
@@ -109,7 +109,7 @@ void main() {
 
     test('an omitted filter hits the bare path, exactly like today', () async {
       Uri? capturedUri;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedUri = _uriOf(request);
           return _jsonResponse({'records': []});
@@ -126,7 +126,7 @@ void main() {
       'RecordFilter.empty hits the bare path, exactly like an omitted filter',
       () async {
         Uri? capturedUri;
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             capturedUri = _uriOf(request);
             return _jsonResponse({'records': []});
@@ -142,7 +142,7 @@ void main() {
 
     test('a populated filter is sent as query parameters', () async {
       Uri? capturedUri;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedUri = _uriOf(request);
           return _jsonResponse({'records': []});
@@ -177,7 +177,7 @@ void main() {
   group('PrudentRepository.createRecord', () {
     test('posts the typed request and decodes the created record', () async {
       String? capturedBody;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedBody = request.body;
           return _jsonResponse({
@@ -213,7 +213,7 @@ void main() {
     test('posts the typed request and decodes both legs', () async {
       String? capturedBody;
       Uri? capturedUri;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedBody = request.body;
           capturedUri = _uriOf(request);
@@ -261,7 +261,7 @@ void main() {
     });
 
     test('a ZenError response surfaces as ZenResult.err', () async {
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering(
           (request) => _jsonResponse({
             'code': 'invalid',
@@ -292,7 +292,7 @@ void main() {
     test('deletes by transfer id', () async {
       Uri? capturedUri;
       String? capturedMethod;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedUri = _uriOf(request);
           capturedMethod = request.method;
@@ -314,7 +314,7 @@ void main() {
       () async {
         String? capturedBody;
         Uri? capturedUri;
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             capturedBody = request.body;
             capturedUri = _uriOf(request);
@@ -369,7 +369,7 @@ void main() {
 
     test('createPlan sends the reminder setting and decodes the one in force', () async {
       String? capturedBody;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedBody = request.body;
           return _jsonResponse({
@@ -414,7 +414,7 @@ void main() {
     });
 
     test('a refused lead time surfaces as an error, not as a default', () async {
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering(
           (request) => _jsonResponse({
             'code': 'invalid',
@@ -433,7 +433,7 @@ void main() {
 
     test('listPlans decodes the list, and deletePlan deletes by id', () async {
       final calls = <String>[];
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           calls.add('${request.method} ${_uriOf(request).path}');
           if (request.method == 'DELETE') {
@@ -477,7 +477,7 @@ void main() {
         String? capturedBody;
         String? capturedMethod;
         Uri? capturedUri;
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             capturedBody = request.body;
             capturedMethod = request.method;
@@ -513,7 +513,7 @@ void main() {
       'listBudgets sends only the filters given, and deleteBudget deletes the slot',
       () async {
         final calls = <String>[];
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             calls.add('${request.method} ${_uriOf(request)}');
             if (request.method == 'DELETE') {
@@ -576,7 +576,7 @@ void main() {
       String? capturedBody;
       String? capturedMethod;
       Uri? capturedUri;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedBody = request.body;
           capturedMethod = request.method;
@@ -606,7 +606,7 @@ void main() {
     });
 
     test('a goal without a date decodes with no date', () async {
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering(
           (request) => _jsonResponse(goal()..remove('targetDate')),
         ),
@@ -620,7 +620,7 @@ void main() {
     test('updateGoal puts to the goal address', () async {
       String? capturedMethod;
       Uri? capturedUri;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedMethod = request.method;
           capturedUri = _uriOf(request);
@@ -640,7 +640,7 @@ void main() {
 
     test('listGoals sends the status filter only when one is given', () async {
       final calls = <String>[];
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           calls.add('${request.method} ${_uriOf(request)}');
           return _jsonResponse({
@@ -665,7 +665,7 @@ void main() {
 
     test('getGoalProgress sends the day only when one is given and decodes the guidance', () async {
       final calls = <String>[];
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           calls.add('${request.method} ${_uriOf(request)}');
           return _jsonResponse({
@@ -717,7 +717,7 @@ void main() {
     });
 
     test('listGoals refuses a status the server cannot filter by', () {
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) => _jsonResponse({})),
       );
 
@@ -729,7 +729,7 @@ void main() {
 
     test('each lifecycle call posts to its own route', () async {
       final calls = <String>[];
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           calls.add('${request.method} ${_uriOf(request).path}');
           return _jsonResponse(goal(status: 'GOAL_STATUS_ARCHIVED'));
@@ -752,7 +752,7 @@ void main() {
     });
 
     test('a refused transition is an error the caller can render', () async {
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering(
           (request) => _jsonResponse({
             'code': 'conflict',
@@ -786,7 +786,7 @@ void main() {
       String? capturedBody;
       String? capturedMethod;
       Uri? capturedUri;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedBody = request.body;
           capturedMethod = request.method;
@@ -821,7 +821,7 @@ void main() {
 
     test('a move carries both goals', () async {
       String? capturedBody;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedBody = request.body;
           return _jsonResponse(
@@ -848,7 +848,7 @@ void main() {
     });
 
     test('an overdrawn withdrawal is an error the caller can render', () async {
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering(
           (request) => _jsonResponse({
             'code': 'conflict',
@@ -873,7 +873,7 @@ void main() {
       'listGoalAllocations sends the goal filter only when one is given',
       () async {
         final calls = <String>[];
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             calls.add('${request.method} ${_uriOf(request)}');
             return _jsonResponse({
@@ -895,7 +895,7 @@ void main() {
 
     test('getGoalAllocation reads one entry', () async {
       Uri? capturedUri;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedUri = _uriOf(request);
           return _jsonResponse(entry());
@@ -910,7 +910,7 @@ void main() {
 
     test('listGoalEnvelopes decodes one envelope per goal', () async {
       Uri? capturedUri;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedUri = _uriOf(request);
           return _jsonResponse({
@@ -933,7 +933,7 @@ void main() {
 
     test('getFreeMoney decodes one position per currency, a negative free figure included', () async {
       Uri? capturedUri;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           capturedUri = _uriOf(request);
           return _jsonResponse({
@@ -982,7 +982,7 @@ void main() {
         String? capturedBody;
         String? capturedMethod;
         Uri? capturedUri;
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             capturedBody = request.body;
             capturedMethod = request.method;
@@ -1018,7 +1018,7 @@ void main() {
       'the history sends only the filters given and decodes revoked entries',
       () async {
         final calls = <String>[];
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             calls.add('${request.method} ${_uriOf(request)}');
             return _jsonResponse({
@@ -1049,7 +1049,7 @@ void main() {
       'archiveCategory and restoreCategory post to the category and decode the flag',
       () async {
         final calls = <String>[];
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             calls.add('${request.method} ${_uriOf(request).path}');
             return _jsonResponse({
@@ -1077,7 +1077,7 @@ void main() {
       () async {
         String? capturedMethod;
         Uri? capturedUri;
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             capturedMethod = request.method;
             capturedUri = _uriOf(request);
@@ -1096,7 +1096,7 @@ void main() {
     test(
       'a summary item decodes the reset month that bounds its carry-over',
       () async {
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering(
             (request) => _jsonResponse({
               'month': '2026-10',
@@ -1130,7 +1130,7 @@ void main() {
       'getBudgetSummary asks for one month in one currency and decodes every amount',
       () async {
         Uri? capturedUri;
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             capturedUri = _uriOf(request);
             return _jsonResponse({
@@ -1195,7 +1195,7 @@ void main() {
       'listUpcomingOccurrences sends days only when given, and decodes every state',
       () async {
         final uris = <Uri>[];
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             uris.add(_uriOf(request));
             return _jsonResponse({
@@ -1228,7 +1228,7 @@ void main() {
 
     test('listOverdueOccurrences decodes the derived OVERDUE status', () async {
       Uri? uri;
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           uri = _uriOf(request);
           return _jsonResponse({
@@ -1250,7 +1250,7 @@ void main() {
       'skip and restore POST to the occurrence and decode the updated state',
       () async {
         final calls = <String>[];
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             calls.add('${request.method} ${_uriOf(request).path}');
             return _jsonResponse(occurrence('OCCURRENCE_STATUS_SKIPPED'));
@@ -1277,7 +1277,7 @@ void main() {
       () async {
         final bodies = <Map<String, Object?>>[];
         final calls = <String>[];
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             calls.add('${request.method} ${_uriOf(request).path}');
             bodies.add(jsonDecode(request.body) as Map<String, Object?>);
@@ -1327,7 +1327,7 @@ void main() {
     test(
       'a refused transition surfaces the conflict rather than a decoded occurrence',
       () async {
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering(
             (request) => _jsonResponse({
               'code': 'conflict',
@@ -1349,7 +1349,7 @@ void main() {
       'sends currency and year as query parameters, and decodes the response',
       () async {
         Uri? capturedUri;
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             capturedUri = _uriOf(request);
             return _jsonResponse({
@@ -1380,7 +1380,7 @@ void main() {
       'month is omitted from the query when null — the whole-year scope',
       () async {
         Uri? capturedUri;
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             capturedUri = _uriOf(request);
             return _jsonResponse({'currency': 'PLN', 'items': []});
@@ -1394,7 +1394,7 @@ void main() {
     );
 
     test('the empty case decodes as an empty list, not a failure', () async {
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering(
           (request) => _jsonResponse({'currency': 'PLN', 'items': []}),
         ),
@@ -1415,7 +1415,7 @@ void main() {
       'sends granularity and count as query parameters, and decodes the response',
       () async {
         Uri? capturedUri;
-        final repository = PrudentRepository(
+        final repository = ServerPrudentRepository(
           client: _clientAnswering((request) {
             capturedUri = _uriOf(request);
             return _jsonResponse({
@@ -1460,7 +1460,7 @@ void main() {
 
     test('listReminders GETs the centre and decodes each reminder with its read state', () async {
       final calls = <String>[];
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           calls.add('${request.method} ${_uriOf(request).path}');
           return _jsonResponse({
@@ -1481,7 +1481,7 @@ void main() {
 
     test('read, unread and read-all each POST to their own route', () async {
       final calls = <String>[];
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering((request) {
           calls.add('${request.method} ${_uriOf(request).path}');
           return _uriOf(request).path.endsWith('read-all')
@@ -1507,7 +1507,7 @@ void main() {
     });
 
     test('a conflict surfaces as an error, not as an empty reminder', () async {
-      final repository = PrudentRepository(
+      final repository = ServerPrudentRepository(
         client: _clientAnswering(
           (request) => _jsonResponse({
             'code': 'conflict',

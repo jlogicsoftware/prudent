@@ -15,7 +15,7 @@ import 'package:prudent/generated/prudent/v1/settings.pb.dart';
 import 'package:prudent/goal/envelope_amount.dart';
 import 'package:prudent/goal/goals_screen.dart';
 import 'package:prudent/l10n/generated/prudent_localizations.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 import 'package:prudent/providers.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_transport/zen_transport.dart';
@@ -222,7 +222,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          prudentRepositoryProvider.overrideWithValue(PrudentRepository(client: client)),
+          prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
           accountsProvider.overrideWith(() => _FixedAccounts([_account('PLN'), _account('EUR')])),
           settingsProvider.overrideWith(_FixedSettings.new),
           goalProgressAsOfProvider.overrideWithValue('2026-10-02'),

@@ -36,7 +36,7 @@ import 'package:prudent/app.dart';
 import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent/imports/import_preview_screen.dart';
 import 'package:prudent/imports/statement_picker.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent/server_prudent_repository.dart';
 import 'package:prudent/providers.dart';
 import 'package:zen_identity/zen_identity.dart';
 import 'package:zen_transport/zen_transport.dart';
@@ -115,7 +115,7 @@ void main() {
       recoverSession: recover,
     );
     identity = SupabaseIdentityRepository(client: client());
-    final repo = PrudentRepository(client: client());
+    final repo = ServerPrudentRepository(client: client());
 
     final email = 'prudent-app-test-${DateTime.now().microsecondsSinceEpoch}@example.com';
     final registered = await identity.registerWithEmail(email: email, password: 'secret123');
