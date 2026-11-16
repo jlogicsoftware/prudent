@@ -7,7 +7,8 @@
 /// - [IntegrityRunner], [IntegrityCheck], [IntegrityIssue]: the rules across records a merge can
 ///   break, listed after every change and never fixed silently
 /// - [Ledger]: accounts, categories, records, transfers, corrections and settings with the server's
-///   rules, derived balances and the record list (unit 5, ADR-113)
+///   rules, derived balances and the record list (unit 5, ADR-113); budgets, carry-over resets,
+///   goals, envelopes, free money and progress (unit 6a, ADR-116)
 /// - [ImportWorkflow]: statement import sessions in a device-only collection, duplicates, and the
 ///   commit into the ledger as one write (unit 8b, ADR-114)
 library;
@@ -17,11 +18,13 @@ export 'generated/prudent_local/v1/store.pb.dart';
 export 'src/derived_ids.dart';
 export 'src/imports/import_mapper.dart';
 export 'src/imports/import_workflow.dart';
+export 'src/integrity/checks/archived_goal_money_check.dart';
 export 'src/integrity/checks/category_kind_check.dart';
 export 'src/integrity/checks/correction_intent_check.dart';
 export 'src/integrity/checks/dangling_reference_check.dart';
 export 'src/integrity/checks/default_account_check.dart';
 export 'src/integrity/checks/duplicate_account_number_check.dart';
+export 'src/integrity/checks/envelope_below_zero_check.dart';
 export 'src/integrity/checks/held_currency_check.dart';
 export 'src/integrity/checks/live_reset_slot_check.dart';
 export 'src/integrity/integrity_issue.dart';

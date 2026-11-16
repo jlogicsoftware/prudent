@@ -1,0 +1,302 @@
+{
+  "name": "budget_summary",
+  "description": "Plan, actual, remaining and totals for one month and currency: actual is net spending from ordinary records in that currency, refunds included; transfers, corrections, other months and other currencies are not counted; an overspent category goes negative. Currency SEK in 2031 is this scenario's own.",
+  "rules": [
+    "6.5",
+    "6.7",
+    "6.49"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "as": "main",
+      "outcome": "accepted",
+      "input": {
+        "name": "Main",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "SEK",
+            "amountMinor": "1000000"
+          }
+        ],
+        "isActive": true
+      }
+    },
+    {
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "name": "Main",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "balances": [
+          {
+            "currency": "SEK",
+            "amountMinor": "1000000"
+          },
+          {
+            "currency": "NOK",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "savings",
+      "outcome": "accepted",
+      "input": {
+        "name": "Savings",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "SEK",
+            "amountMinor": "0"
+          }
+        ],
+        "isActive": true
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Food",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "fun",
+      "outcome": "accepted",
+      "input": {
+        "title": "Fun",
+        "iconKey": "leisure",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "shops",
+      "outcome": "accepted",
+      "input": {
+        "title": "Shops",
+        "iconKey": "restaurant"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2031-03",
+        "currency": "SEK",
+        "amountMinor": "50000"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$fun",
+        "month": "2031-03",
+        "currency": "SEK",
+        "amountMinor": "10000"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$shops",
+        "month": "2031-03",
+        "currency": "SEK",
+        "amountMinor": "20000"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-12000",
+        "currency": "SEK",
+        "date": "2031-03-01",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-8050",
+        "currency": "SEK",
+        "date": "2031-03-31",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-99999",
+        "currency": "SEK",
+        "date": "2031-02-28",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-77777",
+        "currency": "SEK",
+        "date": "2031-04-01",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "category": "$food",
+        "amountMinor": "-5000",
+        "currency": "NOK",
+        "date": "2031-03-10",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "category": "$fun",
+        "amountMinor": "-15000",
+        "currency": "SEK",
+        "date": "2031-03-15",
+        "title": "Concert"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "category": "$shops",
+        "amountMinor": "-9000",
+        "currency": "SEK",
+        "date": "2031-03-05",
+        "title": "Shoes"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "category": "$shops",
+        "amountMinor": "2500",
+        "currency": "SEK",
+        "date": "2031-03-20",
+        "title": "Refund"
+      }
+    },
+    {
+      "op": "transfer.create",
+      "outcome": "accepted",
+      "input": {
+        "title": "To savings",
+        "fromAccount": "$main",
+        "toAccount": "$savings",
+        "fromAmountMinor": "30000",
+        "fromCurrency": "SEK",
+        "toAmountMinor": "30000",
+        "toCurrency": "SEK",
+        "date": "2031-03-12"
+      }
+    },
+    {
+      "op": "correction.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main",
+        "currency": "SEK",
+        "balanceMinor": "500000",
+        "date": "2031-03-25"
+      }
+    },
+    {
+      "comment": "6.5, 6.7: food spent 20050; fun overspent (-5000); the refund nets shops to 6500.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2031-03",
+        "currency": "SEK"
+      }
+    },
+    {
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2031-03",
+        "currency": " sek "
+      }
+    },
+    {
+      "comment": "No budget in April: no items, zero totals.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2031-04",
+        "currency": "SEK"
+      }
+    },
+    {
+      "comment": "6.49: a currency is required, never inferred.",
+      "op": "budget.summary",
+      "outcome": "refused",
+      "input": {
+        "month": "2031-03",
+        "currency": ""
+      }
+    },
+    {
+      "op": "budget.summary",
+      "outcome": "refused",
+      "input": {
+        "month": "2031-03",
+        "currency": "SEKK"
+      }
+    },
+    {
+      "op": "budget.summary",
+      "outcome": "refused",
+      "input": {
+        "month": "2031-3",
+        "currency": "SEK"
+      }
+    },
+    {
+      "comment": "6.49: a month is required.",
+      "op": "budget.summary",
+      "outcome": "refused",
+      "input": {
+        "month": "",
+        "currency": "SEK"
+      }
+    }
+  ]
+}

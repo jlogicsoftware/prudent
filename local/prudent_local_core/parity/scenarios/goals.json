@@ -1,0 +1,230 @@
+{
+  "name": "goals",
+  "description": "A goal has a name, a positive target, an upper-case currency that never changes and an optional date; it moves active <-> completed, either -> archived, archived -> active; an archived goal is read-only and one holding money cannot be archived; it is never deleted.",
+  "rules": [
+    "6.13",
+    "6.14",
+    "6.15",
+    "6.16",
+    "6.17",
+    "6.18"
+  ],
+  "steps": [
+    {
+      "comment": "6.13: the name is stripped, the currency normalised.",
+      "op": "goal.create",
+      "as": "trip",
+      "outcome": "accepted",
+      "input": {
+        "name": "  Holiday  ",
+        "currency": " eur ",
+        "targetAmountMinor": "300000",
+        "targetDate": "2034-07-01"
+      }
+    },
+    {
+      "op": "goal.create",
+      "outcome": "refused",
+      "input": {
+        "name": " ",
+        "currency": "EUR",
+        "targetAmountMinor": "100"
+      }
+    },
+    {
+      "comment": "6.13: a positive target.",
+      "op": "goal.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Car",
+        "currency": "EUR",
+        "targetAmountMinor": "0"
+      }
+    },
+    {
+      "op": "goal.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Car",
+        "currency": "EUR",
+        "targetAmountMinor": "-5"
+      }
+    },
+    {
+      "op": "goal.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Car",
+        "currency": "EURO",
+        "targetAmountMinor": "100"
+      }
+    },
+    {
+      "op": "goal.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Car",
+        "currency": "EUR",
+        "targetAmountMinor": "100",
+        "targetDate": "2034-02-30"
+      }
+    },
+    {
+      "op": "goal.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Car",
+        "currency": "EUR",
+        "targetAmountMinor": "100",
+        "targetDate": "2034-2-1"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "bike",
+      "outcome": "accepted",
+      "input": {
+        "name": "Bike",
+        "currency": "EUR",
+        "targetAmountMinor": "5000"
+      }
+    },
+    {
+      "op": "goal.get",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$trip"
+      }
+    },
+    {
+      "op": "goal.get",
+      "outcome": "refused",
+      "input": {
+        "goal": "not-an-id"
+      }
+    },
+    {
+      "comment": "A full replacement: the absent date is cleared.",
+      "op": "goal.update",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$trip",
+        "name": " Summer ",
+        "targetAmountMinor": "350000"
+      }
+    },
+    {
+      "op": "goal.update",
+      "outcome": "refused",
+      "input": {
+        "goal": "$trip",
+        "name": "Summer",
+        "targetAmountMinor": "0"
+      }
+    },
+    {
+      "comment": "6.14: active -> completed.",
+      "op": "goal.complete",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$trip"
+      }
+    },
+    {
+      "comment": "Completed -> completed is not a move (409).",
+      "op": "goal.complete",
+      "outcome": "refused",
+      "input": {
+        "goal": "$trip"
+      }
+    },
+    {
+      "comment": "A completed goal is still editable.",
+      "op": "goal.update",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$trip",
+        "name": "Summer",
+        "targetAmountMinor": "1",
+        "targetDate": "2035-01-01"
+      }
+    },
+    {
+      "op": "goal.reactivate",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$trip"
+      }
+    },
+    {
+      "comment": "Active -> archived, holding nothing.",
+      "op": "goal.archive",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$trip"
+      }
+    },
+    {
+      "comment": "6.15: read-only (409).",
+      "op": "goal.update",
+      "outcome": "refused",
+      "input": {
+        "goal": "$trip",
+        "name": "Winter",
+        "targetAmountMinor": "1"
+      }
+    },
+    {
+      "op": "goal.archive",
+      "outcome": "refused",
+      "input": {
+        "goal": "$trip"
+      }
+    },
+    {
+      "comment": "Archived -> completed is not a move.",
+      "op": "goal.complete",
+      "outcome": "refused",
+      "input": {
+        "goal": "$trip"
+      }
+    },
+    {
+      "comment": "Archived -> active.",
+      "op": "goal.reactivate",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$trip"
+      }
+    },
+    {
+      "op": "goal.complete",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$bike"
+      }
+    },
+    {
+      "comment": "Completed -> archived.",
+      "op": "goal.archive",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$bike"
+      }
+    },
+    {
+      "op": "goal.reactivate",
+      "outcome": "refused",
+      "input": {
+        "goal": "not-an-id"
+      }
+    },
+    {
+      "op": "goal.get",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$bike"
+      }
+    }
+  ]
+}

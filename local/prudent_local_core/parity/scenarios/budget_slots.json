@@ -1,0 +1,220 @@
+{
+  "name": "budget_slots",
+  "description": "A budget slot is one category, month and currency (derived id locally), holds one positive amount, is created (201) or replaced (200), refuses a new slot for an archived category but lets an existing one be corrected, and is deleted outright. Currency SEK in 2030 is this scenario's own.",
+  "rules": [
+    "6.1",
+    "6.2",
+    "6.3",
+    "6.4"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Groceries",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "hobby",
+      "outcome": "accepted",
+      "input": {
+        "title": "Old hobby",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "comment": "6.1: an empty slot is created (201); the currency is normalised.",
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2030-01",
+        "currency": " sek ",
+        "amountMinor": "50000"
+      }
+    },
+    {
+      "comment": "The same slot again replaces the amount (200): one budget per slot.",
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2030-01",
+        "currency": "SEK",
+        "amountMinor": "45000"
+      }
+    },
+    {
+      "op": "budget.get",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2030-01",
+        "currency": "sek"
+      }
+    },
+    {
+      "comment": "6.2: zero is not a budget.",
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2030-02",
+        "currency": "SEK",
+        "amountMinor": "0"
+      }
+    },
+    {
+      "comment": "6.2: nor is a negative amount.",
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2030-02",
+        "currency": "SEK",
+        "amountMinor": "-100"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2030-02",
+        "currency": "SEKK",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "comment": "6.3: a month is YYYY-MM.",
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2030-2",
+        "currency": "SEK",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "comment": "An id that is not one names no category: 404.",
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "not-an-id",
+        "month": "2030-02",
+        "currency": "SEK",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "comment": "An empty slot is a 404.",
+      "op": "budget.get",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2030-02",
+        "currency": "SEK"
+      }
+    },
+    {
+      "comment": "A slot planned before the category was archived.",
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$hobby",
+        "month": "2030-01",
+        "currency": "SEK",
+        "amountMinor": "1000"
+      }
+    },
+    {
+      "op": "category.archive",
+      "outcome": "accepted",
+      "input": {
+        "category": "$hobby"
+      }
+    },
+    {
+      "comment": "6.4: an archived category takes no new slot (409).",
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$hobby",
+        "month": "2030-02",
+        "currency": "SEK",
+        "amountMinor": "1000"
+      }
+    },
+    {
+      "comment": "6.4: but a slot it already holds can still be corrected (200).",
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$hobby",
+        "month": "2030-01",
+        "currency": "SEK",
+        "amountMinor": "1500"
+      }
+    },
+    {
+      "op": "budget.delete",
+      "outcome": "accepted",
+      "input": {
+        "category": "$hobby",
+        "month": "2030-01",
+        "currency": "SEK"
+      }
+    },
+    {
+      "comment": "Deleting an empty slot is a 404.",
+      "op": "budget.delete",
+      "outcome": "refused",
+      "input": {
+        "category": "$hobby",
+        "month": "2030-01",
+        "currency": "SEK"
+      }
+    },
+    {
+      "op": "budget.get",
+      "outcome": "refused",
+      "input": {
+        "category": "$hobby",
+        "month": "2030-01",
+        "currency": "SEK"
+      }
+    },
+    {
+      "comment": "5.42: a category with a budget cannot be deleted.",
+      "op": "category.delete",
+      "outcome": "refused",
+      "input": {
+        "category": "$food"
+      }
+    },
+    {
+      "op": "budget.delete",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2030-01",
+        "currency": "SEK"
+      }
+    },
+    {
+      "comment": "With its last budget gone it can.",
+      "op": "category.delete",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food"
+      }
+    }
+  ]
+}

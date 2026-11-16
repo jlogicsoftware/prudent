@@ -103,8 +103,28 @@ final class ServerBackend extends ParityBackend {
     'account.balances': _balances,
     'category.create': _createCategory,
     'record.create': _createRecord,
+    // Unit 6a: budgets, resets, goals, allocations. The same request helpers as above.
     'budget.set': _setBudget,
+    'budget.get': _getBudget,
+    'budget.delete': _deleteBudget,
+    'budget.list': _listBudgets,
+    'budget.summary': _budgetSummary,
     'reset.create': _createReset,
+    'reset.revoke': _revokeReset,
+    'reset.list': _listResets,
+    'goal.create': _createGoal,
+    'goal.get': _getGoal,
+    'goal.update': _updateGoal,
+    'goal.complete': (i, b) => _transition(i, b, 'complete'),
+    'goal.archive': (i, b) => _transition(i, b, 'archive'),
+    'goal.reactivate': (i, b) => _transition(i, b, 'reactivate'),
+    'goal.list': _listGoals,
+    'goal.progress': _goalProgress,
+    'allocation.create': _createAllocation,
+    'allocation.get': _getAllocation,
+    'allocation.list': _listAllocations,
+    'envelope.list': _listEnvelopes,
+    'freemoney.get': _freeMoney,
     // Unit 5, the ledger (ADR-113). Request bodies are built by the local backend's own helpers
     // (StoreBackend.recordBody and its siblings), so both sides send the same request.
     'account.get': _getAccount,
@@ -181,51 +201,6 @@ final class ServerBackend extends ParityBackend {
     return answer.observe(
       (body) => StepResult(
         ParityObservation.accepted(StoreBackend.recordObservation(body)),
-        createdId: _string(body, 'id'),
-      ),
-    );
-  }
-
-  Future<StepResult> _setBudget(Map<String, Object?> input, ParityBindings bindings) async {
-    final answer = await _send(
-      'PUT',
-      [
-        'budgets',
-        bindings.resolve(input['category']),
-        input['month']! as String,
-        input['currency']! as String,
-      ],
-      {'amountMinor': input['amountMinor']},
-    );
-    return answer.observe(
-      (body) => StepResult(
-        ParityObservation.accepted({
-          'month': _string(body, 'month'),
-          'currency': _string(body, 'currency'),
-          'amountMinor': _int64(body, 'amountMinor'),
-        }),
-      ),
-    );
-  }
-
-  Future<StepResult> _createReset(Map<String, Object?> input, ParityBindings bindings) async {
-    final answer = await _send(
-      'POST',
-      ['budget-carry-over-resets'],
-      {
-        'categoryId': bindings.resolve(input['category']),
-        'month': input['month'],
-        'currency': input['currency'],
-        'note': input['note'],
-      },
-    );
-    return answer.observe(
-      (body) => StepResult(
-        ParityObservation.accepted({
-          'month': _string(body, 'month'),
-          'currency': _string(body, 'currency'),
-          'note': _string(body, 'note'),
-        }),
         createdId: _string(body, 'id'),
       ),
     );
@@ -453,6 +428,275 @@ final class ServerBackend extends ParityBackend {
           StepResult(ParityObservation.accepted(ImportParity.sessionObservation(json, bindings))),
     );
   }
+
+  // ── Unit 6a: budgets, resets, goals, allocations ───────────────────────────────────────────
+
+  /// The budget slot's path: the category (a bound name, or a literal sent on purpose), the month
+  /// and the currency exactly as the scenario spells them.
+  static List<String> _slot(Map<String, Object?> input, ParityBindings bindings) => [
+    'budgets',
+    _id(input, 'category', bindings),
+    input['month']! as String,
+    input['currency']! as String,
+  ];
+
+  Future<StepResult> _setBudget(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('PUT', _slot(input, bindings), {
+      'amountMinor': input['amountMinor'],
+    });
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted({
+          ...ParityReaders.budget(body, bindings),
+          'created': answer.status == 201,
+        }),
+      ),
+    );
+  }
+
+  Future<StepResult> _getBudget(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', _slot(input, bindings));
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.budget(body, bindings))),
+    );
+  }
+
+  Future<StepResult> _deleteBudget(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('DELETE', _slot(input, bindings));
+    return answer.observe((_) => StepResult(ParityObservation.accepted()));
+  }
+
+  Future<StepResult> _listBudgets(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send(
+      'GET',
+      ['budgets'],
+      null,
+      {
+        if (input['month'] case final String month) 'month': month,
+        'categoryId': ?bindings.idOrLiteral(input['category']),
+      },
+    );
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted({
+          'budgets': ParityReaders.boundRows(
+            (body['budgets'] as List<Object?>?) ?? const [],
+            bindings,
+            'categoryId',
+            (row) => ParityReaders.budget(row, bindings),
+          ),
+        }),
+      ),
+    );
+  }
+
+  Future<StepResult> _budgetSummary(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send(
+      'GET',
+      ['budgets', 'summary'],
+      null,
+      {'month': input['month']! as String, 'currency': input['currency']! as String},
+    );
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.budgetSummary(body, bindings))),
+    );
+  }
+
+  Future<StepResult> _createReset(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', [
+      'budget-carry-over-resets',
+    ], _present(StoreBackend.resetBody(input, bindings)));
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(ParityReaders.reset(body, bindings)),
+        createdId: _string(body, 'id'),
+      ),
+    );
+  }
+
+  Future<StepResult> _revokeReset(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', [
+      'budget-carry-over-resets',
+      _id(input, 'reset', bindings),
+      'revoke',
+    ]);
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.reset(body, bindings))),
+    );
+  }
+
+  Future<StepResult> _listResets(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send(
+      'GET',
+      ['budget-carry-over-resets'],
+      null,
+      {
+        'categoryId': ?bindings.idOrLiteral(input['category']),
+        if (input['currency'] case final String currency) 'currency': currency,
+      },
+    );
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted({
+          'resets': ParityReaders.boundNames(
+            (body['resets'] as List<Object?>?) ?? const [],
+            bindings,
+          ),
+        }),
+      ),
+    );
+  }
+
+  Future<StepResult> _createGoal(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', [
+      'goals',
+    ], _present(StoreBackend.goalBody(input, create: true)));
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(ParityReaders.goal(body)),
+        createdId: _string(body, 'id'),
+      ),
+    );
+  }
+
+  Future<StepResult> _getGoal(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['goals', _id(input, 'goal', bindings)]);
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.goal(body))),
+    );
+  }
+
+  Future<StepResult> _updateGoal(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('PUT', [
+      'goals',
+      _id(input, 'goal', bindings),
+    ], _present(StoreBackend.goalBody(input, create: false)));
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.goal(body))),
+    );
+  }
+
+  Future<StepResult> _transition(
+    Map<String, Object?> input,
+    ParityBindings bindings,
+    String move,
+  ) async {
+    final answer = await _send('POST', ['goals', _id(input, 'goal', bindings), move]);
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.goal(body))),
+    );
+  }
+
+  Future<StepResult> _listGoals(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send(
+      'GET',
+      ['goals'],
+      null,
+      {if (input['status'] case final String status) 'status': status},
+    );
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted({
+          'goals': ParityReaders.boundNames(
+            (body['goals'] as List<Object?>?) ?? const [],
+            bindings,
+          ),
+        }),
+      ),
+    );
+  }
+
+  Future<StepResult> _goalProgress(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send(
+      'GET',
+      ['goals', 'progress'],
+      null,
+      {if (input['asOf'] case final String asOf) 'asOf': asOf},
+    );
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted({
+          'asOf': _string(body, 'asOf'),
+          'goals': ParityReaders.boundRows(
+            (body['goals'] as List<Object?>?) ?? const [],
+            bindings,
+            'goalId',
+            (row) => ParityReaders.goalProgress(row, bindings),
+          ),
+        }),
+      ),
+    );
+  }
+
+  Future<StepResult> _createAllocation(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', [
+      'goal-allocations',
+    ], _present(StoreBackend.allocationBody(input, bindings)));
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(ParityReaders.allocation(body, bindings)),
+        createdId: _string(body, 'id'),
+      ),
+    );
+  }
+
+  Future<StepResult> _getAllocation(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['goal-allocations', _id(input, 'allocation', bindings)]);
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.allocation(body, bindings))),
+    );
+  }
+
+  Future<StepResult> _listAllocations(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send(
+      'GET',
+      ['goal-allocations'],
+      null,
+      {'goalId': ?bindings.idOrLiteral(input['goal'])},
+    );
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted({
+          'allocations': ParityReaders.boundNames(
+            (body['allocations'] as List<Object?>?) ?? const [],
+            bindings,
+          ),
+        }),
+      ),
+    );
+  }
+
+  Future<StepResult> _listEnvelopes(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['goal-allocations', 'envelopes']);
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted({
+          'envelopes': ParityReaders.boundRows(
+            (body['envelopes'] as List<Object?>?) ?? const [],
+            bindings,
+            'goalId',
+            (row) => ParityReaders.envelope(row, bindings),
+          ),
+        }),
+      ),
+    );
+  }
+
+  Future<StepResult> _freeMoney(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['goal-allocations', 'free-money']);
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(
+          ParityReaders.freeMoney(body, input['currency']! as String, bindings),
+        ),
+      ),
+    );
+  }
+
+  /// [body] without its null values, as the local backend sends it.
+  static Map<String, Object?> _present(Map<String, Object?> body) => {
+    for (final MapEntry(:key, :value) in body.entries) key: ?value,
+  };
 
   static Map<String, String> _balanceMap(Map<String, Object?> account) {
     final balances = (account['balances'] as List<Object?>?) ?? const [];

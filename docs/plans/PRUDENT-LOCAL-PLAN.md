@@ -189,18 +189,27 @@ search and name order implement `TextRules` (unit 4a, ADR-106: findings F-09 and
 vector files. Parity scenarios `record_list_filters` and `record_list_order`.
 
 ### Unit 6a — Budgets, carry-over resets, goals, allocations
+**Built: ADR-116** — `ledger_budgets.dart` and `ledger_goals.dart`, two parts of the ledger in `local/prudent_local_store`: every rule of
+rows 6.1–6.28, 6.46–6.50, 6.54, check for check in the server's order; the summary, carry-over (through months with no budget, from the
+latest live reset), free money and progress derived on every read from settled values only, with what they leave out in
+`Settled.unsettled` (keyed by category, currency or goal); a reset or an `ALLOCATE` refused while its figure is unsettled; every write
+checking its rule again inside its turn through jZen's `expect` (#251), edits and deletes against the exact version read; a reset's
+revocation merging by `earliestBy` (#244, declared by unit 8b); no `explicitPresence` (ADR-115); integrity checks `EnvelopeBelowZeroCheck` and `ArchivedGoalMoneyCheck`; `GoalArithmetic` in the core held to the JVM by
+`goal_progress.json`; parity scenarios `budget_slots`, `budget_summary`, `carry_over`, `carry_over_reset`, `budget_lists`, `goals`,
+`goal_allocations`, `free_money`, `goal_progress`, `goal_lists`. `JZEN_REF` `4fa887a`.
 Budget slots by derived id, the summary, carry-over and its resets; goal states, envelopes, free money,
 progress; allocations append-only. The most integrity checks (envelope below zero, money in an archived
 goal, two live resets for one slot). 34 rules (phase-0 §0.3 rows 6.1–6.28, 6.46–6.50, 6.54), including
 the goal, envelope-history, budget and reset list filters and orders (parity scenarios `goal_lists`,
 `budget_lists`). **jZen:** the goal status time merges in the store by jZenDev/jZen#235's policy (declared in
-unit 4); a reset's revocation is a group and stays a conflict until jZenDev/jZen#244. **Done when:** parity
+unit 4); a reset's revocation is a group, merged by jZenDev/jZen#244's `earliestBy` (declared by unit 8b, ADR-114). **Done when:** parity
 scenarios cover each and the figures match the server's to the cent.
 **From unit 5 (ADR-113):** every "still used by" refusal and every figure reads plans, budgets and resets the way the ledger
 reads records — with the sides of a conflict (`LedgerView.recordValues` is the pattern) and leaving out of a figure what two
 devices disagree about, answered as `Settled` so the flag travels with the figure. Unit 5's own reads of plans in
 `deleteAccount`, `updateAccount` and `deleteCategory` read only the shown value, because plans have no rules yet; 6a and 6b move
-them onto the same helper.
+them onto the same helper. **Done for budgets and resets (ADR-116):** `deleteCategory` reads `LedgerView.budgetValues` and
+`resetValues`; the plan reads are 6b's.
 
 ### Unit 6b — Plans, occurrences, reminders
 Plans with their recurrence and reminder, occurrences by derived id (completion derived from the
@@ -339,7 +348,7 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | jZenDev/jZen#238 | refuse the unencrypted folder in release | 11 (ADR-100 T18) |
 | jZenDev/jZen#239 | erase everywhere | 9 (ADR-100 T24) |
 | jZenDev/jZen#240 | screen-capture protection | 9 (ADR-100 T15) |
-| jZenDev/jZen#244 | a merge policy over a group (a reset's revocation: who and when) — **merged (PR #249), consumed by unit 8b (ADR-114)** | 4, 6a |
+| jZenDev/jZen#244 | a merge policy over a group (a reset's revocation: who and when) — **merged (PR #249), consumed by unit 8b (ADR-114)**; unit 6a relies on it (ADR-116) | 4, 6a |
 | jZenDev/jZen#245 | a proto3 field set to its default differs from an unset one in the merge — **merged (PR #254, jZen `4fa887a`); consumed by unit 8b for the import sessions (ADR-114); the unit 4/5 collections are a separate change** | 4, 5 (every write path), 8b |
 | jZenDev/jZen#246 | save-file capability on iOS and Android | 10a (mobile half) — fixed by PR #254, consumed (ADR-117) |
 | jZenDev/jZen#252 | an atomic write across synced and device-only data — **merged (PR #254, jZen `4fa887a`), consumed by unit 8b: sessions are a device-only collection, the commit one `writeAll` (ADR-114)** | 8b |

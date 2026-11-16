@@ -1,0 +1,297 @@
+{
+  "name": "carry_over_reset",
+  "description": "A reset bounds one category's carry-over in one currency from a month on: it records the carry-over it discards, one live reset per slot, a revocation once and never a delete; the latest live reset at or before the month is the boundary, and the summary names it. Currency DKK in 2033 is this scenario's own.",
+  "rules": [
+    "6.8",
+    "6.9",
+    "6.10",
+    "6.11",
+    "6.12"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "as": "wallet",
+      "outcome": "accepted",
+      "input": {
+        "name": "Wallet",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "DKK",
+            "amountMinor": "1000000"
+          }
+        ],
+        "isActive": true
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Food",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2033-01",
+        "currency": "DKK",
+        "amountMinor": "10000"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-4000",
+        "currency": "DKK",
+        "date": "2033-01-05",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2033-02",
+        "currency": "DKK",
+        "amountMinor": "10000"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-16000",
+        "currency": "DKK",
+        "date": "2033-02-05",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2033-04",
+        "currency": "DKK",
+        "amountMinor": "10000"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2033-06",
+        "currency": "DKK",
+        "amountMinor": "10000"
+      }
+    },
+    {
+      "comment": "Before any reset: 6000 - 6000 = 0 carried.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2033-04",
+        "currency": "DKK"
+      }
+    },
+    {
+      "comment": "6.12: the reset records what it discards (January's 6000) and strips its note.",
+      "op": "reset.create",
+      "as": "feb",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2033-02",
+        "currency": "dkk",
+        "note": "  overspent on purpose  "
+      }
+    },
+    {
+      "comment": "From February nothing is carried in; the reset month is named.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2033-02",
+        "currency": "DKK"
+      }
+    },
+    {
+      "comment": "Into April only February counts: -6000.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2033-04",
+        "currency": "DKK"
+      }
+    },
+    {
+      "comment": "A reset after the month bounds nothing.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2033-01",
+        "currency": "DKK"
+      }
+    },
+    {
+      "comment": "6.9: one live reset per slot (409).",
+      "op": "reset.create",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2033-02",
+        "currency": "DKK",
+        "note": ""
+      }
+    },
+    {
+      "comment": "A later reset: discards February's -6000.",
+      "op": "reset.create",
+      "as": "apr",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2033-04",
+        "currency": "DKK",
+        "note": "spring"
+      }
+    },
+    {
+      "comment": "The latest live reset at or before the month is the boundary.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2033-06",
+        "currency": "DKK"
+      }
+    },
+    {
+      "comment": "6.10: revoked, not deleted.",
+      "op": "reset.revoke",
+      "outcome": "accepted",
+      "input": {
+        "reset": "$apr"
+      }
+    },
+    {
+      "comment": "6.10: revoked once (409).",
+      "op": "reset.revoke",
+      "outcome": "refused",
+      "input": {
+        "reset": "$apr"
+      }
+    },
+    {
+      "comment": "With April's reset revoked February's is the boundary again.",
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2033-06",
+        "currency": "DKK"
+      }
+    },
+    {
+      "comment": "6.9: a revoked reset frees its slot.",
+      "op": "reset.create",
+      "as": "apr2",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2033-04",
+        "currency": "DKK",
+        "note": "again"
+      }
+    },
+    {
+      "op": "reset.revoke",
+      "outcome": "refused",
+      "input": {
+        "reset": "not-an-id"
+      }
+    },
+    {
+      "comment": "A malformed category id in a body is a 400.",
+      "op": "reset.create",
+      "outcome": "refused",
+      "input": {
+        "category": "not-an-id",
+        "month": "2033-04",
+        "currency": "DKK",
+        "note": ""
+      }
+    },
+    {
+      "op": "reset.create",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2033-13",
+        "currency": "DKK",
+        "note": ""
+      }
+    },
+    {
+      "op": "reset.create",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2033-07",
+        "currency": "DKKK",
+        "note": ""
+      }
+    },
+    {
+      "comment": "6.8: a note of at most 500 characters.",
+      "op": "reset.create",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2033-07",
+        "currency": "DKK",
+        "note": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "comment": "500 characters is allowed.",
+      "op": "reset.create",
+      "as": "jul",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2033-07",
+        "currency": "DKK",
+        "note": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9"
+      }
+    },
+    {
+      "comment": "6.11: every reset, revoked ones included, newest first.",
+      "op": "reset.list",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food"
+      }
+    },
+    {
+      "comment": "5.42: a category with reset history is never deleted.",
+      "op": "category.delete",
+      "outcome": "refused",
+      "input": {
+        "category": "$food"
+      }
+    }
+  ]
+}

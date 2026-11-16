@@ -55,6 +55,71 @@ That belongs to unit 12, together with one thing not checked at all: on Linux th
 
 ---
 
+## ADR-116 — Prudent Local's budgets, carry-over resets, goals and envelopes reproduce the server's rules over the store, leave every disputed value out of a figure, and check each rule again inside its write
+
+**Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 6a of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);
+phase-0 §0.3 rows 6.1–6.28, 6.46–6.50, 6.54; finding F-07, F-10. **Builds on:** ADR-043 to ADR-053, ADR-102, ADR-107, ADR-111,
+ADR-113, ADR-114. **jZen:** consumes jZenDev/jZen#251 (PR #254, `expect`) at `JZEN_REF` `4fa887a`; relies on #235 (declared by
+unit 4) and #244 (the revocation's `earliestBy`, declared by unit 8b, ADR-114).
+
+### Decision
+
+- **Where it lives: two parts of the ledger's library**, `ledger_budgets.dart` (`extension LedgerBudgets on Ledger`) and
+  `ledger_goals.dart` (`extension LedgerGoals on Ledger`), so they share the ledger's refusal plumbing, its date rules and
+  `LedgerView` without widening `Ledger`'s file, which units 6b and the #245/#251 consumption also edit. Each operation is the
+  server's resource method check for check and in its order (`BudgetResource`, `BudgetCalculator`,
+  `BudgetCarryOverResetResource`, `GoalResource`, `GoalState`, `GoalAllocationResource`, `FreeMoney`, `GoalProgressCalculator`),
+  wire requests in and wire messages out, refusals shaped as the server's (`LedgerErrors`). `Ledger` gains an injectable clock
+  that labels what an audit entry records (a reset, a revocation, a goal's times, an entry) and orders the histories, as
+  `created_at` does on the server; it decides no merge and no figure.
+- **Every figure is derived on every read and never reads a disputed value** (ADR-113, carried forward). The budget summary and
+  the carry-over leave out a record whose posting, date, category or existence two devices dispute, a budget whose amount or
+  existence is disputed, and a reset in conflict, each named under its category in `Settled.unsettled`; a category whose only
+  budget in the month is disputed has no item and is named all the same. Free money leaves out an account whose `active` or
+  `eligible_for_goals` flag (or existence) is disputed, under every currency it holds, plus whatever its balance leaves out.
+  Goal progress leaves out a goal whose target, date or status is disputed, keyed by the goal. `Settled.unsettled` is therefore
+  keyed by what the figure belongs to — an account, a category, a currency or a goal — and its documentation says so. Envelopes
+  need no flag: entries are immutable, so an envelope never reads a disputed value.
+- **Refusals that a figure decides refuse while the figure is unsettled**, as a correction does (ADR-113): a reset (it records
+  the carry-over it discards, which must be a number someone saw) and an `ALLOCATE` (its cap is the currency's free money), both
+  409. A rule about a goal's state reads every side of its conflict: money goes into a goal only when every side is active, and
+  out of one only when no side is archived. `deleteCategory`'s "still used by a budget / a reset" now reads every side of their
+  conflicts (`LedgerView.budgetValues`, `resetValues`), as it already read records.
+- **Each rule is checked again inside the write's turn** (jZenDev/jZen#251). Every budget, reset, goal and entry write passes an
+  `expect` that re-reads the store as it stands when the write runs and runs the same rule again — the category not archived for
+  a new slot, one live reset per slot and the same discarded carry-over, the envelope and the free money for an entry, the
+  envelope for an archive — and, for an edit or a delete, the record exactly as read (same bytes), so a field another device
+  changed in between is refused (404 gone, 409 changed) rather than written back. Proven deterministically by queuing a
+  conflicting write between the ledger's check and its write; with the `expect` removed every such test fails.
+- **A reset's revocation merges by `earliestBy` its time** (jZenDev/jZen#244, declared by unit 8b, ADR-114): two devices that revoke
+  one reset keep the earlier revocation, whole, on both, so `revokeBudgetReset` needs no settling of its own. **No
+  `explicitPresence` is declared** (jZenDev/jZen#245), as ADR-115 decides for every collection: the `optional` fields here —
+  `Goal.target_date`, an entry's source and target goal ids — have no meaningful default (an empty date or goal id is never
+  written; an absent date is cleared), so declaring them would only make `""` and a cleared field conflict.
+- **Integrity checks** (ADR-102 D6): `EnvelopeBelowZeroCheck` (two withdrawals made apart) offers a compensating `ALLOCATE` of the
+  deficit; `ArchivedGoalMoneyCheck` (money put into, or left in, a goal archived meanwhile) offers reactivating the goal or a
+  `WITHDRAW` of what it holds. Neither edits or deletes an entry: the history only grows. Two live resets for one slot stay
+  unit 4's `LiveResetSlotCheck`. One envelope sum, `goalEnvelopes`, serves the ledger and both checks.
+- **The progress arithmetic is a core rule** (`GoalArithmetic` in `prudent_local_core`: the exact percent, the inclusive calendar
+  months, the rounded-up contribution), held to `GoalProgressCalculator` by a new golden file, `goal_progress.json`, which
+  `GoldenVectorsTest` writes through `prudent.goal.GoalRulesAccess` (test-only, no production change) — including the 64-bit
+  edges (`intValueExact` throwing for an envelope far below zero, `ceilDiv` near `Long.MAX_VALUE`) that no scenario reaches.
+- **Parity.** Ten scenarios run every rule through the live server and the store: `budget_slots`, `budget_summary`,
+  `carry_over` (months with no budget, earlier budgets and records edited), `carry_over_reset` (the boundary, the latest live
+  reset, a revocation restoring the sum), `budget_lists`, `goals`, `goal_allocations`, `free_money` (name order, inactive and
+  ineligible accounts, free money going negative after a spend and a transfer), `goal_progress` (every guidance, `asOf` pinned,
+  finding F-07) and `goal_lists`. The server's user is shared by a run (ADR-107), so each scenario owns its currencies and months,
+  and lists keep only the scenario's own rows; a summary's items, ordered by category id on both sides, are compared as a set
+  with the id order observed as a fact. Unit 3's `budget.set` and `reset.create` stand-ins are gone. Mutations of the carry-over
+  boundary, the `active` flag and the contribution rounding each fail the suite.
+
+### Not proven
+
+- The race tests queue the conflicting write on one device; a sync's `receive` takes the same turn in the store's queue, but no
+  test drives a real sync into that window.
+- `listBudgets`, `listBudgetResets` and the goal and envelope lists show records as the store shows them, disputed or not, as
+  the record list does (ADR-113); only figures leave disputed values out.
+- Nothing has run on a device (jZenDev/jZen#231); no screen shows `Settled.unsettled` yet (unit 9).
 ## ADR-114 — Prudent Local imports a statement through the server's three phases in a device-only collection, and commits every row and the completed session as one `writeAll` whose record ids derive from the row keys
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 8b of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);

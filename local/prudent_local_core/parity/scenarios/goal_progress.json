@@ -1,0 +1,215 @@
+{
+  "name": "goal_progress",
+  "description": "Progress per goal as of a pinned day: allocated, remaining (never negative), the whole percent rounded down and capped at 100, and the guidance \u2014 not active, reached, no date, overdue, or the monthly contribution rounded up over the calendar months from the as-of month through the target month inclusive. BGN is this scenario's own.",
+  "rules": [
+    "6.28",
+    "6.45"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "as": "fund",
+      "outcome": "accepted",
+      "input": {
+        "name": "Fund",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "BGN",
+            "amountMinor": "10000000"
+          }
+        ],
+        "isActive": true,
+        "eligibleForGoals": true
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "nodate",
+      "outcome": "accepted",
+      "input": {
+        "name": "No date",
+        "currency": "BGN",
+        "targetAmountMinor": "1000"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "late",
+      "outcome": "accepted",
+      "input": {
+        "name": "Late",
+        "currency": "BGN",
+        "targetAmountMinor": "1000",
+        "targetDate": "2027-03-14"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "thismonth",
+      "outcome": "accepted",
+      "input": {
+        "name": "This month",
+        "currency": "BGN",
+        "targetAmountMinor": "1000",
+        "targetDate": "2027-03-31"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "today",
+      "outcome": "accepted",
+      "input": {
+        "name": "Today",
+        "currency": "BGN",
+        "targetAmountMinor": "1000",
+        "targetDate": "2027-03-15"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "ten",
+      "outcome": "accepted",
+      "input": {
+        "name": "Ten months",
+        "currency": "BGN",
+        "targetAmountMinor": "1000",
+        "targetDate": "2027-12-01"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "tenplus",
+      "outcome": "accepted",
+      "input": {
+        "name": "Ten and one",
+        "currency": "BGN",
+        "targetAmountMinor": "1001",
+        "targetDate": "2027-12-31"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "third",
+      "outcome": "accepted",
+      "input": {
+        "name": "Third",
+        "currency": "BGN",
+        "targetAmountMinor": "1000",
+        "targetDate": "2028-03-01"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "reached",
+      "outcome": "accepted",
+      "input": {
+        "name": "Reached",
+        "currency": "BGN",
+        "targetAmountMinor": "500",
+        "targetDate": "2030-01-01"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "over",
+      "outcome": "accepted",
+      "input": {
+        "name": "Over",
+        "currency": "BGN",
+        "targetAmountMinor": "500"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "done",
+      "outcome": "accepted",
+      "input": {
+        "name": "Done",
+        "currency": "BGN",
+        "targetAmountMinor": "1000",
+        "targetDate": "2030-01-01"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "333",
+        "target": "$third"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "500",
+        "target": "$reached"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "750",
+        "target": "$over"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "10",
+        "target": "$done"
+      }
+    },
+    {
+      "op": "goal.complete",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$done"
+      }
+    },
+    {
+      "op": "goal.progress",
+      "outcome": "accepted",
+      "input": {
+        "asOf": "2027-03-15"
+      }
+    },
+    {
+      "comment": "The last day of a target's month still counts it.",
+      "op": "goal.progress",
+      "outcome": "accepted",
+      "input": {
+        "asOf": "2027-12-31"
+      }
+    },
+    {
+      "comment": "Past both December dates: overdue.",
+      "op": "goal.progress",
+      "outcome": "accepted",
+      "input": {
+        "asOf": "2028-01-01"
+      }
+    },
+    {
+      "op": "goal.progress",
+      "outcome": "refused",
+      "input": {
+        "asOf": "2027-02-30"
+      }
+    },
+    {
+      "op": "goal.progress",
+      "outcome": "refused",
+      "input": {
+        "asOf": "15.03.2027"
+      }
+    }
+  ]
+}

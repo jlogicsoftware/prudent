@@ -1,8 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:fixnum/fixnum.dart';
 import 'package:meta/meta.dart' show internal;
 import 'package:prudent_local_core/prudent_local_core.dart';
+import 'package:protobuf/protobuf.dart' show GeneratedMessage;
 import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/budgets.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/goal_allocations.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/goals.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/records.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart' as wire;
 import 'package:zen_core/zen_core.dart';
@@ -13,9 +19,13 @@ import '../derived_ids.dart';
 import '../integrity/checks/category_kind_check.dart';
 import '../prudent_local_store.dart';
 import '../wire_mapper.dart';
+import 'envelopes.dart';
 import 'ledger_errors.dart';
 import 'ledger_view.dart';
 import 'record_query.dart';
+
+part 'ledger_budgets.dart';
+part 'ledger_goals.dart';
 
 /// Prudent Local's ledger (unit 5 of `docs/plans/PRUDENT-LOCAL-PLAN.md`, ADR-113): accounts,
 /// categories, records, transfers, corrections and settings, with every rule the server enforces on
@@ -45,7 +55,14 @@ import 'record_query.dart';
 final class Ledger {
   final PrudentLocalStore store;
 
-  Ledger(this.store);
+  /// The wall clock, in epoch milliseconds, that labels what an audit entry records: when a reset,
+  /// a revocation, a goal or an allocation was made (unit 6a). It decides no merge and no figure but
+  /// the order of the histories, as `created_at` does on the server. Tests pass their own.
+  final int Function() _clock;
+
+  Ledger(this.store, {int Function()? clock}) : _clock = clock ?? _wallClock;
+
+  static int _wallClock() => DateTime.now().millisecondsSinceEpoch;
 
   // ── Accounts ────────────────────────────────────────────────────────────────────────────────
 
@@ -273,10 +290,11 @@ final class Ledger {
     if (view.plans.values.any((p) => p.categoryId == category.id)) {
       throw const Refusal.conflict('5.42', 'This category still has plans.');
     }
-    if (view.budgets.values.any((b) => b.categoryId == category.id)) {
+    // Budgets and resets as every device holds them (unit 6a), as records are read above.
+    if (view.budgetValues().any((b) => b.categoryId == category.id)) {
       throw const Refusal.conflict('5.42', 'This category still has budgets.');
     }
-    if (view.budgetResets.values.any((r) => r.categoryId == category.id)) {
+    if (view.resetValues().any((r) => r.categoryId == category.id)) {
       throw const Refusal.conflict('5.42', 'This category has carry-over reset history.');
     }
     await _write(store.deleteCategory(category.id));

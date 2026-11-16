@@ -9,6 +9,7 @@ export 'src/account_numbers.dart';
 export 'src/civil_date.dart';
 export 'src/currencies.dart';
 export 'src/currency_totals.dart';
+export 'src/goal_arithmetic.dart';
 export 'src/imports/erste_csv.dart';
 export 'src/imports/erste_statement_importer.dart';
 export 'src/imports/import_rules.dart';

@@ -1,0 +1,196 @@
+{
+  "name": "goal_lists",
+  "description": "The goal list by status (the exact constant name; anything else refused), ordered by creation; the envelope history newest first, narrowed to a goal as source or target, a malformed id refused. MXN is this scenario's own.",
+  "rules": [
+    "6.46",
+    "6.47"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "as": "pot",
+      "outcome": "accepted",
+      "input": {
+        "name": "Pot",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "MXN",
+            "amountMinor": "1000000"
+          }
+        ],
+        "isActive": true,
+        "eligibleForGoals": true
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "first",
+      "outcome": "accepted",
+      "input": {
+        "name": "First",
+        "currency": "MXN",
+        "targetAmountMinor": "10000"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "second",
+      "outcome": "accepted",
+      "input": {
+        "name": "Second",
+        "currency": "MXN",
+        "targetAmountMinor": "10000"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "third",
+      "outcome": "accepted",
+      "input": {
+        "name": "Third",
+        "currency": "MXN",
+        "targetAmountMinor": "10000"
+      }
+    },
+    {
+      "op": "goal.complete",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$second"
+      }
+    },
+    {
+      "op": "goal.archive",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$third"
+      }
+    },
+    {
+      "comment": "6.46: in creation order.",
+      "op": "goal.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "goal.list",
+      "outcome": "accepted",
+      "input": {
+        "status": "ACTIVE"
+      }
+    },
+    {
+      "op": "goal.list",
+      "outcome": "accepted",
+      "input": {
+        "status": "COMPLETED"
+      }
+    },
+    {
+      "op": "goal.list",
+      "outcome": "accepted",
+      "input": {
+        "status": "ARCHIVED"
+      }
+    },
+    {
+      "comment": "The exact constant name only.",
+      "op": "goal.list",
+      "outcome": "refused",
+      "input": {
+        "status": "active"
+      }
+    },
+    {
+      "op": "goal.list",
+      "outcome": "refused",
+      "input": {
+        "status": "GOAL_STATUS_ACTIVE"
+      }
+    },
+    {
+      "op": "goal.reactivate",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$second"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "as": "e1",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "1000",
+        "target": "$first"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "as": "e2",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "2000",
+        "target": "$second"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "as": "e3",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_MOVE",
+        "amountMinor": "500",
+        "source": "$first",
+        "target": "$second"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "as": "e4",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_WITHDRAW",
+        "amountMinor": "100",
+        "source": "$second"
+      }
+    },
+    {
+      "comment": "6.47: newest first.",
+      "op": "allocation.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "comment": "As source or target.",
+      "op": "allocation.list",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$first"
+      }
+    },
+    {
+      "op": "allocation.list",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$second"
+      }
+    },
+    {
+      "op": "allocation.list",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$third"
+      }
+    },
+    {
+      "op": "allocation.list",
+      "outcome": "refused",
+      "input": {
+        "goal": "not-an-id"
+      }
+    }
+  ]
+}

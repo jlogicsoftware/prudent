@@ -136,29 +136,50 @@ final class PrudentLocalStore {
   Future<ZenResult<Transfer>> deleteTransfer(String id) => transfers.delete(id);
 
   // ── Budgets and carry-over resets ───────────────────────────────────────────────────────────
+  //
+  // Each write below takes an [expect]: the rule the caller checked before writing, run again by the
+  // store inside the write's own turn (jZenDev/jZen#251), after anything a sync delivered meanwhile.
+  // A refusal it returns is the write's result, so a rule checked against one state never lands on
+  // another — above all, an edit never brings back a record a sync just deleted.
 
-  Future<ZenResult<Budget>> putBudget(Budget value) => _put(
-    budgets,
-    value,
-    _Rules<Budget>(
-      id: (v) => _derivedId(v.id, () => DerivedIds.budget(v.categoryId, v.month, v.currency)),
-      immutable: const ['categoryId', 'month', 'currency'],
-    ),
-  );
+  Future<ZenResult<Budget>> putBudget(
+    Budget value, {
+    ZenError? Function(Budget? current)? expect,
+  }) => _put(budgets, value, _budgetRules, expect: expect);
 
-  Future<ZenResult<Budget>> deleteBudget(String id) => budgets.delete(id);
+  Future<ZenResult<Budget>> deleteBudget(
+    String id, {
+    ZenError? Function(Budget? current)? expect,
+  }) => budgets.delete(id, expect: expect);
 
   /// Records a reset, unrevoked. It is an audit entry: never edited, never deleted (ADR-046).
-  Future<ZenResult<BudgetCarryOverReset>> addBudgetReset(BudgetCarryOverReset value) {
+  Future<ZenResult<BudgetCarryOverReset>> addBudgetReset(
+    BudgetCarryOverReset value, {
+    ZenError? Function(BudgetCarryOverReset? current)? expect,
+  }) {
     if (value.hasRevocation()) {
       return _refuse('A carry-over reset is recorded unrevoked; revoke it with revokeBudgetReset.');
     }
-    return _put(budgetResets, value, _Rules<BudgetCarryOverReset>(id: _randomId, writeOnce: true));
+    return _put(
+      budgetResets,
+      value,
+      _Rules<BudgetCarryOverReset>(id: _randomId, writeOnce: true),
+      expect: expect,
+    );
   }
 
   /// Marks the reset [id] revoked by this device at [atMs]. The only change a reset ever takes, and
-  /// only once.
-  Future<ZenResult<BudgetCarryOverReset>> revokeBudgetReset(String id, {required int atMs}) {
+  /// only once: the store refuses it inside the write's turn if the reset was revoked meanwhile (a
+  /// revocation that arrived by sync included) or is gone, besides whatever [expect] refuses.
+  ///
+  /// Two devices that revoke one reset offline merge without a question: the revocation is a group
+  /// (who and when) and jZen's `earliestBy` policy (jZenDev/jZen#244) keeps the earlier one whole
+  /// ([StorePolicies.budgetResets]).
+  Future<ZenResult<BudgetCarryOverReset>> revokeBudgetReset(
+    String id, {
+    required int atMs,
+    ZenError? Function(BudgetCarryOverReset current)? expect,
+  }) {
     final current = budgetResets.get(id);
     switch (current) {
       case ZenFailure(:final error):
@@ -169,31 +190,57 @@ final class PrudentLocalStore {
         return _put(
           budgetResets,
           next,
-          _Rules<BudgetCarryOverReset>(
-            id: _randomId,
-            immutable: const [
-              'categoryId',
-              'month',
-              'currency',
-              'discardedMinor',
-              'note',
-              'createdBy',
-              'createdAtMs',
-            ],
-          ),
+          _resetRevocationRules,
+          expect: (now) {
+            if (now == null) return ZenNotFoundError('budget_resets/$id does not exist.');
+            if (now.hasRevocation()) {
+              return ZenValidationError('budget_resets/$id is already revoked.');
+            }
+            return expect?.call(now);
+          },
         );
     }
   }
 
+  static final _budgetRules = _Rules<Budget>(
+    id: (v) => _derivedId(v.id, () => DerivedIds.budget(v.categoryId, v.month, v.currency)),
+    immutable: const ['categoryId', 'month', 'currency'],
+  );
+
+  static final _resetRevocationRules = _Rules<BudgetCarryOverReset>(
+    id: _randomId,
+    immutable: const [
+      'categoryId',
+      'month',
+      'currency',
+      'discardedMinor',
+      'note',
+      'createdBy',
+      'createdAtMs',
+    ],
+  );
+
   // ── Goals and allocations ───────────────────────────────────────────────────────────────────
 
   /// A goal is retired, never deleted (ADR-049); its currency and creation time never change.
-  Future<ZenResult<Goal>> putGoal(Goal value) =>
-      _put(goals, value, _Rules<Goal>(id: _randomId, immutable: const ['currency', 'createdAtMs']));
+  Future<ZenResult<Goal>> putGoal(Goal value, {ZenError? Function(Goal? current)? expect}) =>
+      _put(goals, value, _goalRules, expect: expect);
 
   /// Append-only, as on the server (ADR-050): written once, never edited or deleted.
-  Future<ZenResult<GoalAllocation>> addGoalAllocation(GoalAllocation value) =>
-      _put(goalAllocations, value, _Rules<GoalAllocation>(id: _randomId, writeOnce: true));
+  Future<ZenResult<GoalAllocation>> addGoalAllocation(
+    GoalAllocation value, {
+    ZenError? Function(GoalAllocation? current)? expect,
+  }) => _put(
+    goalAllocations,
+    value,
+    _Rules<GoalAllocation>(id: _randomId, writeOnce: true),
+    expect: expect,
+  );
+
+  static final _goalRules = _Rules<Goal>(
+    id: _randomId,
+    immutable: const ['currency', 'createdAtMs'],
+  );
 
   // ── Plans and occurrences ───────────────────────────────────────────────────────────────────
 

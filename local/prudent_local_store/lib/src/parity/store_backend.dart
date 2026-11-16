@@ -1,10 +1,12 @@
 import 'dart:io';
 
-import 'package:fixnum/fixnum.dart';
 import 'package:prudent_local_core/parity.dart';
 import 'package:prudent_local_core/prudent_local_core.dart';
 import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/budgets.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/goal_allocations.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/goals.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/imports.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/records.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart' as wire;
@@ -12,8 +14,6 @@ import 'package:protobuf/protobuf.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_store/zen_store.dart';
 
-import '../../generated/prudent_local/v1/store.pb.dart';
-import '../derived_ids.dart';
 import '../imports/import_workflow.dart';
 import '../ledger/ledger.dart';
 import '../ledger/ledger_errors.dart';
@@ -30,11 +30,12 @@ import 'import_parity.dart';
 /// JSON and read by the same [ParityReaders] the server's answers are, so the two sides observe
 /// alike by construction.
 ///
-/// **`budget.set` and `reset.create` are stand-ins until unit 6a** ports the budget and reset rules:
-/// they enforce exactly what unit 3's backend did (the category exists, month, currency, a positive
-/// amount; the note; one live reset per slot) and write the store record. Any rule of the server's
-/// they lack shows as a difference, never as a pass, which is why every setup step of a scenario
-/// states its outcome.
+/// Budgets, resets, goals and allocations (unit 6a) go through the ledger too; `budget.set` and
+/// `reset.create` kept the names of unit 3's stand-ins, which they replaced.
+///
+/// **The clock is strictly increasing** ([_tick]): a history is ordered by creation time, and two
+/// entries written within one millisecond would tie and fall back to their random ids, an order the
+/// server's microsecond clock never shows. That is a property of the harness, not of the ledger.
 final class StoreBackend extends ParityBackend {
   @override
   String get name => 'local';
@@ -69,6 +70,10 @@ final class StoreBackend extends ParityBackend {
     'correction.delete': _guarded(_deleteCorrection),
     'settings.update': _guarded(_updateSettings),
     'budget.set': _guarded(_setBudget),
+    'budget.get': _guarded(_getBudget),
+    'budget.delete': _guarded(_deleteBudget),
+    'budget.list': _guarded(_listBudgets),
+    'budget.summary': _guarded(_budgetSummary),
     'reset.create': _guarded(_createReset),
     // Unit 8b, statement import (ADR-114).
     'import.create': _guarded(_createImport),
@@ -77,7 +82,30 @@ final class StoreBackend extends ParityBackend {
     'import.row': _guarded(_importRow),
     'import.commit': _guarded(_commitImport),
     'import.discard': _guarded(_discardImport),
+    'reset.revoke': _guarded(_revokeReset),
+    'reset.list': _guarded(_listResets),
+    'goal.create': _guarded(_createGoal),
+    'goal.get': _guarded(_getGoal),
+    'goal.update': _guarded(_updateGoal),
+    'goal.complete': _guarded((i, b) => _transition(i, b, _ledger.completeGoal)),
+    'goal.archive': _guarded((i, b) => _transition(i, b, _ledger.archiveGoal)),
+    'goal.reactivate': _guarded((i, b) => _transition(i, b, _ledger.reactivateGoal)),
+    'goal.list': _guarded(_listGoals),
+    'goal.progress': _guarded(_goalProgress),
+    'allocation.create': _guarded(_createAllocation),
+    'allocation.get': _guarded(_getAllocation),
+    'allocation.list': _guarded(_listAllocations),
+    'envelope.list': _guarded(_listEnvelopes),
+    'freemoney.get': _guarded(_freeMoney),
   };
+
+  int _lastTick = 0;
+
+  int _tick() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _lastTick = now > _lastTick ? now : _lastTick + 1;
+    return _lastTick;
+  }
 
   @override
   Future<void> open(String scenarioName) async {
@@ -86,12 +114,9 @@ final class StoreBackend extends ParityBackend {
     final zen = _ok(await ZenStore.open(directory, deviceName: 'parity', key: List.filled(32, 7)));
     _zen = zen;
     _store = PrudentLocalStore(zen);
-    _ledger = Ledger(_store);
+    _ledger = Ledger(_store, clock: _tick);
     // The wall clock, as the server's: its importer measures dates from today in UTC.
-    _imports = ImportWorkflow(
-      ledger: _store,
-      nowMs: () => DateTime.now().millisecondsSinceEpoch,
-    );
+    _imports = ImportWorkflow(ledger: _store, nowMs: () => DateTime.now().millisecondsSinceEpoch);
   }
 
   @override
@@ -336,71 +361,235 @@ final class StoreBackend extends ParityBackend {
     );
   }
 
-  // ── Budgets and resets: unit 3's stand-ins until unit 6a ────────────────────────────────────
+  // ── Budgets and resets (unit 6a) ───────────────────────────────────────────────────────────
 
-  /// The order of `BudgetResource.set`: category, month, currency, then a positive amount.
   Future<StepResult> _setBudget(Map<String, Object?> input, ParityBindings bindings) async {
-    final category = _category(input, bindings);
-    final month = CivilMonth.parse(input['month'] as String?);
-    final currency = Currencies.parse(input['currency'] as String?);
-    final amount = int.parse(input['amountMinor']! as String);
-    if (amount <= 0) {
-      throw const Refusal.invalid('6', 'A budget needs a positive amount.');
-    }
-    final budget = Budget(
-      id: DerivedIds.budget(category, month.toString(), currency),
-      categoryId: category,
-      month: month.toString(),
-      currency: currency,
-      amountMinor: Int64(amount),
+    final written = _ok(
+      await _ledger.setBudget(
+        bindings.idOrLiteral(input['category'])!,
+        input['month']! as String,
+        input['currency']! as String,
+        int.parse(input['amountMinor']! as String),
+      ),
     );
-    _ok(await _store.putBudget(budget));
     return StepResult(
       ParityObservation.accepted({
-        'month': month.toString(),
-        'currency': currency,
-        'amountMinor': ParityObservation.figure(amount),
+        ...ParityReaders.budget(_json(written.budget), bindings),
+        'created': written.created,
       }),
     );
   }
 
-  /// The order of `BudgetCarryOverResetResource.reset`: category, month, currency, note, then one
-  /// live reset per slot. The discarded carry-over is unit 6a's calculation.
-  Future<StepResult> _createReset(Map<String, Object?> input, ParityBindings bindings) async {
-    final category = _category(input, bindings);
-    final month = CivilMonth.parse(input['month'] as String?);
-    final currency = Currencies.parse(input['currency'] as String?);
-    final note = TextRules.strippedNote((input['note'] as String?) ?? '');
-    final live = _ok(_store.budgetResets.list()).any(
-      (r) =>
-          !r.hasRevocation() &&
-          r.categoryId == category &&
-          r.month == month.toString() &&
-          r.currency == currency,
+  Future<StepResult> _getBudget(Map<String, Object?> input, ParityBindings bindings) async {
+    final budget = _ok(
+      await _ledger.getBudget(
+        bindings.idOrLiteral(input['category'])!,
+        input['month']! as String,
+        input['currency']! as String,
+      ),
     );
-    if (live) throw const Refusal.conflict('6', 'This slot already has a live reset.');
-    final reset = BudgetCarryOverReset(
-      id: _store.newId(),
-      categoryId: category,
-      month: month.toString(),
-      currency: currency,
-      createdBy: _store.deviceId,
-      createdAtMs: Int64(1),
+    return StepResult(ParityObservation.accepted(ParityReaders.budget(_json(budget), bindings)));
+  }
+
+  Future<StepResult> _deleteBudget(Map<String, Object?> input, ParityBindings bindings) async {
+    _ok(
+      await _ledger.deleteBudget(
+        bindings.idOrLiteral(input['category'])!,
+        input['month']! as String,
+        input['currency']! as String,
+      ),
     );
-    if (note.isNotEmpty) reset.note = note;
-    _ok(await _store.addBudgetReset(reset));
+    return StepResult(ParityObservation.accepted());
+  }
+
+  Future<StepResult> _listBudgets(Map<String, Object?> input, ParityBindings bindings) async {
+    final list = _ok(
+      await _ledger.listBudgets(
+        month: input['month'] as String?,
+        categoryId: bindings.idOrLiteral(input['category']),
+      ),
+    );
+    final rows = (_json(list)['budgets'] as List<Object?>?) ?? const [];
     return StepResult(
-      ParityObservation.accepted({'month': month.toString(), 'currency': currency, 'note': note}),
+      ParityObservation.accepted({
+        'budgets': ParityReaders.boundRows(
+          rows,
+          bindings,
+          'categoryId',
+          (row) => ParityReaders.budget(row, bindings),
+        ),
+      }),
+    );
+  }
+
+  Future<StepResult> _budgetSummary(Map<String, Object?> input, ParityBindings bindings) async {
+    final summary = _settled(
+      _ok(await _ledger.budgetSummary(input['month']! as String, input['currency']! as String)),
+    );
+    return StepResult(
+      ParityObservation.accepted(ParityReaders.budgetSummary(_json(summary), bindings)),
+    );
+  }
+
+  /// The reset request a scenario's input names: the category is a reference.
+  static Map<String, Object?> resetBody(Map<String, Object?> input, ParityBindings bindings) => {
+    'categoryId': bindings.idOrLiteral(input['category']),
+    'month': input['month'],
+    'currency': input['currency'],
+    'note': input['note'],
+  };
+
+  Future<StepResult> _createReset(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.ResetBudgetCarryOverRequest()
+      ..mergeFromProto3Json(_present(resetBody(input, bindings)));
+    final reset = _ok(await _ledger.resetBudgetCarryOver(request));
+    return StepResult(
+      ParityObservation.accepted(ParityReaders.reset(_json(reset), bindings)),
       createdId: reset.id,
     );
   }
 
-  String _category(Map<String, Object?> input, ParityBindings bindings) {
-    final id = bindings.resolve(input['category']);
-    if (!_ok(_store.categories.get(id)).hasId()) {
-      throw StateError('no step created category ${input['category']}');
-    }
-    return id;
+  Future<StepResult> _revokeReset(Map<String, Object?> input, ParityBindings bindings) async {
+    final reset = _ok(await _ledger.revokeBudgetReset(bindings.idOrLiteral(input['reset'])!));
+    return StepResult(ParityObservation.accepted(ParityReaders.reset(_json(reset), bindings)));
+  }
+
+  Future<StepResult> _listResets(Map<String, Object?> input, ParityBindings bindings) async {
+    final list = _ok(
+      await _ledger.listBudgetResets(
+        categoryId: bindings.idOrLiteral(input['category']),
+        currency: input['currency'] as String?,
+      ),
+    );
+    final rows = (_json(list)['resets'] as List<Object?>?) ?? const [];
+    return StepResult(
+      ParityObservation.accepted({'resets': ParityReaders.boundNames(rows, bindings)}),
+    );
+  }
+
+  // ── Goals and allocations (unit 6a) ─────────────────────────────────────────────────────────
+
+  /// The goal request a scenario's input names (create and update take the same fields; update
+  /// ignores the currency, which the server's update request does not have).
+  static Map<String, Object?> goalBody(Map<String, Object?> input, {required bool create}) => {
+    'name': input['name'],
+    if (create) 'currency': input['currency'],
+    'targetAmountMinor': input['targetAmountMinor'],
+    if (input.containsKey('targetDate')) 'targetDate': input['targetDate'],
+  };
+
+  Future<StepResult> _createGoal(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.CreateGoalRequest()
+      ..mergeFromProto3Json(_present(goalBody(input, create: true)));
+    final goal = _ok(await _ledger.createGoal(request));
+    return StepResult(
+      ParityObservation.accepted(ParityReaders.goal(_json(goal))),
+      createdId: goal.id,
+    );
+  }
+
+  Future<StepResult> _getGoal(Map<String, Object?> input, ParityBindings bindings) async {
+    final goal = _ok(await _ledger.getGoal(bindings.idOrLiteral(input['goal'])!));
+    return StepResult(ParityObservation.accepted(ParityReaders.goal(_json(goal))));
+  }
+
+  Future<StepResult> _updateGoal(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.UpdateGoalRequest()
+      ..mergeFromProto3Json(_present(goalBody(input, create: false)));
+    final goal = _ok(await _ledger.updateGoal(bindings.idOrLiteral(input['goal'])!, request));
+    return StepResult(ParityObservation.accepted(ParityReaders.goal(_json(goal))));
+  }
+
+  Future<StepResult> _transition(
+    Map<String, Object?> input,
+    ParityBindings bindings,
+    Future<ZenResult<wire.Goal>> Function(String id) move,
+  ) async {
+    final goal = _ok(await move(bindings.idOrLiteral(input['goal'])!));
+    return StepResult(ParityObservation.accepted(ParityReaders.goal(_json(goal))));
+  }
+
+  Future<StepResult> _listGoals(Map<String, Object?> input, ParityBindings bindings) async {
+    final list = _ok(await _ledger.listGoals(status: input['status'] as String?));
+    final rows = (_json(list)['goals'] as List<Object?>?) ?? const [];
+    return StepResult(
+      ParityObservation.accepted({'goals': ParityReaders.boundNames(rows, bindings)}),
+    );
+  }
+
+  Future<StepResult> _goalProgress(Map<String, Object?> input, ParityBindings bindings) async {
+    final progress = _json(
+      _settled(_ok(await _ledger.goalProgress(asOf: input['asOf'] as String?))),
+    );
+    return StepResult(
+      ParityObservation.accepted({
+        'asOf': ParityReaders.string(progress, 'asOf'),
+        'goals': ParityReaders.boundRows(
+          (progress['goals'] as List<Object?>?) ?? const [],
+          bindings,
+          'goalId',
+          (row) => ParityReaders.goalProgress(row, bindings),
+        ),
+      }),
+    );
+  }
+
+  /// The envelope-entry request a scenario's input names: goals are references.
+  static Map<String, Object?> allocationBody(Map<String, Object?> input, ParityBindings bindings) =>
+      {
+        'kind': input['kind'],
+        if (input.containsKey('source')) 'sourceGoalId': bindings.idOrLiteral(input['source']),
+        if (input.containsKey('target')) 'targetGoalId': bindings.idOrLiteral(input['target']),
+        'amountMinor': input['amountMinor'],
+        if (input.containsKey('note')) 'note': input['note'],
+      };
+
+  Future<StepResult> _createAllocation(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.CreateGoalAllocationRequest()
+      ..mergeFromProto3Json(_present(allocationBody(input, bindings)));
+    final entry = _ok(await _ledger.createGoalAllocation(request));
+    return StepResult(
+      ParityObservation.accepted(ParityReaders.allocation(_json(entry), bindings)),
+      createdId: entry.id,
+    );
+  }
+
+  Future<StepResult> _getAllocation(Map<String, Object?> input, ParityBindings bindings) async {
+    final entry = _ok(await _ledger.getGoalAllocation(bindings.idOrLiteral(input['allocation'])!));
+    return StepResult(ParityObservation.accepted(ParityReaders.allocation(_json(entry), bindings)));
+  }
+
+  Future<StepResult> _listAllocations(Map<String, Object?> input, ParityBindings bindings) async {
+    final list = _ok(
+      await _ledger.listGoalAllocations(goalId: bindings.idOrLiteral(input['goal'])),
+    );
+    final rows = (_json(list)['allocations'] as List<Object?>?) ?? const [];
+    return StepResult(
+      ParityObservation.accepted({'allocations': ParityReaders.boundNames(rows, bindings)}),
+    );
+  }
+
+  Future<StepResult> _listEnvelopes(Map<String, Object?> input, ParityBindings bindings) async {
+    final list = _json(_ok(await _ledger.listGoalEnvelopes()));
+    return StepResult(
+      ParityObservation.accepted({
+        'envelopes': ParityReaders.boundRows(
+          (list['envelopes'] as List<Object?>?) ?? const [],
+          bindings,
+          'goalId',
+          (row) => ParityReaders.envelope(row, bindings),
+        ),
+      }),
+    );
+  }
+
+  Future<StepResult> _freeMoney(Map<String, Object?> input, ParityBindings bindings) async {
+    final money = _json(_settled(_ok(await _ledger.freeMoney())));
+    return StepResult(
+      ParityObservation.accepted(
+        ParityReaders.freeMoney(money, input['currency']! as String, bindings),
+      ),
+    );
   }
 
   // ── Statement import (unit 8b) ──────────────────────────────────────────────────────────────
