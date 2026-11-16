@@ -8,11 +8,11 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/account/account_list.dart';
-import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
-import 'package:prudent/l10n/generated/prudent_localizations.dart';
-import 'package:prudent/load_error_view.dart';
-import 'package:prudent/providers.dart';
+import 'package:prudent_ui/account/account_list.dart';
+import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/load_error_view.dart';
+import 'package:prudent_ui/providers.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 const _rawError = 'ZenTransportError(code: internal_error, message: Something went wrong.)';
@@ -129,11 +129,12 @@ void main() {
   // call site that passes `error.toString()`.
   test('no *LoadError string takes the exception, and no screen passes it on', () {
     for (final locale in ['en', 'uk', 'pl']) {
-      final arb = File('lib/l10n/prudent_$locale.arb').readAsStringSync();
+      final arb = File('../packages/prudent_ui/lib/l10n/prudent_$locale.arb').readAsStringSync();
       expect(arb, isNot(contains('{error}')), reason: 'prudent_$locale.arb interpolates an exception');
     }
     final offenders = [
-      for (final f in Directory('lib').listSync(recursive: true).whereType<File>())
+      for (final dir in ['lib', '../packages/prudent_ui/lib'])
+        for (final f in Directory(dir).listSync(recursive: true).whereType<File>())
         if (f.path.endsWith('.dart') &&
             !f.path.contains('/generated/') &&
             f.readAsStringSync().contains('error.toString()'))

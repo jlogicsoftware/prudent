@@ -1,6 +1,7 @@
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/record/record_filter.dart';
+import 'package:prudent/record_filter_query.dart';
+import 'package:prudent_ui/record/record_filter.dart';
 
 void main() {
   group('RecordFilter.isEmpty', () {

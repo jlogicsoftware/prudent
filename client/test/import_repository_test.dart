@@ -10,12 +10,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:prudent/generated/prudent/v1/imports.pb.dart';
-import 'package:prudent/imports/import_failure.dart';
-import 'package:prudent/imports/import_providers.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent_ui/generated/prudent/v1/imports.pb.dart';
+import 'package:prudent_ui/imports/import_failure.dart';
+import 'package:prudent_ui/imports/import_providers.dart';
+import 'package:prudent_ui/prudent_repository.dart';
 import 'package:prudent/server_prudent_repository.dart';
-import 'package:prudent/providers.dart';
+import 'package:prudent_ui/providers.dart';
 import 'package:protobuf/protobuf.dart';
 import 'package:zen_transport/zen_transport.dart';
 

@@ -4,11 +4,11 @@ import 'package:zen_ui_identity/zen_ui_identity.dart';
 import 'package:zen_ui_navigation/zen_ui_navigation.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
-import 'l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'l10n/pl_identity_delegate.dart';
-import 'l10n/pl_navigation_delegate.dart';
-import 'l10n/pl_widgets_delegate.dart';
-import 'providers.dart';
+import 'package:prudent_ui/l10n/pl_navigation_delegate.dart';
+import 'package:prudent_ui/l10n/pl_widgets_delegate.dart';
+import 'package:prudent_ui/providers.dart';
 import 'app_root.dart';
 
 /// The root of Prudent. Routes on the identity session: anonymous -> the auth flow,

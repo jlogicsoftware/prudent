@@ -67,7 +67,7 @@ to a contract, and a contract is the one place a guess is expensive to withdraw.
 | Side | Output | Tracked? |
 |---|---|---|
 | Java | `server/target/generated-sources/protobuf/` | **No** |
-| Dart | `client/lib/generated/prudent/v1/*.pb*.dart` | **Yes** |
+| Dart | `packages/prudent_ui/lib/generated/prudent/v1/*.pb*.dart` | **Yes** |
 
 The split is a **toolchain-boundary** question, not a preference. `protobuf-maven-plugin`
 resolves the `protoc` binary from Maven Central, so any consumer with Maven regenerates the Java

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/generated/prudent/v1/categories.pb.dart';
-import 'package:prudent/prudent_repository.dart';
+import 'package:prudent_ui/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_ui/prudent_repository.dart';
 import 'package:zen_core/zen_core.dart';
 
 /// A [PrudentRepository] that answers from memory, for tests that run a screen without any
@@ -25,21 +25,5 @@ class FakePrudentRepository extends Fake implements PrudentRepository {
     final failure = listCategoriesFailure;
     if (failure != null) return ZenFailure(failure);
     return ZenSuccess(ListCategoriesResponse(categories: categories));
-  }
-
-  @override
-  Future<ZenResult<Category>> createCategory(
-    CreateCategoryRequest request,
-  ) async {
-    final created = Category(
-      id: 'fake-${categories.length + 1}',
-      title: request.title,
-      iconKey: request.iconKey,
-      description: request.description,
-      colorArgb: request.colorArgb,
-      kind: request.kind,
-    );
-    categories.add(created);
-    return ZenSuccess(created);
   }
 }

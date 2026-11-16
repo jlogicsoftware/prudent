@@ -2,7 +2,7 @@
 // proto/prudent/v1/categories.proto: "a category created by a newer client must not break an
 // older one").
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/category/category_icons.dart';
+import 'package:prudent_ui/category/category_icons.dart';
 
 void main() {
   test('a known key resolves to its icon', () {

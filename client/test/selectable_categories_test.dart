@@ -1,7 +1,7 @@
 // Which categories a record form offers (M3, jlogicsoftware/prudent#62, ADR-047).
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/category/selectable_categories.dart';
-import 'package:prudent/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_ui/category/selectable_categories.dart';
+import 'package:prudent_ui/generated/prudent/v1/categories.pb.dart';
 
 Category _category(String id, {bool archived = false}) =>
     Category(id: id, title: id, archived: archived);

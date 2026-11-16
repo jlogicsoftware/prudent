@@ -8,11 +8,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:prudent/notification/local_notification_gateway.dart';
-import 'package:prudent/notification/notification_providers.dart';
-import 'package:prudent/notification/reminder_notification.dart';
-import 'package:prudent/privacy/privacy_actions.dart';
-import 'package:prudent/providers.dart';
+import 'package:prudent/auth/identity_settings_session.dart';
+import 'package:prudent_ui/notification/local_notification_gateway.dart';
+import 'package:prudent_ui/notification/notification_providers.dart';
+import 'package:prudent_ui/notification/reminder_notification.dart';
+import 'package:prudent_ui/privacy/privacy_actions.dart';
+import 'package:prudent_ui/providers.dart';
 import 'package:prudent/server_prudent_repository.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_identity/zen_identity.dart';
@@ -153,6 +154,7 @@ void main() {
       overrides: [
         prudentRepositoryProvider.overrideWithValue(ServerPrudentRepository(client: client)),
         identityRepositoryProvider.overrideWithValue(identity),
+        identitySettingsSession,
         localNotificationGatewayProvider.overrideWithValue(device),
       ],
     );

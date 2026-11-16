@@ -9,8 +9,9 @@ import 'package:zen_ui_identity/zen_ui_identity.dart';
 
 import 'app.dart';
 import 'auth/auth_deep_links.dart';
+import 'auth/identity_settings_session.dart';
 import 'server_prudent_repository.dart';
-import 'providers.dart';
+import 'package:prudent_ui/providers.dart';
 
 /// Wires Prudent to the real backend. One session [http.Client] ([createSessionClient], the
 /// compile-time platform seam: a native cookie jar or a credentialed browser client) is shared by
@@ -78,6 +79,7 @@ void main() async {
       // The SAME client the repositories use, not another one: the store restores the refresh
       // cookie into this jar, and a second client would restore it into a jar nobody sends from.
       sessionClientProvider.overrideWithValue(session),
+      identitySettingsSession,
     ],
   );
 

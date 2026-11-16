@@ -14,14 +14,14 @@
 
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
-import 'package:prudent/generated/prudent/v1/categories.pb.dart';
-import 'package:prudent/generated/prudent/v1/goal_allocations.pb.dart';
-import 'package:prudent/generated/prudent/v1/goals.pb.dart';
-import 'package:prudent/generated/prudent/v1/plans.pb.dart';
-import 'package:prudent/generated/prudent/v1/records.pb.dart';
-import 'package:prudent/generated/prudent/v1/reminders.pb.dart';
-import 'package:prudent/generated/prudent/v1/settings.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/goal_allocations.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/goals.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/plans.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/records.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/reminders.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/settings.pb.dart';
 import 'package:protobuf/protobuf.dart';
 import 'package:zen_transport/zen_transport.dart';
 

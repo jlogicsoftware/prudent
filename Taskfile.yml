@@ -25,14 +25,17 @@ includes:
       PROTO_DIR: proto
       # Where zen:generate:proto:dart writes Prudent's messages. OVERRIDDEN, because the task's
       # default is `<client>/<app>_client/lib/generated` — the conventional layout, where the
-      # client tier holds a package per concern. Prudent's client tier IS the Flutter package, so
-      # its messages live inside it.
+      # client tier holds a package per concern. Prudent's messages belong to the shared package its
+      # screens live in (packages/prudent_ui, ADR-108), which every Prudent app links.
       #
-      # Flat at lib/generated/, not lib/src/generated/ (ADR-026). Prudent's client is a leaf
-      # application imported by nobody, so the lib/src/ privacy split buys nothing; every
-      # capability folder and cross-cutting file sits directly under lib/, and the generated
-      # messages are one more directory there.
-      PROTO_DART_OUT: client/lib/generated
+      # Flat at lib/generated/, not lib/src/generated/ (ADR-026): the package is imported as
+      # package:prudent_ui/<folder>/<file>.dart, so the lib/src/ privacy split buys nothing.
+      PROTO_DART_OUT: packages/prudent_ui/lib/generated
+      # The Dart packages the tree-walking tasks cover: pub get, gen-l10n discovery, the
+      # one-widget-per-file gate and the test suites. The server-connected app AND the shared
+      # package, so a gate that reads only `client/` cannot go green over a package it never read
+      # (ADR-108). Space-separated, as jZen's DART_ROOTS documents.
+      DART_ROOTS: client packages/prudent_ui
       # OVERRIDDEN for the same reason as PROTO_DART_OUT: zen:run:client / zen:run:dev default the
       # Flutter package to `<client>/<app>_client`, the per-concern-package layout. Prudent's
       # client tier IS the Flutter package, so it is `client/` itself. (build:runners already
@@ -64,7 +67,7 @@ includes:
 #   generate            Regenerate every cross-language artifact — no gate, always green
 #   verify:contracts    generate, then FAIL if the tree drifted (was Prudent's sync:contracts)
 #   generate:proto[:java|:dart] / generate:api[:schema|:ts] / generate:l10n   the loop's parts
-#   verify:analyze      flutter analyze (incl. riverpod_lint) in client/, dart analyze in local/, infos fatal
+#   verify:analyze      flutter analyze (incl. riverpod_lint) in client/ and packages/prudent_ui, dart analyze in local/, infos fatal
 #   test:client         Every Dart/Flutter suite
 #   build:runners       Every delivery runner this host can build; skips are announced
 #   run:supabase / run:server / run:client / run:admin / run:dev   the local stack — #78/#81/#89
@@ -111,7 +114,7 @@ tasks:
   #
   #   proto/prudent/v1/*.proto              (canonical models)
   #     |-- protoc --> Java DTOs            (protobuf-maven-plugin; NOT tracked)
-  #     |-- protoc --> Dart messages        (protoc_plugin;         TRACKED at client/lib/generated)
+  #     |-- protoc --> Dart messages        (protoc_plugin;         TRACKED at packages/prudent_ui/lib/generated)
   #   annotated resources + SmallRye --> openapi.json (target/, NOT tracked) --> admin TS
   #     (openapi-typescript --> admin/src/api/schema.generated.ts; TRACKED)
   #
@@ -211,11 +214,14 @@ tasks:
       override, so it cannot be pointed at a second repository (docs/prudent-migration-plan.md
       §3.7, finding 2). The duplication is a jZen-side finding, not a design choice made here.
 
-      Four checks, detailed on the script itself: (A) no provider SDK or firebase_* dependency,
+      Five checks, detailed on the script itself: (A) no provider SDK or firebase_* dependency,
       (B) no provider host or credential in client source — including Prudent's own retired
-      Firebase project, (C) no absolute URL literal outside the one compile-time zenApiUrl, and
+      Firebase project, (C) no absolute URL literal outside the one compile-time zenApiUrl,
       (D) Prudent's own additions — package:http stays in the composition root, google_fonts is
-      gone.
+      gone, and (E, ADR-108) the shared package packages/prudent_ui imports and depends on neither
+      zen_transport nor zen_identity (nor zen_ui_identity / zen_secure_store, which wrap them), so a
+      Prudent app with no server can link its screens. All of them scan client/lib AND the shared
+      package. scripts/test_verify_boundaries.py runs first and plants each violation.
 
       WHY THIS MATTERS MORE THAN IT LOOKS: an app that called a third-party backend directly
       would still authenticate, still render, and still pass every other suite here — the defect
@@ -229,41 +235,45 @@ tasks:
       that matches nothing is a failure, not a pass — enforced by the same StaleScope guard the
       Dart scopes already use.
     cmds:
+      - python3 -m unittest discover -s scripts -p 'test_verify_boundaries.py'
       - python3 scripts/verify_boundaries.py
 
   verify:analyze:
-    desc: Fail on any issue the Dart analyzer (and its riverpod_lint plugin) reports in client/
+    desc: Fail on any issue the Dart analyzer (and its riverpod_lint plugin) reports in client/ or packages/prudent_ui
     summary: |
       THE GATE BEHIND "the analyzer is configured" (client/analysis_options.yaml, ADR-099, ADR-104).
       Until ADR-104 nothing ran `flutter analyze`: flutter_lints and the riverpod_lint analyzer
       plugin were declared and enforced by nobody, and a declared rule nothing runs is decoration.
 
       Runs `flutter gen-l10n` first (the analyzer needs Prudent's generated localizations, which are
-      built and never committed), then `flutter analyze --fatal-infos --fatal-warnings` in client/ —
-      — and then `dart analyze` with the same flags in local/prudent_local_core and
-      local/prudent_parity_server (ADR-107) — so an info-level lint, which is what riverpod_lint
-      and most of flutter_lints report, fails the build like an error does.
+      built and never committed; the strings belong to the shared package), then
+      `flutter analyze --fatal-infos --fatal-warnings` in BOTH Flutter packages — packages/prudent_ui,
+      which holds the screens (ADR-108), and client/, which holds the composition root — and then
+      `dart analyze` with the same flags in local/prudent_local_core and local/prudent_parity_server
+      (ADR-108), so an info-level lint, which is what riverpod_lint and most of flutter_lints report,
+      fails the build like an error does. A package left out of this list would be a package the gate
+      never reads.
 
-      client/lib/generated/ and client/lib/l10n/generated/ are excluded in analysis_options.yaml
-      (derived output, unactionable by construction; the reasoning is written there). Run
-      The client's packages are resolved first (`deps:`), so it works on a fresh checkout. That the plugin really loads in CI was proved
+      packages/prudent_ui/lib/generated/ and its lib/l10n/generated/ are excluded in that package's
+      analysis_options.yaml (derived output, unactionable by construction; the reasoning is written
+      there). The packages are resolved first (`deps:`), so it works on a fresh checkout. That the plugin really loads in CI was proved
       once by hand, with a deliberate provider misuse that turned the job red (ADR-104); no check
       re-proves it on every run.
     deps:
       - task: zen:deps:client
-    dir: client
     cmds:
-      - flutter gen-l10n
-      - flutter analyze --fatal-infos --fatal-warnings
+      - cd packages/prudent_ui && flutter gen-l10n
+      - cd packages/prudent_ui && flutter analyze --fatal-infos --fatal-warnings
+      - cd client && flutter analyze --fatal-infos --fatal-warnings
       # Prudent Local's pure-Dart packages (ADR-107): the same severity, through `dart analyze`.
-      - cd ../local/prudent_local_core && dart pub get && dart analyze --fatal-infos --fatal-warnings
-      - cd ../local/prudent_parity_server && dart pub get && dart analyze --fatal-infos --fatal-warnings
+      - cd local/prudent_local_core && dart pub get && dart analyze --fatal-infos --fatal-warnings
+      - cd local/prudent_parity_server && dart pub get && dart analyze --fatal-infos --fatal-warnings
 
   verify:controls:
     desc: Fail if client screens use raw Material controls zen_ui_widgets replaces
     summary: |
       THE GATE BEHIND "Client UI: the framework's controls first" (CLAUDE.md, ADR-041, ADR-059).
-      Runs scripts/verify_controls.py over client/lib (generated/ and l10n/ excluded) and fails on
+      Runs scripts/verify_controls.py over client/lib and packages/prudent_ui/lib (generated/ and l10n/ excluded) and fails on
       ElevatedButton, FilledButton, OutlinedButton, TextButton, DropdownButton,
       DropdownButtonFormField, SegmentedButton, SwitchListTile, showDatePicker,
       showDateRangePicker, showModalBottomSheet, TextField, TextFormField, IconButton,

@@ -2,7 +2,7 @@
 // throws on (docs/prudent-migration-plan.md Phase 4 test list).
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/analytics/donut_chart_painter.dart';
+import 'package:prudent_ui/analytics/donut_chart_painter.dart';
 
 Future<void> _pump(WidgetTester tester, List<DonutSlice> slices) => tester.pumpWidget(
   MaterialApp(

@@ -30,7 +30,7 @@ divergence is recorded as a Prudent ADR.
 ## Current state: Phases 0-5 have landed; a real deploy has not (deliberately)
 
 As of 2026-08-23 the repository has a **language-neutral root over four tiers**: `client/` (the
-Flutter app), `server/` (a Quarkus backend), `admin/` (the react-admin panel),
+server-connected Flutter app, whose screens now live in the shared package `packages/prudent_ui`, ADR-108), `server/` (a Quarkus backend), `admin/` (the react-admin panel),
 `proto/prudent/v1/` (the wire contract), and a `Taskfile.yml` that includes jZen's. The contract,
 its generate/verify loop and the round-trip suite that proves it are in place —
 `task verify:contracts` (the drift gate; `task generate` regenerates without it) and
@@ -44,8 +44,20 @@ tracked artifact the gate watches.
 Built and merged: the backend (`AccountResource`, `CategoryResource`, `RecordResource`,
 `SettingsResource`, `AnalyticsResource`, `HealthResource` over four Panache entities), the Flyway
 migration and its row-level security, and the client rewired onto `ZenClient` with auth and the
-navigation shell. Screens and providers depend on the abstract `PrudentRepository` (`client/lib/prudent_repository.dart`); `ServerPrudentRepository` (`server_prudent_repository.dart`) is its HTTP implementation and only `main.dart` names it (ADR-105). The third-party backend call the
+navigation shell. Screens and providers depend on the abstract `PrudentRepository` (`packages/prudent_ui/lib/prudent_repository.dart`); `ServerPrudentRepository` (`client/lib/server_prudent_repository.dart`) is its HTTP implementation and only `main.dart` names it (ADR-105). The third-party backend call the
 conversion existed to remove is gone.
+
+**The shared package (ADR-108, unit 2 of `docs/plans/PRUDENT-LOCAL-PLAN.md`).** `packages/prudent_ui` holds every screen, view model, provider,
+the money formatting, `PrudentRepository`, the notification code, the `{en, uk, pl}` ARB files with `l10n.yaml` and the generated protobuf
+messages, imported as `package:prudent_ui/<folder>/<file>.dart`. `client/` keeps `main.dart`, `app.dart`, `app_root.dart`, `auth/`,
+`ServerPrudentRepository` and the Polish identity wording, consumes the package by `path:`, and still holds **all** the tests (the package has
+its own in `packages/prudent_ui/test/`). The package **must not import or depend on** `zen_transport`, `zen_identity`, `zen_ui_identity` or
+`zen_secure_store` — `task verify:boundaries` check E fails when it does — so a failure's code is read with `failureCode(error)`
+(`ZenError.internalData['code']`), the profile page and sign-out reach Settings as a `SettingsSession?` that `client/` provides
+(`identitySettingsSession`), and a record filter's query string is `client/lib/record_filter_query.dart`. Every gate covers both packages
+(`DART_ROOTS` on the include; `verify:controls`, `verify:analyze` and the contract loop's `PROTO_DART_OUT` name the package). Nothing consumes the
+package but `client/` yet; `local/prudent_local_client` (ADR-101) will. Where this file says `client/lib/<folder>` for a screen, the folder
+is now under `packages/prudent_ui/lib/`.
 
 The client's overlays (add/edit account, correction, record, category, filter) all open through jZen's
 `zen_ui_widgets` `showAdaptivePresentation` (ADR-041) — a sheet on native mobile, a dialog on desktop
@@ -148,7 +160,7 @@ it, `prudent_plan_occurrence.reminder_read_at`. `read` / `unread` / `read-all` s
 occurrence is confirmed or skipped. The client's bell on the overview opens the centre — overdue, then due soon, unread
 said in words — and a reminder opens `OccurrenceDetailScreen`, the first client screen for an occurrence, where it can
 be confirmed as planned, skipped or restored. Local-device notifications (ADR-056, jlogicsoftware/prudent#69) are
-scheduled by `client/lib/notification/` on sign-in: each still-planned occurrence in the next 30 days whose plan's
+scheduled by `packages/prudent_ui/lib/notification/` on sign-in: each still-planned occurrence in the next 30 days whose plan's
 reminder is on and whose reminder date is still ahead becomes one notification at 09:00 device time, with no amount in
 its text, and the platform permission is asked for only when one is waiting (never at launch). It works on Android, iOS,
 macOS and Windows; the web and Linux report `unsupported`. Reconciliation (ADR-057, jlogicsoftware/prudent#70) makes the pending
@@ -220,7 +232,7 @@ sequence number is not used as an identifier (`StatementImporter.stableExternalI
 synthetic fixtures and, locally and by counts only, on one real export; nothing has run it in a deployed service.
 **No real statement is ever committed.**
 
-The client's import flow exists (ADR-093, jlogicsoftware/prudent#74), in `client/lib/imports/`: an "Import a statement" action on the Accounts
+The client's import flow exists (ADR-093, jlogicsoftware/prudent#74), in `packages/prudent_ui/lib/imports/`: an "Import a statement" action on the Accounts
 page opens `ImportStatementScreen` (active account, CSV file through `file_selector`, upload; an account without a bank number is refused with a
 button that opens `AccountEdit`, and unfinished sessions are listed to continue or discard), which is replaced by `ImportPreviewScreen`
 (destination, default categories, three groups of rows with a per-row category and note, an explicit "Import anyway" switch on duplicates, rejected
@@ -289,7 +301,7 @@ pinned, no registry version yet due); `docs/persistent-environment.md` section 4
 
 **Done: the structural flattening (ADR-026).** Client code is now flat under `client/lib/` on a
 capability-folder layout (`account/ analytics/ auth/ category/ generated/ l10n/ overview/ record/`
-plus flat files) — `client/lib/src/` is gone. The server package is `prudent.*` (`prudent/server/`
+plus flat files; since ADR-108 everything but `auth/` and the composition root is in `packages/prudent_ui/lib/`) — `client/lib/src/` is gone. The server package is `prudent.*` (`prudent/server/`
 gone; new `health/` and `error/` capability packages). Tests flattened to match. It was a pure
 `git mv` pass with no behaviour change, driven by `docs/implemented-plans/prudent-restructure-prompt.md`. Any
 `lib/src/…` or `prudent.server.…` path in an older doc or ADR is historical — the current tree is
@@ -312,7 +324,7 @@ jZen's packages are all `0.1.0` and unpublished (`publish_to: none`, Maven `-SNA
 registry entry). Until they are published, Prudent consumes them from a **sibling checkout at
 `../jZen`**:
 
-- **Dart/Flutter** — `path:` dependencies (`../../jZen/client/zen_core`, `zen_transport`,
+- **Dart/Flutter** — `path:` dependencies (from `client/`: `../../jZen/client/zen_core`, `zen_transport`,
   `zen_identity`, `zen_secure_store`, `zen_ui_identity`, `zen_ui_navigation`, `zen_ui_widgets`).
 - **Java** — Prudent's server module declares `zen-parent` as its parent with an **empty
   `<relativePath/>`**, resolving it and the framework libs (`zen-core`, `zen-proto`,
@@ -349,7 +361,8 @@ The repo root stays **language-neutral** (jZen STANDARDS): no root `pom.xml`, no
 ```
 proto/prudent/v1/*.proto   the contract — canonical for models
 server/                    the Quarkus backend (packaging: quarkus)
-client/                    the Flutter app (today's root package moves here)
+client/                    the server-connected Flutter app: composition root, auth, ServerPrudentRepository, every test
+packages/prudent_ui/       the shared package: screens, view models, generated messages, l10n (no transport, no identity; ADR-108)
 admin/                     react-admin panel (only if in scope)
 docs/                      Prudent's docs (zen-architecture.md is the cornerstone)
 Taskfile.yml               the single orchestrator; includes ../jZen/Taskfile.app.yml
@@ -423,12 +436,12 @@ consumer that bends them stops being a consumer:
   branch on the platform to pick Cupertino or Material — the package does it at compile time, on
   `zenIsApplePlatform` / `zenIsMobile`. A control the package lacks is a framework gap: report it and
   consume it (ADR-036, ADR-041), don't hand-roll it. What an amount *means* (minor units, currency,
-  `client/lib/money.dart`) stays Prudent's; `AlertDialog`, `PopupMenuButton`, `ListTile`, `Card` and
+  `packages/prudent_ui/lib/money.dart`) stays Prudent's; `AlertDialog`, `PopupMenuButton`, `ListTile`, `Card` and
   layout have no counterpart and are used directly. **Status:** overlays are migrated (ADR-041); the
   goal screens (ADR-053) are the first built wholly on the package's controls, and `app.dart` now
   registers `zenWidgetsLocaleDelegate` (with Prudent's Polish ahead of it) because the amount and
-  date fields read their own strings; the account forms (`client/lib/account/`, #101) and the record
-  forms and filter (`client/lib/record/`, #102) are migrated too — the record, transfer and filter
+  date fields read their own strings; the account forms (`packages/prudent_ui/lib/account/`, #101) and the record
+  forms and filter (`packages/prudent_ui/lib/record/`, #102) are migrated too — the record, transfer and filter
   amount fields refuse a sign (`allowNegative: false`), so the income/expense toggle stays the only
   source of one, and the filter's two ranges are `ZenDateRangeField` / `ZenAmountRangeField` — and so
   are the category form, settings and the analytics and chart screens (#103): their buttons are
@@ -447,7 +460,7 @@ consumer that bends them stops being a consumer:
   gap to report, not an entry to add. `minorUnitDigits` in `money.dart` is
   what an amount field's `maxFractionDigits` takes: the wire has one fixed scale, not one per
   currency.
-  **A screen that cannot load its data shows `LoadErrorView`** (`client/lib/load_error_view.dart`) — a
+  **A screen that cannot load its data shows `LoadErrorView`** (`packages/prudent_ui/lib/load_error_view.dart`) — a
   localized sentence, a hint and Try again — and never the exception's text, which is logged instead
   (#160). `client/test/load_error_view_test.dart` fails when a `*LoadError` string takes `{error}` or a
   screen passes `error.toString()` on.
@@ -458,7 +471,7 @@ consumer that bends them stops being a consumer:
   **The analyzer is a gate (ADR-104):** `task verify:analyze` (CI, `gates`) runs `flutter analyze --fatal-infos --fatal-warnings` in `client/`, `riverpod_lint` included; fix a finding, do not ignore it.
 - **Typed, generated i18n.** No hardcoded user-facing strings. Each package owns `lib/l10n/*.arb`
   + `l10n.yaml` and generates accessors with `flutter gen-l10n`; the generated output is built, not
-  committed. **Prudent supports `{en, uk, pl}`** — its own decision, not the framework's (jZen
+  committed. Prudent's strings are `packages/prudent_ui`'s (ADR-108); `client/` has no `l10n.yaml`. **Prudent supports `{en, uk, pl}`** — its own decision, not the framework's (jZen
   ADR-044). `ZenLocales.shipped` is jZen's inventory (`{en, uk}`) and is a floor, not a ceiling:
   Prudent declares its set as a compile-time `const` on the client and as `zen.i18n.supported` on
   the server, and framework screens degrade to English under `pl` rather than crashing. See

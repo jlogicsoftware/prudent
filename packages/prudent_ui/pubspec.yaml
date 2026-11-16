@@ -1,0 +1,59 @@
+name: prudent_ui
+description: "Prudent's screens, view models, money formatting, generated messages and l10n, shared by every Prudent app (ADR-108)."
+# Consumed by path from client/ (and, later, local/prudent_local_client); never published.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.14.0 <4.0.0"
+  flutter: ">=3.50.0"
+
+# THIS PACKAGE MUST NOT DEPEND ON zen_transport, zen_identity OR ANYTHING THAT PULLS THEM IN
+# (zen_ui_identity does: it renders the sign-in screens over zen_identity). A Prudent app that has
+# no server must be able to link these screens without any of the server's code in its source graph
+# (ADR-101). `task verify:boundaries` fails when this file or a source here names one of them.
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  intl: ^0.20.2
+  flutter_riverpod: ^3.0.0-dev.17
+  # Flutter 3.50 moved Material and Cupertino out of the SDK libraries (ADR-099); versions as jZen's.
+  material_ui: ^1.11.0
+  cupertino_ui: ^1.1.6
+
+  # The runtime for the messages generated from ../../proto into lib/generated. Money is an int64
+  # count of minor units, so fixnum's Int64 is the money type, not an incidental import.
+  protobuf: ^6.0.0
+  fixnum: ^1.1.0
+
+  # jZen's transport-free packages, by path from the sibling checkout (ADR-001). zen_core holds
+  # ZenResult / ZenError; the two UI packages hold the controls and the navigation shell.
+  zen_core:
+    path: ../../../jZen/client/zen_core
+  zen_ui_navigation:
+    path: ../../../jZen/client/zen_ui_navigation
+  zen_ui_widgets:
+    path: ../../../jZen/client/zen_ui_widgets
+
+  # Local reminders (ADR-056 to ADR-058) and the statement file picker (ADR-093): device capabilities
+  # the screens use, with nothing in them that talks to a server.
+  flutter_local_notifications: ^22.3.1
+  timezone: ^0.11.1
+  flutter_timezone: ^5.1.1
+  shared_preferences: ^2.5.6
+  file_selector: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  # Drives `flutter gen-l10n` from l10n.yaml. The ARB files under lib/l10n are tracked; the
+  # generated accessors are not (jZen ADR-009).
+  generate: true

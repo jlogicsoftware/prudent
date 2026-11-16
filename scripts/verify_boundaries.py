@@ -10,7 +10,7 @@ or env override, so it cannot be pointed at another repository (docs/prudent-mig
 empty reads as a clean repository and reports green forever; jZen's own StaleScope guard exists
 for exactly that reason, and this script keeps it.
 
-Four checks. A, B, C are the shape jZen's gate proves (no provider SDK; no provider host or
+Five checks. A, B, C are the shape jZen's gate proves (no provider SDK; no provider host or
 credential; no absolute URL outside the one compile-time base) — B additionally names Prudent's
 own retired Firebase project (`firebaseio.com`, `prudent-60fcf`), which a generic "provider" scan
 would not catch since Firebase Realtime Database is not an identity provider. D is Prudent's own:
@@ -37,10 +37,18 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Only the client's own source is in scope. Not `client/test`: a test double's fake server URL is
-# not a call the product makes. Not `client/lib/generated`: generated code is a derived
-# artifact, and editing it is already a defect `task verify:contracts` catches.
-CLIENT_LIB_SCOPE = "client/lib"
+# Only the apps' own source is in scope: the server-connected app and the shared package its screens
+# live in (ADR-108). Not the tests: a test double's fake server URL is not a call the product makes.
+# Not `generated/`: generated code is a derived artifact, and editing it is already a defect
+# `task verify:contracts` catches.
+DART_LIB_SCOPES = ("client/lib", "packages/prudent_ui/lib")
+
+# The shared package every Prudent app links, Local included (ADR-101). It must not be able to reach
+# the server: no dependency on the transport or on identity, and no import of either — nor of
+# `zen_ui_identity` (which renders sign-in over `zen_identity`) or `zen_secure_store` (the refresh
+# token's keystore). Tests count too: a test that needs one is a test that belongs in `client/`.
+SHARED_PACKAGE = "packages/prudent_ui"
+SERVER_ONLY_PACKAGES = ("zen_transport", "zen_identity", "zen_ui_identity", "zen_secure_store")
 GENERATED_DIR = "/generated/"
 
 # The one file allowed to name the compile-time API base — the Dart analogue of jZen's
@@ -108,14 +116,17 @@ def _read_lines(path: Path) -> "list[str]":
 
 
 def dart_sources(root: Path) -> "list[Path]":
-    """Every Dart library source under the client tier, generated output excluded."""
-    lib_dir = root / CLIENT_LIB_SCOPE
-    if not lib_dir.is_dir():
-        raise StaleScope(f"scope '{CLIENT_LIB_SCOPE}' matched no directory under {root}")
-    files = [f for f in lib_dir.rglob("*.dart") if GENERATED_DIR not in f.as_posix()]
-    if not files:
-        raise StaleScope(f"scope '{CLIENT_LIB_SCOPE}' matched no Dart source under {root}")
-    return sorted(files)
+    """Every Dart library source of the apps and the shared package, generated output excluded."""
+    found: "list[Path]" = []
+    for scope in DART_LIB_SCOPES:
+        lib_dir = root / scope
+        if not lib_dir.is_dir():
+            raise StaleScope(f"scope '{scope}' matched no directory under {root}")
+        files = [f for f in lib_dir.rglob("*.dart") if GENERATED_DIR not in f.as_posix()]
+        if not files:
+            raise StaleScope(f"scope '{scope}' matched no Dart source under {root}")
+        found.extend(files)
+    return sorted(found)
 
 
 def pubspecs(root: Path) -> "list[Path]":
@@ -125,6 +136,23 @@ def pubspecs(root: Path) -> "list[Path]":
     found = [p for p in client_dir.rglob("pubspec.yaml") if ".dart_tool" not in p.as_posix()]
     if not found:
         raise StaleScope(f"no pubspec.yaml found under 'client/' in {root}")
+    shared = root / SHARED_PACKAGE / "pubspec.yaml"
+    if not shared.is_file():
+        raise StaleScope(f"no pubspec.yaml at '{SHARED_PACKAGE}' in {root}")
+    return sorted(found + [shared])
+
+
+def shared_package_sources(root: Path) -> "list[Path]":
+    """The shared package's own sources and tests: what must stay free of the server."""
+    found: "list[Path]" = []
+    for scope in ("lib", "test"):
+        d = root / SHARED_PACKAGE / scope
+        if not d.is_dir():
+            raise StaleScope(f"scope '{SHARED_PACKAGE}/{scope}' matched no directory under {root}")
+        files = [f for f in d.rglob("*.dart") if GENERATED_DIR not in f.as_posix()]
+        if not files:
+            raise StaleScope(f"scope '{SHARED_PACKAGE}/{scope}' matched no Dart source under {root}")
+        found.extend(files)
     return sorted(found)
 
 
@@ -218,6 +246,26 @@ def check_prudent_own(root: Path) -> "list[Hit]":
     return http_hits + font_import_hits + font_dep_hits
 
 
+_SERVER_ONLY = "|".join(SERVER_ONLY_PACKAGES)
+SERVER_ONLY_IMPORT = re.compile(
+    r"^\s*(?:import|export)\s+['\"]package:(" + _SERVER_ONLY + r")/"
+)
+SERVER_ONLY_DEP = re.compile(r"^[ \t]{2}(" + _SERVER_ONLY + r")[ \t]*:")
+
+
+def check_shared_package_is_server_free(root: Path) -> "list[Hit]":
+    """E. The shared package depends on, and imports, nothing that can reach the server."""
+    import_hits = _scan(
+        shared_package_sources(root), root, lambda rel, t: SERVER_ONLY_IMPORT.match(t) is not None
+    )
+    dep_hits = _scan(
+        [root / SHARED_PACKAGE / "pubspec.yaml"],
+        root,
+        lambda rel, t: SERVER_ONLY_DEP.match(t) is not None,
+    )
+    return import_hits + dep_hits
+
+
 CHECKS = (
     (check_provider_sdk, "a client package depends on a provider SDK or firebase_*:",
      "no client package depends on a provider SDK or firebase_*"),
@@ -227,6 +275,9 @@ CHECKS = (
      "the only base URL in client code is the compile-time zenApiUrl"),
     (check_prudent_own, "package:http used outside the composition root, or google_fonts present:",
      "package:http stays in the composition root; google_fonts is gone"),
+    (check_shared_package_is_server_free,
+     "packages/prudent_ui depends on or imports the transport, identity or the keystore:",
+     "packages/prudent_ui imports neither zen_transport nor zen_identity (nor what wraps them)"),
 )
 
 

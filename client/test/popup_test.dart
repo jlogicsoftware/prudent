@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/popup.dart';
+import 'package:prudent_ui/popup.dart';
 
 import 'zen_platform_skip.dart';
 

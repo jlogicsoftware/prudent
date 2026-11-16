@@ -1,20 +1,22 @@
 import 'package:zen_core/zen_core.dart' show ZenResult;
 import 'package:zen_transport/zen_transport.dart';
 
-import 'generated/prudent/v1/accounts.pb.dart';
-import 'generated/prudent/v1/analytics.pb.dart';
-import 'generated/prudent/v1/budgets.pb.dart';
-import 'generated/prudent/v1/categories.pb.dart';
-import 'generated/prudent/v1/goal_allocations.pb.dart';
-import 'generated/prudent/v1/goals.pb.dart';
-import 'generated/prudent/v1/imports.pb.dart';
-import 'generated/prudent/v1/plans.pb.dart';
-import 'generated/prudent/v1/records.pb.dart';
-import 'generated/prudent/v1/reminders.pb.dart';
-import 'generated/prudent/v1/privacy.pb.dart';
-import 'generated/prudent/v1/settings.pb.dart';
-import 'prudent_repository.dart';
-import 'record/record_filter.dart';
+import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/analytics.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/budgets.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/goal_allocations.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/goals.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/imports.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/plans.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/records.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/reminders.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/privacy.pb.dart';
+import 'package:prudent_ui/generated/prudent/v1/settings.pb.dart';
+import 'package:prudent_ui/prudent_repository.dart';
+import 'package:prudent_ui/record/record_filter.dart';
+
+import 'record_filter_query.dart';
 
 /// Prudent's server surface, typed over [ZenClient]. Every call returns [ZenResult] — success or
 /// a [ZenError] the caller can render — never a bare value and never a null standing in for

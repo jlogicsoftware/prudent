@@ -9,12 +9,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:prudent/account/account_tile.dart';
-import 'package:prudent/account/delete_account_form.dart';
-import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
-import 'package:prudent/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/account/account_tile.dart';
+import 'package:prudent_ui/account/delete_account_form.dart';
+import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:prudent/server_prudent_repository.dart';
-import 'package:prudent/providers.dart';
+import 'package:prudent_ui/providers.dart';
 import 'package:zen_transport/zen_transport.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 

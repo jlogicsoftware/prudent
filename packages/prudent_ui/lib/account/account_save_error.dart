@@ -1,8 +1,8 @@
 import 'dart:developer' as developer;
 
 import 'package:zen_core/zen_core.dart';
-import 'package:zen_transport/zen_transport.dart' show ZenTransportError;
 
+import '../failure_code.dart';
 import '../l10n/generated/prudent_localizations.dart';
 
 /// The start of the 400 the server sends for a malformed bank account number
@@ -30,7 +30,7 @@ String accountSaveErrorText(PrudentLocalizations t, Object error) {
     );
     return t.accountSaveFailed;
   }
-  final code = error is ZenTransportError ? error.zenError.code : null;
+  final code = failureCode(error);
   final message = error.message;
   if (code == 'invalid' && message.startsWith(accountNumberInvalidMessage)) {
     return t.accountNumberInvalid;

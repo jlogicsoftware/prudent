@@ -6,11 +6,12 @@ import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent/content_width.dart';
-import 'package:prudent/generated/prudent/v1/accounts.pb.dart';
-import 'package:prudent/l10n/generated/prudent_localizations.dart';
-import 'package:prudent/providers.dart';
-import 'package:prudent/settings.dart';
+import 'package:prudent/auth/identity_settings_session.dart';
+import 'package:prudent_ui/content_width.dart';
+import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/providers.dart';
+import 'package:prudent_ui/settings.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
@@ -29,7 +30,10 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     container = ProviderContainer(
-      overrides: [accountsProvider.overrideWith(_NoAccounts.new)],
+      overrides: [
+        accountsProvider.overrideWith(_NoAccounts.new),
+        identitySettingsSession,
+      ],
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(

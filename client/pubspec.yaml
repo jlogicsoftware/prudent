@@ -43,9 +43,14 @@ dependencies:
   material_ui: ^1.11.0
   cupertino_ui: ^1.1.6
 
-  # The runtime for the messages generated from ../proto into lib/generated. protobuf
-  # supplies GeneratedMessage; fixnum supplies the Int64 that backs every int64 field — money is
-  # an int64 count of minor units, so Int64 is not incidental here, it is the money type.
+  # Prudent's screens, view models, money formatting, generated messages and l10n live in the shared
+  # package (ADR-108), which the Local app will consume as well. This app keeps the composition root,
+  # the server repository, sign-in and everything that imports zen_transport or zen_identity.
+  prudent_ui:
+    path: ../packages/prudent_ui
+
+  # The runtime for the messages generated from ../proto into the shared package. Imported here by the
+  # server repository and the tests, so it is declared here as well as there.
   protobuf: ^6.0.0
   fixnum: ^1.1.0
 
@@ -122,11 +127,6 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
-
-  # Drives `flutter gen-l10n` from l10n.yaml (task zen:generate:l10n). The ARB files under
-  # lib/l10n are tracked; the generated accessors are not (jZen ADR-009) — the contract gate
-  # asserts they stay untracked.
-  generate: true
 
   # To add assets to your application, add an assets section, like this:
   # assets:
