@@ -80,7 +80,11 @@ per-field table of `docs/plans/prudent-local-phase0.md` §0.2 (frozen by ADR-102
   exists or will.
 - **Gates.** `task test:local-store` (CI gates job); `verify:analyze` runs `dart analyze --fatal-infos --fatal-warnings` in the package;
   `packages/prudent_proto` joins `DART_ROOTS` and has no analyzer line because it holds nothing but excluded generated code;
-  `verify:boundaries` checks F and H (ADR-109) cover the package with no exemption. `JZEN_REF` moves to `6301f0e` in both workflows.
+  `verify:boundaries` checks F and H (ADR-109) cover the package with no exemption; check G (pure Dart) now names
+  `local/prudent_local_store` and `packages/prudent_proto` beside the core and reads generated sources too, and check E's pubspec scan
+  reads every package under `packages/`, so the wire messages cannot bring the transport one hop under Local where F, which reads
+  `local/` pubspecs, would not see it. `scripts/test_verify_boundaries.py` plants each new violation; both were also proved red on the
+  real tree and removed. `JZEN_REF` moves to `6301f0e` in both workflows.
 
 ### What this supersedes, and why
 

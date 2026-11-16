@@ -255,7 +255,8 @@ tasks:
       Prudent app with no server can link its screens. All of them scan client/lib AND the shared
       package. (F, ADR-109) No package under local/ depends on or imports those four, with no
       exemption (the parity harness that needs the transport lives in tools/prudent_parity_server,
-      and nothing under local/ may depend on it), (G) local/prudent_local_core is pure Dart, and (H)
+      and nothing under local/ may depend on it), (G) local/prudent_local_core, local/prudent_local_store and packages/prudent_proto are pure Dart
+      (ADR-111 adds the last two, and E's pubspec check now reads every package under packages/), and (H)
       nothing in client/ or packages/ depends on or imports a package under local/.
       scripts/test_verify_boundaries.py runs first and plants each violation.
 

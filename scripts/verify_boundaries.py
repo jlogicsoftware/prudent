@@ -254,12 +254,17 @@ SERVER_ONLY_DEP = re.compile(r"^[ \t]{2}(" + _SERVER_ONLY + r")[ \t]*:")
 
 
 def check_shared_package_is_server_free(root: Path) -> "list[Hit]":
-    """E. The shared package depends on, and imports, nothing that can reach the server."""
+    """E. The shared package depends on, and imports, nothing that can reach the server — and no
+    other package under `packages/` depends on it either (ADR-111: `packages/prudent_proto`, the wire
+    messages, is linked by the Local store, so a transport dependency there would put the server one
+    hop under Local where check F, which reads `local/` pubspecs, could not see it)."""
     import_hits = _scan(
         shared_package_sources(root), root, lambda rel, t: SERVER_ONLY_IMPORT.match(t) is not None
     )
+    shared = root / SHARED_PACKAGE / "pubspec.yaml"
+    others = sorted(p for p in (root / "packages").glob("*/pubspec.yaml") if p != shared)
     dep_hits = _scan(
-        [root / SHARED_PACKAGE / "pubspec.yaml"],
+        [shared] + others,
         root,
         lambda rel, t: SERVER_ONLY_DEP.match(t) is not None,
     )
@@ -279,8 +284,14 @@ LOCAL_DART_DIRS = ("lib", "bin", "test", "integration_test")
 # Nothing under `local/` may depend on it, or the transport would be one hop away.
 LOCAL_SERVER_HARNESS = "prudent_parity_server"
 
-# The core is pure Dart (ADR-101): the parity suite runs it on the plain VM, without Flutter.
-LOCAL_CORE = "local/prudent_local_core"
+# Pure Dart (ADR-101, ADR-111): the core and the store run on the plain VM — the parity suite, the
+# two-device suite — and the wire messages are linked by both, so none of the three may bring Flutter
+# in. Each must exist: a renamed package fails as stale rather than leaving the check reading nothing.
+PURE_DART_PACKAGES = (
+    "local/prudent_local_core",
+    "local/prudent_local_store",
+    "packages/prudent_proto",
+)
 FLUTTER_ONLY_PACKAGES = ("flutter", "flutter_test", "flutter_localizations")
 LOCAL_FLUTTER_DEP = re.compile(r"^(?:flutter[ \t]*:|[ \t]+sdk[ \t]*:[ \t]*flutter\b)")
 LOCAL_FLUTTER_IMPORT = re.compile(
@@ -337,20 +348,30 @@ def check_local_is_server_free(root: Path) -> "list[Hit]":
 
 
 def check_local_core_is_pure_dart(root: Path) -> "list[Hit]":
-    """G. `local/prudent_local_core` does not depend on, or import, Flutter."""
-    core = root / LOCAL_CORE
-    if not (core / "pubspec.yaml").is_file():
-        raise StaleScope(f"no pubspec.yaml at '{LOCAL_CORE}' in {root}")
-    sources = package_sources(core)
-    if not sources:
-        raise StaleScope(f"scope '{LOCAL_CORE}' matched no Dart source under {root}")
-    hits = _scan(sources, root, lambda rel, t: LOCAL_FLUTTER_IMPORT.match(t) is not None)
-    hits += _scan(
-        [core / "pubspec.yaml"],
-        root,
-        lambda rel, t: LOCAL_FLUTTER_DEP.match(t) is not None
-        or LOCAL_FLUTTER_NAMED_DEP.match(t) is not None,
-    )
+    """G. The pure-Dart packages (PURE_DART_PACKAGES) do not depend on, or import, Flutter.
+    Generated sources are scanned too here: `packages/prudent_proto` is nothing but generated code,
+    and a Flutter import is a violation wherever it is written."""
+    hits: "list[Hit]" = []
+    for rel_package in PURE_DART_PACKAGES:
+        package = root / rel_package
+        if not (package / "pubspec.yaml").is_file():
+            raise StaleScope(f"no pubspec.yaml at '{rel_package}' in {root}")
+        sources = sorted(
+            f
+            for d in LOCAL_DART_DIRS
+            if (package / d).is_dir()
+            for f in (package / d).rglob("*.dart")
+            if ".dart_tool" not in f.as_posix()
+        )
+        if not sources:
+            raise StaleScope(f"scope '{rel_package}' matched no Dart source under {root}")
+        hits += _scan(sources, root, lambda rel, t: LOCAL_FLUTTER_IMPORT.match(t) is not None)
+        hits += _scan(
+            [package / "pubspec.yaml"],
+            root,
+            lambda rel, t: LOCAL_FLUTTER_DEP.match(t) is not None
+            or LOCAL_FLUTTER_NAMED_DEP.match(t) is not None,
+        )
     return hits
 
 
@@ -407,14 +428,14 @@ CHECKS = (
     (check_prudent_own, "package:http used outside the composition root, or google_fonts present:",
      "package:http stays in the composition root; google_fonts is gone"),
     (check_shared_package_is_server_free,
-     "packages/prudent_ui depends on or imports the transport, identity or the keystore:",
-     "packages/prudent_ui imports neither zen_transport nor zen_identity (nor what wraps them)"),
+     "packages/prudent_ui imports, or a package under packages/ depends on, the transport, identity or the keystore:",
+     "packages/ depend on, and prudent_ui imports, neither zen_transport nor zen_identity (nor what wraps them)"),
     (check_local_is_server_free,
      "a package under local/ depends on or imports the server's packages, or on the parity harness:",
      "no package under local/ reaches the server (no exemption)"),
     (check_local_core_is_pure_dart,
-     "local/prudent_local_core depends on or imports Flutter:",
-     "local/prudent_local_core is pure Dart"),
+     "a pure-Dart package (the Local core, the Local store, the wire messages) depends on or imports Flutter:",
+     "local/prudent_local_core, local/prudent_local_store and packages/prudent_proto are pure Dart"),
     (check_nothing_outside_local_uses_local,
      "client/ or packages/ depends on or imports a package under local/:",
      "client/ and packages/ name no package under local/"),
