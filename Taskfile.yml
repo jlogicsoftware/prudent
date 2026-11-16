@@ -52,6 +52,20 @@ includes:
       # redirect or the server refuses it as invalid_redirect (jZen #81). Must equal the server's
       # %dev.auth.redirect-uris and the value registered in the platform manifests, exactly.
       ZEN_AUTH_REDIRECT_URI: prudent://auth-callback
+  # THE SAME FILE A SECOND TIME, FOR PRUDENT LOCAL'S STORE MESSAGES (ADR-111). They are not the wire
+  # contract: local/prudent_local_store keeps its own protos beside itself and generates into its own
+  # package, the way jZen's Taskfile includes Taskfile.app.yml a second time for zen_demo_local
+  # (jZen ADR-080). Only `zenstore:generate:proto:dart` is called, from `generate` and
+  # `verify:contracts` below; the drift check those run is tree-wide (`*.pb.dart`), so it watches
+  # these messages too.
+  zenstore:
+    taskfile: ../jZen/Taskfile.app.yml
+    vars:
+      APP_NAME: prudent_local
+      CLIENT_DIR: local
+      SERVER_DIR: server
+      PROTO_DIR: local/prudent_local_store/proto
+      PROTO_DART_OUT: local/prudent_local_store/lib/generated
 
 # THE CONTRACT LOOP AND THE DEPENDENCY INSTALL ARE CONSUMED FROM THE INCLUDE, NOT HAND-ROLLED
 # (Prudent ADR-027, jZen ADR-049 / issue #74). jZen's Taskfile.app.yml now carries the whole loop
@@ -133,10 +147,15 @@ tasks:
     desc: Regenerate every cross-language artifact — proto, openapi, admin TS, l10n (no gate)
     cmds:
       - task: zen:generate
+      # Prudent Local's store messages (ADR-111), from their own proto root.
+      - task: zenstore:generate:proto:dart
 
   verify:contracts:
     desc: Regenerate, then FAIL if a tracked generated file drifted (was sync:contracts)
     cmds:
+      # The store messages first, so the framework's drift check (which regenerates the wire
+      # messages and then looks at every tracked *.pb.dart in the tree) sees both (ADR-111).
+      - task: zenstore:generate:proto:dart
       - task: zen:verify:contracts
 
   deps:
@@ -187,6 +206,17 @@ tasks:
       runs in test:e2e; both packages are analysed by verify:analyze.
     cmds:
       - cd local/prudent_local_core && dart pub get && dart test
+
+  test:local-store:
+    desc: Prudent Local's store model — merge table, mapper, integrity checks, two devices (pure Dart)
+    summary: |
+      Unit 4 of docs/plans/PRUDENT-LOCAL-PLAN.md (ADR-111). `dart pub get` and `dart test` in
+      local/prudent_local_store: every row of the per-field merge table (ADR-102) through two real
+      encrypted stores synced by jZen's ZenFolderCloud, the store's structural write rules, the
+      derived-id vectors, the mapper's byte-for-byte round trip, each integrity check and its actions,
+      and the two-device suite that is the unit's done-when. Needs no server and no Flutter.
+    cmds:
+      - cd local/prudent_local_store && dart pub get && dart test
 
   golden:generate:
     desc: Regenerate prudent_local_core's golden vectors from the server's own rule methods
@@ -255,8 +285,8 @@ tasks:
       built and never committed; the strings belong to the shared package), then
       `flutter analyze --fatal-infos --fatal-warnings` in BOTH Flutter packages — packages/prudent_ui,
       which holds the screens (ADR-108), and client/, which holds the composition root — and then
-      `dart analyze` with the same flags in local/prudent_local_core and tools/prudent_parity_server
-      (ADR-108), so an info-level lint, which is what riverpod_lint and most of flutter_lints report,
+      `dart analyze` with the same flags in local/prudent_local_core, tools/prudent_parity_server and
+      local/prudent_local_store (ADR-108, ADR-111), so an info-level lint, which is what riverpod_lint and most of flutter_lints report,
       fails the build like an error does. A package left out of this list would be a package the gate
       never reads.
 
@@ -276,6 +306,7 @@ tasks:
       # Prudent Local's pure-Dart packages (ADR-107): the same severity, through `dart analyze`.
       - cd local/prudent_local_core && dart pub get && dart analyze --fatal-infos --fatal-warnings
       - cd tools/prudent_parity_server && dart pub get && dart analyze --fatal-infos --fatal-warnings
+      - cd local/prudent_local_store && dart pub get && dart analyze --fatal-infos --fatal-warnings
 
   verify:controls:
     desc: Fail if client screens use raw Material controls zen_ui_widgets replaces

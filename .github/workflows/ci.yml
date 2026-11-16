@@ -53,7 +53,9 @@ env:
   # it). The tasks this workflow calls (verify:contracts, the all-tier zen:deps) do not exist
   # before #74; the later bumps keep CI's jZen in step with the run:* tasks Prudent now delegates
   # wholesale and with what the committed contracts actually reflect.
-  JZEN_REF: fdef7e87ffb6e470eed35262fa43122050528a94
+  # Includes jZen #241 (per-field merge policies, jZenDev/jZen#235) and #242 (app issues beside
+  # conflicts, jZenDev/jZen#233), which Prudent Local's store consumes (ADR-111).
+  JZEN_REF: 6301f0e0e81148cd2a2c61cd182d08a5c6e1f8e5
 
 jobs:
   # Contract drift, the boundary gate, the Dart/Flutter suites, and the admin typecheck. Needs the
@@ -239,6 +241,13 @@ jobs:
       - name: Prudent Local domain core
         working-directory: prudent
         run: task test:local-core
+
+      # Prudent Local's store model (unit 4, ADR-111): the per-field merge table of ADR-102 proved
+      # through two real encrypted stores synced by jZen's ZenFolderCloud, the mapper to the wire
+      # messages, and the integrity checks. Pure Dart; no server.
+      - name: Prudent Local store model
+        working-directory: prudent
+        run: task test:local-store
 
       - name: Admin panel typecheck
         working-directory: prudent

@@ -1,0 +1,270 @@
+// Prudent Local's own store messages (ADR-102, ADR-111): what one record of each collection holds in
+// zen_store. They are NOT the wire messages of proto/prudent/v1/; `WireMapper` produces those.
+//
+// THE UNIT OF MERGE IS A TOP-LEVEL FIELD. zen_store merges one record across devices field by
+// field: edits to different fields merge, equal values merge, and two different values of one field
+// are a conflict for the person (there is no last-writer-wins anywhere). So the shape of each message
+// below IS the merge table of docs/plans/prudent-local-phase0.md §0.2, which ADR-102 froze:
+//
+//   - a field of its own        -> "Merge": edited alone, it merges beside edits to other fields;
+//   - a nested message          -> "Group": its parts always conflict together, because half of one
+//                                  device's value and half of another's would be money nobody entered;
+//   - "immutable"               -> written once at creation; `PrudentLocalStore` refuses a change;
+//   - "derived"                 -> not here at all (a balance, a completion, an envelope);
+//   - "device"                  -> not in this synced store (import sessions, unit 8b).
+//
+// Every message carries its own id as field 1, because ZenCollection.list() answers with messages,
+// not keys. The id never changes, so it never conflicts.
+//
+// NEVER RENUMBER OR REUSE A FIELD. Two devices on two app versions merge by field number; a field
+// reused for another meaning would merge one device's value into the other's different field.
+// Field numbers named in ZenStore.collection(mergePolicies:) are pinned by tests.
+syntax = "proto3";
+
+package prudent_local.v1;
+
+// The wire's AccountType, value for value (the mapper converts by name and a test proves every value).
+enum AccountKind {
+  ACCOUNT_KIND_UNSPECIFIED = 0;
+  ACCOUNT_KIND_CASH = 1;
+  ACCOUNT_KIND_CARD = 2;
+  ACCOUNT_KIND_CHECKING = 3;
+  ACCOUNT_KIND_SAVINGS = 4;
+}
+
+// Collection `accounts`, a random id. The wire's `is_default` lives in Settings (one field, so two
+// devices cannot leave two defaults) and its `balances` are derived: opening amounts are
+// AccountCurrency records, the current balance is computed from them and the records (F-03).
+message Account {
+  string id = 1;
+  string name = 2;
+  AccountKind kind = 3;
+  bool active = 4;
+  bool include_in_total = 5;
+  bool include_in_overview = 6;
+  bool eligible_for_goals = 7;
+  // Normalised (ADR-090). Unique per person across records: an integrity check, not a store rule.
+  string account_number = 8;
+}
+
+// Collection `account_currencies`, id H("account_currency", account_id, currency): one record per
+// account and currency, so two devices adding the same currency write the same record.
+message AccountCurrency {
+  string id = 1;
+  string account_id = 2;  // immutable (part of the id)
+  string currency = 3;    // immutable (part of the id)
+  int64 opening_minor = 4;
+  // Display order only; equal positions are ordered by currency code.
+  int32 position = 5;
+}
+
+enum CategoryDirection {
+  CATEGORY_DIRECTION_UNSPECIFIED = 0;  // takes either sign
+  CATEGORY_DIRECTION_EXPENSE = 1;
+  CATEGORY_DIRECTION_INCOME = 2;
+}
+
+// Collection `categories`, a random id or H("starter", key).
+message Category {
+  string id = 1;
+  string title = 2;
+  string icon_key = 3;
+  string description = 4;
+  uint32 color_argb = 5;
+  bool archived = 6;
+  CategoryDirection kind = 7;
+}
+
+// Where money is and how much of it: one field, so an account, a currency and an amount from two
+// devices never combine into a posting neither wrote ("60 EUR" from a currency change and an amount
+// change).
+message Posting {
+  string account_id = 1;
+  string currency = 2;
+  int64 amount_minor = 3;
+}
+
+// What a correction was asked to achieve (D7): the balance requested and the balance it saw. The
+// record's posting keeps the server's meaning, the delta; these let the integrity check notice when
+// a merge changed the correction's effect. Immutable.
+message CorrectionIntent {
+  int64 target_minor = 1;
+  int64 seen_minor = 2;
+}
+
+// The occurrence a confirmation completed (ADR-040). Immutable. A link to a deleted plan reads as
+// detached; nothing is written when a plan is deleted.
+message PlanLink {
+  string plan_id = 1;
+  string occurrence_id = 2;
+}
+
+// What recognises a re-imported statement row (ADR-091, finding F-02: the wire Record lacks it).
+// Immutable.
+message ImportKey {
+  string fingerprint = 1;
+  int32 occurrence = 2;
+}
+
+// Collection `records`: ordinary records and corrections. A transfer is its own message (D4).
+message Record {
+  string id = 1;
+  string title = 2;
+  Posting posting = 3;
+  string date = 4;
+  optional string category_id = 5;
+  optional string payee = 6;
+  optional string note = 7;
+  // Present on a correction; a correction is never edited, only deleted (RecordResource.java:232).
+  CorrectionIntent correction = 8;
+  PlanLink plan_link = 9;
+  ImportKey import_key = 10;
+}
+
+// Collection `transfers`: ONE immutable record holding both legs, so a leg can never arrive alone
+// (ADR-102). Amounts are positive, as the request carries them; the wire's two leg Records are
+// produced on read, the source leg negative.
+message Transfer {
+  string id = 1;
+  string title = 2;
+  string date = 3;
+  Posting source = 4;
+  Posting destination = 5;
+}
+
+// Collection `budgets`, id H("budget", category_id, month, currency).
+message Budget {
+  string id = 1;
+  string category_id = 2;  // immutable (part of the id)
+  string month = 3;        // immutable (part of the id), YYYY-MM
+  string currency = 4;     // immutable (part of the id)
+  int64 amount_minor = 5;
+}
+
+// Who revoked a carry-over reset, and when. One field: the time without its author is half an
+// audit entry. Revoking on two devices is the same intent, but jZen's merge policies decide a single
+// scalar or timestamp only, so two revocations stay a conflict for the person until the store can
+// merge a group by one of its fields (jZenDev/jZen#244).
+message Revocation {
+  string by = 1;
+  int64 at_ms = 2;
+}
+
+// Collection `budget_resets`, a random id. An audit entry: everything but the revocation is
+// immutable (ADR-046). `created_by` and `revocation.by` are this device's id locally.
+message BudgetCarryOverReset {
+  string id = 1;
+  string category_id = 2;
+  string month = 3;
+  string currency = 4;
+  int64 discarded_minor = 5;
+  string note = 6;
+  string created_by = 7;
+  int64 created_at_ms = 8;
+  Revocation revocation = 9;
+}
+
+enum GoalState {
+  GOAL_STATE_UNSPECIFIED = 0;
+  GOAL_STATE_ACTIVE = 1;
+  GOAL_STATE_COMPLETED = 2;
+  GOAL_STATE_ARCHIVED = 3;
+}
+
+// Collection `goals`, a random id.
+message Goal {
+  string id = 1;
+  string name = 2;
+  string currency = 3;  // immutable (the server has no route to change it)
+  int64 target_amount_minor = 4;
+  optional string target_date = 5;
+  // Completing on two devices is the same state and merges; completing on one and archiving on
+  // another is a question.
+  GoalState status = 6;
+  // ZenMergePolicy.earliest (jZenDev/jZen#235): two devices that reached the same status at two
+  // moments keep the first. Field number pinned by store_policies_test.
+  int64 status_changed_at_ms = 7;
+  int64 created_at_ms = 8;  // immutable
+}
+
+enum AllocationKind {
+  ALLOCATION_KIND_UNSPECIFIED = 0;
+  ALLOCATION_KIND_ALLOCATE = 1;
+  ALLOCATION_KIND_WITHDRAW = 2;
+  ALLOCATION_KIND_MOVE = 3;
+}
+
+// Collection `goal_allocations`, a random id. Append-only and immutable, as on the server; two
+// devices' entries never meet. `created_by` is this device's id locally.
+message GoalAllocation {
+  string id = 1;
+  AllocationKind kind = 2;
+  optional string source_goal_id = 3;
+  optional string target_goal_id = 4;
+  string currency = 5;
+  int64 amount_minor = 6;
+  string note = 7;
+  int64 created_at_ms = 8;
+  string created_by = 9;
+}
+
+enum Frequency {
+  FREQUENCY_UNSPECIFIED = 0;
+  FREQUENCY_ONCE = 1;
+  FREQUENCY_DAILY = 2;
+  FREQUENCY_WEEKLY = 3;
+  FREQUENCY_MONTHLY = 4;
+  FREQUENCY_YEARLY = 5;
+}
+
+// A plan's schedule: one field, because an interval from one device and an end from another would
+// be a schedule nobody chose.
+message Schedule {
+  Frequency frequency = 1;
+  uint32 interval = 2;
+  string start_date = 3;
+  string time_zone = 4;
+  oneof end {
+    string until_date = 5;
+    uint32 occurrence_count = 6;
+  }
+}
+
+// One field: enabled and lead time belong together (ADR-054).
+message ReminderSetting {
+  bool enabled = 1;
+  optional uint32 lead_days = 2;
+}
+
+// Collection `plans`, a random id.
+message Plan {
+  string id = 1;
+  string title = 2;
+  Posting posting = 3;
+  string category_id = 4;
+  optional string payee = 5;
+  optional string note = 6;
+  Schedule schedule = 7;
+  ReminderSetting reminder = 8;
+}
+
+// Collection `occurrences`, id H("occurrence", plan_id, date); stored only when it differs from the
+// default (skipped, or a reminder read). Completed and overdue are derived, as are the title, amount
+// and account, which are copied from the plan on read.
+message OccurrenceState {
+  string id = 1;
+  string plan_id = 2;          // immutable (part of the id)
+  string occurrence_date = 3;  // immutable (part of the id)
+  bool skipped = 4;
+  // ZenMergePolicy.earliest: read on two devices keeps the first moment. Clearing it (unread) on one
+  // device against a read on another stays a question. Field number pinned by store_policies_test.
+  int64 reminder_read_at_ms = 5;
+}
+
+// Collection `settings`, the one record with id "settings".
+message Settings {
+  string id = 1;
+  string main_currency = 2;
+  // Moved here from Account.is_default (ADR-102): one field, so "one default" is structural.
+  optional string default_account_id = 3;
+}

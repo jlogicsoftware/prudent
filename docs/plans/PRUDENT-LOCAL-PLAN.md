@@ -135,13 +135,21 @@ and fails on a one-cent difference.
 ## Phase 2 — The Local data layer
 
 ### Unit 4 — Store model and merge
+**Built: ADR-111** — `local/prudent_local_store` (pure Dart, on `zen_store`): the store messages
+(`proto/prudent_local/v1/store.proto`), `DerivedIds`, `PrudentLocalStore`'s structural write rules, `StorePolicies`
+(jZen #235's `earliest` on the goal-status and reminder-read times), `WireMapper` (presence-exact), and the
+`IntegrityRunner` with the store model's six checks; `task test:local-store`. The wire messages moved to the pure-Dart
+`packages/prudent_proto` so the store can map to them. Consumed jZenDev/jZen#233 and #235 (`JZEN_REF` `6301f0e`); filed
+jZenDev/jZen#244 (a reset's revocation is a group, so two revocations stay a conflict) and #245 (an explicit default differs
+from an unset field). Not here: import sessions (8b), the checks that need figures (envelopes 6a, skipped-and-paid 6b,
+correction intent 5), the `ZenIssueSource` wiring (unit 9, Flutter), CloudKit (#236).
 Map every proto message into `zen_store`; device-minted UUIDs (the server minted ids because
 "an id from an untrusted client is not identity" — locally the device is the only authority, so the
 reason changes, and the ADR says so); per-field merge as decided in 0.2, through Local's own store messages and a mapper to the wire messages
 (ADR-102); ids derived from natural keys; **the integrity-check runner** that re-evaluates every rule
 across records after a sync and lists what fails with actions (finding F-05; each later unit adds its
-checks); the same-intent timestamp rule. **Blocked on jZen:** the list is Prudent's own until
-jZenDev/jZen#233 lands, and the timestamp rule moves into the store with jZenDev/jZen#235. **Done when:** two real
+checks); the same-intent timestamp rule. Both jZen issues it waited on landed first (#233, #235), so neither a Prudent list nor a
+Prudent timestamp rule was ever built. **Done when:** two real
 sessions, each with its own encrypted store, merge disjoint edits and surface the conflicts of 0.2,
 through `ZenFolderCloud` (as `two_devices_test` does in jZen).
 
@@ -174,16 +182,16 @@ Budget slots by derived id, the summary, carry-over and its resets; goal states,
 progress; allocations append-only. The most integrity checks (envelope below zero, money in an archived
 goal, two live resets for one slot). 34 rules (phase-0 §0.3 rows 6.1–6.28, 6.46–6.50, 6.54), including
 the goal, envelope-history, budget and reset list filters and orders (parity scenarios `goal_lists`,
-`budget_lists`). **Blocked on jZen:** the same-intent times (reset revocation, goal status change) are
-settled by Prudent until jZenDev/jZen#235 lands. **Done when:** parity
+`budget_lists`). **jZen:** the goal status time merges in the store by jZenDev/jZen#235's policy (declared in
+unit 4); a reset's revocation is a group and stays a conflict until jZenDev/jZen#244. **Done when:** parity
 scenarios cover each and the figures match the server's to the cent.
 
 ### Unit 6b — Plans, occurrences, reminders
 Plans with their recurrence and reminder, occurrences by derived id (completion derived from the
 confirming record), confirmation, reminders. Reminders use local-device notifications only. The parity
 suite passes `asOf` explicitly (finding F-07). 20 rules (rows 6.29–6.45, 6.51–6.53), including the
-upcoming window and the order of occurrences and reminders (finding F-11). **Blocked on jZen:** the
-reminder-read time is a same-intent field, settled by Prudent until jZenDev/jZen#235 lands. **Done when:** parity scenarios
+upcoming window and the order of occurrences and reminders (finding F-11). The reminder-read time
+merges in the store by jZenDev/jZen#235's policy (declared in unit 4). **Done when:** parity scenarios
 cover each, including a day boundary in a plan's own time zone.
 
 ### Unit 7 — Analytics
@@ -290,14 +298,16 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 |---|---|---|
 | jZenDev/jZen#231 | device verification of jZen Local | 12 (release gate); ADR-100 rows marked #231 |
 | jZenDev/jZen#232 | multi-record write | 5, 8b |
-| jZenDev/jZen#233 | application issues beside conflicts | 4, 9 |
+| jZenDev/jZen#233 | application issues beside conflicts — **merged (PR #242), consumed by unit 4** | 4, 9 |
 | jZenDev/jZen#234 | settle many conflicts at once | 8b |
-| jZenDev/jZen#235 | intent-preserving per-field merge policy | 4, 6a, 6b |
+| jZenDev/jZen#235 | intent-preserving per-field merge policy — **merged (PR #241), consumed by unit 4** | 4, 6a, 6b |
 | jZenDev/jZen#236 | CloudKit record names in plaintext | 4 (ADR-100 T7) |
 | jZenDev/jZen#237 | rekey / remove a device | 9 (ADR-100 T3) |
 | jZenDev/jZen#238 | refuse the unencrypted folder in release | 11 (ADR-100 T18) |
 | jZenDev/jZen#239 | erase everywhere | 9 (ADR-100 T24) |
 | jZenDev/jZen#240 | screen-capture protection | 9 (ADR-100 T15) |
+| jZenDev/jZen#244 | a merge policy over a group (a reset's revocation: who and when) | 4, 6a |
+| jZenDev/jZen#245 | a proto3 field set to its default differs from an unset one in the merge | 4, 5 (every write path) |
 
 None blocks starting a unit; each is a stated limitation of that unit until it lands and is consumed.
 

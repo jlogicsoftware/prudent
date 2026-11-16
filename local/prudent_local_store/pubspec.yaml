@@ -1,0 +1,42 @@
+name: prudent_local_store
+description: >-
+  Prudent Local's store model on zen_store: its own store messages, ids derived from natural keys,
+  the per-field merge of ADR-102, the mapper to and from the wire messages, and the integrity-check
+  runner that lists what a merge broke across records (ADR-111).
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.14.0 <4.0.0"
+
+# PURE DART, like prudent_local_core (ADR-101): the two-device suite runs real encrypted stores
+# through jZen's ZenFolderCloud on the plain Dart VM, and the Local app links this package without
+# Flutter in its graph. No server package — not zen_transport, not zen_identity
+# (`task verify:boundaries`, ADR-109). The issues it finds reach the person through zen_ui_store's
+# ZenIssueSource, which is a Flutter package and is therefore wired by the Local app, not here.
+dependencies:
+  # SHA-256 for the ids derived from natural keys (DerivedIds). The Dart team's own package.
+  crypto: ^3.0.6
+  # Int64 is the wire messages' money type.
+  fixnum: ^1.1.0
+  # @immutable on the integrity issue types.
+  meta: ^1.11.0
+  # The generated store messages' runtime.
+  protobuf: ^6.0.0
+  # The server's rules ported to Dart (ids, currencies, dates; ADR-107).
+  prudent_local_core:
+    path: ../prudent_local_core
+  # The wire messages the shared screens and the parity suite read (ADR-111).
+  prudent_proto:
+    path: ../../packages/prudent_proto
+  # jZen's packages from the sibling checkout, as client/ consumes them (ADR-001). zen_store is the
+  # encrypted store, its per-field merge and the ZenFolderCloud development transport; zen_core holds
+  # ZenResult and ZenError.
+  zen_core:
+    path: ../../../jZen/client/zen_core
+  zen_store:
+    path: ../../../jZen/client/zen_store
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0
