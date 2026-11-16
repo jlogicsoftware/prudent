@@ -5,8 +5,8 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent_ui/budget/budget_figures.dart';
 import 'package:prudent_ui/budget/budget_month.dart';
-import 'package:prudent_ui/generated/prudent/v1/budgets.pb.dart';
-import 'package:prudent_ui/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/budgets.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 
 BudgetFigures _figures({
   int plan = 0,

@@ -25,17 +25,19 @@ includes:
       PROTO_DIR: proto
       # Where zen:generate:proto:dart writes Prudent's messages. OVERRIDDEN, because the task's
       # default is `<client>/<app>_client/lib/generated` — the conventional layout, where the
-      # client tier holds a package per concern. Prudent's messages belong to the shared package its
-      # screens live in (packages/prudent_ui, ADR-108), which every Prudent app links.
+      # client tier holds a package per concern. Prudent's messages are a pure-Dart package of their
+      # own (packages/prudent_proto, ADR-111), which the screens (packages/prudent_ui), the
+      # server-connected app and Prudent Local's pure-Dart store all link — a store whose tests run on
+      # the plain Dart VM cannot depend on a Flutter package to reach them.
       #
-      # Flat at lib/generated/, not lib/src/generated/ (ADR-026): the package is imported as
-      # package:prudent_ui/<folder>/<file>.dart, so the lib/src/ privacy split buys nothing.
-      PROTO_DART_OUT: packages/prudent_ui/lib/generated
+      # Flat at lib/generated/, not lib/src/generated/ (ADR-026): the messages are imported as
+      # package:prudent_proto/generated/prudent/v1/<file>.pb.dart.
+      PROTO_DART_OUT: packages/prudent_proto/lib/generated
       # The Dart packages the tree-walking tasks cover: pub get, gen-l10n discovery, the
       # one-widget-per-file gate and the test suites. The server-connected app AND the shared
       # package, so a gate that reads only `client/` cannot go green over a package it never read
       # (ADR-108). Space-separated, as jZen's DART_ROOTS documents.
-      DART_ROOTS: client packages/prudent_ui
+      DART_ROOTS: client packages/prudent_ui packages/prudent_proto
       # OVERRIDDEN for the same reason as PROTO_DART_OUT: zen:run:client / zen:run:dev default the
       # Flutter package to `<client>/<app>_client`, the per-concern-package layout. Prudent's
       # client tier IS the Flutter package, so it is `client/` itself. (build:runners already
@@ -114,7 +116,7 @@ tasks:
   #
   #   proto/prudent/v1/*.proto              (canonical models)
   #     |-- protoc --> Java DTOs            (protobuf-maven-plugin; NOT tracked)
-  #     |-- protoc --> Dart messages        (protoc_plugin;         TRACKED at packages/prudent_ui/lib/generated)
+  #     |-- protoc --> Dart messages        (protoc_plugin;         TRACKED at packages/prudent_proto/lib/generated)
   #   annotated resources + SmallRye --> openapi.json (target/, NOT tracked) --> admin TS
   #     (openapi-typescript --> admin/src/api/schema.generated.ts; TRACKED)
   #
@@ -258,9 +260,11 @@ tasks:
       fails the build like an error does. A package left out of this list would be a package the gate
       never reads.
 
-      packages/prudent_ui/lib/generated/ and its lib/l10n/generated/ are excluded in that package's
-      analysis_options.yaml (derived output, unactionable by construction; the reasoning is written
-      there). The packages are resolved first (`deps:`), so it works on a fresh checkout. That the plugin really loads in CI was proved
+      packages/prudent_ui's lib/l10n/generated/ is excluded in that package's analysis_options.yaml
+      (derived output, unactionable by construction; the reasoning is written there).
+      packages/prudent_proto holds nothing but the generated wire messages, which its own
+      analysis_options.yaml excludes for the same reason, so it has no line here: it is compiled
+      and type-checked by every package above that imports it (ADR-111). The packages are resolved first (`deps:`), so it works on a fresh checkout. That the plugin really loads in CI was proved
       once by hand, with a deliberate provider misuse that turned the job red (ADR-104); no check
       re-proves it on every run.
     deps:

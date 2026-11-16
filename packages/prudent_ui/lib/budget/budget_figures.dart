@@ -1,7 +1,7 @@
 import 'package:fixnum/fixnum.dart';
 
-import '../generated/prudent/v1/budgets.pb.dart';
-import '../generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/budgets.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 
 /// What the budget overview shows for one plan/actual/carry-over/remaining quartet — a category's,
 /// or the month's totals. Derived from the server's figures and never a second calculation of

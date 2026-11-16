@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent_ui/account/account_list.dart';
-import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:prudent_ui/load_error_view.dart';
 import 'package:prudent_ui/providers.dart';

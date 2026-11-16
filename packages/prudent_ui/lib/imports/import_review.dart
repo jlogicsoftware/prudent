@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../generated/prudent/v1/imports.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/imports.pb.dart';
 
 /// A session and its held rows as the review screen shows them.
 ///

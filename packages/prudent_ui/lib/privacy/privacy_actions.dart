@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../generated/prudent/v1/privacy.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/privacy.pb.dart';
 import '../notification/notification_providers.dart';
 import '../prudent_repository.dart';
 import '../providers.dart';

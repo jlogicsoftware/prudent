@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
-import '../generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import 'category_color_swatch.dart';
 import 'category_icon_choice.dart';

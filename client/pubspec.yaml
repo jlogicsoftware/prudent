@@ -43,14 +43,16 @@ dependencies:
   material_ui: ^1.11.0
   cupertino_ui: ^1.1.6
 
-  # Prudent's screens, view models, money formatting, generated messages and l10n live in the shared
+  # Prudent's screens, view models, money formatting and l10n live in the shared
   # package (ADR-108), which the Local app will consume as well. This app keeps the composition root,
   # the server repository, sign-in and everything that imports zen_transport or zen_identity.
   prudent_ui:
     path: ../packages/prudent_ui
 
-  # The runtime for the messages generated from ../proto into the shared package. Imported here by the
-  # server repository and the tests, so it is declared here as well as there.
+  # The messages generated from ../proto (packages/prudent_proto, ADR-111) and their runtime. Imported
+  # here by the server repository and the tests, so they are declared here as well as there.
+  prudent_proto:
+    path: ../packages/prudent_proto
   protobuf: ^6.0.0
   fixnum: ^1.1.0
 

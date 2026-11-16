@@ -1,4 +1,4 @@
-import '../generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 
 /// The categories a form may offer for a record (M3, jlogicsoftware/prudent#62, ADR-047).
 ///

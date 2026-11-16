@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:prudent_ui/generated/prudent/v1/plans.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/plans.pb.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:prudent_ui/notification/local_notification_gateway.dart';
 import 'package:prudent_ui/notification/notification_providers.dart';

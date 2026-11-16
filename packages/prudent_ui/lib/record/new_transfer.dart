@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
-import '../generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
 import '../providers.dart';

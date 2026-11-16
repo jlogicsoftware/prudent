@@ -2,8 +2,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
 
 import '../category/category_icons.dart';
-import '../generated/prudent/v1/categories.pb.dart';
-import '../generated/prudent/v1/records.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/records.pb.dart';
 import '../money.dart';
 
 class RecordItem extends StatelessWidget {

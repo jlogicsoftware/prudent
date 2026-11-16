@@ -1,7 +1,7 @@
 import 'package:fixnum/fixnum.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../generated/prudent/v1/goal_allocations.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/goal_allocations.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import 'envelope_amount.dart';
 import 'goal_figure_row.dart';

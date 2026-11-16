@@ -1,0 +1,8 @@
+# This package holds only the messages protoc generates from ../../proto. They are excluded from
+# analysis because a lint on generated code is unactionable by construction: the only honest fix
+# would be to hand-edit the file, which `task verify:contracts` exists to forbid. They are still
+# compiled and type-checked in every package that uses them. (They were excluded the same way while
+# they lived in packages/prudent_ui, ADR-108.)
+analyzer:
+  exclude:
+    - lib/generated/**

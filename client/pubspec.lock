@@ -732,6 +732,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
+  prudent_proto:
+    dependency: "direct main"
+    description:
+      path: "../packages/prudent_proto"
+      relative: true
+    source: path
+    version: "0.1.0"
   prudent_ui:
     dependency: "direct main"
     description:

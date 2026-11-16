@@ -1,6 +1,6 @@
 import 'package:fixnum/fixnum.dart';
 
-import '../generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
 
 /// Sums every `includeInTotal && isActive` account's balances by currency — the arithmetic behind
 /// the Overview screen's totals section (docs/prudent-migration-plan.md Phase 4).

@@ -1,0 +1,21 @@
+name: prudent_proto
+description: >-
+  Prudent's wire messages: the Dart generated from proto/prudent/v1/*.proto, and nothing else.
+  Pure Dart, so the server-connected app, the shared screens and Prudent Local's pure-Dart store
+  can all link the same types (ADR-111).
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.14.0 <4.0.0"
+
+# PURE DART AND NOTHING BUT THE PROTOBUF RUNTIME. This package is written only by
+# `task generate` (jZen's zen:generate:proto:dart, PROTO_DART_OUT on the include) and is read by
+# client/, packages/prudent_ui and local/prudent_local_store. A Flutter dependency here would put
+# Flutter under the Local store, whose tests run on the plain Dart VM; a transport dependency would
+# put the server under Local (`task verify:boundaries`).
+dependencies:
+  # The runtime the generated messages are written against. Money is an int64 count of minor
+  # units, so fixnum's Int64 is part of the messages' API.
+  protobuf: ^6.0.0
+  fixnum: ^1.1.0

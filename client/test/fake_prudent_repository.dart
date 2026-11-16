@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prudent_ui/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 import 'package:prudent_ui/prudent_repository.dart';
 import 'package:zen_core/zen_core.dart';
 
