@@ -19,7 +19,7 @@ import 'package:test/test.dart';
 void main() {
   final baseUrl = Platform.environment['ZEN_API_URL'];
   final files =
-      Directory('../prudent_local_core/parity/scenarios')
+      Directory('../../local/prudent_local_core/parity/scenarios')
           .listSync()
           .whereType<File>()
           .where((file) => file.path.endsWith('.json'))

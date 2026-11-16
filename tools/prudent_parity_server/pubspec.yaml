@@ -16,7 +16,7 @@ environment:
 dependencies:
   http: ^1.2.2
   prudent_local_core:
-    path: ../prudent_local_core
+    path: ../../local/prudent_local_core
   # jZen's packages from the sibling checkout, as client/ consumes them (ADR-001). Session cookies
   # and the CSRF header come from zen_transport's session client; registration from zen_identity.
   zen_core:
