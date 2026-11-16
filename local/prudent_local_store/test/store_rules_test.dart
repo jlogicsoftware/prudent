@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:fixnum/fixnum.dart';
 import 'package:prudent_local_store/prudent_local_store.dart';
+import 'package:protobuf/protobuf.dart';
 import 'package:test/test.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_store/zen_store.dart';
@@ -236,4 +237,57 @@ void main() {
       );
     });
   });
+
+  group('a record that cannot be read', () {
+    // Field 4 of a Transfer is a message; a length that runs past the end of the bytes cannot decode.
+    Future<void> storeUnreadable(String id) async {
+      final raw = zen.collection<_Unreadable>('transfers', _Unreadable.fromBuffer);
+      Device.ok(await raw.put(id, _Unreadable()..broken = [10, 255, 1]));
+      expect(store.transfers.get(id).errorOrNull, isA<ZenStorageError>());
+    }
+
+    test('is never written over, whatever the write would otherwise be', () async {
+      final id = store.newId();
+      await storeUnreadable(id);
+      final transfer = Transfer(
+        id: id,
+        title: 'Top up',
+        date: '2026-11-03',
+        source: Posting(accountId: store.newId(), currency: 'PLN', amountMinor: Int64(100)),
+        destination: Posting(accountId: store.newId(), currency: 'PLN', amountMinor: Int64(100)),
+      );
+      final result = await store.addTransfer(transfer);
+      expect(result.errorOrNull, isA<ZenStorageError>(), reason: 'got $result');
+      // Still the same unreadable bytes: nothing was written.
+      expect(store.transfers.get(id).errorOrNull, isA<ZenStorageError>());
+    });
+
+    test('an absent record is still created', () async {
+      final transfer = Transfer(id: store.newId(), title: 'Top up', date: '2026-11-03');
+      expect((await store.addTransfer(transfer)).isSuccess, isTrue);
+      expect(Device.ok(store.transfers.get(transfer.id)).title, 'Top up');
+    });
+  });
+}
+
+/// Stands in for bytes a Transfer cannot decode: field 4 holds a length-delimited value claiming
+/// more bytes than follow.
+final class _Unreadable extends GeneratedMessage {
+  _Unreadable();
+  factory _Unreadable.fromBuffer(List<int> bytes) => _Unreadable()..mergeFromBuffer(bytes);
+
+  static final BuilderInfo _i = BuilderInfo('Unreadable', createEmptyInstance: _Unreadable.new)
+    ..a<List<int>>(4, 'broken', PbFieldType.OY);
+
+  @override
+  BuilderInfo get info_ => _i;
+  @override
+  _Unreadable createEmptyInstance() => _Unreadable();
+  @override
+  _Unreadable clone() => _Unreadable()..mergeFromMessage(this);
+  @override
+  _Unreadable copyWith(void Function(_Unreadable) updates) => throw UnimplementedError();
+
+  List<int> get broken => $_getN(0);
+  set broken(List<int> value) => $_setBytes(0, value);
 }
