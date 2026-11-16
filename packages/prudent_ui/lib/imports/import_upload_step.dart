@@ -6,7 +6,7 @@ import 'package:zen_core/zen_core.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../account/account_edit.dart';
-import '../generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../load_error_view.dart';
 import '../providers.dart';

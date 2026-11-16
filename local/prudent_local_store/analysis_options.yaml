@@ -1,0 +1,11 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-raw-types: true
+  exclude:
+    # The store messages protoc generates from proto/. A lint on generated code is unactionable by
+    # construction (the only fix would be a hand-edit, which `task verify:contracts` forbids); they
+    # are still compiled and type-checked wherever they are used.
+    - lib/generated/**

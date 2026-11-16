@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:prudent_ui/account/account_tile.dart';
 import 'package:prudent_ui/account/account_edit.dart';
 import 'package:prudent_ui/account/reconcile_account.dart';
-import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 

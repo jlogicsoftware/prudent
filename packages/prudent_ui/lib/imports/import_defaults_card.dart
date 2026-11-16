@@ -2,7 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../category/selectable_categories.dart';
-import '../generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import 'import_review.dart';
 

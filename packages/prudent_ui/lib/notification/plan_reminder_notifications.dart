@@ -1,6 +1,6 @@
 import 'package:intl/intl.dart';
 
-import '../generated/prudent/v1/plans.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/plans.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
 import 'reminder_notification.dart';

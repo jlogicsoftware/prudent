@@ -437,10 +437,10 @@ scenario runs through both implementations (unit 3's harness).
 
 | # | Obligation | Source | Test |
 |---|---|---|---|
-| 4.1 | Store messages and the mapper to wire messages (0.2 D2) | 0.2 | `store_mapping_test`: every wire message round-trips |
-| 4.2 | Deterministic ids for every natural key (0.2 D3) | the natural keys of rows 5.4, 5.8, 5.43, 5.44, 6.1, 6.35, 6.39, 8.11 | `two_devices_test`: both devices create the same slot, one record results |
-| 4.3 | The integrity check runner (0.2 D6), each unit adding its checks | none — **no unit in the plan owns it** (finding F-05) | `integrity_test` per rule |
-| 4.4 | Same-intent timestamp rule (0.2) | none | `two_devices_test` |
+| 4.1 | Store messages and the mapper to wire messages (0.2 D2) | 0.2 | **Covered (ADR-111):** `local/prudent_local_store/test/wire_mapper_test.dart` — every stored wire message round-trips byte for byte; `merge_table_test.dart` — every §0.2 row through two stores |
+| 4.2 | Deterministic ids for every natural key (0.2 D3) | the natural keys of rows 5.4, 5.8, 5.43, 5.44, 6.1, 6.35, 6.39, 8.11 | **Covered:** `derived_ids_test.dart` (pinned vectors); `merge_table_test.dart` group "Ids from natural keys" (both devices create the same slot, one record results); `store_rules_test.dart` (a mismatched id is refused) |
+| 4.3 | The integrity check runner (0.2 D6), each unit adding its checks | none — **no unit in the plan owns it** (finding F-05) | **Covered for the store model's checks** (5.6, 5.7, 5.9, 5.10–5.12, 5.18, 5.19, 5.42, 6.9): `integrity_test.dart` per rule, `two_devices_test.dart` after a real merge. 6.16, 6.23, 6.24 (unit 6a), skipped-and-paid (6b) and the correction intent (5) are those units' |
+| 4.4 | Same-intent timestamp rule (0.2) | none | **Covered for the goal-status and reminder-read times** by jZen's `ZenMergePolicy.earliest`: `merge_table_test.dart` group "Same-intent". The reset revocation is a group and stays a conflict until jZenDev/jZen#244 (ADR-111) |
 
 ### Unit 5 — ledger: accounts, records, transfers, corrections, categories, settings (53 rules)
 

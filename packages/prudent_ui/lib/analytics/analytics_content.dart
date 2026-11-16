@@ -2,7 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
 
 import 'bar_chart_painter.dart';
-import '../generated/prudent/v1/analytics.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/analytics.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 
 /// The analytics screen's body once spend by month has loaded: a bar per month of the trailing

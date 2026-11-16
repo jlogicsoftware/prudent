@@ -1,7 +1,7 @@
 import 'package:fixnum/fixnum.dart';
 
-import '../generated/prudent/v1/accounts.pb.dart';
-import '../generated/prudent/v1/plans.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/plans.pb.dart';
 
 /// How far ahead the overview looks for planned money. The overdue ones are added on top, so this
 /// is "everything still expected that is due within a month", not a forecast horizon the user picks.

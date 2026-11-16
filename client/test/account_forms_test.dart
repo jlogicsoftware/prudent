@@ -11,7 +11,7 @@ import 'package:prudent_ui/account/account_edit.dart';
 import 'package:prudent_ui/account/account_new.dart';
 import 'package:prudent_ui/account/account_save_error.dart';
 import 'package:prudent_ui/account/reconcile_account.dart';
-import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_transport/zen_transport.dart' as transport;

@@ -10,7 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:prudent_ui/generated/prudent/v1/imports.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/imports.pb.dart';
 import 'package:prudent_ui/imports/import_failure.dart';
 import 'package:prudent_ui/imports/import_providers.dart';
 import 'package:prudent_ui/prudent_repository.dart';

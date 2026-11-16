@@ -11,7 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:prudent_ui/account/account_tile.dart';
 import 'package:prudent_ui/account/delete_account_form.dart';
-import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:prudent/server_prudent_repository.dart';
 import 'package:prudent_ui/providers.dart';

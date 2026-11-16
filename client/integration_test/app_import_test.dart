@@ -33,7 +33,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:prudent/app.dart';
-import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent_ui/imports/import_preview_screen.dart';
 import 'package:prudent_ui/imports/statement_picker.dart';
 import 'package:prudent/server_prudent_repository.dart';

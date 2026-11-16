@@ -1,5 +1,5 @@
 name: prudent_ui
-description: "Prudent's screens, view models, money formatting, generated messages and l10n, shared by every Prudent app (ADR-108)."
+description: "Prudent's screens, view models, money formatting and l10n, shared by every Prudent app (ADR-108)."
 # Consumed by path from client/ (and, later, local/prudent_local_client); never published.
 publish_to: 'none'
 version: 1.0.0+1
@@ -25,8 +25,12 @@ dependencies:
   material_ui: ^1.11.0
   cupertino_ui: ^1.1.6
 
-  # The runtime for the messages generated from ../../proto into lib/generated. Money is an int64
-  # count of minor units, so fixnum's Int64 is the money type, not an incidental import.
+  # The wire messages generated from ../../proto, in a pure-Dart package of their own so that Prudent
+  # Local's pure-Dart store can link the same types (ADR-111). The protobuf runtime is named too,
+  # because screens use its types directly; money is an int64 count of minor units, so fixnum's
+  # Int64 is the money type, not an incidental import.
+  prudent_proto:
+    path: ../prudent_proto
   protobuf: ^6.0.0
   fixnum: ^1.1.0
 

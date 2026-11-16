@@ -11,7 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
 import 'package:prudent_ui/account/account_screen.dart';
-import 'package:prudent_ui/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
 import 'package:prudent_ui/imports/import_preview_screen.dart';
 import 'package:prudent_ui/imports/import_rule_messages.dart';
 import 'package:prudent_ui/imports/import_statement_screen.dart';

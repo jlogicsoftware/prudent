@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../generated/prudent/v1/imports.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/imports.pb.dart';
 import '../providers.dart';
 import 'import_result.dart';
 import 'import_review.dart';

@@ -25,17 +25,19 @@ includes:
       PROTO_DIR: proto
       # Where zen:generate:proto:dart writes Prudent's messages. OVERRIDDEN, because the task's
       # default is `<client>/<app>_client/lib/generated` — the conventional layout, where the
-      # client tier holds a package per concern. Prudent's messages belong to the shared package its
-      # screens live in (packages/prudent_ui, ADR-108), which every Prudent app links.
+      # client tier holds a package per concern. Prudent's messages are a pure-Dart package of their
+      # own (packages/prudent_proto, ADR-111), which the screens (packages/prudent_ui), the
+      # server-connected app and Prudent Local's pure-Dart store all link — a store whose tests run on
+      # the plain Dart VM cannot depend on a Flutter package to reach them.
       #
-      # Flat at lib/generated/, not lib/src/generated/ (ADR-026): the package is imported as
-      # package:prudent_ui/<folder>/<file>.dart, so the lib/src/ privacy split buys nothing.
-      PROTO_DART_OUT: packages/prudent_ui/lib/generated
+      # Flat at lib/generated/, not lib/src/generated/ (ADR-026): the messages are imported as
+      # package:prudent_proto/generated/prudent/v1/<file>.pb.dart.
+      PROTO_DART_OUT: packages/prudent_proto/lib/generated
       # The Dart packages the tree-walking tasks cover: pub get, gen-l10n discovery, the
       # one-widget-per-file gate and the test suites. The server-connected app AND the shared
       # package, so a gate that reads only `client/` cannot go green over a package it never read
       # (ADR-108). Space-separated, as jZen's DART_ROOTS documents.
-      DART_ROOTS: client packages/prudent_ui
+      DART_ROOTS: client packages/prudent_ui packages/prudent_proto
       # OVERRIDDEN for the same reason as PROTO_DART_OUT: zen:run:client / zen:run:dev default the
       # Flutter package to `<client>/<app>_client`, the per-concern-package layout. Prudent's
       # client tier IS the Flutter package, so it is `client/` itself. (build:runners already
@@ -50,6 +52,20 @@ includes:
       # redirect or the server refuses it as invalid_redirect (jZen #81). Must equal the server's
       # %dev.auth.redirect-uris and the value registered in the platform manifests, exactly.
       ZEN_AUTH_REDIRECT_URI: prudent://auth-callback
+  # THE SAME FILE A SECOND TIME, FOR PRUDENT LOCAL'S STORE MESSAGES (ADR-111). They are not the wire
+  # contract: local/prudent_local_store keeps its own protos beside itself and generates into its own
+  # package, the way jZen's Taskfile includes Taskfile.app.yml a second time for zen_demo_local
+  # (jZen ADR-080). Only `zenstore:generate:proto:dart` is called, from `generate` and
+  # `verify:contracts` below; the drift check those run is tree-wide (`*.pb.dart`), so it watches
+  # these messages too.
+  zenstore:
+    taskfile: ../jZen/Taskfile.app.yml
+    vars:
+      APP_NAME: prudent_local
+      CLIENT_DIR: local
+      SERVER_DIR: server
+      PROTO_DIR: local/prudent_local_store/proto
+      PROTO_DART_OUT: local/prudent_local_store/lib/generated
 
 # THE CONTRACT LOOP AND THE DEPENDENCY INSTALL ARE CONSUMED FROM THE INCLUDE, NOT HAND-ROLLED
 # (Prudent ADR-027, jZen ADR-049 / issue #74). jZen's Taskfile.app.yml now carries the whole loop
@@ -114,7 +130,7 @@ tasks:
   #
   #   proto/prudent/v1/*.proto              (canonical models)
   #     |-- protoc --> Java DTOs            (protobuf-maven-plugin; NOT tracked)
-  #     |-- protoc --> Dart messages        (protoc_plugin;         TRACKED at packages/prudent_ui/lib/generated)
+  #     |-- protoc --> Dart messages        (protoc_plugin;         TRACKED at packages/prudent_proto/lib/generated)
   #   annotated resources + SmallRye --> openapi.json (target/, NOT tracked) --> admin TS
   #     (openapi-typescript --> admin/src/api/schema.generated.ts; TRACKED)
   #
@@ -131,10 +147,15 @@ tasks:
     desc: Regenerate every cross-language artifact — proto, openapi, admin TS, l10n (no gate)
     cmds:
       - task: zen:generate
+      # Prudent Local's store messages (ADR-111), from their own proto root.
+      - task: zenstore:generate:proto:dart
 
   verify:contracts:
     desc: Regenerate, then FAIL if a tracked generated file drifted (was sync:contracts)
     cmds:
+      # The store messages first, so the framework's drift check (which regenerates the wire
+      # messages and then looks at every tracked *.pb.dart in the tree) sees both (ADR-111).
+      - task: zenstore:generate:proto:dart
       - task: zen:verify:contracts
 
   deps:
@@ -186,6 +207,17 @@ tasks:
     cmds:
       - cd local/prudent_local_core && dart pub get && dart test
 
+  test:local-store:
+    desc: Prudent Local's store model — merge table, mapper, integrity checks, two devices (pure Dart)
+    summary: |
+      Unit 4 of docs/plans/PRUDENT-LOCAL-PLAN.md (ADR-111). `dart pub get` and `dart test` in
+      local/prudent_local_store: every row of the per-field merge table (ADR-102) through two real
+      encrypted stores synced by jZen's ZenFolderCloud, the store's structural write rules, the
+      derived-id vectors, the mapper's byte-for-byte round trip, each integrity check and its actions,
+      and the two-device suite that is the unit's done-when. Needs no server and no Flutter.
+    cmds:
+      - cd local/prudent_local_store && dart pub get && dart test
+
   golden:generate:
     desc: Regenerate prudent_local_core's golden vectors from the server's own rule methods
     summary: |
@@ -223,7 +255,10 @@ tasks:
       Prudent app with no server can link its screens. All of them scan client/lib AND the shared
       package. (F, ADR-109) No package under local/ depends on or imports those four, with no
       exemption (the parity harness that needs the transport lives in tools/prudent_parity_server,
-      and nothing under local/ may depend on it), (G) local/prudent_local_core is pure Dart, and (H)
+      and nothing under local/ may depend on it), (G) local/prudent_local_core, local/prudent_local_store and packages/prudent_proto are pure Dart
+      (ADR-111 adds the last two, E's pubspec check now reads every package under packages/, and F
+      refuses a local/ `path:` that lands outside local/, packages/ or jZen's server-free client
+      packages), and (H)
       nothing in client/ or packages/ depends on or imports a package under local/.
       scripts/test_verify_boundaries.py runs first and plants each violation.
 
@@ -253,14 +288,16 @@ tasks:
       built and never committed; the strings belong to the shared package), then
       `flutter analyze --fatal-infos --fatal-warnings` in BOTH Flutter packages — packages/prudent_ui,
       which holds the screens (ADR-108), and client/, which holds the composition root — and then
-      `dart analyze` with the same flags in local/prudent_local_core and tools/prudent_parity_server
-      (ADR-108), so an info-level lint, which is what riverpod_lint and most of flutter_lints report,
+      `dart analyze` with the same flags in local/prudent_local_core, tools/prudent_parity_server and
+      local/prudent_local_store (ADR-108, ADR-111), so an info-level lint, which is what riverpod_lint and most of flutter_lints report,
       fails the build like an error does. A package left out of this list would be a package the gate
       never reads.
 
-      packages/prudent_ui/lib/generated/ and its lib/l10n/generated/ are excluded in that package's
-      analysis_options.yaml (derived output, unactionable by construction; the reasoning is written
-      there). The packages are resolved first (`deps:`), so it works on a fresh checkout. That the plugin really loads in CI was proved
+      packages/prudent_ui's lib/l10n/generated/ is excluded in that package's analysis_options.yaml
+      (derived output, unactionable by construction; the reasoning is written there).
+      packages/prudent_proto holds nothing but the generated wire messages, which its own
+      analysis_options.yaml excludes for the same reason, so it has no line here: it is compiled
+      and type-checked by every package above that imports it (ADR-111). The packages are resolved first (`deps:`), so it works on a fresh checkout. That the plugin really loads in CI was proved
       once by hand, with a deliberate provider misuse that turned the job red (ADR-104); no check
       re-proves it on every run.
     deps:
@@ -272,6 +309,7 @@ tasks:
       # Prudent Local's pure-Dart packages (ADR-107): the same severity, through `dart analyze`.
       - cd local/prudent_local_core && dart pub get && dart analyze --fatal-infos --fatal-warnings
       - cd tools/prudent_parity_server && dart pub get && dart analyze --fatal-infos --fatal-warnings
+      - cd local/prudent_local_store && dart pub get && dart analyze --fatal-infos --fatal-warnings
 
   verify:controls:
     desc: Fail if client screens use raw Material controls zen_ui_widgets replaces

@@ -13,6 +13,121 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-111 — Prudent Local's store model: its own messages on `zen_store`, ids minted on the device or derived from natural keys, jZen's per-field merge, and an integrity-check runner; the wire messages move to a pure-Dart package
+
+**Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 4 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245); the
+per-field table of `docs/plans/prudent-local-phase0.md` §0.2 (frozen by ADR-102), §0.3 rows 4.1–4.4, findings F-02, F-03, F-05.
+**Builds on:** ADR-101 (package shape), ADR-102 (money under merge), ADR-107 (ids and rules), ADR-108 (the shared package), ADR-109
+(boundaries). **jZen:** consumes jZenDev/jZen#235 (PR #241) and #233 (PR #242) at `JZEN_REF` `6301f0e`; files jZenDev/jZen#244 and #245.
+
+### Decision
+
+- **A fifth package, `local/prudent_local_store`, pure Dart.** It holds the store messages, the store's write rules, the mapper and the
+  integrity runner, on `zen_store` (path dependency into `../jZen/client/zen_store`), `prudent_local_core` and `prudent_proto`.
+  `prudent_local_core` stays as ADR-107 built it — the server's rules with one dependency (`crypto`), which the parity suite runs — so the
+  store does not pull `zen_store`, `cryptography` and `protobuf` under the golden vectors.
+- **The wire messages move to `packages/prudent_proto`, a pure-Dart package holding only the generated Dart of `proto/prudent/v1/`.**
+  `PROTO_DART_OUT` points there, `prudent_ui` and `client/` depend on it, and every `package:prudent_ui/generated/…` and relative
+  `generated/…` import (90 files) became `package:prudent_proto/generated/…` — a mechanical rewrite; `protoc` writes byte-identical
+  files into the new place. jZen's `Taskfile.app.yml` anticipates exactly this ("an application that keeps its wire types in a
+  dedicated package overrides it").
+- **The store messages are Local's own** (`local/prudent_local_store/proto/prudent_local/v1/store.proto`), generated into the package's
+  `lib/generated` by a second include of jZen's `Taskfile.app.yml` (`zenstore:`), as jZen does for `zen_demo_local` (jZen ADR-080);
+  `task generate` and `task verify:contracts` run it, and the drift check is tree-wide. Their shape **is** the §0.2 table: a field of
+  its own merges; a nested message is a group (`Posting` = account, currency, amount on records, plans and both sides of a transfer;
+  `Schedule`; `ReminderSetting`; `Revocation`; `CorrectionIntent`, `PlanLink` and `ImportKey`, which are immutable); derived figures
+  are absent (no `balances`, no `is_default`, no occurrence status or copied fields); import sessions are not here (device-only, unit 8b).
+  The default account is `Settings.default_account_id`; a transfer is one `Transfer` record; a record carries its `ImportKey` (F-02);
+  an account's openings are `AccountCurrency` records (F-03).
+- **Ids are minted by the device** (`ZenStore.newId`, 128 random bits as 32 lower-case hex, the `LocalIds` form of ADR-107), **or derived
+  from natural keys** (`DerivedIds`: account currency, budget slot, occurrence, confirming record, imported record, starter category,
+  transfer leg; settings is the constant `settings`). The server mints every id because "an id from an untrusted client is not identity"
+  (`Ids.java`). That reason does not hold on a device that is the only authority over its own store: there is no other party, no other
+  person's rows an id could reach (one person per store; row-level security has no local meaning, §0.3 X.1), and two devices must create
+  records offline with no one to ask. A derived id is `SHA-256(length-prefixed "prudent-local/derived-id/v1", kind, components)` cut to
+  128 bits; the encoding is frozen (one vector per kind is pinned, cross-checked against an independent implementation), and a component
+  that is not canonical (upper-case hex, `pln`, `2026-1`) is refused, never derived a second way.
+- **`PrudentLocalStore` is the only write path** and enforces the structural rules: an id matches its natural key; immutable fields are
+  written once; a correction is never edited; a transfer, a goal allocation and a reset are written once (a reset then takes one
+  revocation); allocations, resets, goals and settings are never deleted. Rules about values (currency held, sign, archived category)
+  are units 5–6's. Rules across records are not refused anywhere.
+- **No last-writer-wins.** The only policies are jZen's `ZenMergePolicy.earliest` on `Goal.status_changed_at_ms` and
+  `OccurrenceState.reminder_read_at_ms` (`StorePolicies`, field numbers read from the descriptors and pinned by a test). A goal's status
+  is a field of its own, so completing on two devices merges and completing on one and archiving on the other is still a question.
+- **A reset's revocation stays a conflict.** It is a group — who and when — and jZen's policies decide a single scalar or timestamp field;
+  two top-level fields would leave "who" a conflict, or pair one device's time with the other's author. Filed as jZenDev/jZen#244; until it
+  lands, two devices revoking one reset is a conflict the person settles. Prudent does not settle it through `resolve`.
+- **`WireMapper` copies field presence exactly.** Derived figures (balances, an occurrence's status) and Local-only fields (a correction's
+  intent, an import key, the openings) are explicit inputs; a transfer's two leg `Record`s get ids derived from it; anything the other
+  side cannot represent (a transfer leg as a record, legs that are not one transfer, balances that do not name the held currencies) is an
+  `ArgumentError`. The Dart protobuf runtime serialises a field explicitly set to its default, and `zen_store` compares serialised fields,
+  so a mapper that filled in defaults would hand the store edits nobody made (reproduced: "no description" written as `''` on one device
+  and cleared on the other is a conflict). Filed as jZenDev/jZen#245. The store does not canonicalise writes in the meantime.
+- **The integrity-check runner (F-05).** `IntegrityCheck` is the extension point (units 5–8 add theirs); `IntegrityRunner.evaluate()`
+  reads every collection afresh and returns every issue, ordered by id, or the store's error — never "no issues" for a store it could not
+  read. It keeps no cached answer: the store announces a change on a stream after the write returns, so a cache could be read stale.
+  An `IntegrityIssue` is data shaped one-to-one on `zen_ui_store`'s `ZenIssue` — a stable id from the rule code and record ids (never an
+  amount, a name or an account number), facts for the words, and actions (`now`, `choose` among ids, `withText`) whose `run` answers
+  `ZenResult` and writes through `PrudentLocalStore`, against the record as it stands when the person acts. The unit's checks:
+  dangling references (records, transfers, account currencies, plans, budgets and resets naming a deleted account or category — rows
+  5.10–5.12, 5.42), a default account that was deleted, money in a currency its account no longer holds (5.6, 5.7, 5.18), a sign the
+  category's kind refuses (5.19, `CategoryEntity.canFile` value for value), one account number on two accounts (5.9), two live resets in
+  one slot (6.9). Actions: delete, move (not for a correction or an imported record, whose id names its account), re-create a deleted
+  account or category under its old id with a name the person gives, add the currency, let the category take both directions, clear a
+  number, revoke a reset.
+- **Surfacing the issues is the Local app's.** `zen_ui_store` is a Flutter package and this one is pure Dart, so the
+  `ZenIssueSource(issues: …)` that puts them beside the conflicts, with words chosen by code, is wired in unit 9. No Prudent-side list
+  exists or will.
+- **Gates.** `task test:local-store` (CI gates job); `verify:analyze` runs `dart analyze --fatal-infos --fatal-warnings` in the package;
+  `packages/prudent_proto` joins `DART_ROOTS` and has no analyzer line because it holds nothing but excluded generated code;
+  `verify:boundaries` checks F and H (ADR-109) cover the package with no exemption; check G (pure Dart) now names
+  `local/prudent_local_store` and `packages/prudent_proto` beside the core and reads generated sources too, and check E's pubspec scan
+  reads every package under `packages/`, so the wire messages cannot bring the transport one hop under Local where F, which reads
+  `local/` pubspecs, would not see it. Check F also refuses any `path:` dependency of a `local/` pubspec that lands outside `local/`,
+  `packages/` or a jZen client package other than the four server ones, whatever key it sits under (resolved lexically from the
+  repository root). Flow-style one-line dependencies are still not read, as ADR-109 records. `scripts/test_verify_boundaries.py` plants each new violation; both were also proved red on the
+  real tree and removed. `JZEN_REF` moves to `6301f0e` in both workflows.
+
+### What this supersedes, and why
+
+- **"local/prudent_local_core/ — pure Dart: the local store model (its own protos, see 0.2) … the integrity checks"** (ADR-101; ADR-102's
+  "`local/prudent_local_core/proto/prudent_local/v1/`") → **refined: in `local/prudent_local_store`.** *Why:* the core is the parity
+  suite's rule set with one dependency; the store needs `zen_store`, and keeping them apart keeps that suite's graph small.
+- **"The generated proto Dart moves … to `packages/prudent_ui/lib/generated`"** (ADR-101, ADR-108) → **superseded: `packages/prudent_proto/lib/generated`.**
+  *Why:* ADR-101 also required the Local core to depend on the generated messages and to stay pure Dart; a pure-Dart package cannot
+  depend on a Flutter package, so both could not hold.
+- **"Until jZenDev/jZen#233 lands, Prudent shows the list itself"** and **"the same rule is applied by `prudent_local_core` through
+  `resolve` … until #235"** (ADR-102) → **never built.** *Why:* both issues landed before this unit; the user's rule is to consume a fix
+  after it merges, never to build an interim copy.
+- **The §0.2 row "`revoked_by`, `revoked_at_ms` — Group (revocation), same-intent rule"** → **the group stands; its same-intent merge waits
+  for jZenDev/jZen#244.** *Why:* the merged policy cannot decide a group, and settling it in Prudent would be the interim copy the rule forbids.
+- **"Ids are minted by the server; a client-sent id is not identity"** (§0.3 row 3.9, `Ids.java`) → **device-minted or derived, locally.**
+  *Why:* stated above; ADR-102 decided it, this records the reason the plan asked for.
+
+### Consequence
+
+Verified on 2026-11-16, in the worktree against jZen `6301f0e`: `dart test` in `local/prudent_local_store` — 166 tests green: every §0.2 row
+through two real encrypted stores synced by `ZenFolderCloud` (merge, group, same-intent, derived ids, write-once, edit against delete,
+derived and device-only), the structural rules, the derived-id vectors, the mapper's byte-for-byte round trip of every stored message,
+each check and its actions, and the two-device suite (disjoint edits merge; the §0.2 conflicts surface on both devices, refuse writes and
+are resolved once; a category deleted on one device while the other files under it is listed on both and settled by one action). Five
+deliberate mutations each turned it red: the goal policy removed, the mapper dropping `payee`, the dangling-reference check removed, the
+derived-id domain changed, the correction no longer immutable. `dart analyze --fatal-infos --fatal-warnings` is clean in the package;
+`flutter analyze` with the same flags is clean in `client/` and `packages/prudent_ui` after the move; `verify_boundaries.py`,
+`verify_controls.py` and jZen's `verify-widget-files.py` pass.
+
+### Not verified
+
+- `task` does not load from a git worktree (ADR-065), so `task verify:contracts`, `task generate` (the `zenstore:` include),
+  `task verify:analyze`, `task test:local-store` and `task zen:test:client` ran only in CI; locally their underlying commands were run.
+- No device, no CloudKit backend (unit 9 wires it; jZenDev/jZen#236, hashed record names, merged in jZen `cf36d77` and is not yet
+  consumed), no Flutter surface: the issues reach no screen until
+  unit 9. The ledger's multi-record writes wait on jZenDev/jZen#232 (unit 5). The parity suite still runs unit 3's in-memory backend; a
+  store-backed one is unit 5's.
+- A write path that is not presence-exact can still raise a conflict about nothing until jZenDev/jZen#245 lands.
+
+---
+
 ## ADR-109 — `task verify:boundaries` keeps the server out of `local/` and Local out of `client/` and `packages/`; the parity harness moves to `tools/`
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** ground rules and unit 11 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).

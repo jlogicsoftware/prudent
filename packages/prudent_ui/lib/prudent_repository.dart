@@ -1,17 +1,17 @@
 import 'package:zen_core/zen_core.dart' show ZenResult;
 
-import 'generated/prudent/v1/accounts.pb.dart';
-import 'generated/prudent/v1/analytics.pb.dart';
-import 'generated/prudent/v1/budgets.pb.dart';
-import 'generated/prudent/v1/categories.pb.dart';
-import 'generated/prudent/v1/goal_allocations.pb.dart';
-import 'generated/prudent/v1/goals.pb.dart';
-import 'generated/prudent/v1/imports.pb.dart';
-import 'generated/prudent/v1/plans.pb.dart';
-import 'generated/prudent/v1/privacy.pb.dart';
-import 'generated/prudent/v1/records.pb.dart';
-import 'generated/prudent/v1/reminders.pb.dart';
-import 'generated/prudent/v1/settings.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/analytics.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/budgets.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/goal_allocations.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/goals.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/imports.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/plans.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/privacy.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/records.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/reminders.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart';
 import 'record/record_filter.dart';
 
 /// Everything a screen, view model or provider asks of Prudent's data: the one seam between the

@@ -1,7 +1,7 @@
 import 'package:intl/intl.dart';
 
-import '../generated/prudent/v1/plans.pb.dart';
-import '../generated/prudent/v1/reminders.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/plans.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/reminders.pb.dart';
 
 /// A `YYYY-MM-DD` occurrence date as a readable date; the raw text if it is somehow not one, so a
 /// date is never shown blank or guessed.

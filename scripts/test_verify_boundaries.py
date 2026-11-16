@@ -24,6 +24,11 @@ CORE_PUBSPEC = "name: prudent_local_core\ndependencies:\n  crypto: ^3.0.6\ndev_d
 LOCAL_FILES = {
     "local/prudent_local_core/pubspec.yaml": CORE_PUBSPEC,
     "local/prudent_local_core/lib/a.dart": "final a = 1;\n",
+    "local/prudent_local_store/pubspec.yaml": "name: prudent_local_store\ndependencies:\n  zen_store:\n    path: x\n",
+    "local/prudent_local_store/lib/a.dart": "final a = 1;\n",
+    # The wire messages (ADR-111): generated code only, pure Dart.
+    "packages/prudent_proto/pubspec.yaml": "name: prudent_proto\ndependencies:\n  protobuf: ^6.0.0\n",
+    "packages/prudent_proto/lib/generated/prudent/v1/a.pb.dart": "import 'package:protobuf/protobuf.dart';\n",
     # The parity harness lives outside local/ (ADR-109), where it may name the transport.
     "tools/prudent_parity_server/pubspec.yaml": CLEAN_PUBSPEC
     + "  zen_transport:\n    path: x\n  zen_identity:\n    path: y\n  prudent_local_core:\n    path: ../../local/prudent_local_core\n",
@@ -39,6 +44,7 @@ def run_gate(
     client_lib=None,
     local=None,
     drop_local=False,
+    extra=None,
 ) -> "tuple[int, str]":
     """`local` maps a path under local/ to its text and overrides the clean Local tree."""
     files = {
@@ -54,6 +60,7 @@ def run_gate(
     files.update({f"packages/prudent_ui/lib/{k}": v for k, v in (shared_lib or {}).items()})
     files.update({f"packages/prudent_ui/test/{k}": v for k, v in (shared_test or {}).items()})
     files.update({f"client/lib/{k}": v for k, v in (client_lib or {}).items()})
+    files.update(extra or {})
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         for rel, text in files.items():
@@ -313,6 +320,91 @@ class NothingOutsideLocalUsesLocal(unittest.TestCase):
             client_lib={"x.dart": "// import 'package:prudent_local_core/a.dart';\n"},
         )
         self.assertEqual(rc, 0, out)
+
+
+class LocalPathDependenciesStayInBounds(unittest.TestCase):
+    """ADR-111: a `local/` pubspec's `path:` may reach local/, packages/ or a server-free jZen client package."""
+
+    def _pubspec(self, key: str, path: str) -> str:
+        return f"name: prudent_local_store\ndependencies:\n  {key}:\n    path: {path}\n"
+
+    def test_the_real_shapes_pass(self) -> None:
+        for path in ("../prudent_local_core", "../../packages/prudent_proto", "../../../jZen/client/zen_store", "'../../../jZen/client/zen_core'"):
+            with self.subTest(path=path):
+                rc, out = run_gate(local={"prudent_local_store/pubspec.yaml": self._pubspec("x", path)})
+                self.assertEqual(rc, 0, out)
+
+    def test_a_path_out_of_bounds_is_refused_whatever_its_key(self) -> None:
+        for path in (
+            "../../client",
+            "../../tools/prudent_parity_server",
+            "../../../jZen/client/zen_transport",
+            "../../../jZen/client/zen_identity",
+            "../../../jZen/server",
+            "/abs/elsewhere",
+            "../../packages/../client",
+        ):
+            with self.subTest(path=path):
+                rc, out = run_gate(local={"prudent_local_store/pubspec.yaml": self._pubspec("innocent", path)})
+                self.assertEqual(rc, 1, out)
+                self.assertIn("local/prudent_local_store/pubspec.yaml", out)
+
+
+class WirePackageAndStoreAreGuarded(unittest.TestCase):
+    """ADR-111: the store and the wire messages are pure Dart, and the wire messages reach no server."""
+
+    def test_flutter_in_the_store_is_refused(self) -> None:
+        for path, text in (
+            ("prudent_local_store/pubspec.yaml", "name: s\ndependencies:\n  flutter:\n    sdk: flutter\n"),
+            ("prudent_local_store/lib/leak.dart", "import 'package:flutter/foundation.dart';\n"),
+            ("prudent_local_store/test/leak_test.dart", "import 'package:flutter_test/flutter_test.dart';\n"),
+        ):
+            with self.subTest(path=path):
+                rc, out = run_gate(local={path: text})
+                self.assertEqual(rc, 1, out)
+                self.assertIn(f"local/{path}", out)
+
+    def test_flutter_in_the_wire_messages_is_refused_even_in_generated_code(self) -> None:
+        for path, text in (
+            ("packages/prudent_proto/pubspec.yaml", "name: p\ndependencies:\n  flutter:\n    sdk: flutter\n"),
+            ("packages/prudent_proto/lib/generated/prudent/v1/leak.pb.dart", "import 'dart:ui';\n"),
+        ):
+            with self.subTest(path=path):
+                rc, out = run_gate(extra={path: text})
+                self.assertEqual(rc, 1, out)
+                self.assertIn(path, out)
+
+    def test_the_transport_in_the_wire_messages_is_refused(self) -> None:
+        rc, out = run_gate(
+            extra={"packages/prudent_proto/pubspec.yaml": "name: p\ndependencies:\n  zen_transport:\n    path: x\n"}
+        )
+        self.assertEqual(rc, 1, out)
+        self.assertIn("packages/prudent_proto/pubspec.yaml", out)
+
+    def test_a_missing_store_or_wire_package_fails_rather_than_passes(self) -> None:
+        for missing in ("local/prudent_local_store/pubspec.yaml", "packages/prudent_proto/pubspec.yaml"):
+            with self.subTest(missing=missing):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    files = {
+                        "client/pubspec.yaml": CLEAN_PUBSPEC,
+                        "client/lib/main.dart": "void main() {}\n",
+                        "packages/prudent_ui/pubspec.yaml": CLEAN_PUBSPEC,
+                        "packages/prudent_ui/lib/a.dart": "final a = 1;\n",
+                        "packages/prudent_ui/test/a_test.dart": "void main() {}\n",
+                        **ADMIN_FILES,
+                        **LOCAL_FILES,
+                    }
+                    del files[missing]
+                    for rel, text in files.items():
+                        path = root / rel
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_text(text, encoding="utf-8")
+                    out = io.StringIO()
+                    with redirect_stdout(out):
+                        rc = gate.main(root)
+                    self.assertEqual(rc, 1, out.getvalue())
+                    self.assertIn("stale", out.getvalue())
 
 
 if __name__ == "__main__":

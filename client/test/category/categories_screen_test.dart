@@ -5,7 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent_ui/category/categories_screen.dart';
-import 'package:prudent_ui/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:prudent_ui/providers.dart';
 import 'package:zen_core/zen_core.dart';

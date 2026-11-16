@@ -2,8 +2,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
-import '../generated/prudent/v1/categories.pb.dart';
-import '../generated/prudent/v1/records.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/records.pb.dart';
 import '../money.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../providers.dart';

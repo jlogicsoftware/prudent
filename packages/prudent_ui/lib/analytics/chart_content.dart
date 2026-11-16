@@ -1,8 +1,8 @@
 import 'package:fixnum/fixnum.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../generated/prudent/v1/analytics.pb.dart';
-import '../generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/analytics.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
 import 'donut_chart_painter.dart';

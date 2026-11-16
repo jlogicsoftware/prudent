@@ -1,8 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
 
-import '../generated/prudent/v1/budgets.pb.dart';
-import '../generated/prudent/v1/categories.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/budgets.pb.dart';
+import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import 'budget_card.dart';
 import 'budget_figures.dart';
