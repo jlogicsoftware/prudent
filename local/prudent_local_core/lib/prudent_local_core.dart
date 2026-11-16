@@ -1,0 +1,17 @@
+/// Prudent Local's domain core: the server's rules in pure Dart (ADR-101, ADR-107).
+///
+/// Every function here reproduces a named method of the Quarkus server and is held to it by golden
+/// vectors the server's JVM writes (`test/golden/`). The server is the specification; where Local
+/// must differ, the difference is an ADR, not a surprise.
+library;
+
+export 'src/account_numbers.dart';
+export 'src/civil_date.dart';
+export 'src/currencies.dart';
+export 'src/currency_totals.dart';
+export 'src/iso4217.dart';
+export 'src/java_text.dart';
+export 'src/local_ids.dart';
+export 'src/minor_units.dart';
+export 'src/refusal.dart';
+export 'src/text_rules.dart';

@@ -1,0 +1,31 @@
+name: prudent_parity_server
+description: >-
+  The server side of Prudent Local's parity harness (ADR-107): runs each parity scenario through
+  the live Quarkus server and through prudent_local_core, and compares every figure exactly.
+  Test-only; nothing ships from here.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.14.0 <4.0.0"
+
+# Pure Dart, run on the VM by `dart test` inside `task test:e2e` against the live stack. It is a
+# package of its own because it needs the server's transport and identity packages, which
+# prudent_local_core must never import (ADR-101) — and because the server-connected app's pubspec
+# must name no Local package (ADR-101), so it cannot live under client/.
+dependencies:
+  http: ^1.2.2
+  prudent_local_core:
+    path: ../prudent_local_core
+  # jZen's packages from the sibling checkout, as client/ consumes them (ADR-001). Session cookies
+  # and the CSRF header come from zen_transport's session client; registration from zen_identity.
+  zen_core:
+    path: ../../../jZen/client/zen_core
+  zen_identity:
+    path: ../../../jZen/client/zen_identity
+  zen_transport:
+    path: ../../../jZen/client/zen_transport
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

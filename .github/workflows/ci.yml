@@ -232,6 +232,14 @@ jobs:
         working-directory: prudent
         run: task zen:test:client
 
+      # Prudent Local's domain core (unit 3 of docs/plans/PRUDENT-LOCAL-PLAN.md, ADR-107): the
+      # server's rules in pure Dart, held to the JVM by committed golden vectors, and the parity
+      # engine's own tests (a one-cent difference must fail). The drift of the vectors themselves is
+      # GoldenVectorsTest in the backend job; the parity suite against the live server is in e2e.
+      - name: Prudent Local domain core
+        working-directory: prudent
+        run: task test:local-core
+
       - name: Admin panel typecheck
         working-directory: prudent
         run: task test:admin

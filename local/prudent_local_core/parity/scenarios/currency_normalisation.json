@@ -1,0 +1,226 @@
+{
+  "name": "currency_normalisation",
+  "description": "A currency code is trimmed (Java trim) and upper-cased in the root locale, then must be in the JDK's ISO-4217 table; two spellings of one code are one currency.",
+  "rules": [
+    "3.2"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Groceries",
+        "iconKey": "food"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "lower",
+      "outcome": "accepted",
+      "input": {
+        "name": "Lower case",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "pln",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "outcome": "accepted",
+      "input": {
+        "name": "Padded",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": " eur ",
+            "amountMinor": "100"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "Java folds the dotless i to I: INR.",
+      "op": "account.create",
+      "outcome": "accepted",
+      "input": {
+        "name": "Dotless i",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "\u0131nr",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "Java folds sharp s to SS: SSP.",
+      "op": "account.create",
+      "outcome": "accepted",
+      "input": {
+        "name": "Sharp s",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "\u00dfp",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "Java folds the long s to S: SEK.",
+      "op": "account.create",
+      "outcome": "accepted",
+      "input": {
+        "name": "Long s",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "\u017fek",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "trim() does not remove U+00A0.",
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "No-break space",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "\u00a0PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Not a code",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "ABC",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Full width",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "\uff30\uff2c\uff2e",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "pln and PLN are one currency: refused, never merged.",
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Twice",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "pln",
+            "amountMinor": "0"
+          },
+          {
+            "currency": "PLN",
+            "amountMinor": "5"
+          }
+        ]
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$lower",
+        "category": "$food",
+        "amountMinor": "-250",
+        "currency": "Pln",
+        "date": "2026-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "comment": "The account does not hold EUR.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$lower",
+        "category": "$food",
+        "amountMinor": "-250",
+        "currency": "EUR",
+        "date": "2026-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$lower"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2026-11",
+        "currency": "eur",
+        "amountMinor": "40000"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2026-11",
+        "currency": " chf ",
+        "amountMinor": "40000"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2026-11",
+        "currency": "XX",
+        "amountMinor": "40000"
+      }
+    },
+    {
+      "op": "reset.create",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2026-10",
+        "currency": "\u0131nr",
+        "note": ""
+      }
+    }
+  ]
+}

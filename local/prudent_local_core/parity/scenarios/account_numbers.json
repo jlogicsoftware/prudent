@@ -1,0 +1,224 @@
+{
+  "name": "account_numbers",
+  "description": "An account number loses every Unicode White_Space character, has ASCII letters upper-cased and nothing else, loses a leading PL before 26 digits, and must then be 10 to 34 of A-Z0-9; two spellings of one number are one number.",
+  "rules": [
+    "3.6"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "outcome": "accepted",
+      "input": {
+        "name": "Spaces",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "pl00 0000 0000 0000 0000 0000 0001"
+      }
+    },
+    {
+      "comment": "The normal forms are equal: a conflict (409).",
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Same number, other spelling",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "00000000000000000000000001"
+      }
+    },
+    {
+      "op": "account.create",
+      "outcome": "accepted",
+      "input": {
+        "name": "No-break spaces",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "PL00\u00a00000\u00a00000\u00a00000\u00a00000\u00a00000\u00a00002"
+      }
+    },
+    {
+      "op": "account.create",
+      "outcome": "accepted",
+      "input": {
+        "name": "Narrow and ideographic spaces",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "PL00\u202f0000\u30000000\u202f0000\u30000000\u202f0000\u30000003"
+      }
+    },
+    {
+      "op": "account.create",
+      "outcome": "accepted",
+      "input": {
+        "name": "Next line and tabs",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "PL00\u00850000\t0000\n0000 0000 0000 0004"
+      }
+    },
+    {
+      "op": "account.create",
+      "outcome": "accepted",
+      "input": {
+        "name": "German shape",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "EUR",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "de00 0000 0000 0000 0000 00"
+      }
+    },
+    {
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Too short",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "123456789"
+      }
+    },
+    {
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Too long",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "11111111111111111111111111111111111"
+      }
+    },
+    {
+      "comment": "Only a-z is upper-cased; the dotless i stays and the shape refuses it.",
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Dotless i",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "\u0131BCDEFGHIJ"
+      }
+    },
+    {
+      "comment": "No NFC: e + U+0301 stays two code points.",
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Combining mark",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "e\u0301BCDEFGHIJ"
+      }
+    },
+    {
+      "comment": "U+FEFF is not White_Space and is not removed.",
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Byte-order mark",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "PL00\ufeff0000000000000000000005"
+      }
+    },
+    {
+      "op": "account.create",
+      "outcome": "refused",
+      "input": {
+        "name": "Zero-width space",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "PL00\u200b0000000000000000000005"
+      }
+    },
+    {
+      "comment": "Blank is no number.",
+      "op": "account.create",
+      "outcome": "accepted",
+      "input": {
+        "name": "Blank number",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "   "
+      }
+    },
+    {
+      "op": "account.create",
+      "outcome": "accepted",
+      "input": {
+        "name": "Only white space",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "\u00a0\u2007"
+      }
+    }
+  ]
+}

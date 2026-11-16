@@ -1,0 +1,158 @@
+{
+  "name": "multi_currency",
+  "description": "Money is a signed 64-bit count of minor units; balances are kept per currency and never summed across currencies; zero (and negative zero) is not an amount; the extremes of the range are carried exactly.",
+  "rules": [
+    "3.1",
+    "3.3"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Groceries",
+        "iconKey": "food"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "wallet",
+      "outcome": "accepted",
+      "input": {
+        "name": "Wallet",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "10000"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-1234",
+        "currency": "PLN",
+        "date": "2026-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "500",
+        "currency": "EUR",
+        "date": "2026-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "1",
+        "currency": "PLN",
+        "date": "2026-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "comment": "Negative zero is zero, and a zero amount is refused.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-0",
+        "currency": "PLN",
+        "date": "2026-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "0",
+        "currency": "EUR",
+        "date": "2026-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "extremes",
+      "outcome": "accepted",
+      "input": {
+        "name": "Extremes",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "USD",
+            "amountMinor": "0"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "Long.MAX_VALUE.",
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$extremes",
+        "category": "$food",
+        "amountMinor": "9223372036854775807",
+        "currency": "USD",
+        "date": "2026-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "comment": "Long.MIN_VALUE.",
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$extremes",
+        "category": "$food",
+        "amountMinor": "-9223372036854775808",
+        "currency": "EUR",
+        "date": "2026-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$extremes"
+      }
+    }
+  ]
+}

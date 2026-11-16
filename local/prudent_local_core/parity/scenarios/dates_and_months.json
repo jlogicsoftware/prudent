@@ -1,0 +1,279 @@
+{
+  "name": "dates_and_months",
+  "description": "A date is strict ISO-8601 as LocalDate.parse reads it (no rolled day, no time, a sign only beyond four digits, no negative zero); a month is strictly YYYY-MM.",
+  "rules": [
+    "3.4",
+    "3.5"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Groceries",
+        "iconKey": "food"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "cal",
+      "outcome": "accepted",
+      "input": {
+        "name": "Calendar",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "2024-02-29",
+        "title": "Bread"
+      }
+    },
+    {
+      "comment": "Not rolled into March.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "2023-02-29",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "1900-02-29",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "2000-02-29",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "2026-04-31",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "2026-11-15T00:00",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "2026-1-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": " 2026-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "comment": "A '+' only when the year needs more than four digits.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "+2026-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "+10000-01-01",
+        "title": "Bread"
+      }
+    },
+    {
+      "comment": "Negative zero names no year.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "-0000-01-01",
+        "title": "Bread"
+      }
+    },
+    {
+      "comment": "Full-width digits are not ASCII digits.",
+      "op": "record.create",
+      "outcome": "refused",
+      "input": {
+        "account": "$cal",
+        "category": "$food",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "date": "\uff12\uff10\uff12\uff16-11-15",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$cal"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2026-11",
+        "currency": "PLN",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2026-13",
+        "currency": "PLN",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2026-00",
+        "currency": "PLN",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2026-1",
+        "currency": "PLN",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "+2026-11",
+        "currency": "PLN",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "10000-01",
+        "currency": "PLN",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2026-11-01",
+        "currency": "PLN",
+        "amountMinor": "100"
+      }
+    },
+    {
+      "op": "reset.create",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2027-01",
+        "currency": "PLN",
+        "note": ""
+      }
+    },
+    {
+      "op": "reset.create",
+      "outcome": "refused",
+      "input": {
+        "category": "$food",
+        "month": "2027-1",
+        "currency": "PLN",
+        "note": ""
+      }
+    }
+  ]
+}
