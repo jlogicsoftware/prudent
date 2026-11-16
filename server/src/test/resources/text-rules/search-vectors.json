@@ -1,5 +1,5 @@
 {
-  "description": "Expected behaviour of TextRules.searchTerm and matchesAny (ADR-105). Synthetic data only (ADR-088). 'search' is the raw query value; 'term' is the folded term or null when the search is ignored; 'matches' lists, per candidate field value, whether the term is found. A null field never matches.",
+  "description": "Expected behaviour of TextRules.searchTerm and matchesAny (ADR-106). Synthetic data only (ADR-088). 'search' is the raw query value; 'term' is the folded term or null when the search is ignored; 'matches' lists, per candidate field value, whether the term is found. A null field never matches.",
   "term": [
     {"id": "t01", "search": null, "term": null},
     {"id": "t02", "search": "", "term": null},

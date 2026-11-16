@@ -24,7 +24,7 @@ import prudent.proto.v1.Record;
 import prudent.record.RecordEntity;
 
 /**
- * The text rules of ADR-105 through the routes a person uses: the record search and the order of
+ * The text rules of ADR-106 through the routes a person uses: the record search and the order of
  * account and category names. Each case here fails on the database-collated, SQL-{@code LIKE}
  * behaviour it replaced; the rules themselves are pinned by {@code TextRulesTest}.
  *
@@ -143,6 +143,29 @@ class TextRulesApiTest {
     assertEquals(
         List.of("bank", "Lato", "\u0141azienka", "Savings", "Wallet", "Zupa", UK_FOOD, UK_APPLE),
         names);
+  }
+
+  /**
+   * Names that differ only in case order upper case first by this rule. A database collation puts
+   * lower case first (en_US) or every upper-case letter before every lower-case one (C), so this
+   * is the case that tells the pinned rule from either.
+   */
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void namesThatDifferOnlyInCaseListUpperCaseFirst() throws Exception {
+    for (String name : new String[] {"b", "B", "a", "A"}) {
+      PrudentTest.seedAccount(PrudentTest.ALICE, name, "PLN");
+    }
+    Response response =
+        PrudentTest.request(PrudentTest.JSON).when().get("/api/v1/accounts").andReturn();
+    List<String> names =
+        PrudentTest.decode(PrudentTest.JSON, response, ListAccountsResponse.newBuilder())
+            .build()
+            .getAccountsList()
+            .stream()
+            .map(Account::getName)
+            .toList();
+    assertEquals(List.of("A", "a", "B", "b", "Wallet"), names);
   }
 
   @Test

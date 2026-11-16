@@ -483,7 +483,7 @@ public class RecordEntity extends PanacheEntityBase {
    *
    * <p>{@code search} is a plain substring match against {@code title}, {@code payee} or {@code
    * note}, folded as {@link TextRules#fold} says; {@code %} and {@code _} are ordinary characters.
-   * It runs in Java over the rows the other criteria selected (ADR-105).
+   * It runs in Java over the rows the other criteria selected (ADR-106).
    */
   public static List<RecordEntity> search(
       UUID userId,
@@ -540,7 +540,7 @@ public class RecordEntity extends PanacheEntityBase {
       return rows;
     }
     // The text match is not SQL: LIKE treats % and _ as wildcards and lower() follows the
-    // database's locale, neither of which a second implementation can copy (ADR-105).
+    // database's locale, neither of which a second implementation can copy (ADR-106).
     return rows.stream().filter(r -> TextRules.matchesAny(term, r.title, r.payee, r.note)).toList();
   }
 

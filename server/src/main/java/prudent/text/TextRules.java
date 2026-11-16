@@ -4,7 +4,7 @@ import java.util.UUID;
 
 /**
  * The two text rules a person can see in Prudent's lists, stated so that a second implementation
- * (Prudent Local's Dart code) reproduces them exactly (ADR-105): how a search term is cleaned and
+ * (Prudent Local's Dart code) reproduces them exactly (ADR-106): how a search term is cleaned and
  * matched, and how names are ordered.
  *
  * <p>Neither rule asks the database. A database folds case and orders text by whatever locale it

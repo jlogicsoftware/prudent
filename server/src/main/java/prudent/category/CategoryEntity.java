@@ -109,7 +109,7 @@ public class CategoryEntity extends PanacheEntityBase {
     }
   }
 
-  /** Every category owned by one user, in {@link TextRules#compareNames name order} (ADR-105). */
+  /** Every category owned by one user, in {@link TextRules#compareNames name order} (ADR-106). */
   public static List<CategoryEntity> listOwnedBy(UUID userId) {
     List<CategoryEntity> categories = new ArrayList<>(list("userId = ?1", userId));
     categories.sort((a, b) -> TextRules.compareNames(a.title, a.id, b.title, b.id));

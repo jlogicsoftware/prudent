@@ -1,5 +1,5 @@
 {
-  "description": "Expected behaviour of TextRules.compareNames (ADR-105): names sorted by the rule are exactly 'sorted', given as [name, id] pairs in the input order 'input'. Ids are lower-case 8-4-4-4-12 hex. Synthetic data only (ADR-088).",
+  "description": "Expected behaviour of TextRules.compareNames (ADR-106): names sorted by the rule are exactly 'sorted', given as [name, id] pairs in the input order 'input'. Ids are lower-case 8-4-4-4-12 hex. Synthetic data only (ADR-088).",
   "orders": [
     {"id": "o01", "note": "case-insensitive first, upper case before lower case only to break an exact fold tie",
      "input": [["b", "00000000-0000-0000-0000-000000000001"], ["B", "00000000-0000-0000-0000-000000000002"], ["a", "00000000-0000-0000-0000-000000000003"], ["A", "00000000-0000-0000-0000-000000000004"]],

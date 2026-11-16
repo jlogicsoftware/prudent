@@ -18,7 +18,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
- * Runs the expected-behaviour vectors in {@code src/test/resources/text-rules/} (ADR-105). The same
+ * Runs the expected-behaviour vectors in {@code src/test/resources/text-rules/} (ADR-106). The same
  * files are what Prudent Local's parity suite reads, so a disagreement between the two sides is a
  * failing vector rather than a matter of opinion. Plain JUnit: the rules touch no database.
  */

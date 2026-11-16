@@ -13,7 +13,7 @@ own — ADR-001 is the first instance.
 
 ---
 
-## ADR-105 — The record search and the order of names are rules of Prudent's own, applied in Java, so a second implementation can reproduce them exactly
+## ADR-106 — The record search and the order of names are rules of Prudent's own, applied in Java, so a second implementation can reproduce them exactly
 
 **Date:** 2026-11-15. **Status:** accepted. Closes phase-0 findings F-09 and F-10 (`docs/plans/prudent-local-phase0.md`); jlogicsoftware/prudent#245. Ships as unit 4a of the Prudent Local plan, before unit 5.
 
@@ -32,18 +32,18 @@ Prudent Local (ADR-101) must show the same lists and cannot copy a database's lo
 
 **Search.** A `null` or blank search is ignored, as before (`String.isBlank`: Unicode white space, which excludes U+00A0, U+2007 and U+202F). Otherwise the term is `String.trim()`med — every leading and trailing code point at or below U+0020 — and folded. A record matches when its folded title, payee or note (a null one never matches) contains the folded term as a plain substring. `%`, `_` and `\` are ordinary characters; there is no pattern and so nothing to escape (the brief suggested an explicit `ESCAPE` clause; with the match in Java there is no `LIKE` to escape, and the fold could not be done in SQL anyway).
 
-**The fold** is Unicode's *simple* lower-case mapping, one code point to one code point (`Character.toLowerCase(int)`). Consequences, all in the vectors: `Ł`→`ł`, `Ї`→`ї`, `Σ`→`σ` always (a final `ς` stays `ς`: no final-sigma rule), `ß` is unchanged and **does not** match `ss`, `ẞ` (U+1E9E) folds to `ß`, Turkish `İ` (U+0130) folds to plain `i` and so does `I`, while dotless `ı` is unchanged and matches neither. Polish and Ukrainian letters are distinct from their Latin or base lookalikes: `ł` does not match `l`, `ї` does not match `і`. A Dart implementation folds each code point of a one-code-point string with `toLowerCase()` and special-cases U+0130 → `i` (the only code point whose full mapping is longer than one code point). The rule follows the Unicode tables of the JDK that runs the server, which can change only for newly assigned letters.
+**The fold** is Unicode's *simple* lower-case mapping, one code point to one code point (`Character.toLowerCase(int)`). Consequences, all in the vectors: `Ł`→`ł`, U+0407 → U+0457, `Σ`→`σ` always (a final `ς` stays `ς`: no final-sigma rule), `ß` is unchanged and **does not** match `ss`, `ẞ` (U+1E9E) folds to `ß`, Turkish `İ` (U+0130) folds to plain `i` and so does `I`, while dotless `ı` is unchanged and matches neither. Polish and Ukrainian letters are distinct from their Latin or base lookalikes: `ł` does not match `l`, U+0457 does not match U+0456. A Dart implementation folds each code point of a one-code-point string with `toLowerCase()` and special-cases U+0130 → `i` (the only code point whose full mapping is longer than one code point). The rule follows the Unicode tables of the JDK that runs the server, which can change only for newly assigned letters.
 
 **Name order** compares, in turn: (1) the sequence of *primary weights* of the folded code points, shorter first when one is a prefix of the other; (2) the code points of the names as written, so `A` sorts before `a` only to break an exact fold tie; (3) the id as lower-case text, which is also Postgres's byte order for a UUID. A code point's weight is four times its value, so code point order is the baseline (digits, then `_`, then letters; ASCII Latin before other Latin letters before Cyrillic), with these tailorings, which put letters where a Polish or Ukrainian reader looks for them:
 
 - Polish, each right after its base letter: `ą`, `ć`, `ę`, `ł`, `ń`, `ó`, `ś`, `ź`, `ż` (`ź` then `ż` after `z`).
-- Ukrainian: `ґ` after `г`, `є` after `е`, `і` and `ї` after `и` (then `й`, which already follows `и` in Unicode).
+- Ukrainian: U+0491 after U+0433, U+0454 after U+0435, U+0456 and U+0457 after U+0438 (then U+0439, which already follows U+0438 in Unicode).
 
 Weight is `base*4 + 1` (and `+2` for the second letter after a base), which fits between `base*4` and the next code point's weight. Every other code point keeps its own position.
 
 ### What a person sees
 
-The previous order depended on how the database was created, so no one could rely on it; the cases in the vectors differ from a code-point or a plain `en_US` order as follows. Polish: `Łazienka` sorts between `Lato` and `Mleko`, not after `Zupa`; `Żywność` sorts last of the `Z` names. Ukrainian: `Їжа` sorts after `Игла` and before `Йод`, not after `Яблуко`; `Ґанок` follows `Гроші`. Names in other scripts or with other diacritics (`É`, `ü`, Turkish `ş`) are in code point order, **after `z`**: this rule is a reading order for the two languages Prudent ships beyond English, not a general collation. Digits sort as characters (`10 PLN` before `2 PLN`). An existing person's lists may reorder once on upgrade; no data changes.
+The previous order depended on how the database was created, so no one could rely on it. Against the test database (an en_US-style collation) the old order differed in two checked ways: names that differ only in case listed lower case first (`a`, `A`), and `Lazienka` with its stroke letter (U+0141) sorted after `Zupa`. The new rule lists `A`, `a` and puts that name between `Lato` and `Mleko`. The Ukrainian cases (the letter U+0407 after U+0418 and before U+0419, U+0491 after U+0433) agreed with that database already and are pinned by the rule rather than changed by it; a database in the C locale would have put the capital U+0407 before every other Cyrillic capital. Names in other scripts or with other diacritics (`E` with acute, `u` with umlaut, Turkish `s` with cedilla) are in code point order, **after `z`**: this rule is a reading order for the two languages Prudent ships beyond English, not a general collation. Digits sort as characters (`10 PLN` before `2 PLN`). An existing person's lists may reorder once on upgrade; no data changes.
 
 ### Not done, on purpose
 
@@ -54,7 +54,7 @@ The previous order depended on how the database was created, so no one could rel
 
 ### Proof
 
-`server/src/test/resources/text-rules/search-vectors.json` and `name-order-vectors.json` hold the expected behaviour, synthetic only (ADR-088; non-ASCII letters Cyrillic are written as `\u` escapes because the repository publishes English text). `TextRulesTest` runs them against `TextRules` (every vector permutation sorted twenty times), and `TextRulesApiTest` drives them through the record search, the account and category lists and the free-money position over a real database; the cases there (`%`, `_` and `\` in a search, `ł` against `l`, names whose old order differs) fail on the previous code. Prudent Local's parity suite reads the same two files.
+`server/src/test/resources/text-rules/search-vectors.json` and `name-order-vectors.json` hold the expected behaviour, synthetic only (ADR-088; Cyrillic letters are written as `\u` escapes because the repository publishes English text). `TextRulesTest` runs them against `TextRules` (every vector permutation sorted twenty times), and `TextRulesApiTest` drives the rules through the record search, the account and category lists and the free-money position over a real database. Run against the previous production code (the four changed files taken from `main`, the tests kept), four of its eight tests fail: a `%` search returns the record containing `500` as well, an `_` search returns `axb` for `a_b`, accounts named `b B a A` list as `a A b B`, and the free-money contributors list in UTF-16 order (`Lato`, `Zupa`, then the stroke-L name). The other four (the Polish and Ukrainian list orders and the `\u0142` fold, which that database already got right) pass on both, and pin the rule. Prudent Local's parity suite reads the same two files.
 
 ### Consequences
 

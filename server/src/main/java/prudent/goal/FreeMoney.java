@@ -67,7 +67,7 @@ public final class FreeMoney {
     Map<String, List<UUID>> sources = new TreeMap<>();
     Map<String, Long> allocated = new TreeMap<>();
 
-    // Name order (TextRules.compareNames, ADR-105), then id, so the list of contributing accounts is the same on every call.
+    // Name order (TextRules.compareNames, ADR-106), then id, so the list of contributing accounts is the same on every call.
     List<AccountEntity> ordered = new ArrayList<>(accounts);
     ordered.sort((a, b) -> TextRules.compareNames(a.name, a.id, b.name, b.id));
     for (AccountEntity account : ordered) {

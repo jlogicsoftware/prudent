@@ -128,7 +128,7 @@ public class AccountEntity extends PanacheEntityBase {
   @OrderColumn(name = "position")
   public List<AccountBalance> balances = new ArrayList<>();
 
-  /** Every account owned by one user, in {@link TextRules#compareNames name order} (ADR-105). */
+  /** Every account owned by one user, in {@link TextRules#compareNames name order} (ADR-106). */
   public static List<AccountEntity> listOwnedBy(UUID userId) {
     List<AccountEntity> accounts = new ArrayList<>(list("userId = ?1", userId));
     accounts.sort((a, b) -> TextRules.compareNames(a.name, a.id, b.name, b.id));
