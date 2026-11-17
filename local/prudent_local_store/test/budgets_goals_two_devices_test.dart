@@ -223,6 +223,49 @@ void main() {
       expect(Device.ok(devices.laptop.store.budgetResets.list()), isEmpty);
     });
 
+    test('a dispute in the reset month itself does not block the reset: the carry-over into it '
+        'cannot read it', () async {
+      final l = await setUpLedger();
+      Device.ok(await laptop.setBudget(l.category, '2026-10', 'PLN', 5000));
+      final record = await spend(laptop, l, -1000, date: '2026-11-03');
+      await devices.sync();
+      wire.UpdateRecordRequest edit(int amount) => wire.UpdateRecordRequest(
+        title: 'Bread',
+        amountMinor: Int64(amount),
+        date: '2026-11-03',
+        categoryId: l.category,
+        accountId: l.account,
+        currency: 'PLN',
+      );
+      Device.ok(await laptop.updateRecord(record.id, edit(-2000)));
+      Device.ok(await phone.updateRecord(record.id, edit(-3000)));
+      await devices.sync();
+      final reset = Device.ok(
+        await laptop.resetBudgetCarryOver(
+          wire.ResetBudgetCarryOverRequest(
+            categoryId: l.category,
+            month: '2026-11',
+            currency: 'PLN',
+          ),
+        ),
+      );
+      expect(reset.discardedMinor, Int64(5000));
+      // With November budgeted, a reset from December reads November's spending: refused.
+      Device.ok(await laptop.setBudget(l.category, '2026-11', 'PLN', 5000));
+      expect(
+        statusOf(
+          await laptop.resetBudgetCarryOver(
+            wire.ResetBudgetCarryOverRequest(
+              categoryId: l.category,
+              month: '2026-12',
+              currency: 'PLN',
+            ),
+          ),
+        ),
+        409,
+      );
+    });
+
     test('a category is still used by a budget only the other side of a conflict holds', () async {
       final l = await setUpLedger();
       Device.ok(await laptop.setBudget(l.category, '2026-11', 'PLN', 5000));
@@ -266,6 +309,110 @@ void main() {
   });
 
   group('goals and envelopes', () {
+    test('a deficit repaired on both devices is one entry: the envelope ends at exactly zero', () async {
+      await setUpLedger();
+      final bike = await goal(laptop);
+      Device.ok(await entry(laptop, allocate, 1000, target: bike));
+      await devices.sync();
+      Device.ok(await entry(laptop, withdraw, 800, source: bike));
+      Device.ok(await entry(phone, withdraw, 700, source: bike));
+      await devices.sync();
+      // Both people see the issue and both choose the repair, offline, before the other's arrives.
+      for (final device in devices.both) {
+        final issue = Device.ok(device.integrity().evaluate()).single;
+        expect(issue.code, 'goal.envelope_below_zero');
+        Device.ok(await issue.actions.single.run());
+      }
+      await devices.sync();
+      for (final ledger in both()) {
+        expect(
+          Device.ok(await ledger.listGoalEnvelopes()).envelopes.single.amountMinor,
+          Int64.ZERO,
+        );
+        expect(Device.ok(await ledger.listGoalAllocations()).allocations, hasLength(4));
+      }
+      for (final device in devices.both) {
+        expect(Device.ok(device.store.goalAllocations.conflicts()), isEmpty);
+        expect(Device.ok(device.integrity().evaluate()), isEmpty);
+      }
+    });
+
+    test('money withdrawn from an archived goal on both devices is one entry', () async {
+      await setUpLedger();
+      final bike = await goal(laptop);
+      await devices.sync();
+      Device.ok(await laptop.archiveGoal(bike));
+      Device.ok(await entry(phone, allocate, 1200, target: bike));
+      await devices.sync();
+      for (final device in devices.both) {
+        final issue = Device.ok(device.integrity().evaluate()).single;
+        expect(issue.code, 'goal.archived_holds_money');
+        Device.ok(await issue.actions.singleWhere((a) => a.code == 'withdraw_all').run());
+      }
+      await devices.sync();
+      for (final ledger in both()) {
+        expect(
+          Device.ok(await ledger.listGoalEnvelopes()).envelopes.single.amountMinor,
+          Int64.ZERO,
+        );
+      }
+      for (final device in devices.both) {
+        expect(Device.ok(device.store.goalAllocations.conflicts()), isEmpty);
+        expect(Device.ok(device.integrity().evaluate()), isEmpty);
+      }
+    });
+
+    test('a goal reactivated on both devices merges, keeping the first moment', () async {
+      await setUpLedger();
+      final bike = await goal(laptop);
+      await devices.sync();
+      Device.ok(await laptop.archiveGoal(bike));
+      Device.ok(await entry(phone, allocate, 1200, target: bike));
+      await devices.sync();
+      for (final device in devices.both) {
+        final issue = Device.ok(device.integrity().evaluate()).single;
+        Device.ok(await issue.actions.singleWhere((a) => a.code == 'reactivate_goal').run());
+      }
+      await devices.sync();
+      for (final device in devices.both) {
+        expect(Device.ok(device.store.goals.conflicts()), isEmpty);
+        expect(Device.ok(device.store.goals.get(bike)).status, GoalState.GOAL_STATE_ACTIVE);
+        expect(Device.ok(device.integrity().evaluate()), isEmpty);
+      }
+    });
+
+    test('a repair whose goal or entries changed after the issue was read is refused', () async {
+      await setUpLedger();
+      final bike = await goal(laptop);
+      Device.ok(await entry(laptop, allocate, 1000, target: bike));
+      await devices.sync();
+      Device.ok(await entry(laptop, withdraw, 800, source: bike));
+      Device.ok(await entry(phone, withdraw, 700, source: bike));
+      await devices.sync();
+      final store = devices.laptop.store;
+      final deficit = Device.ok(devices.laptop.integrity().evaluate()).single;
+      // An entry arrives (here: is written) between reading the issue and choosing the repair.
+      Device.ok(await entry(laptop, allocate, 100, target: bike));
+      expect(await deficit.actions.single.run(), isA<ZenFailure<Object?>>());
+      expect(Device.ok(store.goalAllocations.list()), hasLength(4));
+
+      Device.ok(await entry(laptop, allocate, 400, target: bike));
+      Device.ok(await laptop.archiveGoal(bike));
+      Device.ok(await entry(phone, allocate, 50, target: bike));
+      await devices.sync();
+      final archived = Device.ok(devices.laptop.integrity().evaluate()).single;
+      expect(archived.code, 'goal.archived_holds_money');
+      // The goal renamed in between: reactivating must not write the old name back.
+      final renamed = Device.ok(store.goals.get(bike)).deepCopy()..name = 'Racing bike';
+      Device.ok(await store.putGoal(renamed));
+      expect(
+        await archived.actions.singleWhere((a) => a.code == 'reactivate_goal').run(),
+        isA<ZenFailure<Object?>>(),
+      );
+      expect(Device.ok(store.goals.get(bike)).name, 'Racing bike');
+      expect(Device.ok(store.goals.get(bike)).status, GoalState.GOAL_STATE_ARCHIVED);
+    });
+
     test(
       'entries made offline on both devices are all kept, and the envelope is their sum',
       () async {

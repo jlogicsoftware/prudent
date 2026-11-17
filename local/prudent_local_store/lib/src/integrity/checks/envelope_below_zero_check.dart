@@ -1,11 +1,10 @@
-import 'package:fixnum/fixnum.dart';
-
 import '../../../generated/prudent_local/v1/store.pb.dart';
 import '../../ledger/envelopes.dart';
 import '../../prudent_local_store.dart';
 import '../integrity_issue.dart';
 import '../integrity_runner.dart';
 import '../store_snapshot.dart';
+import 'goal_repairs.dart';
 
 /// A goal's envelope below zero (phase-0 §0.3 row 6.24, ADR-102 D6).
 ///
@@ -13,14 +12,10 @@ import '../store_snapshot.dart';
 /// row 6.24). Entries are append-only with random ids, so two devices that each withdraw what the
 /// envelope held, offline, both write — and the merged envelope is negative, which no device did.
 /// The history is never edited: the repair is a compensating `ALLOCATE` of the deficit, a new entry
-/// on top of the others, which the person chooses.
+/// on top of the others, which the person chooses — one record however many devices choose it
+/// ([GoalRepairs], ADR-120).
 final class EnvelopeBelowZeroCheck implements IntegrityCheck {
-  /// The wall clock the compensating entry is labelled with; it decides nothing.
-  final int Function() now;
-
-  const EnvelopeBelowZeroCheck({this.now = _wallClock});
-
-  static int _wallClock() => DateTime.now().millisecondsSinceEpoch;
+  const EnvelopeBelowZeroCheck();
 
   @override
   String get name => 'envelope_below_zero';
@@ -37,19 +32,13 @@ final class EnvelopeBelowZeroCheck implements IntegrityCheck {
         recordId: goal.id,
         facts: {'goalId': goal.id, 'currency': goal.currency, 'deficitMinor': '${-amount}'},
         actions: [
-          IntegrityAction.now(
-            'allocate_deficit',
-            () => store.addGoalAllocation(
-              GoalAllocation(
-                id: store.newId(),
-                kind: AllocationKind.ALLOCATION_KIND_ALLOCATE,
-                targetGoalId: goal.id,
-                currency: goal.currency,
-                amountMinor: Int64(-amount),
-                createdAtMs: Int64(now()),
-                createdBy: store.deviceId,
-              ),
-            ),
+          GoalRepairs.compensate(
+            store,
+            code: 'allocate_deficit',
+            goal: goal,
+            kind: AllocationKind.ALLOCATION_KIND_ALLOCATE,
+            amount: -amount,
+            read: GoalRepairs.entriesOf(snapshot.goalAllocations.values, goal.id),
           ),
         ],
       );

@@ -1,11 +1,10 @@
-import 'package:fixnum/fixnum.dart';
-
 import '../../../generated/prudent_local/v1/store.pb.dart';
 import '../../ledger/envelopes.dart';
 import '../../prudent_local_store.dart';
 import '../integrity_issue.dart';
 import '../integrity_runner.dart';
 import '../store_snapshot.dart';
+import 'goal_repairs.dart';
 
 /// Money in an archived goal (phase-0 §0.3 rows 6.16, 6.23; ADR-102 D6).
 ///
@@ -38,27 +37,14 @@ final class ArchivedGoalMoneyCheck implements IntegrityCheck {
         recordId: goal.id,
         facts: {'goalId': goal.id, 'currency': goal.currency, 'amountMinor': '$amount'},
         actions: [
-          IntegrityAction.now(
-            'reactivate_goal',
-            () => store.putGoal(
-              goal.deepCopy()
-                ..status = GoalState.GOAL_STATE_ACTIVE
-                ..statusChangedAtMs = Int64(now()),
-            ),
-          ),
-          IntegrityAction.now(
-            'withdraw_all',
-            () => store.addGoalAllocation(
-              GoalAllocation(
-                id: store.newId(),
-                kind: AllocationKind.ALLOCATION_KIND_WITHDRAW,
-                sourceGoalId: goal.id,
-                currency: goal.currency,
-                amountMinor: Int64(amount),
-                createdAtMs: Int64(now()),
-                createdBy: store.deviceId,
-              ),
-            ),
+          GoalRepairs.reactivate(store, goal, now),
+          GoalRepairs.compensate(
+            store,
+            code: 'withdraw_all',
+            goal: goal,
+            kind: AllocationKind.ALLOCATION_KIND_WITHDRAW,
+            amount: amount,
+            read: GoalRepairs.entriesOf(snapshot.goalAllocations.values, goal.id),
           ),
         ],
       );

@@ -13,6 +13,45 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-120 — An envelope repair is one record however many devices apply it: its id derives from the entries it compensates, and it writes only over the state it was read from
+
+**Date:** 2026-11-16. **Status:** accepted. **Amends:** ADR-116 (its integrity repairs; two claims corrected below). **Plan:** unit 6a
+of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245), the review of jlogicsoftware/prudent#267. **jZen:** jZenDev/jZen#251
+(`expect`), at `JZEN_REF` `4fa887a`.
+
+### Context
+
+ADR-116's `EnvelopeBelowZeroCheck` and `ArchivedGoalMoneyCheck` repaired with a new entry minted with a random id. After a sync both
+devices list the same issue, and both people may choose its repair before either device has the other's: two `ALLOCATE`s of a 500
+deficit leave the envelope at +500, set aside by nobody, and free money 500 lower; two `withdraw_all`s leave it below zero. The repairs
+also wrote without a precondition, so `reactivate_goal` could write a goal's old name or target back over an edit synced in between.
+
+### Decision
+
+- **A compensating entry's id is `DerivedIds.goalRepair(goal, repair, entries)`**: a digest of the goal, the repair
+  (`allocate_deficit`, `withdraw_all`) and the sorted ids of the goal's entries the issue was computed from. Every other field is a
+  function of those entries too — the amount, a creation time one millisecond after the latest of them, and **no author** (the device
+  that chose it would differ between devices and conflict). Two devices that read the same entries write the same bytes, which merge as
+  one record; the envelope ends at exactly zero. Devices that read different entries derive different ids — but then the second
+  repair's precondition (below) has seen the first. The encoding is pinned in `derived_ids_test`.
+- **Every repair carries `expect`** (jZenDev/jZen#251): a compensating entry is written only while the goal's entries are still
+  exactly those read and the entry is absent; `reactivate_goal` only while the goal is still exactly the archived goal read. Anything
+  else is refused for the person to look again. Reactivating on two devices merges as before (`earliest` on the status time).
+- **A reset is blocked only by a dispute the carry-over it records can read**: records and budgets of months *before* the reset's month
+  (a reset at or before it still bounds it). A dispute dated in the reset month itself no longer refuses it (review finding 4).
+
+### Corrections to ADR-116's wording
+
+- Of unit 5's account paths, only `deleteCategory` reads budgets and resets, and it now reads every side of their conflicts.
+  `deleteAccount` and `updateAccount` read no budget, reset or goal, because the server has no such rule on them; nothing there moved.
+- Not every write passes an `expect` from the ledger: `revokeBudgetReset` relies on the store's own in-turn refusal of a reset that
+  is gone or already revoked.
+
+### Proven
+
+Two-device tests in which **both** devices apply each repair (red on ADR-116's code: +500 and −1200; green now), the preconditions
+refusing a repair after an entry arrived or the goal was renamed, and a reset made with a dispute in its own month.
+
 ## ADR-119 — Prudent Local reads a plan's occurrences from its schedule and never generates them; completion is the confirming record; time is an argument; a plan two devices disagree about has no occurrences
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 6b of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);

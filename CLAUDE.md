@@ -304,7 +304,8 @@ adds budgets, carry-over resets, goals and envelopes to the ledger as two parts 
 rows 6.1–6.28, 6.46–6.50, 6.54 in the server's order; the summary, carry-over, free money and progress derived from settled values only,
 `Settled.unsettled` keyed by the figure's category, currency or goal; a reset or `ALLOCATE` refused while its figure is unsettled; every
 write rechecking its rule inside the store's turn through jZen's `expect` (#251), edits against the exact version read;
-`EnvelopeBelowZeroCheck` and `ArchivedGoalMoneyCheck`; `GoalArithmetic` held to `golden/goal_progress.json`; ten parity scenarios (`budget_*`, `carry_over*`, `goal*`, `free_money`) agree with the live server.
+`EnvelopeBelowZeroCheck` and `ArchivedGoalMoneyCheck`, whose repair entry's id derives from the entries it compensates, so
+two devices applying one repair write one record (ADR-120); `GoalArithmetic` held to `golden/goal_progress.json`; ten parity scenarios (`budget_*`, `carry_over*`, `goal*`, `free_money`) agree with the live server.
 `JZEN_REF` is `4fa887a`.
 Unit 6b (ADR-119) is plans, occurrences and reminders: `PlanLedger` (`local/prudent_local_store/lib/src/ledger/plan_ledger.dart`) answers the
 wire plan, occurrence and reminder messages with the server's statuses, over `RecurrenceRule`, `ReminderLeadTimes` (lead days `{0,1,2,3,7}`),
