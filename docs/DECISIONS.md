@@ -27,7 +27,7 @@ own — ADR-001 is the first instance.
 - **macOS key storage (PR #264, jZen ADR-087, still *proposed* upstream).** A non-release build with `ZEN_ENV=dev` (`zenIsDevBuild`) keeps the store key and the PIN hash in the login keychain; every other build keeps the data-protection keychain. jZen's include defaults `ZEN_ENV` to `dev`, so
   `task build:local:runners:release` now passes `ZEN_ENV=prd` (`scripts/test_local_tasks.py` pins it, and pins that the debug build keeps `dev`). `zenIsDevBuild` already excludes `--release`; the define is the second guard, so dropping `--release` could not ship the weaker storage.
   `test:local-release-refusal` and the tests run with `ZEN_ENV=local`, which is not `dev`, so they use the data-protection keychain: the integration test's `-34018` assertion still holds there, and it now also asserts `zenIsDevBuild` is false when it fails. Under `ZEN_ENV=dev` the same unsigned build succeeds, which that test's existing branch accepts.
-  **CLAUDE.md's "an unsigned macOS build refuses to open" is true for every build except a `ZEN_ENV=dev` non-release one**, and says so. A Mac switched between dev and release builds is refused rather than given a new key (the two keychains do not see each other's items).
+  `zenIsDev` is exactly `ZEN_ENV == 'dev'`, so `local` uses the data-protection keychain too. **CLAUDE.md's "an unsigned macOS build refuses to open" is true for every build except a `ZEN_ENV=dev` non-release one**, and says so. A Mac switched between dev and release builds is refused rather than given a new key (the two keychains do not see each other's items).
 - **`ZEN_SYNC_FOLDER` with a space** is now refused by jZen's tasks. Prudent's Taskfile, scripts and docs use no such path.
 - **No pubspec lock is tracked**, so none changed; `client/` and `local/` resolve `270590a` from the path dependencies.
 
@@ -40,7 +40,7 @@ Open in jZen: #266 Android phone, #267 Windows, #268 Linux, #269 sync between de
 
 On 2026-11-18 in the worktree against `270590a`: `prudent_local_core` (3966), `prudent_local_store` (821), `prudent_local_client` (64, with `ZEN_ENV=local ZEN_PLATFORM=macos`), `packages/prudent_ui` (5) and `client/` (543) pass; `flutter analyze --fatal-infos --fatal-warnings` is clean in `client/` and the Local client;
 `test_local_tasks.py` (17) and `test_verify_local_release.py` (28) pass, as does `verify_local_release.py`. `integration_test/app_test.dart` passed on this Mac with `ZEN_ENV=local` (both tests, `-34018` included), and its keychain test passed with `ZEN_ENV=dev` (unsigned, key created and removed).
-The first `prudent_local_client` run reported ten files failing to *load* (none failed a test); the same suite passed on the next two runs and singly, and the cause was not found.
+The first `prudent_local_client` run reported ten files failing to *load* (none failed a test); the same suite passed on the next two runs and singly, and the cause was not found (most likely generated l10n missing in a fresh worktree).
 
 **Not run:** `task` from the worktree (ADR-065) beyond `test_local_tasks.py`, so `task zen:test:client` was replaced by `flutter test` with the same defines; `task test:e2e`; an Android build or the merged manifest; any Windows or Linux build; any device.
 

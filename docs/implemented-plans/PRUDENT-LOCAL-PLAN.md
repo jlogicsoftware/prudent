@@ -316,7 +316,7 @@ reminders, unit 7's analytics and unit 8b's import workflow; balances, budget su
 `secureScreen: true`, Settings → Lock, Sync and devices (pairing, replace the sync key), Conflicts and issues (`ZenConflictsScreen`, settle
 many) and Privacy and data (a `zen_save_file` copy, erase this device's copy, erase everywhere). Every ADR-100 row has a test or a written
 answer (the table in ADR-121). Filed jZenDev/jZen#256. Run on macOS (widget, a11y and integration suites); no device (unit 12), and an
-unsigned macOS build cannot reach the Keychain (ADR-121).
+unsigned macOS build cannot reach the Keychain, a non-release `ZEN_ENV=dev` build excepted (ADR-121, ADR-127).
 No sign-in, no profile account section. Sync through `ZenSync.start`; PIN from `zen_ui_lock`;
 Settings → Sync, Add a device, Join, Erase this device's copy, all from `zen_ui_*`. English,
 Ukrainian and Polish. Screens from the shared package; nothing hand-rolled
@@ -385,8 +385,8 @@ PIN, a lost device.
    as a user would; the Windows and Linux keystores, Android `FLAG_SECURE` and the owner check, QR scanning and real
    Syncthing/Dropbox/OneDrive folders have not been exercised (ADR-121). Windows has no biometric or device-owner check by jZen's design (ADR-086).
 2. **CloudKit**: no paid Apple Developer Program or iCloud entitlement, so no CloudKit run has happened (jZenDev/jZen#236 is consumed, unseen).
-3. **A signed macOS build.** An unsigned one cannot reach the Keychain (`-34018`) and refuses to open; the integration test asserts that refusal, so
-   the suite proves the refusal and **not** the signed path (ADR-121).
+3. **A signed macOS build.** An unsigned one cannot reach the Keychain (`-34018`) and refuses to open, a non-release `ZEN_ENV=dev` build excepted (ADR-127); the integration test (run with `ZEN_ENV=local`) asserts that refusal, so
+   the suite proves the refusal and **not** the signed path (ADR-121). **The signed device run must be a non-dev build (`ZEN_ENV=prd`, or `local`)**: a dev build keeps its key in the login keychain and would not test the data-protection path.
 4. **Real release signing.** Android release uses the debug key; iOS, macOS and Windows have no real signing (ADR-124; jlogicsoftware/prudent#275).
 5. **The Android analytics benchmark**: run `runAnalyticsBenchmark` (`local/prudent_local_store/tool/analytics_benchmark.dart`) in a Flutter harness on a
    real mid-range Android phone at 50 000 records and write the figures into a successor ADR (ADR-118 is append-only). Unit 7's "Done when" bound is not met until then.
@@ -397,7 +397,7 @@ PIN, a lost device.
 9. **The native file picker and a real Erste export** for import and for moving data in: a real statement (none may be committed, ADR-088), the picker on
    macOS, Windows, Linux and Android, a real privacy export (ADR-110, ADR-123); amounts of 1000 or more and the wording of an outgoing own-account transfer were never seen.
 10. **Move-in at scale and on a syncing device** (ADR-123, not verified): an export of tens of thousands of records moved in as one `writeAll`, and a move into a device that is already syncing with peers that hold nothing.
-11. **The macOS integration test is not run by CI** (`.github/workflows/ci.yml` has no entry for it); it was run by hand (ADR-121) and asserts the Keychain refusal of an unsigned build, so a signed run is owed.
+11. **The macOS integration test is not run by CI** (`.github/workflows/ci.yml` has no entry for it); it was run by hand (ADR-121) and asserts the Keychain refusal of an unsigned build (a non-release `ZEN_ENV=dev` build excepted, ADR-127), so a signed non-dev run is owed.
 12. **Performance of the write path**: building a 50 000-record ledger record by record is quadratic (379 s in batches of 500 on a Mac, ADR-118); an
     import of years of history and a first sync on a phone are where that shows, and have not been measured on a device.
 13. **jZen's device verification** (jZenDev/jZen#231, closed 2026-11-18) covered jZen's demo app on simulators, an emulator and a real Mac and iPhone, so it does not stand in for any step here; its open follow-ups are #266 (Android), #267 (Windows), #268 (Linux), #269 (folder-service sync), #270 (Apple: Face ID, `--release`, CloudKit, Developer ID) and #271 (camera QR), and Local cannot be more verified than the framework under it.

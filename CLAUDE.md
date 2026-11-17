@@ -346,7 +346,7 @@ and refuses a sync folder inside the app's data; the app is behind `ZenLockGate(
 `ZenConflictsScreen`; the data copy is `DataExport` saved with `zen_save_file`, never the clipboard. Settings takes Local's pages through
 `settingsEntriesProvider` and `privacyScreenProvider` and now scrolls; `zen_ui_store`/`zen_ui_lock` get Polish delegates. Its suite
 (`flutter test` with the client's defines; the touch-size rule runs when compiled for `android`/`ios`) and `integration_test/app_test.dart`
-(macOS) pass; an unsigned macOS build cannot reach the Keychain (`-34018`) and refuses to open, so a signed build and every device are
+(macOS) pass; an unsigned macOS build cannot reach the Keychain (`-34018`) and refuses to open, a non-release `ZEN_ENV=dev` build excepted (ADR-127; see the jZen paragraph below), so a signed build and every device are
 unit 12's. The gates cover it (DART_ROOTS, `verify:analyze`, `verify:controls`, `verify:swiftpm`; boundaries F and H already did).
 Unit 10b (ADR-123) moves a server account in: `MoveIn` (`local/prudent_local_store/lib/src/move_in/`) reads the privacy export file
 (`MoveIn.read`, unknown fields and out-of-range 64-bit integers refused; every value held to the create-time rules, `move_in.invalid_value`) into an **empty** store as one `writeAll` whose first `expect` rechecks emptiness inside the turn;

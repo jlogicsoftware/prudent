@@ -22,6 +22,10 @@ Future<void> main() async {
     stderr.writeln('PROBE-FAIL this is not a release build (dart.vm.product is false)');
     exit(2);
   }
+  if (zenIsDevBuild) {
+    stderr.writeln('PROBE-FAIL a release build counts as a dev build (jZen ADR-087 would weaken its key storage)');
+    exit(3);
+  }
   final dir = await Directory.systemTemp.createTemp('prudent_local_probe');
   try {
     final opened = await ZenStore.open(
