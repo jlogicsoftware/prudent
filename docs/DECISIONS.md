@@ -34,8 +34,10 @@ and #257 (PR #260) at `JZEN_REF` `139fcd6`.
 
 ### Verified
 
-On 2026-11-17 in the worktree against jZen `139fcd6`: `prudent_local_core` 3966 green, `prudent_local_store` 721 green, `prudent_local_client`
-57 green (macOS defines). **Not run locally:** `task test:e2e` and the parity server's live-stack suite; they run in CI.
+On 2026-11-17 in the worktree against jZen `139fcd6`, after rebasing onto unit 10b (ADR-123, whose own text names `4fa887a` and stays as written):
+`prudent_local_core` 3966 green, `prudent_local_store` 773 green and `prudent_local_client` 64 green (macOS defines), the move-in tests of the store
+and the client among them. Nothing of unit 10b needed a change for #259: no move-in test failed on `139fcd6`. **Not run locally:** `task test:e2e` and the
+parity server's live-stack suites (`move_in_test` included); they run in CI against the pinned jZen.
 
 ---
 
