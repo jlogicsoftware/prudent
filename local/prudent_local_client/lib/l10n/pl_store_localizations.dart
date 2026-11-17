@@ -215,4 +215,6 @@ class PlStoreLocalizations extends StoreLocalizations {
   String get issueTitle => 'Czeka na Twój wybór';
   @override
   String issueFailed(String reason) => 'Nie udało się tego zrobić: $reason';
+  @override
+  String get issueContinue => 'Dalej';
 }

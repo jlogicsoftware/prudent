@@ -13,6 +13,32 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-125 — Prudent Local moves to jZen `139fcd6`: nested presence is declared for the plan's lead time
+
+**Date:** 2026-11-17. **Status:** accepted. **Builds on:** ADR-115, ADR-119, ADR-124. **jZen:** consumes jZenDev/jZen#255 (PR #259), #256 (PR #258)
+and #257 (PR #260) at `JZEN_REF` `139fcd6`.
+
+### Decision
+
+- **`JZEN_REF` is `139fcd6`** in `ci.yml` and `audit.yml`. Earlier ADRs name the pin they were verified against and stay as written.
+- **A plain scalar at its default inside a nested message is now left out of the message's bytes (jZen #259).** Prudent has one nested field whose default
+  is a value, `ReminderSetting.lead_days` (`optional`; 0 is a lead of zero days, the default 1 is absent, ADR-119). Without a declaration the store
+  dropped a lead of 0, and a plan read back with a lead of 1 (`plans_test` failed on exactly that, and `read-all` marked a reminder it should not
+  have). `StorePolicies.planExplicitNested` declares it through `collection(..., explicitNested:)`, with the field numbers read from the messages.
+  `PlanLedger` itself did not change: it already wrote lead 0 as a present field and the default as absent.
+- **The pin ADR-115 and `merge_table_test` left for this fix is flipped.** Two devices that mean one reminder, one writing `enabled: false` out and one
+  leaving it unset, no longer conflict. The ledger's own clearing of a zero target and seen balance in a correction's intent stays; it is harmless.
+- **#256 is consumed only as far as the pin:** `zen_ui_store` gained a string, so Prudent's Polish `StoreLocalizations` implements `issueContinue`
+  ("Dalej", not reviewed by a native speaker). `askForName` stays; replacing it is a separate change.
+- **#257 is fixed upstream** (ADR-124).
+
+### Verified
+
+On 2026-11-17 in the worktree against jZen `139fcd6`: `prudent_local_core` 3966 green, `prudent_local_store` 721 green, `prudent_local_client`
+57 green (macOS defines). **Not run locally:** `task test:e2e` and the parity server's live-stack suite; they run in CI.
+
+---
+
 ## ADR-124 — Prudent Local is run and built through a third include of jZen's own tasks, on all five native platforms in CI, and its release rules are gates that fail on a planted violation
 
 **Date:** 2026-11-17. **Status:** accepted. **Plan:** unit 11 (`docs/plans/PRUDENT-LOCAL-PLAN.md`). **Builds on:** ADR-100 (T10, T18),
@@ -69,10 +95,11 @@ ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). *
 
 - **Android needs core-library desugaring.** `flutter_local_notifications`, through `packages/prudent_ui`, fails the Android build without it; Local's
   `build.gradle.kts` now enables it with `desugar_jdk_libs:2.1.4`, as `client/` does.
-- **Windows does not compile: a framework gap, [jZenDev/jZen#257](https://github.com/jZenDev/jZen/issues/257).** `zen_ui_lock` brings `local_auth_windows`
-  2.0.2 (the newest), which builds with `/await`, and MSVC 14.51 on `windows-latest` rejects that (`STL1011`). Prudent does not define
-  `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` and does not override the dependency: either would hide the framework's problem in this
-  repository. The Windows Local steps stay red until jZen fixes it; no Windows build or probe has passed.
+- **Windows did not compile: a framework gap, [jZenDev/jZen#257](https://github.com/jZenDev/jZen/issues/257), since fixed.** `zen_ui_lock` brought
+  `local_auth_windows` 2.0.2 (the newest), which builds with `/await`, and MSVC 14.51 on `windows-latest` rejects that (`STL1011`). Prudent did not
+  define `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` or override the dependency: either would have hidden the framework's problem here. jZen
+  fixed it in PR #260 (`139fcd6`, jZen ADR-086: `zen_ui_lock` names `local_auth`'s Android and Darwin packages, not the umbrella), `JZEN_REF` moved
+  there, and the Windows jobs of this PR are the proof; jZen's own note says its Windows run was not seen when it merged.
 - **The macOS runner** failed in `zenlocal:build:runners`, which on a macOS host also builds Android; the desugaring fix is expected to unblock it,
   and it must then reach the macOS and iOS release builds, `verify:swiftpm` and the probe in a green run before those are called proven.
 - **Release builds are signed with the debug key** (the template's `signingConfig = debug`). That is enough to compile and to run the probe, and is not a
@@ -85,7 +112,7 @@ ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). *
   that way and passing: `verify:local-release`, `verify:boundaries`, `verify:swiftpm`, `test:local-tasks`. Run directly and not through `task`: the
   probe's `flutter build macos --release` and its run (`PROBE-OK`, exit 0; and without `ZEN_SYNC`, exit 133).
 - **Not run anywhere:** `test:local-release-refusal` through `task`; and no CI job or step is proven until it is green: the first run failed on
-  Android (desugaring, fixed), Windows (#257) and macOS (see above). Their steps are written against jZen's task and the pinned runners. The Windows and Linux probe binaries' paths are the CMake `BINARY_NAME` (`prudent_local_client`) and are unconfirmed. The merged-manifest path
+  Android (desugaring, fixed), Windows (#257, fixed upstream) and macOS (see above). Their steps are written against jZen's task and the pinned runners. The Windows and Linux probe binaries' paths are the CMake `BINARY_NAME` (`prudent_local_client`) and are unconfirmed. The merged-manifest path
   is found with `find` and not assumed. No platform was installed on a device (unit 12).
 
 ---

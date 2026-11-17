@@ -851,19 +851,18 @@ void main() {
         'Goal.target_date: string',
         'GoalAllocation.source_goal_id: string',
         'GoalAllocation.target_goal_id: string',
-        'ReminderSetting.lead_days: uint32', // nested in Plan.reminder: a group, never normalised
+        'ReminderSetting.lead_days: uint32', // nested in Plan.reminder; declared by planExplicitNested
         'Plan.payee: string',
         'Plan.note: string',
         'Settings.default_account_id: string',
       ]);
     });
 
-    test('a nested group still compares its bytes: an explicit default inside it differs from '
-        'an unset one (jZenDev/jZen#255)', () async {
-      // The store's presence rule stops at the top level of a record. Until jZen extends it, the
-      // writers of a group build it with its defaults unset (the correction intent in the ledger).
-      // Both devices move the lead time to two days and mean the same reminder; one writes the
-      // `false` out, the other leaves it unset.
+    test('a nested group is normalised too: an explicit default inside it agrees with an unset one '
+        '(jZenDev/jZen#255)', () async {
+      // jZen's presence rule reaches inside a message field (PR #259). Both devices move the lead
+      // time to two days and mean the same reminder; one writes the `false` out, the other leaves it
+      // unset, and the store no longer sees two values. Until #259 this was a conflict.
       final base = await shared(plans);
       await plans.edit(devices.laptop, base.id, (p) => p.reminder = ReminderSetting(leadDays: 2));
       await plans.edit(
@@ -872,7 +871,7 @@ void main() {
         (p) => p.reminder = ReminderSetting(enabled: false, leadDays: 2),
       );
       await devices.sync();
-      expectConflict(plans, base.id, {tagOf(base, 'reminder')});
+      expectNoConflicts();
     });
   });
 
