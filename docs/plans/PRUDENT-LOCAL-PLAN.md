@@ -230,9 +230,17 @@ merges in the store by jZenDev/jZen#235's policy (declared in unit 4). **Done wh
 cover each, including a day boundary in a plan's own time zone.
 
 ### Unit 7 — Analytics
+**Built: ADR-118** — `Analytics` in `local/prudent_local_store` (`lib/src/analytics/`) and `SpendWindow` in `prudent_local_core`:
+spend by category (a year or a month) and by period (1–60 months or years), rows 7.1–7.3, answered as `Settled` so a record two devices
+disagree about is left out of exactly the figure it changes and named. Parity: `analytics.json` (by hand) and `AnalyticsScenarios.large`
+(about 4 000 generated operations over six years and 4 currencies, relative to today) agree with the live server to the cent. Measured on
+the Dart VM on an M4 Pro: 100 ms for any analytics question and 113 ms for the account overview at 50 000 records (linear, ~2 µs a
+record). **Not met: the Android bound** — no Android device or runnable emulator was available (the only AVD's system image is
+incomplete), so there is no Android figure; `tool/analytics_benchmark.dart` is the harness and **unit 12 must run it on a real phone and
+record the number**. Row 7.4 (planned cash flow) is client-side and travels with units 6b and 9.
 Spend by category and by month, computed from the local store. **Done when:** parity on a large
-synthetic ledger, and a stated bound on how long the overview takes at that size on the slowest
-target (Android), measured.
+synthetic ledger (met), and a stated bound on how long the overview takes at that size on the slowest
+target (Android), measured (**not met**, see above).
 
 ### Unit 8a — Erste parser and fingerprints
 **Built: ADR-112** — `local/prudent_local_core/lib/src/imports/` (`parseErsteStatement`, `ErsteStatementImporter`, `StatementBounds`,
@@ -317,6 +325,9 @@ macOS ↔ iOS over CloudKit once a paid Apple Developer Program exists, `ZenFold
 ledger the matrix adds: the same balance on every device after offline edits, an import on two
 devices, a forgotten PIN, a lost device. **Not done by a coding session; recorded as "not
 verified" in `docs/` until a person does it.** Prudent Local is **not released** before this.
+**Also owed here (ADR-118): the Android timing of the analytics screens and the overview at 50 000 records** — run
+`runAnalyticsBenchmark` (`local/prudent_local_store/tool/analytics_benchmark.dart`) in a Flutter harness on a real mid-range phone and
+write the figures into ADR-118's successor. **Not verified.**
 
 ### Unit 13 — Documents
 README, `CLAUDE.md`/`AGENTS.md`, `docs/product-roadmap.md`, `docs/zen-architecture.md`, the privacy

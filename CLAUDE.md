@@ -308,6 +308,14 @@ write rechecking its rule inside the store's turn through jZen's `expect` (#251)
 `EnvelopeBelowZeroCheck` and `ArchivedGoalMoneyCheck`, whose repair entry's id derives from the entries it compensates, so
 two devices applying one repair write one record, and `RepairsMadeApartCheck` undoes two made from different reads (ADR-120); `GoalArithmetic` held to `golden/goal_progress.json`; ten parity scenarios (`budget_*`, `carry_over*`, `goal*`, `free_money`) agree with the live server.
 `JZEN_REF` is `4fa887a`.
+Unit 7 (ADR-118) is analytics: `Analytics` in `local/prudent_local_store/lib/src/analytics/` answers spend by category and by period with
+`AnalyticsResource`'s semantics (expenses only; a transfer, a correction, income and a refund are not spend; one currency, never
+inferred; whole-month windows; the UTC anchor), as `Settled`, leaving out of a figure only a record whose dispute changes *that* figure
+(amount, account, currency, date, existence — and category for the category figure). `SpendWindow` (core) holds the window rules.
+`analytics.json` and the generated `AnalyticsScenarios.large` (about 4 000 operations, reserved currencies THB/TRY/ILS and
+CAD/NZD/SGD/HKD) agree with the live server to the cent; `tools/prudent_parity_server/test/analytics_large_test.dart` runs the generated one.
+On the Dart VM on an M4 Pro an analytics question takes about 100 ms at 50 000 records; **no Android figure exists** (no device or
+runnable emulator was available) — unit 12 owes it, with `tool/analytics_benchmark.dart`.
 Unit 6b (ADR-119) is plans, occurrences and reminders: `PlanLedger` (`local/prudent_local_store/lib/src/ledger/plan_ledger.dart`) answers the
 wire plan, occurrence and reminder messages with the server's statuses, over `RecurrenceRule`, `ReminderLeadTimes` (lead days `{0,1,2,3,7}`),
 `PlanZones` and `CivilDate`'s calendar arithmetic in `prudent_local_core`. An occurrence is read from the plan's schedule each time and never

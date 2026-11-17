@@ -8,6 +8,7 @@
 /// `StoreBackend` (ADR-113), which replaced unit 3's in-memory stand-in.
 library;
 
+export 'src/parity/analytics_scenarios.dart';
 export 'src/parity/parity_backend.dart';
 export 'src/parity/parity_clock.dart';
 export 'src/parity/parity_engine.dart';

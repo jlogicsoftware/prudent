@@ -14,10 +14,13 @@
 ///   goals, envelopes, free money and progress (unit 6a, ADR-116)
 /// - [ImportWorkflow]: statement import sessions in a device-only collection, duplicates, and the
 ///   commit into the ledger as one write (unit 8b, ADR-114)
+/// - [Analytics]: spend by category and by period over the records, to the server's cent (unit 7,
+///   ADR-118)
 library;
 
 export 'generated/prudent_local/v1/imports.pb.dart';
 export 'generated/prudent_local/v1/store.pb.dart';
+export 'src/analytics/analytics.dart';
 export 'src/derived_ids.dart';
 export 'src/imports/import_mapper.dart';
 export 'src/imports/import_workflow.dart';

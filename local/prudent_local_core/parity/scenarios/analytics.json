@@ -1,0 +1,735 @@
+{
+  "name": "analytics",
+  "description": "Spend by category and by period (unit 7, ADR-114): what counts as spend (expenses only; income, a refund, transfer legs and corrections do not), month and year boundaries including a leap day, one currency at a time and echoed normalised, the empty case as an empty list, edits, deletes and an archived category following the figure, and every refusal. Currencies THB, TRY and ILS belong to this scenario alone: the server sums every record of its one user, so another scenario using them would change the figures.",
+  "rules": [
+    "7.1",
+    "7.2",
+    "7.3"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Groceries",
+        "iconKey": "food"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "rent",
+      "outcome": "accepted",
+      "input": {
+        "title": "Rent",
+        "iconKey": "food"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "fun",
+      "outcome": "accepted",
+      "input": {
+        "title": "Fun",
+        "iconKey": "food"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "old",
+      "outcome": "accepted",
+      "input": {
+        "title": "Old habits",
+        "iconKey": "food"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "wallet",
+      "outcome": "accepted",
+      "input": {
+        "name": "Wallet",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "THB",
+            "amountMinor": "0"
+          },
+          {
+            "currency": "TRY",
+            "amountMinor": "0"
+          },
+          {
+            "currency": "ILS",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "bank",
+      "outcome": "accepted",
+      "input": {
+        "name": "Bank",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "THB",
+            "amountMinor": "500000"
+          }
+        ]
+      }
+    },
+    {
+      "comment": "7.1: nothing yet is an empty list, not a zero.",
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "year": 2019
+      }
+    },
+    {
+      "comment": "7.2: the same for periods.",
+      "op": "analytics.spendByPeriod",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "granularity": "MONTH",
+        "count": 12
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-1250",
+        "currency": "THB",
+        "date": "2025-03-01",
+        "title": "First day"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-750",
+        "currency": "THB",
+        "date": "2025-03-31",
+        "title": "Last day"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-9999",
+        "currency": "THB",
+        "date": "2025-02-28",
+        "title": "Day before"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-8888",
+        "currency": "THB",
+        "date": "2025-04-01",
+        "title": "Day after"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$rent",
+        "amountMinor": "-100000",
+        "currency": "THB",
+        "date": "2025-03-15",
+        "title": "Rent"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$rent",
+        "amountMinor": "250000",
+        "currency": "THB",
+        "date": "2025-03-16",
+        "title": "Income is not spend"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "400",
+        "currency": "THB",
+        "date": "2025-03-17",
+        "title": "A refund is not netted: analytics counts expenses only"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$fun",
+        "amountMinor": "-1",
+        "currency": "THB",
+        "date": "2025-03-20",
+        "title": "One minor unit"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-777",
+        "currency": "TRY",
+        "date": "2025-03-10",
+        "title": "Another currency"
+      }
+    },
+    {
+      "comment": "7.1: March only; both edge days in, their neighbours out, income and the refund not counted, TRY apart.",
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "year": 2025,
+        "month": 3
+      }
+    },
+    {
+      "comment": "7.1: the whole year sums every month.",
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "year": 2025
+      }
+    },
+    {
+      "comment": "3.2: the currency is trimmed and upper-cased, and echoed so.",
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": " try ",
+        "year": 2025,
+        "month": 3
+      }
+    },
+    {
+      "comment": "7.1: a currency with no record is an empty list.",
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "ILS",
+        "year": 2025
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$fun",
+        "amountMinor": "-500",
+        "currency": "THB",
+        "date": "2024-02-29",
+        "title": "Leap day"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$fun",
+        "amountMinor": "-600",
+        "currency": "THB",
+        "date": "2024-01-01",
+        "title": "New year"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$fun",
+        "amountMinor": "-700",
+        "currency": "THB",
+        "date": "2024-12-31",
+        "title": "New year eve"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$fun",
+        "amountMinor": "-800",
+        "currency": "THB",
+        "date": "2023-12-31",
+        "title": "Year before"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$fun",
+        "amountMinor": "-900",
+        "currency": "THB",
+        "date": "2025-01-01",
+        "title": "Year after"
+      }
+    },
+    {
+      "comment": "Feb 29 is in February of a leap year.",
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "year": 2024,
+        "month": 2
+      }
+    },
+    {
+      "comment": "Jan 1 and Dec 31 are both in the year.",
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "year": 2024
+      }
+    },
+    {
+      "comment": "February of a common year, no records.",
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "year": 2023,
+        "month": 2
+      }
+    },
+    {
+      "comment": "7.3: a transfer is not spending, on either leg.",
+      "op": "transfer.create",
+      "as": "move",
+      "outcome": "accepted",
+      "input": {
+        "title": "Move",
+        "fromAccount": "$bank",
+        "toAccount": "$wallet",
+        "fromAmountMinor": "3000",
+        "fromCurrency": "THB",
+        "toAmountMinor": "3000",
+        "toCurrency": "THB",
+        "date": "2025-03-12"
+      }
+    },
+    {
+      "comment": "7.3: a correction that lowers a balance is not spending.",
+      "op": "correction.create",
+      "as": "fix",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "currency": "THB",
+        "balanceMinor": "-200000",
+        "date": "2025-03-13"
+      }
+    },
+    {
+      "comment": "7.3: unchanged by the transfer and the correction.",
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "year": 2025,
+        "month": 3
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$old",
+        "amountMinor": "-300",
+        "currency": "THB",
+        "date": "2025-03-18",
+        "title": "Old"
+      }
+    },
+    {
+      "op": "category.archive",
+      "outcome": "accepted",
+      "input": {
+        "category": "$old"
+      }
+    },
+    {
+      "comment": "An archived category keeps its spend.",
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "year": 2025,
+        "month": 3
+      }
+    },
+    {
+      "op": "record.create",
+      "as": "edited",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-5000",
+        "currency": "THB",
+        "date": "2025-03-19",
+        "title": "Edited"
+      }
+    },
+    {
+      "comment": "An edit moves the spend to its new month, category and amount.",
+      "op": "record.update",
+      "outcome": "accepted",
+      "input": {
+        "record": "$edited",
+        "account": "$wallet",
+        "category": "$fun",
+        "amountMinor": "-4000",
+        "currency": "THB",
+        "date": "2025-04-02",
+        "title": "Edited"
+      }
+    },
+    {
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "year": 2025,
+        "month": 3
+      }
+    },
+    {
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "year": 2025,
+        "month": 4
+      }
+    },
+    {
+      "op": "record.delete",
+      "outcome": "accepted",
+      "input": {
+        "record": "$edited"
+      }
+    },
+    {
+      "comment": "A deleted record is no spend.",
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "year": 2025,
+        "month": 4
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-1200",
+        "currency": "THB",
+        "date": "2015-06-15",
+        "title": "Long ago"
+      }
+    },
+    {
+      "comment": "7.2: a record outside the trailing 60 months is excluded.",
+      "op": "analytics.spendByPeriod",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "granularity": "MONTH",
+        "count": 60
+      }
+    },
+    {
+      "comment": "7.2: granularity is case-insensitive; the current month alone.",
+      "op": "analytics.spendByPeriod",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "granularity": "month",
+        "count": 1
+      }
+    },
+    {
+      "comment": "7.2: the current year alone.",
+      "op": "analytics.spendByPeriod",
+      "outcome": "accepted",
+      "input": {
+        "currency": "TRY",
+        "granularity": "Year",
+        "count": 1
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "temp",
+      "outcome": "accepted",
+      "input": {
+        "name": "Temp",
+        "type": "ACCOUNT_TYPE_CASH",
+        "balances": [
+          {
+            "currency": "ILS",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$temp",
+        "category": "$food",
+        "amountMinor": "-11",
+        "currency": "ILS",
+        "date": "2025-05-05",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$temp",
+        "category": "$rent",
+        "amountMinor": "-22",
+        "currency": "ILS",
+        "date": "2025-05-06",
+        "title": "Spend"
+      }
+    },
+    {
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "ILS",
+        "year": 2025,
+        "month": 5
+      }
+    },
+    {
+      "comment": "The records go with the account, and so does their spend.",
+      "op": "account.delete",
+      "outcome": "accepted",
+      "input": {
+        "account": "$temp",
+        "deleteRecords": true
+      }
+    },
+    {
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "ILS",
+        "year": 2025,
+        "month": 5
+      }
+    },
+    {
+      "comment": "7.1: a currency is required.",
+      "op": "analytics.spendByCategory",
+      "outcome": "refused",
+      "input": {
+        "year": 2025
+      }
+    },
+    {
+      "op": "analytics.spendByCategory",
+      "outcome": "refused",
+      "input": {
+        "currency": "  ",
+        "year": 2025
+      }
+    },
+    {
+      "op": "analytics.spendByCategory",
+      "outcome": "refused",
+      "input": {
+        "currency": "XXXX",
+        "year": 2025
+      }
+    },
+    {
+      "comment": "Three letters that are not a currency.",
+      "op": "analytics.spendByCategory",
+      "outcome": "refused",
+      "input": {
+        "currency": "ABC",
+        "year": 2025
+      }
+    },
+    {
+      "comment": "7.1: a year is required.",
+      "op": "analytics.spendByCategory",
+      "outcome": "refused",
+      "input": {
+        "currency": "THB"
+      }
+    },
+    {
+      "op": "analytics.spendByCategory",
+      "outcome": "refused",
+      "input": {
+        "currency": "THB",
+        "year": 2025,
+        "month": 0
+      }
+    },
+    {
+      "op": "analytics.spendByCategory",
+      "outcome": "refused",
+      "input": {
+        "currency": "THB",
+        "year": 2025,
+        "month": 13
+      }
+    },
+    {
+      "op": "analytics.spendByCategory",
+      "outcome": "refused",
+      "input": {
+        "currency": "THB",
+        "year": 2025,
+        "month": -1
+      }
+    },
+    {
+      "comment": "7.2: a currency is required.",
+      "op": "analytics.spendByPeriod",
+      "outcome": "refused",
+      "input": {
+        "granularity": "MONTH",
+        "count": 3
+      }
+    },
+    {
+      "comment": "7.2: a granularity is required.",
+      "op": "analytics.spendByPeriod",
+      "outcome": "refused",
+      "input": {
+        "currency": "THB",
+        "count": 3
+      }
+    },
+    {
+      "op": "analytics.spendByPeriod",
+      "outcome": "refused",
+      "input": {
+        "currency": "THB",
+        "granularity": "WEEK",
+        "count": 3
+      }
+    },
+    {
+      "op": "analytics.spendByPeriod",
+      "outcome": "refused",
+      "input": {
+        "currency": "THB",
+        "granularity": "",
+        "count": 3
+      }
+    },
+    {
+      "comment": "7.2: a count is required.",
+      "op": "analytics.spendByPeriod",
+      "outcome": "refused",
+      "input": {
+        "currency": "THB",
+        "granularity": "MONTH"
+      }
+    },
+    {
+      "op": "analytics.spendByPeriod",
+      "outcome": "refused",
+      "input": {
+        "currency": "THB",
+        "granularity": "MONTH",
+        "count": 0
+      }
+    },
+    {
+      "op": "analytics.spendByPeriod",
+      "outcome": "refused",
+      "input": {
+        "currency": "THB",
+        "granularity": "MONTH",
+        "count": 61
+      }
+    },
+    {
+      "op": "analytics.spendByPeriod",
+      "outcome": "refused",
+      "input": {
+        "currency": "THB",
+        "granularity": "MONTH",
+        "count": -5
+      }
+    },
+    {
+      "comment": "60 is the largest count.",
+      "op": "analytics.spendByPeriod",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "granularity": "YEAR",
+        "count": 60
+      }
+    },
+    {
+      "op": "analytics.spendByPeriod",
+      "outcome": "accepted",
+      "input": {
+        "currency": "THB",
+        "granularity": "YEAR",
+        "count": 1
+      }
+    }
+  ]
+}
