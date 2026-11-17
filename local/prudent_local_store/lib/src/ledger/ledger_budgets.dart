@@ -97,6 +97,8 @@ extension LedgerBudgets on Ledger {
         if (read == null) throw const Refusal.notFound('6.1', 'No budget is set for this slot.');
         await Ledger._write(
           store.deleteBudget(slot.id, expect: (current) => _unchanged(read, current, rule: '6.1')),
+          // jZen answers a budget a sync deleted meanwhile before the precondition runs (ADR-115).
+          missing: const Refusal.notFound('6.1', 'No budget is set for this slot.'),
         );
       });
 

@@ -304,11 +304,14 @@ precondition) and #245 (proto3 presence), both PR #254, at `JZEN_REF` `4fa887a`;
   import-session writes and the commit's batch, which passed their `expect` beside `_admit`, now go through the same `_admitting`, their
   own preconditions first.
 - **"Applying them to the unit 4/5 collections and the ledger's writes is a separate change"** (ADR-114) → **this is that change.**
+- **`LedgerBudgets._unchanged`** (ADR-116, which merged first and cites this ADR) → **its body is `WriteExpects.asRead`**, with ADR-116's
+  own rules and wording, so "exactly the version read" has one implementation. Its budget delete maps jZen's not-found the same way the
+  ledger's deletes do (404 under 6.1).
 
 ### Consequence
 
-Verified on 2026-11-16 in the worktree against jZen `4fa887a`, rebased onto unit 8b (ADR-114): `prudent_local_store` 603 green (unit
-8b's 579 unchanged, six presence cases in `merge_table_test` and eighteen in the new `write_precondition_test`, each on two encrypted stores:
+Verified on 2026-11-17 in the worktree against jZen `4fa887a`, rebased onto units 8b and 6a (ADR-114, ADR-116): `prudent_local_store`
+642 green (the suites already on `main` unchanged, six presence cases in `merge_table_test` and eighteen in the new `write_precondition_test`, each on two encrypted stores:
 an edit and a restore against a synced delete answer 404 and nothing comes back; an edit and a settings change against a synced edit
 answer 409 X.7 and the other device's value survives; an account delete with its records, one of which a sync moved, is refused whole
 with nothing written; review round (#264): a delete of a record, transfer and correction a sync deleted answers 404 under 5.15, 5.31 and
@@ -322,8 +325,8 @@ change-in-between cases stay green under it because the commit's own preconditio
 (the transfer case), `explicitPresence: {7}` on accounts (the rebuilt-defaults case), `archived = false` in the restore (the
 answer-equals-read case); the delete mapping switched off (the three delete 404s and the batch case); the re-creation's "absent"
 removed (the `recreate_account` case). Creates are written "absent" but not tested: their ids are fresh random 128-bit ids no sync can
-deliver first. `prudent_local_core` 2 791 green. **The parity suite against a live Quarkus on the local Supabase (port 8113,
-built from this branch): all 15 scenarios agree**, the two import scenarios included. `dart analyze --fatal-infos --fatal-warnings` clean
+deliver first. `prudent_local_core` 2 804 green. **The parity suite against a live Quarkus on the local Supabase (port 8113,
+built from this branch): all 25 scenarios agree**, the import, budget and goal scenarios included. `dart analyze --fatal-infos --fatal-warnings` clean
 in the core, the store and `tools/prudent_parity_server`; before the rebase, `flutter analyze` with the same flags was clean in
 `packages/prudent_ui` and `client/` on the new jZen (the rebase touches neither); `verify_boundaries.py` and its tests and
 `verify_import_fixtures.py` pass.
