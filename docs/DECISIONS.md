@@ -310,8 +310,8 @@ precondition) and #245 (proto3 presence), both PR #254, at `JZEN_REF` `4fa887a`;
 
 ### Consequence
 
-Verified on 2026-11-17 in the worktree against jZen `4fa887a`, rebased onto units 8b and 6a (ADR-114, ADR-116): `prudent_local_store`
-642 green (the suites already on `main` unchanged, six presence cases in `merge_table_test` and eighteen in the new `write_precondition_test`, each on two encrypted stores:
+Verified on 2026-11-17 in the worktree against jZen `4fa887a`, rebased onto units 8b, 6a and 6b (ADR-114, ADR-116, ADR-119):
+`prudent_local_store` 675 green (the suites already on `main` unchanged, six presence cases in `merge_table_test` and eighteen in the new `write_precondition_test`, each on two encrypted stores:
 an edit and a restore against a synced delete answer 404 and nothing comes back; an edit and a settings change against a synced edit
 answer 409 X.7 and the other device's value survives; an account delete with its records, one of which a sync moved, is refused whole
 with nothing written; review round (#264): a delete of a record, transfer and correction a sync deleted answers 404 under 5.15, 5.31 and
@@ -325,8 +325,8 @@ change-in-between cases stay green under it because the commit's own preconditio
 (the transfer case), `explicitPresence: {7}` on accounts (the rebuilt-defaults case), `archived = false` in the restore (the
 answer-equals-read case); the delete mapping switched off (the three delete 404s and the batch case); the re-creation's "absent"
 removed (the `recreate_account` case). Creates are written "absent" but not tested: their ids are fresh random 128-bit ids no sync can
-deliver first. `prudent_local_core` 2 804 green. **The parity suite against a live Quarkus on the local Supabase (port 8113,
-built from this branch): all 25 scenarios agree**, the import, budget and goal scenarios included. `dart analyze --fatal-infos --fatal-warnings` clean
+deliver first. `prudent_local_core` 3 959 green. **The parity suite against a live Quarkus on the local Supabase (port 8113,
+built from this branch): all 31 scenarios agree**, the import, budget, goal and plan scenarios included. `dart analyze --fatal-infos --fatal-warnings` clean
 in the core, the store and `tools/prudent_parity_server`; before the rebase, `flutter analyze` with the same flags was clean in
 `packages/prudent_ui` and `client/` on the new jZen (the rebase touches neither); `verify_boundaries.py` and its tests and
 `verify_import_fixtures.py` pass.
@@ -339,7 +339,8 @@ in the core, the store and `tools/prudent_parity_server`; before the rebase, `fl
   check-then-write interleavings queue the other device's `receive` themselves, with exactly the payload its store hands its transport;
   everything else, and the repair case end to end, goes through `ZenFolderCloud`. No device, no CloudKit.
 - Units 6a and 6b own their write paths (budgets, resets, goals, plans, occurrences); the store methods take a `WriteExpect` for them,
-  but which version each of their writes is decided against is theirs to pass. Unit 8b's import writes pass their own (ADR-114).
+  but which version each of their writes is decided against is theirs to pass. 6a's do (ADR-116); 6b's plan, occurrence and
+  confirmation writes (ADR-119) carry none yet — only the occurrence state a record delete writes, which this change makes "absent". Unit 8b's import writes pass their own (ADR-114).
 
 ---
 
