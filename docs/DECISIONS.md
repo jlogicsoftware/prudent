@@ -13,6 +13,56 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-126 — A two-device test is offline between its syncs: the transport runs only inside a sync, and the made-apart overshoot is proven over every order
+
+**Date:** 2026-11-17. **Status:** accepted. **Amends:** ADR-120 (its "Not proven" line). **Builds on:** ADR-111 (the two-device harness).
+**jZen:** nothing is asked of the framework; `ZenFolderCloud` behaves as documented.
+
+### Context
+
+Main's push run 44124134602 (`f858dbf`) failed `budgets_goals_two_devices_test` "three devices repairing from three different reads":
+the made-apart overshoot was 1100 where the test expected 2200; the same code was green on its PR runs. The cause is the test harness,
+not the check. `test/support/two_devices.dart` started each device's `ZenFolderCloud` with `pollEvery: null` and said that made "offline"
+exact. It did not: a running `ZenFolderCloud` also syncs whenever a record becomes unsent (`ZenStore.unsentChanges`), as CloudKit's
+engine does, and `pollEvery` stops only the polling. Every write a test made "offline" was carried to the folder in the background, and
+whether another device read it depended on how that background sync and the test's next step interleaved. On CI the phone's background
+sync landed after the laptop's repair was in the folder: the phone read -50 and repaired 50 (naming the laptop's repair), the tablet read
+-1100 and repaired 1100, and the merged envelope was -1250 + 1200 + 50 + 1100 = **1100** — which is exactly what the check named, and one
+undo of it brings the envelope to zero. With every background sync landing first the figure is 2300; with none, 2200.
+
+### Decision
+
+- **Which figure is correct depends on what each repair read, so on the order; the check is right in every order.** The overshoot is the
+  sum of the repairs in the group and of the entries they read; when every entry was read by some repair (the writer's own device always
+  reads it), that is the merged envelope itself, and the one `undo_overshoot` entry, computed from all the goal's entries, brings it to
+  zero. The test's 2200 holds for the order it describes — no device syncs between the divergent reads and the repairs — and the harness
+  now guarantees that order. Nothing in `lib/` changed.
+- **A device in the harness is offline except inside `Device.syncNow`**, which starts `ZenFolderCloud`, syncs, checks the transport
+  reports `upToDate`, and stops it (`ZenSyncTransport.stop`: the store works offline and its unsent records stay unsent).
+  `TwoDevices.sync` is three rounds of it. No running transport is kept on a device.
+- **The overshoot is pinned in every order** of the three devices' repairs, each device online (syncing just before and just after its
+  repair) or offline: 48 cases. In each, the envelope is the same on all three devices and never below zero, the issues are exactly one
+  `goal.repairs_made_apart` naming the envelope (none when it is zero), and every device applying the undo offline leaves the envelope at
+  zero, no conflict and no issue. The figures met are 2200 (no two online), 1100 (two online) and 0 (all three).
+
+### What this supersedes, and why
+
+- **"`pollEvery: null`: a test syncs when it says so, which is what makes "offline" exact."** (`test/support/two_devices.dart`) →
+  **reversed.** *Why:* `ZenFolderCloud.start` documents that it syncs whenever a record becomes unsent; only stopping the transport
+  makes a device offline.
+- **"Not proven: three or more devices repairing from three different reads"** (ADR-120, Proven) → **proven** by the 48 orders above,
+  including the chain the CI run met, where the group is not pairwise apart (the phone's repair names the laptop's, the tablet's names
+  neither) and the overshoot is still the envelope.
+
+### Consequence
+
+On 2026-11-17 in the worktree against jZen `139fcd6`: `prudent_local_store` green five times in a row in random order (821 tests),
+the three-device cases 25 times in a row, `prudent_local_core` 3966 green, `dart analyze --fatal-infos --fatal-warnings` clean in both.
+The CI order (laptop and phone online) is one of the pinned cases. jZen's own reference helper
+(`apps/zen_demo_local/.../test/support/two_devices.dart`) carries the same `pollEvery: null` comment; that is jZen's to correct.
+
+---
+
 ## ADR-125 — Prudent Local moves to jZen `139fcd6`: nested presence is declared for the plan's lead time
 
 **Date:** 2026-11-17. **Status:** accepted. **Builds on:** ADR-115, ADR-119, ADR-124. **jZen:** consumes jZenDev/jZen#255 (PR #259), #256 (PR #258)
