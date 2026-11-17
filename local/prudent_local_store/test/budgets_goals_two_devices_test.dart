@@ -560,6 +560,15 @@ void main() {
           for (final i in order)
             if (syncs & (1 << i) != 0) names[i],
         ];
+        // What the merged envelope must be. At most one device online: no repair saw another's, the
+        // three overshoot together by 2200. Two online: the second read the first's repair and the
+        // entries behind it and repaired only what was left; with the offline device's 1100 the
+        // envelope ends 1100 above zero. All three online: the last read everything, and it is zero.
+        final expected = switch (online.length) {
+          0 || 1 => 2200,
+          2 => 1100,
+          _ => 0,
+        };
         test(
           'repairs in the order ${order.map((i) => names[i]).join(', ')}, '
           '${online.isEmpty ? 'none' : online.join(' and ')} online: '
@@ -570,16 +579,17 @@ void main() {
               if (syncs & (1 << i) != 0) await device.syncNow();
               final deficit = Device.ok(device.integrity().evaluate())
                   .where((issue) => issue.code == 'goal.envelope_below_zero');
-              // A device that synced may find the others' repairs already balance what it reads.
-              if (deficit.isEmpty) continue;
+              // Only a device that synced can find the others' repairs already balance what it reads.
+              if (deficit.isEmpty) {
+                expect(online, contains(names[i]), reason: '${names[i]} read no deficit offline');
+                continue;
+              }
               Device.ok(await deficit.single.actions.single.run());
               if (syncs & (1 << i) != 0) await device.syncNow();
             }
             await three.sync();
             final envelope = await envelopeOf(three.laptop);
-            // Each repair brought what its device read to zero, and every entry was read by the
-            // repair of the device that wrote it, so together they can only overshoot.
-            expect(envelope, greaterThanOrEqualTo(0));
+            expect(envelope, expected);
             for (final device in three.all) {
               expect(await envelopeOf(device), envelope);
               final issues = Device.ok(device.integrity().evaluate());
