@@ -7,6 +7,7 @@ import 'package:zen_store_sync/zen_store_sync.dart';
 import 'package:zen_ui_lock/zen_ui_lock.dart';
 
 import '../core/local_session.dart';
+import '../move_in/export_file_picker.dart';
 
 /// This device's session: the store, the ledger, sync. Overridden by the composition root.
 final localSessionProvider = Provider<LocalSession>((ref) {
@@ -55,3 +56,9 @@ final saveFileProvider =
 /// `ZEN_SYNC`); null when the build's combination is refused. A test of the folder pages on a
 /// macOS host overrides it.
 final syncKindProvider = Provider<ZenSyncKind?>((ref) => ZenSync.plan.kind);
+
+/// Asks the person for the server's export file and answers its bytes, null when they cancel
+/// ([pickExportFile]; unit 10b). A test replaces it.
+final exportFilePickerProvider = Provider<Future<Uint8List?> Function()>(
+  (ref) => pickExportFile,
+);

@@ -160,6 +160,38 @@ final class LedgerView {
     );
   }
 
+  /// A view of records that are not in any store yet, with nothing in conflict: what a store
+  /// holding exactly these would read as. A move into Local (unit 10b, ADR-123) checks the balances
+  /// it is about to write with this, so the figure it compares with the export is computed by the
+  /// very code that computes it after the write ([balancesOf]), not by a second sum.
+  factory LedgerView.planned({
+    Map<String, Account> accounts = const {},
+    Map<String, AccountCurrency> accountCurrencies = const {},
+    Map<String, Record> records = const {},
+    Map<String, Transfer> transfers = const {},
+  }) => LedgerView._(
+    accounts: accounts,
+    accountCurrencies: accountCurrencies,
+    categories: const {},
+    records: records,
+    transfers: transfers,
+    plans: const {},
+    budgets: const {},
+    budgetResets: const {},
+    goals: const {},
+    goalAllocations: const {},
+    settings: null,
+    occurrenceStates: const {},
+    recordConflicts: const {},
+    transferConflicts: const {},
+    currencyConflicts: const {},
+    accountConflicts: const {},
+    budgetConflicts: const {},
+    resetConflicts: const {},
+    goalConflicts: const {},
+    planConflicts: const {},
+  );
+
   static final int _postingTag = Record().info_.byName['posting']!.tagNumber;
   static final int _openingTag = AccountCurrency().info_.byName['openingMinor']!.tagNumber;
 

@@ -588,6 +588,35 @@ final class StoreBatch {
   void putSettings(Settings value, {WriteExpect<Settings>? expect}) =>
       _put(_store.settings, value, PrudentLocalStore._settingsRules, expect);
 
+  // Unit 10b (ADR-123): a move into an empty store writes every collection as one.
+
+  void addTransfer(Transfer value, {WriteExpect<Transfer>? expect}) =>
+      _put(_store.transfers, value, PrudentLocalStore._transferRules, expect);
+
+  void putBudget(Budget value, {WriteExpect<Budget>? expect}) =>
+      _put(_store.budgets, value, PrudentLocalStore._budgetRules, expect);
+
+  /// A carry-over reset as the server's export holds it, **revoked or not**: the one place a reset
+  /// is written with its revocation already in it, because a move copies a history that happened
+  /// elsewhere (ADR-123). Written once, never edited, like [PrudentLocalStore.addBudgetReset].
+  void addMovedBudgetReset(BudgetCarryOverReset value, {WriteExpect<BudgetCarryOverReset>? expect}) =>
+      _put(
+        _store.budgetResets,
+        value,
+        _Rules<BudgetCarryOverReset>(id: PrudentLocalStore._randomId, writeOnce: true),
+        expect,
+      );
+
+  void putGoal(Goal value, {WriteExpect<Goal>? expect}) =>
+      _put(_store.goals, value, PrudentLocalStore._goalRules, expect);
+
+  void addGoalAllocation(GoalAllocation value, {WriteExpect<GoalAllocation>? expect}) => _put(
+    _store.goalAllocations,
+    value,
+    _Rules<GoalAllocation>(id: PrudentLocalStore._randomId, writeOnce: true),
+    expect,
+  );
+
   void _put<T extends GeneratedMessage>(
     ZenCollection<T> collection,
     T value,

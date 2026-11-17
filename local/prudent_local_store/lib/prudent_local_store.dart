@@ -14,6 +14,8 @@
 ///   goals, envelopes, free money and progress (unit 6a, ADR-116)
 /// - [ImportWorkflow]: statement import sessions in a device-only collection, duplicates, and the
 ///   commit into the ledger as one write (unit 8b, ADR-114)
+/// - [MoveIn]: the server's privacy export moved into an empty store, once, all or nothing, refused
+///   unless every balance matches to the cent (unit 10b, ADR-103, ADR-123)
 /// - [Analytics]: spend by category and by period over the records, to the server's cent (unit 7,
 ///   ADR-118)
 library;
@@ -43,6 +45,9 @@ export 'src/ledger/ledger_errors.dart';
 export 'src/ledger/ledger_view.dart' show AccountBalances, Settled;
 export 'src/ledger/plan_ledger.dart';
 export 'src/ledger/record_query.dart';
+export 'src/move_in/move_in.dart'
+    show MoveIn, MoveInFault, MoveInPlan, MoveInResult, MovedIn, MoveInRefused, MoveInSummary;
+export 'src/move_in/move_in_refusal.dart';
 export 'src/prudent_local_store.dart';
 export 'src/wire_mapper.dart';
 export 'src/write_expect.dart';

@@ -9,6 +9,7 @@ import 'package:prudent_proto/generated/prudent/v1/goal_allocations.pb.dart' as 
 import 'package:prudent_proto/generated/prudent/v1/goals.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/imports.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/plans.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/privacy.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/records.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart' as wire;
 import 'package:protobuf/protobuf.dart';
@@ -22,6 +23,9 @@ import '../ledger/ledger_errors.dart';
 import '../ledger/ledger_view.dart';
 import '../ledger/plan_ledger.dart';
 import '../ledger/record_query.dart';
+import '../integrity/integrity_issue.dart';
+import '../integrity/integrity_runner.dart';
+import '../move_in/move_in.dart';
 import '../prudent_local_store.dart';
 import 'import_parity.dart';
 
@@ -142,6 +146,14 @@ final class StoreBackend extends ParityBackend {
     _plans = PlanLedger(_store);
     _analytics = Analytics(_store);
   }
+
+  /// Moves [export] into this backend's store, opened and still empty (unit 10b, ADR-123): the
+  /// move-in suite runs a scenario's history on the server, moves the server's export in here, and
+  /// then compares every figure on both sides.
+  Future<MoveInResult> moveIn(wire.DataExport export) => MoveIn(_store).run(export);
+
+  /// Every integrity issue the store holds now (unit 10b's parity test expects none after a move).
+  ZenResult<List<IntegrityIssue>> integrityIssues() => IntegrityRunner(_store).evaluate();
 
   @override
   Future<void> close() async {
