@@ -35,9 +35,13 @@ final class TwoDevices {
   final Device laptop;
   final Device phone;
 
-  TwoDevices._(this.root, this.laptop, this.phone);
+  /// A third device, opened only when a test asks for one ([create] `withTablet`): the cases where
+  /// three devices act on three different reads (ADR-120).
+  final Device? tablet;
 
-  static Future<TwoDevices> create() async {
+  TwoDevices._(this.root, this.laptop, this.phone, this.tablet);
+
+  static Future<TwoDevices> create({bool withTablet = false}) async {
     final root = await Directory.systemTemp.createTemp('prudent_local_two_devices');
     final folder = Directory('${root.path}/cloud')..createSync();
     Future<Device> open(String name, int keyByte) async {
@@ -53,22 +57,31 @@ final class TwoDevices {
       return Device._(name, zen, PrudentLocalStore(zen), cloud);
     }
 
-    return TwoDevices._(root, await open('Laptop', 1), await open('Phone', 2));
+    return TwoDevices._(
+      root,
+      await open('Laptop', 1),
+      await open('Phone', 2),
+      withTablet ? await open('Tablet', 3) : null,
+    );
   }
 
-  /// Both devices exchange what they hold, three rounds, so a change made on one has reached the
-  /// other and anything that came back has been merged.
+  /// Every device exchanges what it holds, three rounds, so a change made on one has reached the
+  /// others and anything that came back has been merged.
   Future<void> sync() async {
     for (var round = 0; round < 3; round++) {
-      await laptop.cloud.syncNow();
-      await phone.cloud.syncNow();
+      for (final device in all) {
+        await device.cloud.syncNow();
+      }
     }
   }
 
   List<Device> get both => [laptop, phone];
 
+  /// Every open device: [both], and the [tablet] when there is one.
+  List<Device> get all => [laptop, phone, ?tablet];
+
   Future<void> dispose() async {
-    for (final device in both) {
+    for (final device in all) {
       await device.cloud.stop();
       await device.zen.close();
     }
