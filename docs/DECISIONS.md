@@ -221,6 +221,129 @@ unit 4) and #244 (the revocation's `earliestBy`, declared by unit 8b, ADR-114).
 - `listBudgets`, `listBudgetResets` and the goal and envelope lists show records as the store shows them, disputed or not, as
   the record list does (ADR-113); only figures leave disputed values out.
 - Nothing has run on a device (jZenDev/jZen#231); no screen shows `Settled.unsettled` yet (unit 9).
+
+---
+
+## ADR-115 — Every Prudent Local write carries what it was decided against as the store's precondition, and the store keeps a top-level default as unset; no synced collection declares an explicit-presence field
+
+**Date:** 2026-11-16. **Status:** accepted. **Plan:** units 4 and 5 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);
+phase-0 §0.2 (the per-field table) and §0.3 X.7. **Builds on:** ADR-102, ADR-111, ADR-113, ADR-114. **jZen:** consumes jZenDev/jZen#251 (write
+precondition) and #245 (proto3 presence), both PR #254, at `JZEN_REF` `4fa887a`; files jZenDev/jZen#255.
+
+### Decision
+
+- **The store's own rules run inside the write's turn.** `PrudentLocalStore`'s write-once, immutable-field and "a correction is never
+  edited" rules used to be checked with a `get` before the `put` (`_admit`); a sync's `receive` already queued ran in between, so a
+  rule held only for a version that was no longer there. They are now the `expect` jZen runs against the record as it stands when the
+  write takes its turn (`_admitting`), single writes and `StoreBatch` alike. The id rule stays outside: it reads only the value. A stored
+  record that no longer decodes is still never written past — jZen answers its decode failure before any `expect` runs (ADR-111, PR #258).
+- **Every write takes a `WriteExpect<T>`** (`ZenError? Function(T? current)`), passed through to `ZenCollection.put`/`delete` and
+  `ZenBatch`. `WriteExpects.asRead(basis)` is the one Prudent uses: the record must still be **exactly** the version the write was decided
+  against (the same serialised bytes), or still absent when `basis` is null. Exact, not "the fields this write touches": a write puts a
+  whole message, and the store counts every field that differs from the stored one as this device's edit, so a field another device
+  changed in between would be written back to the value read — a last writer winning. Refused instead, the person looks again.
+- **The ledger passes it on every write** (ADR-113's operations): an edit of a record, category, account or the settings carries the
+  version its rules were checked against; a create carries "still absent"; the account delete with its records carries each record,
+  transfer, currency and the account as read; archive, restore and the category delete likewise; a correction is written "absent" and
+  deleted "as read". A record deleted meanwhile answers **404 under the rule that finds it** (5.1, 5.15, 5.31, 5.37, 5.38) — what the
+  server answers when the delete came before the request — and stays deleted. On a put that is the `gone` of `asRead`; on a delete jZen
+  answers an absent record itself, with a bare `ZenNotFoundError`, before any precondition runs, so the ledger maps that answer
+  (`_write(missing:)`) to the same 404 — or, when the missing record is one of many in a batch (an account deleted with its records, an
+  account update dropping a currency), to the 409 of X.7, because the state the operation was decided on is gone. A not-found that already
+  carries a ledger status passes through unchanged. One changed meanwhile answers **409 under §0.3 X.7**, where
+  the server holds a row lock; the other device's edit survives. "Start fresh" accepts a starter that is absent or byte-equal (another
+  device's identical starters arriving is no edit) and refuses any other.
+- **The repairs carry it too.** A re-creation (`recreate_account`, `recreate_category`, `add_currency`) expects "still absent", so a record
+  another device restored or added is not reset to defaults; an edit built from a record (`move_to_*`, `clear_account_number`, the
+  default-account choice, `category_takes_both`, which is built from the category the check saw) expects that version; the
+  correction-intent replacement expects each correction it summed and "absent" for the replacement — a correction is immutable, so of
+  those what can happen meanwhile is its deletion, which jZen's own existence check on a batch delete already refuses; the precondition
+  states the intent and holds if corrections ever become editable. A plain delete repair acts on the record as it stands when it runs, as
+  before.
+- **What a precondition cannot hold is still the integrity checks'.** `expect` sees only the record being written. A rule across records
+  — a record filed under a category another device deletes, a record added to an account being deleted, a balance a correction's delta is
+  taken from — can be broken by a sync arriving one moment *after* the write just as well as one moment before, so checking it in the turn
+  would win nothing; D6's checks list it after the merge, as ADR-111 and ADR-113 already say.
+- **Presence: no synced collection declares `explicitPresence`.** jZen now stores a top-level implicit-presence field at its default as unset.
+  An `optional` field must be named only where "set to the default" means something other than absent. Every top-level `optional` field of
+  Local's store messages is a string — `Record.category_id`, `payee`, `note`; `Goal.target_date`; `GoalAllocation.source_goal_id`,
+  `target_goal_id`; `Plan.payee`, `note`; `Settings.default_account_id` — an id, a date or a trimmed text, for which `""` is never written
+  and would mean "none", exactly as absence does (`TextRules.optionalTrimmed` maps blank to absent; `""` is no id or date). Declaring them
+  would keep apart two spellings of "no payee" and make them conflict. `merge_table_test` pins the list from `store.proto`, so a new
+  `optional` field of another type fails until this decision is made for it. `ReminderSetting.lead_days` is `optional` but nested, so
+  the rule does not reach it (below). The device-only `import_sessions` (`imports.proto`, ADR-114) is the one collection that declares
+  it, and rightly: there `committed_written` = 0 — a commit that wrote nothing — is a value, not "never committed".
+- **§0.2 checked against the new behaviour:** a record rebuilt with every default written out is no edit and merges beside another
+  device's real change to one of those fields; a note cleared by `""` on one device and by `clearNote()` on the other is one value; clearing
+  a payee against a new payee is still a question (Merge); a reminder marked unread with an explicit `0` against a read is still a question
+  — before #245 the explicit `0` was a value, and `earliest` would have kept it, silently undoing the read.
+- **The rule stops at the top level: jZenDev/jZen#255, filed.** A nested message (posting, schedule, reminder setting, correction intent)
+  is versioned by its bytes; an implicit-presence field written at its default inside it differs from an unset one. Every writer of a
+  group therefore keeps building it with its defaults unset — the ledger's clearing of a zero target and seen balance on a correction's
+  intent stays, now citing #255. `merge_table_test` pins the conflict so it flips when the fix lands.
+- **The ledger keeps building records with their defaults unset at the top level too, on its own merits.** It was a #245 workaround; it is
+  kept because `put` answers the value it was given, not the stored record, and `WireMapper` copies presence exactly: an explicit `false`
+  would answer a record that differs, by presence, from the next read of the same one. `restoreCategory` therefore still clears
+  `archived`; `ledger_test` asserts the restore's answer equals the next read byte for byte (setting `false` turns it red).
+- **Records already stored keep their old form until next written.** A record written before this change may hold an explicit default;
+  jZen normalises on write, so it is rewritten the next time any device writes it. Nothing has shipped — no device holds a Local store —
+  so no migration is needed or written.
+
+### What this supersedes, and why
+
+- **"Presence-exact writes (jZenDev/jZen#245) … Restoring a category clears `archived` rather than setting it false"** (ADR-113) →
+  **the store now canonicalises; presence-exact construction stays for the answer's sake (top level) and for #255 (nested groups).**
+  *Why:* #245 merged; the reason that remains is argued above, not inherited.
+- **"`WireMapper` copies field presence exactly … The store does not canonicalise writes in the meantime"** (ADR-111) → **the store
+  canonicalises top-level fields; the mapper still copies presence exactly**, because its round trip is byte-for-byte and nested groups
+  are still compared as bytes.
+- **"New jZen gap, filed: jZenDev/jZen#251 … A stated limitation of every write path until it lands"** (ADR-113) and **"the interleaving
+  behind #251 is reasoned from the code, not reproduced"** → **consumed and reproduced**: the interleaving is driven in
+  `write_precondition_test` and every write path of units 4 and 5 is held.
+- **`_admit`, run before the write** (ADR-113: "refactored into one `_admit`") → **`_admitting`, run in the write's turn.** Unit 8b's
+  import-session writes and the commit's batch, which passed their `expect` beside `_admit`, now go through the same `_admitting`, their
+  own preconditions first.
+- **"Applying them to the unit 4/5 collections and the ledger's writes is a separate change"** (ADR-114) → **this is that change.**
+- **`LedgerBudgets._unchanged`** (ADR-116, which merged first and cites this ADR) → **its body is `WriteExpects.asRead`**, with ADR-116's
+  own rules and wording, so "exactly the version read" has one implementation. Its budget delete maps jZen's not-found the same way the
+  ledger's deletes do (404 under 6.1).
+
+### Consequence
+
+Verified on 2026-11-17 in the worktree against jZen `4fa887a`, rebased onto units 8b, 6a and 6b (ADR-114, ADR-116, ADR-119):
+`prudent_local_store` 675 green (the suites already on `main` unchanged, six presence cases in `merge_table_test` and eighteen in the new `write_precondition_test`, each on two encrypted stores:
+an edit and a restore against a synced delete answer 404 and nothing comes back; an edit and a settings change against a synced edit
+answer 409 X.7 and the other device's value survives; an account delete with its records, one of which a sync moved, is refused whole
+with nothing written; review round (#264): a delete of a record, transfer and correction a sync deleted answers 404 under 5.15, 5.31 and
+5.37; an account delete with records, one of which a sync deleted, 409 X.7 with nothing written; an account update dropping a currency
+whose opening a sync changed, an archive and a category delete against a synced edit, 409 X.7; the correction-intent replacement against a
+synced delete of a summed correction refuses whole; `recreate_account` after the other device restored the account is refused and that
+version stays; an import session's immutable currency is held against a second write queued behind the first; "Start fresh" against the other device's identical starters writes them once; a transfer arriving before an add of
+the same id is never edited by it; a repair built from what the check saw is refused once `ZenFolderCloud` brought a change to that
+record). Mutations each turned the matching tests red and were restored: `asRead` passing everything (six of the eight; 8b's
+change-in-between cases stay green under it because the commit's own precondition re-plans the commit), write-once skipped in the turn
+(the transfer case), `explicitPresence: {7}` on accounts (the rebuilt-defaults case), `archived = false` in the restore (the
+answer-equals-read case); the delete mapping switched off (the three delete 404s and the batch case); the re-creation's "absent"
+removed (the `recreate_account` case). Creates are written "absent" but not tested: their ids are fresh random 128-bit ids no sync can
+deliver first. `prudent_local_core` 3 959 green. **The parity suite against a live Quarkus on the local Supabase (port 8113,
+built from this branch): all 31 scenarios agree**, the import, budget, goal and plan scenarios included. `dart analyze --fatal-infos --fatal-warnings` clean
+in the core, the store and `tools/prudent_parity_server`; before the rebase, `flutter analyze` with the same flags was clean in
+`packages/prudent_ui` and `client/` on the new jZen (the rebase touches neither); `verify_boundaries.py` and its tests and
+`verify_import_fixtures.py` pass.
+
+### Not verified
+
+- `task` does not load from a git worktree (ADR-065): `test:local-store`, `test:local-core`, `verify:analyze`, `verify:boundaries` and the
+  parity half of `test:e2e` ran only as their underlying commands here, and run as tasks in CI. The client e2e half was not run.
+- `ZenFolderCloud` reads its folder asynchronously and offers no point at which to step in between a check and a write, so the
+  check-then-write interleavings queue the other device's `receive` themselves, with exactly the payload its store hands its transport;
+  everything else, and the repair case end to end, goes through `ZenFolderCloud`. No device, no CloudKit.
+- Units 6a and 6b own their write paths (budgets, resets, goals, plans, occurrences); the store methods take a `WriteExpect` for them,
+  but which version each of their writes is decided against is theirs to pass. 6a's do (ADR-116); 6b's plan, occurrence and
+  confirmation writes (ADR-119) carry none yet — only the occurrence state a record delete writes, which this change makes "absent". Unit 8b's import writes pass their own (ADR-114).
+
+---
+
 ## ADR-114 — Prudent Local imports a statement through the server's three phases in a device-only collection, and commits every row and the completed session as one `writeAll` whose record ids derive from the row keys
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 8b of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);

@@ -10,6 +10,8 @@
 //   Derived    — not in the store message at all.
 //   Same-intent— a policy keeps the earliest time when both devices reached the same state.
 //   Device     — not in the synced store.
+import 'dart:io';
+
 import 'package:fixnum/fixnum.dart';
 import 'package:prudent_local_store/prudent_local_store.dart';
 import 'package:protobuf/protobuf.dart';
@@ -755,6 +757,123 @@ void main() {
       expect(conflict.isDeleteConflict, isTrue);
       expect(conflict.sides.where((s) => s.isDelete), hasLength(1));
     }
+  });
+
+  // ── Presence (jZenDev/jZen#245, ADR-115) ──────────────────────────────────────────────────────
+
+  group('Presence', () {
+    test(
+      'a record rebuilt with every default explicit is no edit: it merges beside a real one',
+      () async {
+        final base = await shared(accounts);
+        // The laptop rebuilds the whole account, as a form does, every flag written out — the
+        // false ones included — and changes only the name.
+        Device.ok(
+          await devices.laptop.store.putAccount(
+            Account(
+              id: base.id,
+              name: 'Main',
+              kind: base.kind,
+              active: base.active,
+              includeInTotal: base.includeInTotal,
+              includeInOverview: base.includeInOverview,
+              eligibleForGoals: false,
+              accountNumber: '',
+            ),
+          ),
+        );
+        // The phone, meanwhile, really changes one of the fields the laptop wrote as a default.
+        await accounts.edit(devices.phone, base.id, (a) => a.eligibleForGoals = true);
+        await devices.sync();
+        expectNoConflicts();
+        for (final device in devices.both) {
+          final a = accounts.read(device, base.id);
+          expect((a.name, a.eligibleForGoals), ('Main', true));
+        }
+      },
+    );
+
+    test('a note cleared as "" on one device and by clear() on the other is one value', () async {
+      final base = await shared(records);
+      await records.edit(devices.laptop, base.id, (r) => r.note = 'warm');
+      await devices.sync();
+      await records.edit(devices.laptop, base.id, (r) => r.note = '');
+      await records.edit(devices.phone, base.id, (r) => r.clearNote());
+      await devices.sync();
+      expectNoConflicts();
+      for (final device in devices.both) {
+        expect(records.read(device, base.id).hasNote(), isFalse);
+      }
+    });
+
+    test('clearing a payee on one device against a new one on the other is still a question '
+        '(§0.2: payee is Merge)', () async {
+      final base = await shared(records);
+      await records.edit(devices.laptop, base.id, (r) => r.payee = 'Bakery');
+      await devices.sync();
+      await records.edit(devices.laptop, base.id, (r) => r.payee = '');
+      await records.edit(devices.phone, base.id, (r) => r.payee = 'Market');
+      await devices.sync();
+      expectConflict(records, base.id, {tagOf(base, 'payee')});
+    });
+
+    test('a reminder marked unread with an explicit 0 against a read is a question, never the '
+        'earliest "time" 0', () async {
+      final base = await shared(occurrences);
+      await occurrences.edit(devices.laptop, base.id, (o) => o.reminderReadAtMs = Int64(9000));
+      await devices.sync();
+      await occurrences.edit(devices.laptop, base.id, (o) => o.reminderReadAtMs = Int64.ZERO);
+      await occurrences.edit(devices.phone, base.id, (o) => o.reminderReadAtMs = Int64(8000));
+      await devices.sync();
+      expectConflict(occurrences, base.id, {tagOf(base, 'reminderReadAtMs')});
+    });
+
+    test('no synced collection declares explicit presence: every top-level `optional` field is a string '
+        'whose "" is not a value', () {
+      // The Dart runtime cannot tell an `optional` field from a plain one, so the store needs the
+      // `optional` ones named where "set to its default" means something other than "absent"
+      // (`ZenStore.collection(explicitPresence:)`). In store.proto every one is a string id, date
+      // or text for which "" is never written and means "none", exactly as absence does (ADR-115).
+      // A new `optional` field of another type fails here until that decision is made for it.
+      final proto = File('proto/prudent_local/v1/store.proto').readAsLinesSync();
+      String? message;
+      final optional = <String>[];
+      for (final line in proto) {
+        if (RegExp(r'^message (\w+) \{').firstMatch(line) case final m?) message = m.group(1);
+        if (RegExp(r'^  optional (\w+) (\w+) = \d+;').firstMatch(line) case final m?) {
+          optional.add('$message.${m.group(2)}: ${m.group(1)}');
+        }
+      }
+      expect(optional, [
+        'Record.category_id: string',
+        'Record.payee: string',
+        'Record.note: string',
+        'Goal.target_date: string',
+        'GoalAllocation.source_goal_id: string',
+        'GoalAllocation.target_goal_id: string',
+        'ReminderSetting.lead_days: uint32', // nested in Plan.reminder: a group, never normalised
+        'Plan.payee: string',
+        'Plan.note: string',
+        'Settings.default_account_id: string',
+      ]);
+    });
+
+    test('a nested group still compares its bytes: an explicit default inside it differs from '
+        'an unset one (jZenDev/jZen#255)', () async {
+      // The store's presence rule stops at the top level of a record. Until jZen extends it, the
+      // writers of a group build it with its defaults unset (the correction intent in the ledger).
+      // Both devices move the lead time to two days and mean the same reminder; one writes the
+      // `false` out, the other leaves it unset.
+      final base = await shared(plans);
+      await plans.edit(devices.laptop, base.id, (p) => p.reminder = ReminderSetting(leadDays: 2));
+      await plans.edit(
+        devices.phone,
+        base.id,
+        (p) => p.reminder = ReminderSetting(enabled: false, leadDays: 2),
+      );
+      await devices.sync();
+      expectConflict(plans, base.id, {tagOf(base, 'reminder')});
+    });
   });
 
   // ── Derived and device rows: not in the store ─────────────────────────────────────────────────

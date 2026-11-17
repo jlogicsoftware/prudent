@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:fixnum/fixnum.dart';
 import 'package:meta/meta.dart' show internal;
 import 'package:prudent_local_core/prudent_local_core.dart';
-import 'package:protobuf/protobuf.dart' show GeneratedMessage;
 import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/budgets.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart' as wire;
@@ -11,6 +10,7 @@ import 'package:prudent_proto/generated/prudent/v1/goal_allocations.pb.dart' as 
 import 'package:prudent_proto/generated/prudent/v1/goals.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/records.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart' as wire;
+import 'package:protobuf/protobuf.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_store/zen_store.dart' show ZenStorageError;
 
@@ -20,6 +20,7 @@ import '../integrity/checks/category_kind_check.dart';
 import '../prudent_local_store.dart';
 import '../wire_mapper.dart';
 import 'envelopes.dart';
+import '../write_expect.dart';
 import 'ledger_errors.dart';
 import 'ledger_view.dart';
 import 'plan_ledger.dart';
@@ -48,7 +49,12 @@ part 'ledger_goals.dart';
 /// - several records are written as one only through jZen's `ZenStore.writeAll` (jZenDev/jZen#232):
 ///   an account with its currencies, an account deleted with its records — all or nothing;
 /// - row-level security has no meaning: one person per store, whose encryption is the boundary
-///   (phase-0 §0.3 X.1, X.2), so there is no "another user's account" to answer 404 for.
+///   (phase-0 §0.3 X.1, X.2), so there is no "another user's account" to answer 404 for;
+/// - the server's transaction is a precondition (§0.3 X.7, ADR-115): every write carries the
+///   records it was decided against ([WriteExpects.asRead]), checked by the store inside the write's
+///   turn, so a sync that deleted or changed one of them in between refuses the write — 404 when it
+///   is gone, as if it had gone before the request, and 409 under X.7 when it changed — instead of
+///   bringing a deleted record back or writing over another device's edit.
 ///
 /// Every answer is a [ZenResult]: a rule's refusal is a [ZenError] shaped as the server's
 /// ([LedgerErrors]); the store's own errors (a record in conflict, a storage failure) are returned as
@@ -110,7 +116,7 @@ final class Ledger {
           accountNumber: request.accountNumber,
         );
         final openings = _openings(request.balances, inUse: const {}, planned: const {});
-        final batch = StoreBatch(store)..putAccount(account);
+        final batch = StoreBatch(store)..putAccount(account, expect: _asRead(null, _noAccount));
         _putCurrencies(batch, view, id, openings);
         _applyDefault(batch, view, id, request.isDefault);
         await _write(store.writeAll(batch));
@@ -145,13 +151,15 @@ final class Ledger {
           if (p.posting.accountId == current.id) p.posting.currency,
       },
     );
-    final batch = StoreBatch(store)..putAccount(account);
+    final batch = StoreBatch(store)..putAccount(account, expect: _asRead(current, _noAccount));
     _putCurrencies(batch, view, current.id, openings);
     for (final held in view.currenciesOf(current.id)) {
-      if (!openings.containsKey(held.currency)) batch.deleteAccountCurrency(held.id);
+      if (!openings.containsKey(held.currency)) {
+        batch.deleteAccountCurrency(held.id, expect: _asRead(held, _noAccount));
+      }
     }
     _applyDefault(batch, view, current.id, request.isDefault);
-    await _write(store.writeAll(batch));
+    await _write(store.writeAll(batch), missing: _changedMeanwhile);
     return _settledAccount(current.id);
   });
 
@@ -187,27 +195,33 @@ final class Ledger {
         'This account still has plans. Delete them or move them to another account first.',
       );
     }
+    // Each delete carries the version the refusals above were decided against: a record a sync
+    // moved to another account in between is refused, not deleted with this one. A record a sync
+    // *adds* to the account in between is not in the batch, exactly as one arriving a moment after
+    // the delete would not be; either is the dangling reference the integrity check names (D5).
     final batch = StoreBatch(store);
     for (final r in records) {
-      batch.deleteRecord(r);
+      batch.deleteRecord(r, expect: _asRead(view.records[r], _noRecord));
     }
     for (final t in transfers) {
-      batch.deleteTransfer(t);
+      batch.deleteTransfer(t, expect: _asRead(view.transfers[t], _noTransfer));
     }
     for (final c in view.currenciesOf(account.id)) {
-      batch.deleteAccountCurrency(c.id);
+      batch.deleteAccountCurrency(c.id, expect: _asRead(c, _noAccount));
     }
     for (final conflict in view.currencyConflicts.values) {
       // An account currency deleted on one device and edited on another is not listed by the
-      // store; it still belongs to this account and goes (or blocks) with it.
+      // store; it still belongs to this account and goes (or blocks) with it. It carries no
+      // precondition: there is no one version of it to compare, and the store refuses a write to a
+      // record in conflict before any precondition runs, so this delete always blocks the batch.
       if (!view.accountCurrencies.containsKey(conflict.id) &&
           conflict.sides.any((s) => s.value?.accountId == account.id)) {
         batch.deleteAccountCurrency(conflict.id);
       }
     }
     _applyDefault(batch, view, account.id, false);
-    batch.deleteAccount(account.id);
-    await _write(store.writeAll(batch));
+    batch.deleteAccount(account.id, expect: _asRead(account, _noAccount));
+    await _write(store.writeAll(batch), missing: _changedMeanwhile);
   });
 
   // ── Categories ──────────────────────────────────────────────────────────────────────────────
@@ -239,7 +253,9 @@ final class Ledger {
           kind: request.kind,
           archived: false,
         );
-        return WireMapper.categoryToWire(await _write(store.putCategory(category)));
+        return WireMapper.categoryToWire(
+          await _write(store.putCategory(category, expect: _asRead(null, _noCategory))),
+        );
       });
 
   /// `CategoryResource.replace`: a full replacement; the archived state is kept.
@@ -255,7 +271,9 @@ final class Ledger {
           kind: request.kind,
           archived: current.archived,
         );
-        return WireMapper.categoryToWire(await _write(store.putCategory(category)));
+        return WireMapper.categoryToWire(
+          await _write(store.putCategory(category, expect: _asRead(current, _noCategory))),
+        );
       });
 
   /// `CategoryResource.archive`: refused (409) when it is already archived (row 5.41).
@@ -265,7 +283,9 @@ final class Ledger {
       throw const Refusal.conflict('5.41', 'This category is already archived.');
     }
     final next = current.deepCopy()..archived = true;
-    return WireMapper.categoryToWire(await _write(store.putCategory(next)));
+    return WireMapper.categoryToWire(
+      await _write(store.putCategory(next, expect: _asRead(current, _noCategory))),
+    );
   });
 
   /// `CategoryResource.restore`: refused (409) when it is not archived (row 5.41).
@@ -274,10 +294,13 @@ final class Ledger {
     if (!current.archived) {
       throw const Refusal.conflict('5.41', 'This category is not archived.');
     }
-    // Cleared, not set to false: the store compares serialised fields, and an explicit default is a
-    // different value from an absent one (jZenDev/jZen#245).
+    // Cleared, not set to false. The store keeps the two alike since jZenDev/jZen#245, but `put`
+    // answers the value it was given, and `WireMapper` copies presence exactly: an explicit false
+    // here would answer a category that differs, by presence, from the next read of the same one.
     final next = current.deepCopy()..clearArchived();
-    return WireMapper.categoryToWire(await _write(store.putCategory(next)));
+    return WireMapper.categoryToWire(
+      await _write(store.putCategory(next, expect: _asRead(current, _noCategory))),
+    );
   });
 
   /// `CategoryResource.delete`: refused (409) while a record, plan, budget or carry-over reset
@@ -298,7 +321,12 @@ final class Ledger {
     if (view.resetValues().any((r) => r.categoryId == category.id)) {
       throw const Refusal.conflict('5.42', 'This category has carry-over reset history.');
     }
-    await _write(store.deleteCategory(category.id));
+    // A record, plan or budget a sync files under it in between is not seen here, as one arriving
+    // a moment after would not be: the dangling reference is the integrity check's (D6).
+    await _write(
+      store.deleteCategory(category.id, expect: _asRead(category, _noCategory)),
+      missing: _noCategory,
+    );
   });
 
   /// "Start fresh on this device" (row 5.43, `NewUserSetup`): the five starter categories, with ids
@@ -310,13 +338,20 @@ final class Ledger {
     if (readOrThrow(store.categories.list()).isNotEmpty) return;
     final batch = StoreBatch(store);
     for (final (key, title, icon, color) in _starters) {
+      final starter = Category(
+        id: DerivedIds.starterCategory(key),
+        title: title,
+        iconKey: icon,
+        colorArgb: color,
+      );
+      // Absent, or the very starter another device's "Start fresh" synced in meanwhile — writing
+      // the same value is no edit. Anything else (that starter already edited or deleted there) is
+      // not overwritten with the defaults.
+      final asNew = _asRead<Category>(null, _noCategory);
+      final asSynced = _asRead(starter, _noCategory);
       batch.putCategory(
-        Category(
-          id: DerivedIds.starterCategory(key),
-          title: title,
-          iconKey: icon,
-          colorArgb: color,
-        ),
+        starter,
+        expect: (current) => current == null ? asNew(current) : asSynced(current),
       );
     }
     await _write(store.writeAll(batch));
@@ -456,7 +491,9 @@ final class Ledger {
       payee: request.hasPayee() ? request.payee : null,
       note: request.hasNote() ? request.note : null,
     );
-    return WireMapper.recordToWire(await _write(store.putRecord(record)));
+    return WireMapper.recordToWire(
+      await _write(store.putRecord(record, expect: _asRead(null, _noRecord))),
+    );
   });
 
   /// `RecordResource.replace`: a transfer leg (row 5.21) and a correction (row 5.22) are refused
@@ -487,12 +524,15 @@ final class Ledger {
             ..id = store.newId()
             ..clearImportKey());
           final batch = StoreBatch(store)
-            ..deleteRecord(current.id)
-            ..putRecord(record);
-          await _write(store.writeAll(batch));
+            ..deleteRecord(current.id, expect: _asRead(current, _noRecord))
+            ..putRecord(record, expect: _asRead(null, _noRecord));
+          await _write(store.writeAll(batch), missing: _noRecord);
           return WireMapper.recordToWire(record);
         }
-        return _recordWire(view, await _write(store.putRecord(record)));
+        return _recordWire(
+          view,
+          await _write(store.putRecord(record, expect: _asRead(current, _noRecord))),
+        );
       });
 
   /// `RecordResource.delete`: a hard delete (row 5.24). A confirmed occurrence reopens by itself,
@@ -500,7 +540,7 @@ final class Ledger {
   Future<ZenResult<void>> deleteRecord(String id) => _run(() async {
     final view = LedgerView.read(store);
     final record = _requireEditableRecord(view, id);
-    final batch = StoreBatch(store)..deleteRecord(record.id);
+    final batch = StoreBatch(store)..deleteRecord(record.id, expect: _asRead(record, _noRecord));
     // The server keeps an occurrence row for good, so the occurrence a deleted confirmation reopens
     // is still listed when the plan's schedule no longer produces its date. Here only a stored state
     // keeps such a date (unit 6b), so it is written in the same all-or-nothing batch.
@@ -518,10 +558,12 @@ final class Ledger {
             planId: link.planId,
             occurrenceDate: link.occurrenceDate,
           ),
+          expect: _asRead(null, _noRecord),
         );
       }
     }
-    await _write(store.writeAll(batch));
+    // The record a sync deleted meanwhile is this operation's 404, as on a plain delete.
+    await _write(store.writeAll(batch), missing: _noRecord);
   });
 
   // ── Transfers ───────────────────────────────────────────────────────────────────────────────
@@ -563,15 +605,20 @@ final class Ledger {
             amountMinor: request.toAmountMinor,
           ),
         );
-        return WireMapper.transferToWire(await _write(store.addTransfer(transfer)));
+        return WireMapper.transferToWire(
+          await _write(store.addTransfer(transfer, expect: _asRead(null, _noTransfer))),
+        );
       });
 
   /// `TransferResource.delete`: both legs go, because they are one record (row 5.31).
   Future<ZenResult<void>> deleteTransfer(String id) => _run(() async {
     if (!LocalIds.isValid(id)) throw const Refusal.notFound('5.31', 'No such transfer.');
-    final view = LedgerView.read(store);
-    if (!view.transfers.containsKey(id)) throw const Refusal.notFound('5.31', 'No such transfer.');
-    await _write(store.deleteTransfer(id));
+    final transfer = LedgerView.read(store).transfers[id];
+    if (transfer == null) throw _noTransfer;
+    await _write(
+      store.deleteTransfer(id, expect: _asRead(transfer, _noTransfer)),
+      missing: _noTransfer,
+    );
   });
 
   // ── Corrections ─────────────────────────────────────────────────────────────────────────────
@@ -621,23 +668,32 @@ final class Ledger {
             ]..sort(),
           ),
         );
-        // Presence-exact (jZenDev/jZen#245): a zero target or seen balance is left unset.
+        // A zero target or seen balance is left unset. The store keeps a zero and an unset field
+        // alike only at the top level of a record (jZenDev/jZen#245); the intent is a nested group,
+        // compared by its bytes, so here an explicit zero would still be a different value
+        // (jZenDev/jZen#255).
         if (target == 0) record.correction.clearTargetMinor();
         if (current == 0) record.correction.clearSeenMinor();
         if (TextRules.optionalTrimmed(request.hasNote() ? request.note : null) case final note?) {
           record.note = note;
         }
-        return WireMapper.recordToWire(await _write(store.putRecord(record)));
+        // A record a sync adds to this balance in between is not in the delta, exactly as one made
+        // a moment after the correction would not be: the server's meaning (D7). Two corrections
+        // made apart are the integrity check's (`correction.made_apart`).
+        return WireMapper.recordToWire(
+          await _write(store.putRecord(record, expect: _asRead(null, _noRecord))),
+        );
       });
 
   /// `CorrectionResource.delete`: 404 unless [id] is a correction.
   Future<ZenResult<void>> deleteCorrection(String id) => _run(() async {
     if (!LocalIds.isValid(id)) throw const Refusal.notFound('5.37', 'No such correction.');
     final record = LedgerView.read(store).records[id];
-    if (record == null || !record.hasCorrection()) {
-      throw const Refusal.notFound('5.37', 'No such correction.');
-    }
-    await _write(store.deleteRecord(id));
+    if (record == null || !record.hasCorrection()) throw _noCorrection;
+    await _write(
+      store.deleteRecord(id, expect: _asRead(record, _noCorrection)),
+      missing: _noCorrection,
+    );
   });
 
   // ── Settings ────────────────────────────────────────────────────────────────────────────────
@@ -657,16 +713,16 @@ final class Ledger {
 
   /// `SettingsResource.replace`: blank resets to the default; otherwise an ISO-4217 code, never
   /// checked against the accounts (rows 5.44, 5.45). The default account is kept.
-  Future<ZenResult<wire.Settings>> updateSettings(wire.UpdateSettingsRequest request) =>
-      _run(() async {
-        final requested = request.mainCurrency;
-        final main = javaIsBlank(requested) ? defaultMainCurrency : Currencies.parse(requested);
-        final current = LedgerView.read(store).settings;
-        final next = (current?.deepCopy() ?? Settings(id: DerivedIds.settings))
-          ..mainCurrency = main;
-        final written = await _write(store.putSettings(next));
-        return wire.Settings(mainCurrency: written.mainCurrency);
-      });
+  Future<ZenResult<wire.Settings>> updateSettings(wire.UpdateSettingsRequest request) => _run(
+    () async {
+      final requested = request.mainCurrency;
+      final main = javaIsBlank(requested) ? defaultMainCurrency : Currencies.parse(requested);
+      final current = LedgerView.read(store).settings;
+      final next = (current?.deepCopy() ?? Settings(id: DerivedIds.settings))..mainCurrency = main;
+      final written = await _write(store.putSettings(next, expect: _asRead(current, _noSettings)));
+      return wire.Settings(mainCurrency: written.mainCurrency);
+    },
+  );
 
   // ── Account rules ───────────────────────────────────────────────────────────────────────────
 
@@ -763,7 +819,10 @@ final class Ledger {
       );
       if (opening != 0) record.openingMinor = Int64(opening);
       if (position != 0) record.position = position;
-      batch.putAccountCurrency(record);
+      batch.putAccountCurrency(
+        record,
+        expect: _asRead(view.accountCurrencies[record.id], _noAccount),
+      );
       position++;
     }
   }
@@ -782,7 +841,7 @@ final class Ledger {
     } else {
       next.clearDefaultAccountId();
     }
-    batch.putSettings(next);
+    batch.putSettings(next, expect: _asRead(current, _noSettings));
   }
 
   /// The account [id] as written, read back with its figures and what they leave out.
@@ -1043,8 +1102,47 @@ final class Ledger {
     return text;
   }
 
+  // ── Write preconditions ─────────────────────────────────────────────────────────────────────
+
+  /// The record must still be [basis] — the version this operation's rules were checked against,
+  /// or absent when [basis] is null — when the store runs the write (ADR-115). Gone since: [gone],
+  /// the 404 the server gives for a record deleted before the request. Changed since: 409 under
+  /// §0.3 X.7, where the server holds a row lock and Local a precondition.
+  static WriteExpect<T> _asRead<T extends GeneratedMessage>(T? basis, Refusal gone) =>
+      WriteExpects.asRead(
+        basis,
+        gone: () => LedgerErrors.of(gone),
+        changed: () => LedgerErrors.of(_changedMeanwhile),
+      );
+
+  static const _changedMeanwhile = Refusal.conflict(
+    'X.7',
+    'This changed on another device while it was being saved. Look at it again.',
+  );
+  static const _noAccount = Refusal.notFound('5.1', 'No such account.');
+  static const _noCategory = Refusal.notFound('5.38', 'No such category.');
+  static const _noRecord = Refusal.notFound('5.15', 'No such record.');
+  static const _noTransfer = Refusal.notFound('5.31', 'No such transfer.');
+  static const _noCorrection = Refusal.notFound('5.37', 'No such correction.');
+  // Never deleted; only "changed" can refuse a settings write.
+  static const _noSettings = Refusal.notFound('5.44', 'No settings.');
+
   /// The value of a store write, or a [LedgerReadFailure] with the store's own error.
-  static Future<T> _write<T>(Future<ZenResult<T>> write) async => readOrThrow(await write);
+  ///
+  /// [missing] is the refusal for a **delete** whose record a sync removed between the check and the
+  /// write. jZen answers that itself, with a bare [ZenNotFoundError], before any precondition runs
+  /// ("runs once the record is known to exist"), so the `gone` of [WriteExpects.asRead] never reaches
+  /// a delete; without this the caller would get a store error where the server answers its own 404
+  /// (or, inside a larger batch, the 409 of X.7: the state the operation was decided on is gone). A
+  /// not-found that already carries a ledger status — a put's `gone` — passes through unchanged.
+  static Future<T> _write<T>(Future<ZenResult<T>> write, {Refusal? missing}) async {
+    final result = await write;
+    if (result case ZenFailure(:final error)
+        when missing != null && error is ZenNotFoundError && LedgerErrors.statusOf(error) == null) {
+      throw missing;
+    }
+    return readOrThrow(result);
+  }
 
   /// Runs one operation: a rule's [Refusal] becomes the server-shaped error, the store's errors are
   /// returned as they are, and a figure that leaves the 64-bit range is an error, never a value.

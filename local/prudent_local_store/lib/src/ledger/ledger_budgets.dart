@@ -97,6 +97,8 @@ extension LedgerBudgets on Ledger {
         if (read == null) throw const Refusal.notFound('6.1', 'No budget is set for this slot.');
         await Ledger._write(
           store.deleteBudget(slot.id, expect: (current) => _unchanged(read, current, rule: '6.1')),
+          // jZen answers a budget a sync deleted meanwhile before the precondition runs (ADR-115).
+          missing: const Refusal.notFound('6.1', 'No budget is set for this slot.'),
         );
       });
 
@@ -356,27 +358,14 @@ extension LedgerBudgets on Ledger {
     GeneratedMessage? read,
     GeneratedMessage? current, {
     required String rule,
-  }) {
-    if (current == null) {
-      return read == null
-          ? null
-          : LedgerErrors.of(
-              Refusal.notFound(rule, 'This was deleted on another device meanwhile.'),
-            );
-    }
-    if (read != null && _sameBytes(read.writeToBuffer(), current.writeToBuffer())) return null;
-    return LedgerErrors.of(
+  }) => WriteExpects.asRead<GeneratedMessage>(
+    read,
+    gone: () =>
+        LedgerErrors.of(Refusal.notFound(rule, 'This was deleted on another device meanwhile.')),
+    changed: () => LedgerErrors.of(
       Refusal.conflict(rule, 'This changed on another device meanwhile. Look at it again.'),
-    );
-  }
-
-  static bool _sameBytes(List<int> a, List<int> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
+    ),
+  )(current);
 
   static int _slotOrder(Budget a, Budget b) {
     final byMonth = a.month.compareTo(b.month);

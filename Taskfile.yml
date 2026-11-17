@@ -216,7 +216,8 @@ tasks:
       derived-id vectors, the mapper's byte-for-byte round trip, each integrity check and its actions,
       and the two-device suite that is the unit's done-when; and unit 5's ledger (ADR-113): every rule,
       the all-or-nothing writes, its two-device cases, and every parity scenario through StoreBackend
-      against its stated server outcome. Needs no server and no Flutter.
+      against its stated server outcome; and ADR-115's write preconditions and proto3 presence on two
+      devices. Needs no server and no Flutter.
     cmds:
       - cd local/prudent_local_store && dart pub get && dart test
 

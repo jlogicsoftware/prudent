@@ -1,7 +1,7 @@
 // Unit 5's rules on one device (phase-0 §0.3 rows 5.1–5.53, ADR-113): each rule of the ledger, the
 // values it writes, and what it refuses with which status. The same rules run against the live server
 // through the parity scenarios (local/prudent_local_core/parity/scenarios, tools/prudent_parity_server);
-// these tests pin what the scenarios cannot see — the store records written, presence-exactness, the
+// these tests pin what the scenarios cannot see — the store records written, their presence, the
 // all-or-nothing delete — and every refusal by rule.
 import 'dart:io';
 
@@ -137,29 +137,27 @@ void main() {
       },
     );
 
-    test(
-      'a create writes the account, one opening record per currency in order, presence-exact',
-      () async {
-        final a = await account(name: '  Wallet ', balances: {'eur': 0, 'PLN': 500});
-        expect(a.name, 'Wallet');
-        expect(
-          [for (final b in a.balances) b.currency],
-          ['EUR', 'PLN'],
-          reason: '5.5: declared order',
-        );
-        final stored = Device.ok(store.accounts.get(a.id));
-        // Only what differs from a default is set: false flags and an empty number are absent, so a
-        // later edit on another device never conflicts with a default nobody chose (jZenDev/jZen#245).
-        expect(stored.hasActive(), isFalse);
-        expect(stored.hasAccountNumber(), isFalse);
-        expect(stored.hasEligibleForGoals(), isFalse, reason: '5.13: off by default');
-        final eur = Device.ok(store.accountCurrencies.get(DerivedIds.accountCurrency(a.id, 'EUR')));
-        expect(eur.hasOpeningMinor(), isFalse);
-        expect(eur.hasPosition(), isFalse);
-        final pln = Device.ok(store.accountCurrencies.get(DerivedIds.accountCurrency(a.id, 'PLN')));
-        expect((pln.openingMinor.toInt(), pln.position), (500, 1));
-      },
-    );
+    test('a create writes the account, one opening record per currency in order, presence-exact', () async {
+      final a = await account(name: '  Wallet ', balances: {'eur': 0, 'PLN': 500});
+      expect(a.name, 'Wallet');
+      expect(
+        [for (final b in a.balances) b.currency],
+        ['EUR', 'PLN'],
+        reason: '5.5: declared order',
+      );
+      final stored = Device.ok(store.accounts.get(a.id));
+      // Only what differs from a default is set. The store would keep a false flag and an absent
+      // one alike anyway (jZenDev/jZen#245); the ledger builds it so because the answer of a write
+      // is the value it was given, and must read as the stored record does (ADR-115).
+      expect(stored.hasActive(), isFalse);
+      expect(stored.hasAccountNumber(), isFalse);
+      expect(stored.hasEligibleForGoals(), isFalse, reason: '5.13: off by default');
+      final eur = Device.ok(store.accountCurrencies.get(DerivedIds.accountCurrency(a.id, 'EUR')));
+      expect(eur.hasOpeningMinor(), isFalse);
+      expect(eur.hasPosition(), isFalse);
+      final pln = Device.ok(store.accountCurrencies.get(DerivedIds.accountCurrency(a.id, 'PLN')));
+      expect((pln.openingMinor.toInt(), pln.position), (500, 1));
+    });
 
     test('5.8: the default is one settings field; a new default replaces the old', () async {
       final a = await account(name: 'A', isDefault: true);
@@ -400,11 +398,14 @@ void main() {
           ),
         );
         expect(edited.archived, isTrue);
-        expect(Device.ok(await ledger.restoreCategory(c.id)).archived, isFalse);
+        final restored = Device.ok(await ledger.restoreCategory(c.id));
+        expect(restored.archived, isFalse);
+        // The store keeps a cleared and a false flag alike (jZenDev/jZen#245), but a write answers
+        // the value it was given: the restore's answer is the next read's, byte for byte (ADR-115).
         expect(
-          Device.ok(store.categories.get(c.id)).hasArchived(),
-          isFalse,
-          reason: 'cleared, not false',
+          restored.writeToBuffer(),
+          Device.ok(await ledger.getCategory(c.id)).writeToBuffer(),
+          reason: 'the answer of a write is what a read returns',
         );
         expect(refused(await ledger.restoreCategory(c.id)), (409, '5.41'));
       },

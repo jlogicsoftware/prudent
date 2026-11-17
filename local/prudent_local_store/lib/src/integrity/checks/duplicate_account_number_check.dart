@@ -2,6 +2,7 @@ import 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 import 'package:zen_core/zen_core.dart';
 
 import '../../prudent_local_store.dart';
+import '../../write_expect.dart';
 import '../integrity_issue.dart';
 import '../integrity_runner.dart';
 import '../store_snapshot.dart';
@@ -37,7 +38,10 @@ final class DuplicateAccountNumberCheck implements IntegrityCheck {
         actions: [
           IntegrityAction.choose('clear_account_number', ids, (id) {
             return switch (store.accounts.get(id)) {
-              ZenSuccess(:final data) => store.putAccount(data.deepCopy()..clearAccountNumber()),
+              ZenSuccess(:final data) => store.putAccount(
+                data.deepCopy()..clearAccountNumber(),
+                expect: WriteExpects.asRead(data),
+              ),
               ZenFailure(:final error) => Future.value(ZenResult.err(error)),
             };
           }),

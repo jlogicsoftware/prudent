@@ -3,6 +3,7 @@
 /// - [PrudentLocalStore]: the collections of one open store and the only way to write them
 /// - [DerivedIds]: record ids derived from natural keys, so two devices write one record
 /// - [StorePolicies]: the per-field merge policies (same-intent times only)
+/// - [WriteExpect], [WriteExpects]: a write's precondition, checked inside the store's write turn
 /// - [WireMapper]: store messages to and from the wire messages of `proto/prudent/v1/`
 /// - [IntegrityRunner], [IntegrityCheck], [IntegrityIssue]: the rules across records a merge can
 ///   break, listed after every change and never fixed silently
@@ -40,3 +41,4 @@ export 'src/ledger/plan_ledger.dart';
 export 'src/ledger/record_query.dart';
 export 'src/prudent_local_store.dart';
 export 'src/wire_mapper.dart';
+export 'src/write_expect.dart';
