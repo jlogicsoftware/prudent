@@ -508,6 +508,7 @@ const GoalAllocation$json = {
     {'1': 'note', '3': 7, '4': 1, '5': 9, '10': 'note'},
     {'1': 'created_at_ms', '3': 8, '4': 1, '5': 3, '10': 'createdAtMs'},
     {'1': 'created_by', '3': 9, '4': 1, '5': 9, '10': 'createdBy'},
+    {'1': 'compensates', '3': 10, '4': 3, '5': 9, '10': 'compensates'},
   ],
   '8': [
     {'1': '_source_goal_id'},
@@ -522,8 +523,9 @@ final $typed_data.Uint8List goalAllocationDescriptor = $convert.base64Decode(
     'AFIMc291cmNlR29hbElkiAEBEikKDnRhcmdldF9nb2FsX2lkGAQgASgJSAFSDHRhcmdldEdvYW'
     'xJZIgBARIaCghjdXJyZW5jeRgFIAEoCVIIY3VycmVuY3kSIQoMYW1vdW50X21pbm9yGAYgASgD'
     'UgthbW91bnRNaW5vchISCgRub3RlGAcgASgJUgRub3RlEiIKDWNyZWF0ZWRfYXRfbXMYCCABKA'
-    'NSC2NyZWF0ZWRBdE1zEh0KCmNyZWF0ZWRfYnkYCSABKAlSCWNyZWF0ZWRCeUIRCg9fc291cmNl'
-    'X2dvYWxfaWRCEQoPX3RhcmdldF9nb2FsX2lk');
+    'NSC2NyZWF0ZWRBdE1zEh0KCmNyZWF0ZWRfYnkYCSABKAlSCWNyZWF0ZWRCeRIgCgtjb21wZW5z'
+    'YXRlcxgKIAMoCVILY29tcGVuc2F0ZXNCEQoPX3NvdXJjZV9nb2FsX2lkQhEKD190YXJnZXRfZ2'
+    '9hbF9pZA==');
 
 @$core.Deprecated('Use scheduleDescriptor instead')
 const Schedule$json = {

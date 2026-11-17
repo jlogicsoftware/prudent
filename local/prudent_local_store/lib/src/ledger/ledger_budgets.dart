@@ -545,7 +545,6 @@ final class _BudgetFigures {
     bool carryOverOnly = false,
   }) {
     final end = (month.year, month.month);
-    final bound = carryOverOnly ? -1 : 0;
     final out = <String, List<String>>{};
     for (final category in categories) {
       final ids = <String>{
@@ -553,7 +552,8 @@ final class _BudgetFigures {
             in _disputed[category] ?? const <(String, CivilDate?, CivilMonth?)>[])
           if (resetAt != null
               ? resetAt.compareTo(month) <= 0
-              : date == null || _compareMonths((date.year, date.month), end) <= bound)
+              : date == null ||
+                    _inBound(_compareMonths((date.year, date.month), end), carryOverOnly))
             id,
       };
       if (ids.isNotEmpty) out[category] = ids.toList()..sort();
@@ -561,6 +561,10 @@ final class _BudgetFigures {
     return out;
   }
 }
+
+/// Whether a month ordered [order] against the figure's month counts: before it only, for the
+/// carry-over into it; up to and including it, for the month's own figures.
+bool _inBound(int order, bool beforeOnly) => beforeOnly ? order < 0 : order <= 0;
 
 /// Orders two (year, month) pairs.
 int _compareMonths((int, int) a, (int, int) b) =>

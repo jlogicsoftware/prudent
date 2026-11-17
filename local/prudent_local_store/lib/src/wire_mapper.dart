@@ -364,10 +364,15 @@ abstract final class WireMapper {
     return out;
   }
 
-  static GoalAllocation allocationFromWire(wire.GoalAllocation value) {
+  /// [compensates] is local-only (a repair's compensated entries, ADR-120), so it is an input.
+  static GoalAllocation allocationFromWire(
+    wire.GoalAllocation value, {
+    List<String> compensates = const [],
+  }) {
     final out = GoalAllocation();
     _copy(value, out, _allocationFields);
     _copyEnum(value, 'kind', out, 'kind', AllocationKind.valueOf);
+    out.compensates.addAll(compensates);
     return out;
   }
 

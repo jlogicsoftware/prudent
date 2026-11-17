@@ -32,8 +32,15 @@ also wrote without a precondition, so `reactivate_goal` could write a goal's old
   (`allocate_deficit`, `withdraw_all`) and the sorted ids of the goal's entries the issue was computed from. Every other field is a
   function of those entries too — the amount, a creation time one millisecond after the latest of them, and **no author** (the device
   that chose it would differ between devices and conflict). Two devices that read the same entries write the same bytes, which merge as
-  one record; the envelope ends at exactly zero. Devices that read different entries derive different ids — but then the second
-  repair's precondition (below) has seen the first. The encoding is pinned in `derived_ids_test`.
+  one record; the envelope ends at exactly zero. The encoding is pinned in `derived_ids_test`.
+- **Devices that read different entries still write two repairs, and that is named, not prevented.** One device may hold a withdrawal
+  the other has not received; each repair brings *its* envelope to zero and the merged one ends beyond it — above zero after two
+  `allocate_deficit`s, a state no other check flags. No precondition can see across two offline devices. So each repair records the
+  entries it was computed from in a new immutable, local-only store field, `GoalAllocation.compensates` (field 10, not on the wire), as
+  the correction intent records the corrections it saw (ADR-113). `RepairsMadeApartCheck` lists two repairs of one goal and kind
+  neither of which names the other, with the overshoot (their sum plus the entries they read), and offers one `undo_overshoot` entry —
+  computed from all the goal's entries, so two devices that apply it write it once. A later repair that names the whole group (a
+  deficit repaired again from the merged entries) settles it too.
 - **Every repair carries `expect`** (jZenDev/jZen#251): a compensating entry is written only while the goal's entries are still
   exactly those read and the entry is absent; `reactivate_goal` only while the goal is still exactly the archived goal read. Anything
   else is refused for the person to look again. Reactivating on two devices merges as before (`earliest` on the status time).
@@ -49,8 +56,11 @@ also wrote without a precondition, so `reactivate_goal` could write a goal's old
 
 ### Proven
 
-Two-device tests in which **both** devices apply each repair (red on ADR-116's code: +500 and −1200; green now), the preconditions
-refusing a repair after an entry arrived or the goal was renamed, and a reset made with a dispute in its own month.
+Two-device tests in which **both** devices apply each repair (red on ADR-116's code: +500 and −1200; green now); both devices
+applying repairs from different reads (red before `RepairsMadeApartCheck`: +500 with no issue; now named and undone once, also when
+both apply the undo); the preconditions refusing a repair after an entry arrived or the goal was renamed; and a reset made with a
+dispute in its own month. **Not proven:** three or more devices repairing from three different reads (the check's grouping is
+pairwise-apart; the undo is computed from the union of their reads, which the tests exercise with two).
 
 ## ADR-119 — Prudent Local reads a plan's occurrences from its schedule and never generates them; completion is the confirming record; time is an argument; a plan two devices disagree about has no occurrences
 

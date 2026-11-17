@@ -17,7 +17,14 @@ import '../integrity_issue.dart';
 /// it compensates ([DerivedIds.goalRepair]), and every other field is a function of those entries:
 /// the amount, a time just after the latest of them, and no author (who chose it is a device, and
 /// two devices' names would conflict). Two devices that read the same entries write the same bytes,
-/// which merge as one record.
+/// which merge as one record. Devices that read *different* entries write two records; each lists
+/// what it compensated (`compensates`), so `RepairsMadeApartCheck` finds the pair and undoes the
+/// overshoot.
+///
+/// **The repairs bypass the ledger's state rules on purpose.** A withdrawal from an archived goal,
+/// or an allocation above free money, is refused to a person (ADR-050, ADR-051); a repair restores an
+/// invariant a merge broke, so it writes through the store's structural rules only. Routing it through
+/// `Ledger.createGoalAllocation` would refuse exactly the repairs that are needed.
 abstract final class GoalRepairs {
   /// The entries that put money into or took it out of [goalId], from [entries].
   static List<GoalAllocation> entriesOf(Iterable<GoalAllocation> entries, String goalId) => [
@@ -26,6 +33,15 @@ abstract final class GoalRepairs {
           (e.hasTargetGoalId() && e.targetGoalId == goalId))
         e,
   ];
+
+  /// What [entry] adds to [goalId]'s envelope: its amount when it targets the goal, minus it when it
+  /// takes from it, nothing otherwise.
+  static int signedFor(GoalAllocation entry, String goalId) {
+    var out = 0;
+    if (entry.hasTargetGoalId() && entry.targetGoalId == goalId) out += entry.amountMinor.toInt();
+    if (entry.hasSourceGoalId() && entry.sourceGoalId == goalId) out -= entry.amountMinor.toInt();
+    return out;
+  }
 
   /// An entry of [kind] and [amount] for [goal] that compensates exactly [read] — the goal's entries
   /// the issue was computed from — written once, and only while the goal's entries are still those.
@@ -45,6 +61,7 @@ abstract final class GoalRepairs {
       currency: goal.currency,
       amountMinor: Int64(amount),
       createdAtMs: latest + 1,
+      compensates: ids.toList()..sort(),
     );
     if (kind == AllocationKind.ALLOCATION_KIND_ALLOCATE) {
       entry.targetGoalId = goal.id;

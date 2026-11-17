@@ -362,6 +362,120 @@ void main() {
       }
     });
 
+    /// An entry written to [device]'s store directly, as a merge can leave one: the ledger refuses a
+    /// withdrawal from a negative envelope and an allocation into an archived goal.
+    Future<void> raw(Device device, AllocationKind kind, String goalId, int amount) async {
+      final entry = GoalAllocation(
+        id: device.store.newId(),
+        kind: kind,
+        currency: 'PLN',
+        amountMinor: Int64(amount),
+        createdAtMs: Int64(tick()),
+      );
+      if (kind == AllocationKind.ALLOCATION_KIND_ALLOCATE) {
+        entry.targetGoalId = goalId;
+      } else {
+        entry.sourceGoalId = goalId;
+      }
+      Device.ok(await device.store.addGoalAllocation(entry));
+    }
+
+    test('deficits repaired on two devices that read different entries: the overshoot is named and '
+        'undone once', () async {
+      await setUpLedger();
+      final bike = await goal(laptop);
+      Device.ok(await entry(laptop, allocate, 1000, target: bike));
+      await devices.sync();
+      Device.ok(await entry(laptop, withdraw, 800, source: bike));
+      Device.ok(await entry(phone, withdraw, 700, source: bike));
+      await devices.sync();
+      // The laptop takes 100 more before the phone has it: it reads -600, the phone -500.
+      await raw(devices.laptop, AllocationKind.ALLOCATION_KIND_WITHDRAW, bike, 100);
+      for (final device in devices.both) {
+        Device.ok(await Device.ok(device.integrity().evaluate()).single.actions.single.run());
+      }
+      await devices.sync();
+      // +600 and +500 on -600: 500 set aside by nobody — named, not left silent.
+      for (final device in devices.both) {
+        expect(
+          Device.ok(await Ledger(device.store).listGoalEnvelopes()).envelopes.single.amountMinor,
+          Int64(500),
+        );
+        final issues = Device.ok(device.integrity().evaluate());
+        expect(issues.map((i) => (i.code, i.facts['overshootMinor'])), [
+          ('goal.repairs_made_apart', '500'),
+        ]);
+        // Both people undo it, offline: one entry.
+        Device.ok(await issues.single.actions.single.run());
+      }
+      await devices.sync();
+      for (final device in devices.both) {
+        expect(
+          Device.ok(await Ledger(device.store).listGoalEnvelopes()).envelopes.single.amountMinor,
+          Int64.ZERO,
+        );
+        expect(Device.ok(device.store.goalAllocations.conflicts()), isEmpty);
+        expect(Device.ok(device.integrity().evaluate()), isEmpty);
+      }
+    });
+
+    test('an archived goal emptied on two devices that read different entries: both issues clear '
+        'with one repair', () async {
+      await setUpLedger();
+      final bike = await goal(laptop);
+      await devices.sync();
+      Device.ok(await laptop.archiveGoal(bike));
+      Device.ok(await entry(phone, allocate, 1200, target: bike));
+      await devices.sync();
+      // The phone has 50 more that the laptop has not received: it reads 1250, the laptop 1200.
+      await raw(devices.phone, AllocationKind.ALLOCATION_KIND_ALLOCATE, bike, 50);
+      for (final device in devices.both) {
+        final issue = Device.ok(device.integrity().evaluate()).single;
+        Device.ok(await issue.actions.singleWhere((a) => a.code == 'withdraw_all').run());
+      }
+      await devices.sync();
+      // 1250 - 1200 - 1250 = -1200: below zero, and the two repairs made apart.
+      final issues = Device.ok(devices.laptop.integrity().evaluate());
+      expect(issues.map((i) => i.code).toSet(), {
+        'goal.envelope_below_zero',
+        'goal.repairs_made_apart',
+      });
+      final apart = issues.singleWhere((i) => i.code == 'goal.repairs_made_apart');
+      expect(apart.facts['overshootMinor'], '1200');
+      Device.ok(await apart.actions.single.run());
+      await devices.sync();
+      for (final device in devices.both) {
+        expect(
+          Device.ok(await Ledger(device.store).listGoalEnvelopes()).envelopes.single.amountMinor,
+          Int64.ZERO,
+        );
+        expect(Device.ok(device.integrity().evaluate()), isEmpty);
+      }
+    });
+
+    test('a group repaired again from the merged entries is settled, not listed again', () async {
+      await setUpLedger();
+      final bike = await goal(laptop);
+      await devices.sync();
+      Device.ok(await laptop.archiveGoal(bike));
+      Device.ok(await entry(phone, allocate, 1200, target: bike));
+      await devices.sync();
+      await raw(devices.phone, AllocationKind.ALLOCATION_KIND_ALLOCATE, bike, 50);
+      for (final device in devices.both) {
+        final issue = Device.ok(device.integrity().evaluate()).single;
+        Device.ok(await issue.actions.singleWhere((a) => a.code == 'withdraw_all').run());
+      }
+      await devices.sync();
+      // The person picks the deficit instead: computed from every entry, the group with them.
+      final deficit = Device.ok(devices.phone.integrity().evaluate())
+          .singleWhere((i) => i.code == 'goal.envelope_below_zero');
+      Device.ok(await deficit.actions.single.run());
+      await devices.sync();
+      for (final device in devices.both) {
+        expect(Device.ok(device.integrity().evaluate()), isEmpty);
+      }
+    });
+
     test('a goal reactivated on both devices merges, keeping the first moment', () async {
       await setUpLedger();
       final bike = await goal(laptop);
