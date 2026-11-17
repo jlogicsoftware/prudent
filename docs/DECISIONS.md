@@ -13,6 +13,67 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-124 — Prudent Local is run and built through a third include of jZen's own tasks, on all five native platforms in CI, and its release rules are gates that fail on a planted violation
+
+**Date:** 2026-11-17. **Status:** accepted. **Plan:** unit 11 (`docs/plans/PRUDENT-LOCAL-PLAN.md`). **Builds on:** ADR-100 (T10, T18),
+ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). **Supersedes ADR-003 for Prudent Local only.**
+
+### Decision
+
+- **`task run:local`, `task build:local:runners`, `task build:local:runners:release` are one-line delegations to a third include of jZen's
+  `Taskfile.app.yml`, `zenlocal`.** jZen decides "this is a Local application" by one fact of the tree: no `pom.xml` at `APP_SERVER_MODULE`
+  (jZen ADR-073). Prudent has a server, so the first include is a server-connected app; `zenlocal` names the Local app
+  (`APP_CLIENT_DIR: local/prudent_local_client`) and a server module that does not exist (`local/no_server`). The framework then gives it, with no
+  copy here: no backend health check, no `ZEN_API_URL`, no auth redirect, the web refused by name (`guard:web`) and each native runner built on the
+  host that can build it. Nothing is hand-rolled. `test_local_tasks.py` runs the real tasks against a stub `flutter` and requires the web refusal for
+  `chrome`, `edge`, `web-server` and `CLIENT_PLATFORM=web`, a native run with no backend probe, the Local app's directory, the server-connected
+  `run:client` as the control that does probe, and that a server module at the include's path would remove the refusal.
+- **CI builds Prudent Local on iOS, macOS, Android, Windows and Linux.** `android-runner` (Ubuntu) builds Android and Linux, debug and release;
+  `windows-runner` builds Windows, debug and release; a new `macos-runner` builds macOS and the iOS simulator (debug), then macOS and an unsigned iOS
+  device build (release). Desktop builds are host-only, so each is on its own host. **This reverses ADR-003 for this app**: the macOS runner costs
+  several times the Linux rate, and is accepted because Local ships on Apple platforms and nothing else proves their runners. The server-connected app
+  stays unbuilt on Apple in CI. `verify:swiftpm` runs on the macOS runner *after* the builds, because Flutter writes a Podfile during one when a plugin
+  has no Swift package; it also runs in `gates`.
+- **The boundaries were already enforced (ADR-109, checks F and H) and are not rebuilt:** nothing under `local/` depends on or imports
+  `zen_transport`, `zen_identity`, `zen_ui_identity` or `zen_secure_store`, with no exemption, and nothing in `client/` or `packages/` depends on or
+  imports a package under `local/`. `test_verify_boundaries.py` plants each.
+- **T18: a release build with `ZEN_SYNC` set fails, by jZen's refusal and nothing of Prudent's** (`ZenSyncPlan`, `ZenSync.plan`, jZenDev/jZen#238, in
+  `JZEN_REF` `4fa887a`). Three things hold it:
+  1. `scripts/verify_local_release.py` (`task verify:local-release`) fails when any Dart source under `client/`, `packages/` or `local/` reads the define
+     itself (`String.fromEnvironment('ZEN_SYNC…')`), because a second reader could decide differently and the framework's refusal would stop being the
+     only one; and when a workflow sets it.
+  2. **The refusal is proven on a real release build.** `task test:local-release-refusal` compiles `tool/release_sync_probe.dart` with
+     `flutter build <host> --release` and `--dart-define=ZEN_SYNC=folder`, runs it, and requires the app's own `startSyncForBuild` to fail with jZen's
+     `ZenValidationError` naming `ZEN_SYNC` and "release build". `flutter test` cannot prove this (it is never a release build and ignores a
+     `dart.vm.product` define), so the existing unit test of `ZenSyncPlan(..., release: true)` in `threat_model_test.dart` proves the table and this
+     proves the build. CI runs it on the macOS, Linux (under `xvfb`) and Windows runners. The negative case: the same release build **without**
+     `ZEN_SYNC` does not report the refusal and the probe exits non-zero (seen locally: the unsigned macOS probe aborts in CloudKit, exit 133).
+  3. `build:local:runners:release` passes no `ZEN_SYNC` unless one is given on the command line (`test_local_tasks.py`); a build given one is built, and
+     refuses when it runs. **A build that compiles with it and fails only when started is the framework's design (jZenDev/jZen#238), not a gap
+     here:** the refusal sits in the one place that reads the define. Prudent adds no build-time duplicate.
+- **T10: the Android manifest refuses Auto Backup, and a gate checks it.** `verify:local-release` fails unless the app's manifest has
+  `android:allowBackup="false"` and `android:fullBackupContent="false"`, and fails on `android:dataExtractionRules`, on a `tools:replace` of a backup
+  attribute, and on the debug or profile manifest setting a backup attribute back on. In CI it also reads the **merged** manifests the release build
+  produced (`--merged`), because a plugin's manifest is merged in and can turn a backup on without the app's file changing; a build that produced none
+  fails. `threat_model_test` already asserted the two attributes; that test is not the gate, and stays.
+- **No web runner:** `verify:local-release` fails if `local/prudent_local_client/web` exists.
+- **Every gate is a script with a test that plants the violation** (`test_verify_local_release.py`: 16 cases, among them backup on, attribute missing, a
+  rules file, `tools:replace`, a debug override, a bad merged manifest, a missing merged manifest, a second `ZEN_SYNC` reader in the app and in
+  `client/`, a workflow setting it, a web runner, a missing scope).
+
+### What was not run through `task`, and what is not verified
+
+- `task` does not load from a git worktree (ADR-065: the include path `../jZen` resolves wrongly there). The work was done in a worktree, so
+  `test_local_tasks.py` copies the Taskfile with `../jZen/` made absolute and runs `task -t` on the copy (it needs a jZen checkout: `JZEN_DIR`, or the main checkout's sibling). Run
+  that way and passing: `verify:local-release`, `verify:boundaries`, `verify:swiftpm`, `test:local-tasks`. Run directly and not through `task`: the
+  probe's `flutter build macos --release` and its run (`PROBE-OK`, exit 0; and without `ZEN_SYNC`, exit 133).
+- **Not run anywhere:** `test:local-release-refusal` through `task`; every new CI job and step (`macos-runner`, the Local builds on Android, Linux,
+  Windows, iOS, the merged-manifest step and the `xvfb` run): they are written against jZen's task and the pinned runners and first run in this PR's
+  CI. The Windows and Linux probe binaries' paths are the CMake `BINARY_NAME` (`prudent_local_client`) and are unconfirmed. The merged-manifest path
+  is found with `find` and not assumed. No platform was installed on a device (unit 12).
+
+---
+
 ## ADR-123 — Existing data moves into Prudent Local from the server's export file, whole, with ids from the export, and refused unless every balance matches; the other figures are proven by the parity suite, not checked at run time
 
 **Date:** 2026-11-17. **Status:** accepted. **Plan:** unit 10b of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245), finding

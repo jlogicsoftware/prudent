@@ -68,6 +68,26 @@ includes:
       PROTO_DIR: local/prudent_local_store/proto
       PROTO_DART_OUT: local/prudent_local_store/lib/generated
 
+  # THE SAME FILE A THIRD TIME, FOR PRUDENT LOCAL'S APP (plan unit 11, ADR-124). jZen decides "this is
+  # a Local application" by one fact of the tree: no pom at APP_SERVER_MODULE (jZen ADR-073). Prudent
+  # has a server, so the first include above is a server-connected application; this one names the
+  # Local app and a server module that does not exist, and so gets, from the framework and not from a
+  # copy here, the Local behaviour: no backend health check, no ZEN_API_URL, no auth redirect, a web
+  # target REFUSED (`guard:web`) and every native runner built on the host that can build it. The
+  # nonexistent path is deliberate and must stay nonexistent: `verify:local-release` fails when a
+  # server module appears there.
+  zenlocal:
+    taskfile: ../jZen/Taskfile.app.yml
+    vars:
+      APP_NAME: prudent_local
+      CLIENT_DIR: local
+      SERVER_DIR: local/no_server
+      APP_SERVER_MODULE: local/no_server
+      APP_CLIENT_DIR: local/prudent_local_client
+      # The screens it links are the shared package's, and their typed l10n must exist before the
+      # app compiles (ADR-108).
+      DART_ROOTS: packages/prudent_ui local/prudent_local_client
+
 # THE CONTRACT LOOP AND THE DEPENDENCY INSTALL ARE CONSUMED FROM THE INCLUDE, NOT HAND-ROLLED
 # (Prudent ADR-027, jZen ADR-049 / issue #74). jZen's Taskfile.app.yml now carries the whole loop
 # written against vars — proto -> Java/Dart, openapi.json, admin TS, typed l10n — plus the
@@ -221,6 +241,100 @@ tasks:
       devices. Needs no server and no Flutter.
     cmds:
       - cd local/prudent_local_store && dart pub get && dart test
+
+  run:local:
+    desc: Run Prudent Local (no server, no sign-in) on a native device; the web is refused
+    summary: |
+      Delegated to zenlocal:run:client (plan unit 11, ADR-124): jZen's own run task, told that this
+      application has no server, so it does not look for a backend, bakes in no API URL and refuses
+      the web by name (`guard:web`, jZen ADR-073: a browser has no durable place for the encrypted
+      store and no secure key storage).
+
+        task run:local DEVICE=macos
+        task run:local DEVICE=<udid> CLIENT_PLATFORM=ios ZEN_SYNC=folder ZEN_SYNC_FOLDER=/abs/path
+
+      ZEN_SYNC / ZEN_SYNC_FOLDER choose jZen's unencrypted development transport and are for a debug
+      run only: `ZenSyncPlan` refuses them in a release build (ADR-100 T18; proven by
+      `task test:local-release-refusal`).
+    cmds:
+      - task: zenlocal:run:client
+
+  build:local:runners:
+    desc: Compile Prudent Local's runners this host can build (debug) — the CI compile check
+    summary: |
+      Delegated to zenlocal:build:runners: macOS and the iOS simulator on a macOS host, Linux on Linux,
+      Windows on Windows, Android on Linux or macOS. Desktop builds are host-only, so each skip is
+      announced and CI runs this on a runner per host (ADR-124). No web target exists to skip.
+    cmds:
+      - task: zenlocal:build:runners
+
+  build:local:runners:release:
+    desc: Compile Prudent Local's runners in --release --obfuscate mode (this host's)
+    summary: |
+      Delegated to zenlocal:build:runners:release. Passes no ZEN_SYNC unless one is given on the
+      command line, and a build that is given one is refused when it runs, by jZen's ZenSyncPlan and
+      not by anything here (ADR-100 T18; `task test:local-release-refusal`).
+    cmds:
+      - task: zenlocal:build:runners:release
+
+  verify:local-release:
+    desc: Fail if Prudent Local could ship a backup of its store, the unencrypted sync transport or a web target
+    summary: |
+      ADR-100 T10 and T18, and ADR-073's "no web" (plan unit 11, ADR-124). Runs
+      scripts/verify_local_release.py: the Android manifests (and, in CI, the MERGED manifest a build
+      produced, which a plugin can change without the app's file changing) refuse Auto Backup; no Dart
+      source reads ZEN_SYNC but jZen's ZenSyncPlan, so its release refusal is the only one; no
+      workflow sets ZEN_SYNC; no web runner exists. The server-free and Local-free-client rules are
+      `verify:boundaries` (checks F and H), the CocoaPods rule is `verify:swiftpm`.
+      scripts/test_verify_local_release.py runs first and plants each violation.
+    cmds:
+      - python3 -m unittest discover -s scripts -p 'test_verify_local_release.py'
+      - python3 scripts/verify_local_release.py {{.CLI_ARGS}}
+
+  test:local-tasks:
+    desc: Prove `task` runs Prudent Local with no server and refuses the web (through task itself)
+    summary: |
+      scripts/test_local_tasks.py runs jZen's tasks as Prudent's Taskfile wires them for the Local app
+      and requires: the web refused by name for run:local; a run reaching its `flutter run` with no
+      backend probe and no API URL; a server module appearing makes the refusal vanish (so the
+      include's one fact is checked); and the release build carrying no ZEN_SYNC by default. Uses a
+      stub `flutter`; builds nothing.
+    cmds:
+      - python3 -m unittest discover -s scripts -p 'test_local_tasks.py'
+
+  test:local-release-refusal:
+    desc: Build Prudent Local as a release build with ZEN_SYNC set and require the build to refuse it (T18)
+    summary: |
+      ADR-100 T18 on a real release build of this host: compiles
+      local/prudent_local_client/tool/release_sync_probe.dart with `flutter build <host> --release`
+      and `--dart-define=ZEN_SYNC=folder`, runs it, and requires it to report that the app's own
+      sync start was refused because of ZEN_SYNC in a release build. The refusal is jZen's
+      (`ZenSyncPlan`, jZenDev/jZen#238) and is not repeated in Prudent; this proves the app reaches the
+      transport only through it. Linux and Windows hosts run the same probe; the host's platform is
+      the one that builds.
+    cmds:
+      - |
+        set -eu
+        case "$(uname -s)" in
+          Darwin) host=macos ;;
+          Linux) host=linux ;;
+          MINGW*|MSYS*|CYGWIN*) host=windows ;;
+          *) echo "unsupported host $(uname -s)"; exit 1 ;;
+        esac
+        cd local/prudent_local_client
+        flutter build "$host" --release -t tool/release_sync_probe.dart \
+          --dart-define=ZEN_ENV=local --dart-define=ZEN_PLATFORM="$host" \
+          --dart-define=ZEN_SYNC=folder --dart-define=ZEN_SYNC_FOLDER=/tmp/prudent_local_probe
+        # The glob is expanded by `set --`, so a path with a space (the macOS bundle's name) stays one word.
+        case "$host" in
+          macos) set -- build/macos/Build/Products/Release/*.app/Contents/MacOS/* ;;
+          linux) set -- build/linux/*/release/bundle/prudent_local_client ;;
+          windows) set -- build/windows/x64/runner/Release/prudent_local_client.exe ;;
+        esac
+        bin="$1"
+        if [ ! -x "$bin" ]; then echo "the release probe was not built where expected: $bin"; exit 1; fi
+        echo ">> running $bin"
+        "$bin"
 
   golden:generate:
     desc: Regenerate prudent_local_core's golden vectors from the server's own rule methods

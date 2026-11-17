@@ -351,6 +351,13 @@ by `record_import_keys`, so a statement imported on the server is a duplicate af
 goal progress and occurrences are proven by `tools/prudent_parity_server/test/move_in_test.dart` (`parity/move_in/move_in.json`), which moves
 the live server's export in, expects no `IntegrityRunner` issue, and compares every answer. The Local app has "Move my data in" under Privacy and data (`MoveInScreen`, en/uk/pl).
 No real export and no device has been tried.
+Unit 11 (ADR-124) is the Taskfile and CI: `task run:local DEVICE=<native>`, `task build:local:runners` and `build:local:runners:release` delegate to a
+third include of jZen's `Taskfile.app.yml` (`zenlocal`, with a server module that must stay nonexistent at `local/no_server`), so jZen's own Local
+behaviour applies and the web is refused by name; `task test:local-tasks` proves it through `task` against a stub `flutter`. CI builds Local on iOS,
+macOS (a new `macos-runner`, reversing ADR-003 for this app only), Android, Windows and Linux. `task verify:local-release` fails when the Android
+manifest (or, in CI, a merged one) allows a backup, when anything but jZen's `ZenSyncPlan` reads `ZEN_SYNC`, when a workflow sets it or when a web runner
+exists; a release build with `ZEN_SYNC` is refused by jZen at run time and `task test:local-release-refusal` proves it on a real release build. Each rule
+has a planted-violation test. The new CI jobs have not yet run, and no platform was seen on a device (unit 12).
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
