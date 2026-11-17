@@ -98,6 +98,17 @@ final class ParityEngine {
     return ParityReport(scenario, differences);
   }
 
+  /// Every difference between two observations of one step, compared exactly as [run] compares
+  /// them, after refusing a double on either side. For a suite that runs its own sequence of steps
+  /// (the move-in suite, unit 10b), so that it compares with this engine's rule and no second one.
+  static List<ParityDifference> differences(String where, Object? server, Object? local) {
+    _checkFigures('server', where, server);
+    _checkFigures('local', where, local);
+    final out = <ParityDifference>[];
+    _compare(where, '', server, local, out);
+    return out;
+  }
+
   static Future<StepResult> _runOne(
     ParityBackend backend,
     ParityStep step,

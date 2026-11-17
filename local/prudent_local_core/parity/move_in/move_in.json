@@ -1,0 +1,829 @@
+{
+  "name": "move_in",
+  "description": "A whole history built on the server - accounts in two currencies, an edited record, an archived category, transfers (one across currencies, one deleted), two corrections, settings, a weekly plan with a confirmed and a skipped occurrence and a monthly one, budgets and carry-over resets (one revoked), goals in every state with every kind of allocation, a committed statement and an open session - then the server's privacy export moved into an empty Local store (unit 10b, ADR-123), and every figure compared with the server's own answers: balances, records, budget summaries, carry-over, envelopes, free money, goal progress, occurrences, reminders and spend; then the same statement is a duplicate on both.",
+  "rules": [
+    "10b"
+  ],
+  "steps": [
+    {
+      "op": "account.create",
+      "as": "wallet",
+      "outcome": "accepted",
+      "input": {
+        "name": "Wallet",
+        "type": "ACCOUNT_TYPE_CASH",
+        "isActive": true,
+        "isDefault": true,
+        "includeInTotal": true,
+        "includeInOverview": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "12000"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "3000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "bank",
+      "outcome": "accepted",
+      "input": {
+        "name": "Bank",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "includeInTotal": true,
+        "includeInOverview": true,
+        "eligibleForGoals": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "500000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "erste",
+      "outcome": "accepted",
+      "input": {
+        "name": "Erste",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "isActive": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ],
+        "accountNumber": "00 0000 0000 0000 0000 0000 0901"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "savings",
+      "outcome": "accepted",
+      "input": {
+        "name": "Savings",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "isActive": false,
+        "eligibleForGoals": true,
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "70000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "food",
+      "outcome": "accepted",
+      "input": {
+        "title": "Food",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "fun",
+      "outcome": "accepted",
+      "input": {
+        "title": "Fun",
+        "iconKey": "leisure",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "salary",
+      "outcome": "accepted",
+      "input": {
+        "title": "Salary",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "old",
+      "outcome": "accepted",
+      "input": {
+        "title": "Old",
+        "iconKey": "leisure"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-1250",
+        "currency": "PLN",
+        "date": "2026-08-03",
+        "title": "Bread"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$old",
+        "amountMinor": "-990",
+        "currency": "EUR",
+        "date": "2026-08-09",
+        "title": "Museum"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$bank",
+        "category": "$salary",
+        "amountMinor": "650000",
+        "currency": "PLN",
+        "date": "2026-08-28",
+        "title": "Pay"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$bank",
+        "category": "$food",
+        "amountMinor": "-23999",
+        "currency": "PLN",
+        "date": "2026-09-02",
+        "title": "Market"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$bank",
+        "category": "$fun",
+        "amountMinor": "-14500",
+        "currency": "PLN",
+        "date": "2026-09-14",
+        "title": "Concert",
+        "payee": "Hall",
+        "note": "  front row  "
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-3150",
+        "currency": "PLN",
+        "date": "2026-10-01",
+        "title": "Lunch"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$bank",
+        "category": "$old",
+        "amountMinor": "2000",
+        "currency": "PLN",
+        "date": "2026-10-04",
+        "title": "Refund"
+      }
+    },
+    {
+      "op": "record.create",
+      "as": "edited",
+      "outcome": "accepted",
+      "input": {
+        "account": "$bank",
+        "category": "$fun",
+        "amountMinor": "-8000",
+        "currency": "PLN",
+        "date": "2026-10-20",
+        "title": "Cinema"
+      }
+    },
+    {
+      "comment": "An edited record moves in as it now is.",
+      "op": "record.update",
+      "outcome": "accepted",
+      "input": {
+        "record": "$edited",
+        "account": "$bank",
+        "category": "$fun",
+        "amountMinor": "-9000",
+        "currency": "PLN",
+        "date": "2026-10-21",
+        "title": "Cinema, two"
+      }
+    },
+    {
+      "op": "category.archive",
+      "outcome": "accepted",
+      "input": {
+        "category": "$old"
+      }
+    },
+    {
+      "op": "transfer.create",
+      "as": "cash",
+      "outcome": "accepted",
+      "input": {
+        "title": "Cash",
+        "fromAccount": "$bank",
+        "toAccount": "$wallet",
+        "fromAmountMinor": "20000",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "20000",
+        "toCurrency": "PLN",
+        "date": "2026-09-05"
+      }
+    },
+    {
+      "comment": "A cross-currency transfer: its two legs become one record.",
+      "op": "transfer.create",
+      "as": "fx",
+      "outcome": "accepted",
+      "input": {
+        "title": "Euros",
+        "fromAccount": "$bank",
+        "toAccount": "$wallet",
+        "fromAmountMinor": "43000",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "10000",
+        "toCurrency": "EUR",
+        "date": "2026-09-06"
+      }
+    },
+    {
+      "op": "transfer.create",
+      "as": "gone",
+      "outcome": "accepted",
+      "input": {
+        "title": "Gone",
+        "fromAccount": "$wallet",
+        "toAccount": "$bank",
+        "fromAmountMinor": "100",
+        "fromCurrency": "PLN",
+        "toAmountMinor": "100",
+        "toCurrency": "PLN",
+        "date": "2026-09-07"
+      }
+    },
+    {
+      "op": "transfer.delete",
+      "outcome": "accepted",
+      "input": {
+        "transfer": "$gone"
+      }
+    },
+    {
+      "comment": "Two corrections of one balance, one after the other.",
+      "op": "correction.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "currency": "PLN",
+        "balanceMinor": "25000",
+        "date": "2026-10-10"
+      }
+    },
+    {
+      "op": "correction.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "currency": "PLN",
+        "balanceMinor": "24500",
+        "date": "2026-10-25"
+      }
+    },
+    {
+      "op": "settings.update",
+      "outcome": "accepted",
+      "input": {
+        "mainCurrency": "EUR"
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "rent",
+      "outcome": "accepted",
+      "input": {
+        "title": "Rent",
+        "amountMinor": "-150000",
+        "currency": "PLN",
+        "account": "$bank",
+        "category": "$food",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_WEEKLY",
+          "interval": 1,
+          "startDate": "@today(UTC)-21",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 3
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "gym",
+      "outcome": "accepted",
+      "input": {
+        "title": "Gym",
+        "amountMinor": "-5000",
+        "currency": "EUR",
+        "account": "$wallet",
+        "category": "$fun",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_MONTHLY",
+          "interval": 1,
+          "startDate": "@today(Europe/Warsaw)+2",
+          "timeZone": "Europe/Warsaw"
+        }
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o1",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$rent",
+        "date": "@today(UTC)-21"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o2",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$rent",
+        "date": "@today(UTC)-14"
+      }
+    },
+    {
+      "comment": "Confirmed: the confirming record moves in with the id its occurrence derives.",
+      "op": "occurrence.confirm",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o1"
+      }
+    },
+    {
+      "comment": "Skipped: the one occurrence state Local stores.",
+      "op": "occurrence.skip",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o2"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2026-08",
+        "currency": "PLN",
+        "amountMinor": "40000"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2026-09",
+        "currency": "PLN",
+        "amountMinor": "30000"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2026-10",
+        "currency": "PLN",
+        "amountMinor": "30000"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$fun",
+        "month": "2026-09",
+        "currency": "PLN",
+        "amountMinor": "10000"
+      }
+    },
+    {
+      "op": "budget.set",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2026-08",
+        "currency": "EUR",
+        "amountMinor": "5000"
+      }
+    },
+    {
+      "op": "reset.create",
+      "as": "r1",
+      "outcome": "accepted",
+      "input": {
+        "category": "$food",
+        "month": "2026-09",
+        "currency": "PLN",
+        "note": "revoked later"
+      }
+    },
+    {
+      "op": "reset.revoke",
+      "outcome": "accepted",
+      "input": {
+        "reset": "$r1"
+      }
+    },
+    {
+      "op": "reset.create",
+      "as": "r2",
+      "outcome": "accepted",
+      "input": {
+        "category": "$fun",
+        "month": "2026-10",
+        "currency": "PLN",
+        "note": "fresh start"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "trip",
+      "outcome": "accepted",
+      "input": {
+        "name": "Trip",
+        "currency": "PLN",
+        "targetAmountMinor": "300000",
+        "targetDate": "2027-06-30"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "bike",
+      "outcome": "accepted",
+      "input": {
+        "name": "Bike",
+        "currency": "PLN",
+        "targetAmountMinor": "90000"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "done",
+      "outcome": "accepted",
+      "input": {
+        "name": "Done",
+        "currency": "PLN",
+        "targetAmountMinor": "1000"
+      }
+    },
+    {
+      "op": "goal.create",
+      "as": "shelved",
+      "outcome": "accepted",
+      "input": {
+        "name": "Shelved",
+        "currency": "PLN",
+        "targetAmountMinor": "5000"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "60000",
+        "target": "$trip",
+        "note": "start"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_WITHDRAW",
+        "amountMinor": "5000",
+        "source": "$trip"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_MOVE",
+        "amountMinor": "10000",
+        "source": "$trip",
+        "target": "$bike"
+      }
+    },
+    {
+      "op": "allocation.create",
+      "outcome": "accepted",
+      "input": {
+        "kind": "GOAL_ALLOCATION_KIND_ALLOCATE",
+        "amountMinor": "1000",
+        "target": "$done"
+      }
+    },
+    {
+      "op": "goal.complete",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$done"
+      }
+    },
+    {
+      "op": "goal.archive",
+      "outcome": "accepted",
+      "input": {
+        "goal": "$shelved"
+      }
+    },
+    {
+      "comment": "A statement imported on the server: its keys travel in the export (ADR-110).",
+      "op": "import.create",
+      "as": "statement",
+      "outcome": "accepted",
+      "input": {
+        "csv": "2026-11-14,01-01-2026,'00 0000 0000 0000 0000 0000 0901,JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO,PLN,\"0,00\",\"50,00\",999,\n12-03-2026,10-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 7.10 PLN SKLEP A TESTOWY,,,\"-7,10\",\"10,00\",1,\n09-03-2026,09-03-2026,Zakup BLIK SKLEP B TESTOWY ref:00000000001,SKLEP B TESTOWY,00 0000 0000 0000 0000 0000 0010,\"-25,00\",\"10,00\",2,\n08-03-2026,08-03-2026,Przelew na rachunek w\u0142asny,FIRMA TESTOWA JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO WOJ. TESTOWE,00 0000 0000 0000 0000 0000 0002,\"100,00\",\"10,00\",3,\n08-03-2026,07-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 3.00 PLN SKLEP C TESTOWY,,,\"-3,00\",\"10,00\",4,\n06-03-2026,06-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 1.00 PLN SKLEP D TESTOWY,,,\"-1,00\",\"10,00\",5,\n",
+        "account": "$erste"
+      }
+    },
+    {
+      "op": "import.preview",
+      "outcome": "accepted",
+      "input": {
+        "session": "$statement"
+      }
+    },
+    {
+      "op": "import.defaults",
+      "outcome": "accepted",
+      "input": {
+        "session": "$statement",
+        "expense": "$food",
+        "income": "$salary"
+      }
+    },
+    {
+      "op": "import.commit",
+      "outcome": "accepted",
+      "input": {
+        "session": "$statement",
+        "confirmed": 5
+      }
+    },
+    {
+      "comment": "An open session, which the move leaves behind.",
+      "op": "import.create",
+      "as": "open",
+      "outcome": "accepted",
+      "input": {
+        "csv": "2026-11-14,01-01-2026,'00 0000 0000 0000 0000 0000 0901,JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO,PLN,\"0,00\",\"50,00\",999,\n12-03-2026,10-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 7.10 PLN SKLEP A TESTOWY,,,\"-7,10\",\"10,00\",1,\n09-03-2026,09-03-2026,Zakup BLIK SKLEP B TESTOWY ref:00000000001,SKLEP B TESTOWY,00 0000 0000 0000 0000 0000 0010,\"-25,00\",\"10,00\",2,\n08-03-2026,08-03-2026,Przelew na rachunek w\u0142asny,FIRMA TESTOWA JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO WOJ. TESTOWE,00 0000 0000 0000 0000 0000 0002,\"100,00\",\"10,00\",3,\n08-03-2026,07-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 3.00 PLN SKLEP C TESTOWY,,,\"-3,00\",\"10,00\",4,\n06-03-2026,06-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 1.00 PLN SKLEP D TESTOWY,,,\"-1,00\",\"10,00\",5,\n",
+        "account": "$erste"
+      }
+    },
+    {
+      "comment": "The server's export moves into an empty Local store. Every step before this ran on the server only; every step after runs on both, against the ids the export gave.",
+      "op": "move_in",
+      "input": {}
+    },
+    {
+      "op": "account.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "account.get",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet"
+      }
+    },
+    {
+      "op": "account.get",
+      "outcome": "accepted",
+      "input": {
+        "account": "$savings"
+      }
+    },
+    {
+      "op": "category.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$erste"
+      }
+    },
+    {
+      "op": "budget.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "reset.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2026-08",
+        "currency": "PLN"
+      }
+    },
+    {
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2026-09",
+        "currency": "PLN"
+      }
+    },
+    {
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2026-10",
+        "currency": "PLN"
+      }
+    },
+    {
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2026-11",
+        "currency": "PLN"
+      }
+    },
+    {
+      "op": "budget.summary",
+      "outcome": "accepted",
+      "input": {
+        "month": "2026-08",
+        "currency": "EUR"
+      }
+    },
+    {
+      "op": "goal.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "goal.progress",
+      "outcome": "accepted",
+      "input": {
+        "asOf": "2027-01-15"
+      }
+    },
+    {
+      "op": "goal.progress",
+      "outcome": "accepted",
+      "input": {
+        "asOf": "2027-07-01"
+      }
+    },
+    {
+      "op": "envelope.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "allocation.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "freemoney.get",
+      "outcome": "accepted",
+      "input": {
+        "currency": "PLN"
+      }
+    },
+    {
+      "op": "plan.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 30
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "PLN",
+        "year": 2026
+      }
+    },
+    {
+      "op": "analytics.spendByCategory",
+      "outcome": "accepted",
+      "input": {
+        "currency": "EUR",
+        "year": 2026
+      }
+    },
+    {
+      "comment": "The same statement again after the move: every row is already imported, as on the server.",
+      "op": "import.create",
+      "as": "again",
+      "outcome": "accepted",
+      "input": {
+        "csv": "2026-11-14,01-01-2026,'00 0000 0000 0000 0000 0000 0901,JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO,PLN,\"0,00\",\"50,00\",999,\n12-03-2026,10-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 7.10 PLN SKLEP A TESTOWY,,,\"-7,10\",\"10,00\",1,\n09-03-2026,09-03-2026,Zakup BLIK SKLEP B TESTOWY ref:00000000001,SKLEP B TESTOWY,00 0000 0000 0000 0000 0000 0010,\"-25,00\",\"10,00\",2,\n08-03-2026,08-03-2026,Przelew na rachunek w\u0142asny,FIRMA TESTOWA JAN TESTOWY UL. PRZYK\u0141ADOWA 1/2 00-000 TESTOWO WOJ. TESTOWE,00 0000 0000 0000 0000 0000 0002,\"100,00\",\"10,00\",3,\n08-03-2026,07-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 3.00 PLN SKLEP C TESTOWY,,,\"-3,00\",\"10,00\",4,\n06-03-2026,06-03-2026,DOP. MC 000000******0000 P\u0141ATNO\u015a\u0106 KART\u0104 1.00 PLN SKLEP D TESTOWY,,,\"-1,00\",\"10,00\",5,\n",
+        "account": "$erste"
+      }
+    },
+    {
+      "op": "import.preview",
+      "outcome": "accepted",
+      "input": {
+        "session": "$again"
+      }
+    },
+    {
+      "op": "import.discard",
+      "outcome": "accepted",
+      "input": {
+        "session": "$again"
+      }
+    },
+    {
+      "comment": "The moved ledger takes new records like any other.",
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-700",
+        "currency": "PLN",
+        "date": "2026-11-02",
+        "title": "After"
+      }
+    },
+    {
+      "op": "account.list",
+      "outcome": "accepted",
+      "input": {}
+    }
+  ]
+}

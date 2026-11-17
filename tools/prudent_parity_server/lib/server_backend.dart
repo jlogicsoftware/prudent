@@ -58,6 +58,16 @@ final class ServerSession {
 
   void close() => _client.close();
 
+  /// `GET /api/v1/privacy/export` (ADR-071) as the proto3 JSON the server sent: the file a person
+  /// saves and moves into Prudent Local (unit 10b, ADR-123).
+  Future<Map<String, Object?>> privacyExport() async {
+    final answer = await _send('GET', ['privacy', 'export']);
+    if (answer.status != 200) {
+      throw StateError('the privacy export answered ${answer.status}');
+    }
+    return answer.body;
+  }
+
   /// One request under `/api/v1/`, path segments percent-encoded one by one (a currency of
   /// `" chf "` is a path segment with spaces in it, as the server receives it).
   Future<_Answer> _send(

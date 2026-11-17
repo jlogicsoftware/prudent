@@ -35,6 +35,10 @@ abstract final class ParityObservation {
 final class ParityBindings {
   final Map<String, String> _ids = {};
 
+  /// Every name bound so far, with its id. The move-in suite (unit 10b, ADR-123) carries the
+  /// server's names over to the ids its export gave the Local store.
+  Map<String, String> get entries => Map.unmodifiable(_ids);
+
   void bind(String name, String id) {
     if (_ids.containsKey(name)) throw StateError('"$name" is bound twice in one scenario.');
     _ids[name] = id;
