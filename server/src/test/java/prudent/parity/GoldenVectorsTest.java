@@ -770,7 +770,15 @@ class GoldenVectorsTest {
             name + " is not what the server's rules answer today: a server rule changed and Prudent"
                 + " Local's port has not followed (ADR-107). Regenerate with (cd server && ./mvnw -B"
                 + " test -Dtest=GoldenVectorsTest -Dprudent.golden.write=true), read the diff, and"
-                + " change local/prudent_local_core until its dart test passes.");
+                + " change local/prudent_local_core until its dart test passes."
+                + ("plans.json".equals(name)
+                    ? " plans.json also holds the JDK's zone ids: after regenerating it, run"
+                        + " (cd local/prudent_local_core && dart run tool/generate_java_zone_ids.dart)"
+                        + " to rewrite lib/src/plans/java_zone_ids.dart, and commit both. If only"
+                        + " zoneIds differ, the JDK that ran this has a different tzdata than the one"
+                        + " that wrote the file: that is a new zone or a removed one, to follow, not"
+                        + " noise."
+                    : ""));
       }
     } catch (IOException io) {
       throw new IllegalStateException("cannot read or write " + file.toAbsolutePath(), io);

@@ -13,6 +13,33 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-122 — Every write of Prudent Local's plans carries the version it was decided against, as the store's `expect`
+
+**Date:** 2026-11-17. **Status:** accepted. **Plan:** unit 6b follow-up (review of PR #266). **Builds on:** ADR-115 (write preconditions,
+jZenDev/jZen#251), ADR-119. **Follows:** the review's finding that ADR-115 reached the ledger, budgets, goals and the import commit but not
+`PlanLedger`, which was written in parallel.
+
+### Decision
+
+- **Every `PlanLedger` write passes `WriteExpects.asRead`**, through the same shape as `Ledger._asRead`: `createPlan` (expected absent),
+  `replacePlan` (the plan as read, and every stale-state delete as read), `deletePlan` (the plan and each state of it as read), `skip`,
+  `restore`, `markRead`, `markUnread`, `markAllRead` (each state as read, or absent) and `confirm`.
+- **A write that depends on a plan also expects the plan unchanged.** The state of an occurrence, a confirming record and a reminder time
+  are decided against the plan's schedule, amount and reminder, so each of those batches puts the plan back as it was read, with an `expect`
+  of the same bytes: a plan a sync deleted or edited in between refuses the whole batch. Confirmation is one `writeAll` of the record
+  (expected absent), the plan as read and the state as read, if any.
+- **Refusals keep the server's codes.** A plan gone since the read is 404 (`6.33` for a plan write, `6.35` for an occurrence one), a change
+  since is 409 under §0.3 X.7, a confirmation that landed meanwhile is 409 `6.37`, as the server's second confirmation is. A delete of a record a sync
+  already removed is mapped as `Ledger._write` does, because jZen answers that itself before any precondition runs.
+- **What an absent state cannot express.** A skip or a confirmation reads "no state" and has nothing to put back, so a skip that lands on
+  another device between that read and the confirmation is not refused by the confirmation; the two end as skipped-and-paid, which
+  `occurrence.skipped_and_paid` lists (ADR-119).
+
+### Tests
+
+`plans_expect_test.dart`: nine cases on two stores with the other device's change queued ahead of the write (the technique of
+`write_precondition_test`), each red on the code before this change and green after it.
+
 ## ADR-118 — Prudent Local's analytics reproduce the server's spend by category and by period over the records, leave out of a figure what two devices disagree about and say so, and are held to the server on a generated ledger of thousands of records
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 7 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);
@@ -267,6 +294,10 @@ engine's rerun, the readers for plans, occurrences and reminders, 14 parity oper
 `occurrence_windows`, `occurrences`, `schedule_change`, `day_boundary`, `reminders`), `PlanLedger`,
 `OccurrenceSkippedAndPaidCheck`, `PlanLink.occurrence_date`, `plans_test`, `plans_two_devices_test`, and a `timezone` dependency of
 `prudent_local_core`. `JZEN_REF` is `4fa887a`.
+
+**Addendum (ADR-122):** re-confirming an occurrence after its confirming record was deleted writes the same derived record id again, so a device that has not yet seen the delete writes over the old record instead of adding a second one.
+
+
 ## ADR-117 — The server-connected app saves the privacy export through jZen's `zen_save_file` on every platform, so iOS and Android get "Save to a file" too
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 10a (mobile half) of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
