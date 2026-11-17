@@ -23,7 +23,10 @@ F-03. **Builds on:** ADR-103 (the decision to move by file), ADR-110 (the export
 
 - **`MoveIn` (`local/prudent_local_store/lib/src/move_in/`) reads the server's `DataExport` from a file and writes it into an empty store.**
   `MoveIn.read` takes the file's bytes as canonical proto3 JSON and **refuses a field it does not know**: a field a newer server added would
-  otherwise be dropped without anyone being told. `format_version` other than 1 is refused.
+  otherwise be dropped without anyone being told. It also refuses **a 64-bit integer outside its range**, found by walking the JSON beside the
+  message descriptors before the protobuf reader sees it: the reader wraps one silently (`"9223372036854775808"` reads as the most negative
+  value), and a wrapped amount would pass the balance check, which holds by construction over the values read. `format_version` other than
+  1 is refused.
 - **Empty means empty, and is checked twice.** Before planning, every collection (the device-only import sessions too) must list nothing and
   hold no conflict. The first operation of the batch carries an `expect` that checks the same thing again **inside the store's write turn**,
   so data a sync delivers between the check and the write refuses the move (`move_in.store_not_empty`, with the store's error as cause) and
@@ -42,7 +45,17 @@ F-03. **Builds on:** ADR-103 (the decision to move by file), ADR-110 (the export
   of who did it, and that person did it on the server.
 - **Openings are rebuilt (F-03):** per account and currency, `exported balance − Σ exported records`, transfer legs and corrections included.
 - **A transfer's two legs become one record** (ADR-102) through `WireMapper.transferFromWire`; anything but exactly one negative and one
-  positive leg naming one transfer is refused (`move_in.transfer_broken`).
+  positive leg naming one transfer, on two different accounts, is refused (`move_in.transfer_broken`). Two legs in one currency may differ
+  in amount: `TransferResource.create` takes the two amounts apart and never requires them equal, so such a transfer is the server's and moves.
+- **Every value is one the server would have stored.** The file is plain text a person can edit, and the store's batch checks ids, not
+  fields, so the planner applies the create-time rules of the server's resources and the Ledger before anything is written, and refuses
+  otherwise (`move_in.invalid_value`, facts `collection`, `id`, `field`): a canonical currency (valid and already normalised) on every
+  balance, record, plan, budget, reset, goal and allocation and on the main currency; a strict, canonical date on every record, occurrence
+  and goal target date, and a canonical month on every budget and reset; a non-zero record and plan; an account type, goal status,
+  occurrence status and allocation kind that is not unspecified; a positive goal target, budget and allocation; an allocation naming exactly
+  the goals its kind takes, two different ones for a move, in their currency; a plan's recurrence accepted by `RecurrenceRule.parse` and a
+  reminder lead time in `{0, 1, 2, 3, 7}`. An export with **no settings** is what the server writes for a person who never saved any, and
+  moves in with the defaults. Names and titles are not checked: the server stores a title of only control characters as the empty string.
 - **Statement keys survive (ADR-110).** A key must be `v1:` and 64 lower-case hex characters on a plain record (not a leg, correction or
   confirmation); the record keeps it and takes the id derived from it. Because the fingerprint embeds the account id in the server's form and
   Local writes its account ids in that form when it fingerprints (ADR-112), **a statement imported on the server is recognised after the move
@@ -52,7 +65,8 @@ F-03. **Builds on:** ADR-103 (the decision to move by file), ADR-110 (the export
   date order (ties by id), asked for that plus its delta, and names every earlier correction there as seen — so a history made in order on
   the server raises no `correction.made_apart` issue. No figure reads these fields.
 - **Refused whole, with a reason and where.** `MoveInRefusal` names one of sixteen `MoveInRule`s (`move_in.*`) and facts that are ids,
-  currency codes, counts and minor-unit amounts only — never a title, payee, note, account number or fingerprint. Besides those above: an
+  field and currency codes, counts and minor-unit amounts — **no free text**: never a title, payee, note, account number or fingerprint. The
+  facts are shown to the person whose file it is; a log line names the error's class only. Besides those above: an
   id the server does not write, an id twice, a reference to a row the file lacks, a currency its account does not hold, two default accounts,
   an occurrence completed with no confirming record (or confirmed twice, or confirmed while skipped), a plan zone Local refuses
   (`PlanZones.unsupported`, ADR-119), a value that is not canonical.
@@ -64,20 +78,27 @@ F-03. **Builds on:** ADR-103 (the decision to move by file), ADR-110 (the export
   occurrences are not checked at run time**: the export carries none of those figures, so the app has nothing to compare them with.
 - **They are proven by the parity suite instead.** `tools/prudent_parity_server/test/move_in_test.dart` runs
   `local/prudent_local_core/parity/move_in/move_in.json` — a history built on the **live server** (two currencies, an edited record, an
-  archived category, transfers including a cross-currency and a deleted one, two corrections, settings, a weekly plan with a confirmed and a
-  skipped occurrence, a monthly plan, budgets, a revoked and a live reset, goals in every state with every kind of allocation, a committed
+  archived category, transfers including a cross-currency and a deleted one, two corrections with records created after them dated between
+  and after them, settings, a weekly plan with a confirmed and a skipped occurrence, a monthly plan, a plan whose schedule changed after a
+  skip and a confirmation so that both are off the new schedule (ADR-119), budgets, a revoked and a live reset, goals in every state with every kind of allocation, a committed
   statement and an open session) — then fetches the server's own export, saves it as the app saves a file, reads it back with `MoveIn.read`,
   moves it into an empty store, and compares with the parity engine's rule (`ParityEngine.differences`) every answer of both sides: accounts
   and balances, records, budgets, budget summaries with carry-over in four months and two currencies, resets, goals, goal progress at two
   dates, envelopes, allocations, free money, plans, upcoming and overdue occurrences, reminders, spend by category, and the same statement
-  imported again (every row a duplicate on both). An export altered by one minor unit in a budget and an allocation, or with a skipped
+  imported again (every row a duplicate on both). Right after the move, `IntegrityRunner` must find **no issue** in the moved store, which
+  checks the corrections' rebuilt intents on a real export (a move that leaves `seen_corrections` empty fails it with
+  `correction.made_apart`). An export altered by one minor unit in a budget and an allocation, or with a skipped
   occurrence removed, shows differences in exactly those figures.
 - **Dropped on purpose (ADR-103):** the profile, import sessions and their rows (counted, and the app says to import those statements again),
   reminder-read times and planned occurrences (Local reads them from the schedule, ADR-119).
 - **The app.** Settings → Privacy and data → "Move my data in", last on the page (`MoveInScreen`): the file through `file_selector`'s picker (never the
   clipboard, ADR-100 T14; at most 64 MiB read), a warning that the file is not encrypted and should be deleted, a note that the server account
-  is not erased and how to erase it once the balances are checked, and the outcome kept on the page — what moved, or "Nothing was moved", the
-  reason in en, uk or pl, and the rule's code with its facts. A failure is logged by the class of the store's error only (ADR-100 T21); the rule is on the page.
+  is not erased and how to erase it once the balances are checked, and the outcome kept on the page — what moved, that the balances are the
+  only figure checked and the rest should be looked over in the server app before erasing it, what was not moved (the profile, which
+  reminders were read), or "Nothing was moved", the reason in en, uk or pl, and the rule's code with its facts. Anything the move throws that
+  is not a refusal is shown as `move_in.store_failed` rather than escaping with nothing on the page. A failure is logged by the class of the
+  error only (ADR-100 T21); the rule is on the page. A setting counts as data, so a device whose main currency was chosen refuses the move,
+  and the sentence says so.
 
 ### What this supersedes, and why
 
@@ -86,11 +107,13 @@ Nothing; it builds what ADR-103 decided. ADR-103's "a correction's intent fields
 
 ### Consequence
 
-**Verified:** `prudent_local_store` move-in tests (23: the whole ledger, ids, the confirmation, corrections, the JSON file, re-import as
-duplicates, two devices to one copy, every refusal writing nothing, a sync landing between check and write); the parity suite against a live
-server (37 tests: the move-in round trip, every existing scenario and the 4 430-step analytics ledger); the Local app's widget tests
+**Verified:** `prudent_local_store` move-in tests (52: the whole ledger, ids, the confirmation, corrections, the JSON file, re-import as
+duplicates, every refusal writing nothing, one per class of invalid value, 64-bit integers out of range, a sync landing between check and
+write, and two devices: two moves of one export byte for byte equal, and after a sync every synced collection holding exactly the ids the
+export derives — planting a random id on carry-over resets or on goals turns both red, which the earlier count-only test missed); the parity suite against a live
+server (37 tests: the move-in round trip with no integrity issue after it, every existing scenario and the 4 430-step analytics ledger); the Local app's widget tests
 (7 new: a move, a refusal on a store with data, an unreadable and a too-large file, a cancel, the refusal in uk and pl; 64 in all, T21's log
-rule included); the suites of `prudent_local_core` (3 966), `prudent_local_store` (744), `packages/prudent_ui` (5) and `client/` (543); every
+rule included); the suites of `prudent_local_core` (3 966), `prudent_local_store` (773), `packages/prudent_ui` (5) and `client/` (543); every
 package's analyzer with infos and warnings fatal; `verify_boundaries`, `verify_controls`. The Local app's macOS integration test was not run.
 **Not verified:** a real person's export (every export here is synthetic, ADR-088), the picker on any real platform or device (unit 12), an
 export of tens of thousands of records (the batch is one write of every record), a move into a device that is already syncing with others
