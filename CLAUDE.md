@@ -363,7 +363,7 @@ behaviour applies and the web is refused by name; `task test:local-tasks` proves
 macOS (a new `macos-runner`, reversing ADR-003 for this app only), Android, Windows and Linux. `task verify:local-release` fails when the Android
 manifest (or, in CI, a merged one) allows a backup, when shipped Dart names `ZEN_SYNC` at all, when a sync transport or plan is built or started anywhere but
 `sync_starter.dart`, when a workflow sets it or when a web runner exists; a release build with `ZEN_SYNC` is refused by jZen at run time and
-`task test:local-release-refusal` proves it on a real release build. Each rule has a planted-violation test. **CI proved every step in run 44106692883 (head `5884c91`):
+`task test:local-release-refusal` proves it on a real release build. Each rule has a planted-violation test. **CI proved every step in run 44106692883 (head `5884c91`; the PR's final head was `9dd59cc`), but main's push run 44124134602 at `f858dbf` failed on one test, `task test:local-store` "three devices repairing from three different reads" (1100 where 2200 was expected, ADR-120), with a fix PR owed:
 the merged Android manifests, the Linux probe under `xvfb`, the Windows build and probe, the macOS and iOS release builds, `verify:swiftpm` after the
 builds and the macOS probe.** Windows failed in `local_auth_windows` under MSVC 14.51 (jZenDev/jZen#257); jZen fixed it by dropping that plugin from `zen_ui_lock`
 (PR #260, ADR-086) and `JZEN_REF` is `139fcd6`, with no override or silencing in Prudent. Android needed core-library desugaring (added), and
