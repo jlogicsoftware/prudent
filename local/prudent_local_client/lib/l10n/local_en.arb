@@ -295,7 +295,7 @@
   "moveInFileWarning": "The export file is not encrypted. Delete it once the move is done.",
   "moveInServerNote": "The move does not erase your server account. Check your balances here first; then you can erase it in the server app, under Privacy and data.",
   "moveInButton": "Choose the export file",
-  "moveInDone": "Your data has moved in: {accounts} accounts, {records} records, {transfers} transfers, {plans} plans, {budgets} budgets and {goals} goals. Every balance matches the file to the cent.",
+  "moveInDone": "Your data has moved in: {accounts} accounts, {records} records, {transfers} transfers, {plans} plans, {budgets} budgets and {goals} goals.",
   "@moveInDone": {
     "placeholders": {
       "accounts": {
@@ -318,6 +318,8 @@
       }
     }
   },
+  "moveInChecked": "Every account balance matches the file to the cent; that is the only figure checked here. Budgets, carry-over, envelopes, goal progress and planned payments are rebuilt from the same data but not compared with the server, so look them over in the server app before you erase it.",
+  "moveInNotMoved": "Not moved: your server profile (this app has no account), and which reminders you had read, so they show as unread again.",
   "moveInDroppedSessions": "{count, plural, =1{One statement import was unfinished on the server and was not moved; import that statement again here.} other{{count} statement imports were unfinished on the server and were not moved; import those statements again here.}}",
   "@moveInDroppedSessions": {
     "placeholders": {
@@ -338,7 +340,7 @@
   "moveInTooLarge": "The file is too large to be a Prudent export.",
   "moveInUnreadable": "The file is not a Prudent export, or it was made by a newer version of Prudent than this app.",
   "moveInFormatVersion": "The file is an export of a version this app cannot read.",
-  "moveInStoreNotEmpty": "This device already holds data. Data can be moved only into an empty Prudent Local; erase this device's copy first if you mean to replace it.",
+  "moveInStoreNotEmpty": "This device already holds data, and a setting such as the main currency counts too. Data can be moved only into an empty Prudent Local; erase this device's copy first if you mean to replace it.",
   "moveInMalformedId": "The file holds an id that Prudent's server does not write.",
   "moveInDuplicateId": "The file holds the same id twice.",
   "moveInUnknownReference": "A row in the file refers to something the file does not hold.",

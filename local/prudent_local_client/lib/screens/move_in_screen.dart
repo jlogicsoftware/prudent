@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:prudent_local_store/prudent_local_store.dart'
-    show MoveIn, MoveInRefusal, MoveInRefused, MoveInResult, MovedIn;
+    show MoveIn, MoveInRefusal, MoveInRefused, MoveInResult, MoveInRule, MovedIn;
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../app/local_providers.dart';
@@ -21,8 +21,11 @@ import '../widgets/settings_paragraph.dart';
 /// - **A file, never the clipboard** (ADR-100 T14), and the page says the file is not encrypted and
 ///   should be deleted afterwards.
 /// - **What was refused, and why, stays on the page** — a sentence in the person's language and the
-///   rule's code with where in the file it was found — not a message that disappears. Nothing of
-///   the ledger is quoted: the facts are ids, currencies and amounts (`MoveInRule`).
+///   rule's code with where in the file it was found — not a message that disappears. No free text
+///   of the ledger is quoted: the facts are ids, field and currency codes, counts and amounts
+///   (`MoveInRule`), and the log names the error's class only.
+/// - **What was checked is said plainly**: the balances, to the cent, and nothing else; and what was
+///   not moved (the profile, which reminders were read, unfinished statement imports).
 /// - **The server account is not erased** by the move; the page says how to erase it once the
 ///   balances have been checked (ADR-103).
 class MoveInScreen extends ConsumerStatefulWidget {
@@ -67,13 +70,15 @@ class _MoveInScreenState extends ConsumerState<MoveInScreen> {
         result = await MoveIn(session.prudent).run(MoveIn.read(bytes));
       } on MoveInRefusal catch (refusal) {
         result = MoveInRefused(refusal);
+        // Anything else thrown by the move is a fault, not a refusal; it is still said on the page
+        // rather than escaping as an unhandled error with nothing shown, and logged by class only.
+      } catch (error, stack) {
+        developer.log('the move failed: ${error.runtimeType}', name: 'prudent', stackTrace: stack);
+        result = const MoveInRefused(MoveInRefusal(MoveInRule.storeFailed));
       }
       if (result case MoveInRefused(:final refusal)) {
         // Classes only (ADR-100 T21): the rule and its facts are on the page, not in the log.
-        developer.log(
-          'the move was refused (${refusal.cause.runtimeType})',
-          name: 'prudent',
-        );
+        developer.log('the move was refused (${refusal.cause.runtimeType})', name: 'prudent');
       }
       _result = result;
     } finally {
@@ -97,6 +102,8 @@ class _MoveInScreenState extends ConsumerState<MoveInScreen> {
             summary.goals,
           ),
         ),
+        SettingsParagraph(t.moveInChecked),
+        SettingsParagraph(t.moveInNotMoved),
         if (summary.droppedImportSessions > 0)
           SettingsParagraph(t.moveInDroppedSessions(summary.droppedImportSessions)),
         SettingsParagraph(t.moveInFileWarning, warning: true),

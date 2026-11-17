@@ -102,6 +102,9 @@ void main() {
 
     await app.tapReal(find.text(l.moveInButton));
     await app.settleUntil(find.text(l.moveInDone(1, 1, 0, 0, 0, 0)));
+    // What was checked, and what was not moved, are said beside the counts (review N2 on #273).
+    expect(find.text(l.moveInChecked), findsOneWidget);
+    expect(find.text(l.moveInNotMoved), findsOneWidget);
 
     final accounts = (await tester.runAsync(() => app.session.ledger.listAccounts()))!;
     final listed = ok(accounts).value.accounts.single;
