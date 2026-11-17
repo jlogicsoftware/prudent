@@ -95,3 +95,4 @@ It exists because jZen is consumed from a filesystem path. **When jZen publishes
 Prudent depends on them by version, this folder is deleted** — a versioned dependency's
 documentation travels with the package, and there is no sibling checkout left to point at. That
 removal is a step in the publishing ADR, not a cleanup. `docs/zen-architecture.md` is unaffected.
+| A Windows build of any app that depends on `zen_ui_lock` fails under MSVC 14.51 (current `windows-latest`): `local_auth_windows` (2.0.2, the newest) compiles with `/await`, which the STL now rejects (`STL1011`). Found by the first CI run of Prudent Local's `windows-runner` (unit 11). | [#257](https://github.com/jZenDev/jZen/issues/257) | **Reported (2026-11-17).** Not worked around here: no `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` in Prudent's CMake and no dependency override. `windows-runner`'s Local steps stay red until jZen fixes it; the rest of that job is unaffected (ADR-124). |

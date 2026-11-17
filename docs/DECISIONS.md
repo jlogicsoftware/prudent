@@ -39,9 +39,12 @@ ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). *
   imports a package under `local/`. `test_verify_boundaries.py` plants each.
 - **T18: a release build with `ZEN_SYNC` set fails, by jZen's refusal and nothing of Prudent's** (`ZenSyncPlan`, `ZenSync.plan`, jZenDev/jZen#238, in
   `JZEN_REF` `4fa887a`). Three things hold it:
-  1. `scripts/verify_local_release.py` (`task verify:local-release`) fails when any Dart source under `client/`, `packages/` or `local/` reads the define
-     itself (`String.fromEnvironment('ZEN_SYNC…')`), because a second reader could decide differently and the framework's refusal would stop being the
-     only one; and when a workflow sets it.
+  1. `scripts/verify_local_release.py` (`task verify:local-release`) fails when any shipped Dart (not a test, not generated) under `client/`, `packages/`
+     or `local/` names the define at all, outside comments (so `bool.hasEnvironment`, a multi-line `fromEnvironment` and a constant that is passed on
+     are all caught), because a second reader could decide differently and the framework's refusal would stop being the only one. It also fails when a
+     `ZenFolderCloud`, `ZenSharedFolderSync`, `ZenCloudKitSync` or `ZenSyncPlan` is constructed, or `ZenSync.start`/`startFor` called, anywhere but
+     `local/prudent_local_client/lib/core/sync_starter.dart`, and when a workflow sets the define. The probe does not spell the define's name in Dart
+     for that reason; `test:local-release-refusal` requires jZen's message, which names it, in the probe's output instead.
   2. **The refusal is proven on a real release build.** `task test:local-release-refusal` compiles `tool/release_sync_probe.dart` with
      `flutter build <host> --release` and `--dart-define=ZEN_SYNC=folder`, runs it, and requires the app's own `startSyncForBuild` to fail with jZen's
      `ZenValidationError` naming `ZEN_SYNC` and "release build". `flutter test` cannot prove this (it is never a release build and ignores a
@@ -57,9 +60,23 @@ ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). *
   produced (`--merged`), because a plugin's manifest is merged in and can turn a backup on without the app's file changing; a build that produced none
   fails. `threat_model_test` already asserted the two attributes; that test is not the gate, and stays.
 - **No web runner:** `verify:local-release` fails if `local/prudent_local_client/web` exists.
-- **Every gate is a script with a test that plants the violation** (`test_verify_local_release.py`: 16 cases, among them backup on, attribute missing, a
-  rules file, `tools:replace`, a debug override, a bad merged manifest, a missing merged manifest, a second `ZEN_SYNC` reader in the app and in
-  `client/`, a workflow setting it, a web runner, a missing scope).
+- **Every gate is a script with a test that plants the violation** (`test_verify_local_release.py`: 25 cases, among them backup on, attribute missing, a
+  rules file, `tools:replace`, a debug override, a bad merged manifest, a missing merged manifest, a `fromEnvironment`, a `hasEnvironment` and a
+  multi-line reader of `ZEN_SYNC`, a block comment, a transport, a plan and `ZenSync.startFor` outside the starter, a missing starter, a workflow
+  setting it, a web runner, a missing scope).
+
+### What the first CI run found (review of PR #272)
+
+- **Android needs core-library desugaring.** `flutter_local_notifications`, through `packages/prudent_ui`, fails the Android build without it; Local's
+  `build.gradle.kts` now enables it with `desugar_jdk_libs:2.1.4`, as `client/` does.
+- **Windows does not compile: a framework gap, [jZenDev/jZen#257](https://github.com/jZenDev/jZen/issues/257).** `zen_ui_lock` brings `local_auth_windows`
+  2.0.2 (the newest), which builds with `/await`, and MSVC 14.51 on `windows-latest` rejects that (`STL1011`). Prudent does not define
+  `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` and does not override the dependency: either would hide the framework's problem in this
+  repository. The Windows Local steps stay red until jZen fixes it; no Windows build or probe has passed.
+- **The macOS runner** failed in `zenlocal:build:runners`, which on a macOS host also builds Android; the desugaring fix is expected to unblock it,
+  and it must then reach the macOS and iOS release builds, `verify:swiftpm` and the probe in a green run before those are called proven.
+- **Release builds are signed with the debug key** (the template's `signingConfig = debug`). That is enough to compile and to run the probe, and is not a
+  shippable configuration; a real signing setup is unit 12's.
 
 ### What was not run through `task`, and what is not verified
 
@@ -67,9 +84,8 @@ ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). *
   `test_local_tasks.py` copies the Taskfile with `../jZen/` made absolute and runs `task -t` on the copy (it needs a jZen checkout: `JZEN_DIR`, or the main checkout's sibling). Run
   that way and passing: `verify:local-release`, `verify:boundaries`, `verify:swiftpm`, `test:local-tasks`. Run directly and not through `task`: the
   probe's `flutter build macos --release` and its run (`PROBE-OK`, exit 0; and without `ZEN_SYNC`, exit 133).
-- **Not run anywhere:** `test:local-release-refusal` through `task`; every new CI job and step (`macos-runner`, the Local builds on Android, Linux,
-  Windows, iOS, the merged-manifest step and the `xvfb` run): they are written against jZen's task and the pinned runners and first run in this PR's
-  CI. The Windows and Linux probe binaries' paths are the CMake `BINARY_NAME` (`prudent_local_client`) and are unconfirmed. The merged-manifest path
+- **Not run anywhere:** `test:local-release-refusal` through `task`; and no CI job or step is proven until it is green: the first run failed on
+  Android (desugaring, fixed), Windows (#257) and macOS (see above). Their steps are written against jZen's task and the pinned runners. The Windows and Linux probe binaries' paths are the CMake `BINARY_NAME` (`prudent_local_client`) and are unconfirmed. The merged-manifest path
   is found with `find` and not assumed. No platform was installed on a device (unit 12).
 
 ---

@@ -355,9 +355,13 @@ Unit 11 (ADR-124) is the Taskfile and CI: `task run:local DEVICE=<native>`, `tas
 third include of jZen's `Taskfile.app.yml` (`zenlocal`, with a server module that must stay nonexistent at `local/no_server`), so jZen's own Local
 behaviour applies and the web is refused by name; `task test:local-tasks` proves it through `task` against a stub `flutter`. CI builds Local on iOS,
 macOS (a new `macos-runner`, reversing ADR-003 for this app only), Android, Windows and Linux. `task verify:local-release` fails when the Android
-manifest (or, in CI, a merged one) allows a backup, when anything but jZen's `ZenSyncPlan` reads `ZEN_SYNC`, when a workflow sets it or when a web runner
-exists; a release build with `ZEN_SYNC` is refused by jZen at run time and `task test:local-release-refusal` proves it on a real release build. Each rule
-has a planted-violation test. The new CI jobs have not yet run, and no platform was seen on a device (unit 12).
+manifest (or, in CI, a merged one) allows a backup, when shipped Dart names `ZEN_SYNC` at all, when a sync transport or plan is built or started anywhere but
+`sync_starter.dart`, when a workflow sets it or when a web runner exists; a release build with `ZEN_SYNC` is refused by jZen at run time and
+`task test:local-release-refusal` proves it on a real release build. Each rule has a planted-violation test. **Compile status in CI is not green on every
+platform:** Windows fails in `local_auth_windows` under MSVC 14.51 (jZenDev/jZen#257, a framework gap, not worked around here), so no Windows Local build
+or probe has passed; Android needed core-library desugaring (added); the macOS and iOS release builds, `verify:swiftpm` and the probe on the macOS runner
+are proven only by a green run of that job. Release builds are signed with the debug key (unit 12 owes a real signing configuration), and no platform was
+seen on a device (unit 12).
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

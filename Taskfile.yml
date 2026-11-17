@@ -334,7 +334,13 @@ tasks:
         bin="$1"
         if [ ! -x "$bin" ]; then echo "the release probe was not built where expected: $bin"; exit 1; fi
         echo ">> running $bin"
-        "$bin"
+        out="$("$bin")" || { echo "$out"; echo "the release probe did not report a refusal"; exit 1; }
+        echo "$out"
+        # The refusal must be about the define, in jZen's own words.
+        case "$out" in
+          *PROBE-OK*ZEN_SYNC*) ;;
+          *) echo "the refusal did not name ZEN_SYNC"; exit 1 ;;
+        esac
 
   golden:generate:
     desc: Regenerate prudent_local_core's golden vectors from the server's own rule methods

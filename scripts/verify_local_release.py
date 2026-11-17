@@ -2,7 +2,7 @@
 """Fail when Prudent Local's release rules (ADR-100 T10, T18; plan unit 11) are broken.
 Run by `task verify:local-release`.
 
-Four checks over the tree, each failing on a real violation and on a scope that matches nothing:
+Five checks over the tree, each failing on a real violation and on a scope that matches nothing:
 
   A. Android refuses Auto Backup of the store (T10). The app's manifest sets
      `android:allowBackup="false"` and `android:fullBackupContent="false"`, names no
@@ -10,7 +10,7 @@ Four checks over the tree, each failing on a real violation and on a scope that 
      manifests do not set any of them back. Pass the MERGED manifests a build produced
      (`--merged PATH`, repeatable) and they are held to the same rule: a plugin's manifest is merged
      in and can turn a backup back on without the app's own file changing.
-  B. `ZEN_SYNC` has one reader (T18). jZen's `ZenSyncPlan` refuses the define in a release build;
+  B. `ZEN_SYNC` has one reader (T18). Any code mention counts, not only `fromEnvironment`. jZen's `ZenSyncPlan` refuses the define in a release build;
      that refusal holds only while nothing else reads the define and decides for itself. No Dart
      source under client/, packages/ or local/ calls `String.fromEnvironment('ZEN_SYNC'...)` or
      names `ZEN_SYNC_FOLDER` that way, so the framework's refusal is the only one there is. Not
@@ -37,8 +37,15 @@ DART_ROOTS = ("client", "packages", "local")
 WORKFLOWS = ".github/workflows"
 
 ATTR = r'android:{name}\s*=\s*"([^"]*)"'
-ZEN_SYNC_READ = re.compile(r"""fromEnvironment\(\s*['"]ZEN_SYNC""")
-DART_COMMENT = re.compile(r"^\s*//")
+# Any literal mention of the define in code: fromEnvironment, hasEnvironment, a multi-line call, a
+# constant that is passed on. Comments are removed first; test code is out of scope (it asserts on
+# the define, it ships nothing).
+ZEN_SYNC_LITERAL = re.compile(r"ZEN_SYNC")
+# Constructing a transport, a plan, or starting sync: only sync_starter.dart may (T18). `is` checks
+# and type annotations are fine; a constructor call or ZenSync.start/startFor is not.
+TRANSPORT_USE = re.compile(
+    r"\b(?:ZenFolderCloud|ZenSharedFolderSync|ZenCloudKitSync|ZenSyncPlan)\s*(?:\.\w+)?\s*\(|\bZenSync\s*\.\s*(?:start|startFor)\s*\(")
+STARTER = "local/prudent_local_client/lib/core/sync_starter.dart"
 
 
 def attribute(text: str, name: str):
@@ -84,23 +91,55 @@ def check_android(root: Path, merged: "list[Path]") -> "list[str]":
     return problems
 
 
+def strip_dart_comments(text: str) -> str:
+    """Blank `//` and `/* */` comments, keeping line numbers. Strings are left alone: a `//` inside
+    a string is rare in this code and keeping it only ever flags more, never less."""
+    text = re.sub(r"/\*.*?\*/", lambda m: re.sub(r"[^\n]", " ", m.group(0)), text, flags=re.S)
+    return re.sub(r"//[^\n]*", "", text)
+
+
+def app_dart_files(root: Path):
+    """Shipped Dart under client/, packages/ and local/: not tests, not generated, not build output."""
+    for top in DART_ROOTS:
+        for path in sorted((root / top).rglob("*.dart")):
+            parts = path.relative_to(root).parts
+            if any(p in (".dart_tool", "build", "generated", "test", "integration_test") for p in parts):
+                continue
+            if path.name.endswith("_test.dart"):
+                continue
+            yield path
+
+
 def check_zen_sync_reader(root: Path) -> "list[str]":
     problems = []
     scanned = 0
-    for top in DART_ROOTS:
-        for path in sorted((root / top).rglob("*.dart")):
-            if any(part in (".dart_tool", "build", "generated") for part in path.parts):
-                continue
-            scanned += 1
-            for number, line in enumerate(path.read_text().splitlines(), 1):
-                if DART_COMMENT.match(line):
-                    continue
-                if ZEN_SYNC_READ.search(line):
-                    problems.append(
-                        f"{path.relative_to(root)}:{number} reads ZEN_SYNC itself — only jZen's "
-                        "ZenSyncPlan may, so its release refusal is the one refusal (T18)")
+    for path in app_dart_files(root):
+        scanned += 1
+        text = strip_dart_comments(path.read_text())
+        for number, line in enumerate(text.splitlines(), 1):
+            if ZEN_SYNC_LITERAL.search(line):
+                problems.append(
+                    f"{path.relative_to(root)}:{number} names ZEN_SYNC in code — only jZen's "
+                    "ZenSyncPlan reads it, so its release refusal is the one refusal (T18)")
     if scanned == 0:
         problems.append("no Dart source found under client/, packages/ or local/ — the scope matches nothing")
+    return problems
+
+
+def check_transport_construction(root: Path) -> "list[str]":
+    """A transport built anywhere but the one starter would skip jZen's release refusal (T18)."""
+    problems = []
+    for path in app_dart_files(root):
+        rel = path.relative_to(root).as_posix()
+        if rel == STARTER:
+            continue
+        for number, line in enumerate(strip_dart_comments(path.read_text()).splitlines(), 1):
+            m = TRANSPORT_USE.search(line)
+            if m:
+                problems.append(f"{rel}:{number} calls {m.group(0).strip()} — only {STARTER} may start "
+                                "or build sync, through ZenSync.start (T18)")
+    if not (root / STARTER).is_file():
+        problems.append(f"{STARTER} does not exist — the one starter the rule names is gone")
     return problems
 
 
@@ -134,6 +173,7 @@ def main(argv: "list[str]") -> int:
     checks = (
         ("Android refuses Auto Backup (T10)", check_android(root, merged)),
         ("ZEN_SYNC has one reader, jZen's (T18)", check_zen_sync_reader(root)),
+        ("no sync transport is built outside the one starter (T18)", check_transport_construction(root)),
         ("no workflow sets ZEN_SYNC (T18)", check_workflows(root)),
         ("no web runner", check_no_web(root)),
     )

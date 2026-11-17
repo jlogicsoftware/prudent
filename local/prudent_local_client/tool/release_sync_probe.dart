@@ -1,8 +1,8 @@
 // ADR-100 T18, proven on a real release build. NOT part of the app: built by
 // `task test:local-release-refusal` as `flutter build <host> --release -t tool/release_sync_probe.dart`
-// with `--dart-define=ZEN_SYNC=folder`, then run.
+// with the development sync define set to `folder`, then run.
 //
-// jZen's `ZenSync` refuses any ZEN_SYNC in a release build (`ZenSyncPlan`, jZenDev/jZen#238); this
+// jZen's `ZenSync` refuses the development sync define in a release build (`ZenSyncPlan`, jZenDev/jZen#238); this
 // does not re-implement that, it asks the app's own starter, `startSyncForBuild`, what a release build
 // does and exits 0 only when it is refused for THAT reason. `flutter test` cannot answer: it is never a
 // release build and ignores a `dart.vm.product` define, so a unit test of `release: true` proves the
@@ -35,13 +35,13 @@ Future<void> main() async {
       syncKey: null,
     );
     final error = result.errorOrNull;
-    if (error is ZenValidationError &&
-        error.message.contains('ZEN_SYNC') &&
-        error.message.contains('release build')) {
+    // The message is jZen's; the task requires it to name the define (the define's name is not spelled
+    // in Dart here, so `verify:local-release` can hold the whole app to a single reader).
+    if (error is ZenValidationError && error.message.contains('release build')) {
       stdout.writeln('PROBE-OK refused: ${error.message}');
       exit(0);
     }
-    stderr.writeln('PROBE-FAIL a release build with ZEN_SYNC was not refused: $result');
+    stderr.writeln('PROBE-FAIL a release build given the sync define was not refused: $result');
     exit(1);
   } finally {
     await dir.delete(recursive: true);

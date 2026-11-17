@@ -26,6 +26,7 @@ def tree(root: Path) -> None:
         (f"{APP}/android/app/src/debug/AndroidManifest.xml", PLAIN_MANIFEST),
         (f"{APP}/android/app/src/profile/AndroidManifest.xml", PLAIN_MANIFEST),
         (f"{APP}/lib/main.dart", "void main() {}\n"),
+        (f"{APP}/lib/core/sync_starter.dart", "// ZenSync.start(store) is here\nfinal x = ZenSync.start(s);\n"),
         ("client/lib/main.dart", "void main() {}\n"),
         ("packages/prudent_ui/lib/a.dart", "const a = 1;\n"),
         (".github/workflows/ci.yml", "name: CI\n# ZEN_SYNC is a comment here\n"),
@@ -123,11 +124,55 @@ class Gate(unittest.TestCase):
     def test_a_second_zen_sync_reader_fails(self):
         r = run(write(f"{APP}/lib/sync.dart", "const s = String.fromEnvironment('ZEN_SYNC');\n"))
         self.assertEqual(r.returncode, 1)
-        self.assertIn("reads ZEN_SYNC itself", r.stdout)
+        self.assertIn("names ZEN_SYNC in code", r.stdout)
 
     def test_a_zen_sync_reader_in_client_fails(self):
         r = run(write("client/lib/x.dart", 'const s = String.fromEnvironment( "ZEN_SYNC_FOLDER");\n'))
         self.assertEqual(r.returncode, 1)
+
+    def test_has_environment_fails(self):
+        r = run(write(f"{APP}/lib/a.dart", "const on = bool.hasEnvironment('ZEN_SYNC');\n"))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("names ZEN_SYNC in code", r.stdout)
+
+    def test_multiline_from_environment_fails(self):
+        r = run(write(f"{APP}/lib/b.dart", "const s = String.fromEnvironment(\n  'ZEN_SYNC',\n);\n"))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("b.dart:2", r.stdout)
+
+    def test_block_comment_mention_passes_but_code_after_it_fails(self):
+        self.assertEqual(run(write(f"{APP}/lib/c.dart", "/* ZEN_SYNC\n is jZen's */\n")).returncode, 0)
+        r = run(write(f"{APP}/lib/c.dart", "/* x */ const k = 'ZEN_SYNC';\n"))
+        self.assertEqual(r.returncode, 1)
+
+    def test_a_test_may_name_zen_sync(self):
+        r = run(write(f"{APP}/test/t_test.dart", "const s = 'ZEN_SYNC';\n"))
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    # T18: one starter
+    def test_folder_cloud_built_outside_the_starter_fails(self):
+        r = run(write(f"{APP}/lib/x.dart", "final t = ZenFolderCloud(store: s);\n"))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("only local/prudent_local_client/lib/core/sync_starter.dart", r.stdout)
+
+    def test_zen_sync_start_for_outside_the_starter_fails(self):
+        r = run(write(f"{APP}/lib/y.dart", "final t = ZenSync.startFor(plan, s);\n"))
+        self.assertEqual(r.returncode, 1)
+
+    def test_a_plan_built_outside_the_starter_fails(self):
+        r = run(write("packages/prudent_ui/lib/p.dart", "const p = ZenSyncPlan('macos', '');\n"))
+        self.assertEqual(r.returncode, 1)
+
+    def test_a_type_check_on_a_transport_passes(self):
+        r = run(write(f"{APP}/lib/z.dart", "bool f(Object t) => t is ZenSharedFolderSync;\n"))
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_missing_starter_fails(self):
+        def go(root):
+            (root / APP / "lib/core/sync_starter.dart").unlink()
+        r = run(go)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("does not exist", r.stdout)
 
     def test_a_commented_mention_passes(self):
         r = run(write(f"{APP}/lib/doc.dart", "// String.fromEnvironment('ZEN_SYNC') is jZen's\n"))
