@@ -476,4 +476,4 @@ Known work left by the plan, each with its issue:
   stripping and line-based transport gates, 'Dalej' vs 'Kontynuuj', the probe's untested branch, no old-format fixture for ADR-125) —
   jlogicsoftware/prudent#278.
 - The privacy statement for a serverless app, owed before release — jlogicsoftware/prudent#280.
-- Main's push run at `f858dbf` failed on one test (`task test:local-store`, ADR-120, see unit 11) — fix PR: jlogicsoftware/prudent#TBD (placeholder, to be filled in).
+- Main's push run at `f858dbf` failed on one test (`task test:local-store`, ADR-120, see unit 11) — fix PR: jlogicsoftware/prudent#281 (ADR-126; not yet merged when this was written, and the wording of the unit 11 row and `CLAUDE.md` waits for it). Related: jZenDev/jZen#263.
