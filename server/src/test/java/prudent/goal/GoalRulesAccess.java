@@ -5,7 +5,7 @@ import java.time.LocalDate;
 /**
  * Opens the package-private arithmetic of {@link GoalProgressCalculator} to the golden-vector
  * generator ({@link prudent.parity.GoldenVectorsTest}), so that Prudent Local's port of goal
- * progress (unit 6a of {@code docs/plans/PRUDENT-LOCAL-PLAN.md}, ADR-052) is held to the methods the
+ * progress (unit 6a of {@code docs/implemented-plans/PRUDENT-LOCAL-PLAN.md}, ADR-052) is held to the methods the
  * server runs, not to a copy of them. It adds no behaviour.
  */
 public final class GoalRulesAccess {

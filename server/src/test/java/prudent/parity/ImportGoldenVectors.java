@@ -30,7 +30,7 @@ import prudent.imports.RowKey;
 
 /**
  * The golden vectors of unit 8a (Prudent Local's Erste parser and row fingerprints, {@code
- * docs/plans/PRUDENT-LOCAL-PLAN.md}): {@code erste_import.json} and {@code
+ * docs/implemented-plans/PRUDENT-LOCAL-PLAN.md}): {@code erste_import.json} and {@code
  * import_fingerprints.json}, written by {@link GoldenVectorsTest}. Kept apart from that class only
  * for size; it writes nothing itself.
  *

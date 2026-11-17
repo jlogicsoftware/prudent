@@ -2,7 +2,7 @@
 @Timeout(Duration(minutes: 3))
 library;
 
-// The parity suite (ADR-107, unit 3 of docs/plans/PRUDENT-LOCAL-PLAN.md): every scenario in
+// The parity suite (ADR-107, unit 3 of docs/implemented-plans/PRUDENT-LOCAL-PLAN.md): every scenario in
 // local/prudent_local_core/parity/scenarios runs through the live Quarkus server and through
 // Prudent Local's ledger over a real store (StoreBackend, ADR-113), and every step's answer must be
 // the same — figures to the cent, normalised text character for character, refusals by status.

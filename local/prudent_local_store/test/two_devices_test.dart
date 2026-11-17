@@ -1,4 +1,4 @@
-// Unit 4's done-when (docs/plans/PRUDENT-LOCAL-PLAN.md): two real sessions, each with its own
+// Unit 4's done-when (docs/implemented-plans/PRUDENT-LOCAL-PLAN.md): two real sessions, each with its own
 // encrypted store, merge disjoint edits and surface the conflicts of §0.2 through ZenFolderCloud —
 // modelled on jZen's zen_demo_local two_devices_test — and, after the merge, list the rules across
 // records it broke (F-05), which one device's action then settles for both.
