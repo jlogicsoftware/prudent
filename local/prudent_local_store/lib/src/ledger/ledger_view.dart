@@ -90,6 +90,9 @@ final class LedgerView {
   final Map<String, GoalAllocation> goalAllocations;
   final Settings? settings;
 
+  /// The stored occurrence states (skipped, or a reminder read) by id; see `PlanLedger`.
+  final Map<String, OccurrenceState> occurrenceStates;
+
   /// Every record in conflict, with each device's value (the deleting side omitted).
   final Map<String, ZenConflict<Record>> recordConflicts;
   final Map<String, ZenConflict<Transfer>> transferConflicts;
@@ -98,6 +101,9 @@ final class LedgerView {
   final Map<String, ZenConflict<Budget>> budgetConflicts;
   final Map<String, ZenConflict<BudgetCarryOverReset>> resetConflicts;
   final Map<String, ZenConflict<Goal>> goalConflicts;
+
+  /// Every plan in conflict, with each device's value (the deleting side omitted).
+  final Map<String, ZenConflict<Plan>> planConflicts;
 
   LedgerView._({
     required this.accounts,
@@ -111,6 +117,7 @@ final class LedgerView {
     required this.goals,
     required this.goalAllocations,
     required this.settings,
+    required this.occurrenceStates,
     required this.recordConflicts,
     required this.transferConflicts,
     required this.currencyConflicts,
@@ -118,6 +125,7 @@ final class LedgerView {
     required this.budgetConflicts,
     required this.resetConflicts,
     required this.goalConflicts,
+    required this.planConflicts,
   });
 
   /// Reads the ledger's collections of [store]; throws [LedgerReadFailure] with the store's error.
@@ -140,6 +148,7 @@ final class LedgerView {
       goals: all(store.goals),
       goalAllocations: all(store.goalAllocations),
       settings: readOrThrow(store.settings.list()).firstOrNull,
+      occurrenceStates: all(store.occurrences),
       recordConflicts: disputed(store.records),
       transferConflicts: disputed(store.transfers),
       currencyConflicts: disputed(store.accountCurrencies),
@@ -147,6 +156,7 @@ final class LedgerView {
       budgetConflicts: disputed(store.budgets),
       resetConflicts: disputed(store.budgetResets),
       goalConflicts: disputed(store.goals),
+      planConflicts: disputed(store.plans),
     );
   }
 
@@ -190,6 +200,12 @@ final class LedgerView {
     ?goals[id],
     for (final side in goalConflicts[id]?.sides ?? const <ZenConflictSide<Goal>>[]) ?side.value,
   ];
+
+  /// Whether a plan with [id] exists on any device's side: shown, or one side of a conflict.
+  bool planExists(String id) => plans.containsKey(id) || planConflicts.containsKey(id);
+
+  /// [recordValues] for plans (unit 6b): the "still used by" rules read every side of a conflict.
+  Iterable<Plan> planValues() => _values(plans, planConflicts);
 
   static Iterable<T> _values<T>(Map<String, T> shown, Map<String, ZenConflict<T>> conflicts) sync* {
     yield* shown.values;

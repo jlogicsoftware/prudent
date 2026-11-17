@@ -57,6 +57,96 @@ final class CivilDate implements Comparable<CivilDate> {
   /// Java's `IsoChronology.isLeapYear`.
   static bool isLeapYear(int year) => (year & 3) == 0 && (year % 100 != 0 || year % 400 == 0);
 
+  // ── Calendar arithmetic (plans, ADR-037) ──────────────────────────────────────────────────────
+  //
+  // `LocalDate.plusDays`, `plusWeeks`, `plusMonths` and `plusYears`, which `RecurrenceRule.occurrence`
+  // computes every occurrence with — always from the anchor, never from the previous one, so that
+  // 31 January clamps to 28 February and returns to 31 March. All four refuse a result outside
+  // Java's range of years (±999 999 999) with [CalendarOverflow], as `DateTimeException`.
+
+  static const int _daysPerCycle = 146097;
+  static const int _daysFromYear0To1970 = 719528;
+  static const int _minYear = -999999999;
+  static const int _maxYear = 999999999;
+
+  /// `LocalDate.toEpochDay`: days since 1970-01-01.
+  int get epochDay {
+    final y = year;
+    final m = month;
+    var total = 365 * y;
+    if (y >= 0) {
+      total += (y + 3) ~/ 4 - (y + 99) ~/ 100 + (y + 399) ~/ 400;
+    } else {
+      total -= y ~/ -4 - y ~/ -100 + y ~/ -400;
+    }
+    total += (367 * m - 362) ~/ 12;
+    total += day - 1;
+    if (m > 2) {
+      total--;
+      if (!isLeapYear(year)) total--;
+    }
+    return total - _daysFromYear0To1970;
+  }
+
+  /// `LocalDate.ofEpochDay`.
+  static CivilDate fromEpochDay(int epochDay) {
+    var zeroDay = epochDay + _daysFromYear0To1970 - 60;
+    var adjust = 0;
+    if (zeroDay < 0) {
+      final adjustCycles = (zeroDay + 1) ~/ _daysPerCycle - 1;
+      adjust = adjustCycles * 400;
+      zeroDay += -adjustCycles * _daysPerCycle;
+    }
+    int doyOf(int yearEst) =>
+        zeroDay - (365 * yearEst + yearEst ~/ 4 - yearEst ~/ 100 + yearEst ~/ 400);
+    var yearEst = (400 * zeroDay + 591) ~/ _daysPerCycle;
+    var doyEst = doyOf(yearEst);
+    if (doyEst < 0) {
+      yearEst--;
+      doyEst = doyOf(yearEst);
+    }
+    yearEst += adjust;
+    final marchMonth0 = (doyEst * 5 + 2) ~/ 153;
+    final month = (marchMonth0 + 2) % 12 + 1;
+    final dom = doyEst - (marchMonth0 * 306 + 5) ~/ 10 + 1;
+    yearEst += marchMonth0 ~/ 10;
+    return CivilDate._checked(yearEst, month, dom);
+  }
+
+  static CivilDate _checked(int year, int month, int day) {
+    if (year < _minYear || year > _maxYear) throw const CalendarOverflow();
+    return CivilDate._(year, month, day);
+  }
+
+  /// `LocalDate.plusDays`.
+  CivilDate plusDays(int days) => days == 0 ? this : fromEpochDay(epochDay + days);
+
+  /// `LocalDate.plusWeeks`.
+  CivilDate plusWeeks(int weeks) => plusDays(weeks * 7);
+
+  /// `LocalDate.plusMonths`: the day of the month is clamped to the last day of a shorter month.
+  CivilDate plusMonths(int months) {
+    if (months == 0) return this;
+    final calc = year * 12 + (month - 1) + months;
+    final newYear = _floorDiv(calc, 12);
+    final newMonth = calc - newYear * 12 + 1;
+    return _previousValid(newYear, newMonth, day);
+  }
+
+  /// `LocalDate.plusYears`: 29 February falls on 28 February in a common year.
+  CivilDate plusYears(int years) => years == 0 ? this : _previousValid(year + years, month, day);
+
+  static int _floorDiv(int a, int b) {
+    final q = a ~/ b;
+    return (a % b != 0 && (a < 0) != (b < 0)) ? q - 1 : q;
+  }
+
+  static CivilDate _previousValid(int year, int month, int day) {
+    if (year < _minYear || year > _maxYear) throw const CalendarOverflow();
+    final last = daysInMonth(year, month);
+    return CivilDate._(year, month, day > last ? last : day);
+  }
+
   /// `LocalDate.toString()`: a 4-digit year padded with zeros, `+` before a year above 9999, `-`
   /// before a negative one.
   @override
@@ -75,6 +165,15 @@ final class CivilDate implements Comparable<CivilDate> {
 
   @override
   int get hashCode => Object.hash(year, month, day);
+}
+
+/// A date computation left the range `LocalDate` can hold (years ±999 999 999): Java's
+/// `DateTimeException`. A rule that can answer "there is no later date" catches it; none else does.
+final class CalendarOverflow implements Exception {
+  const CalendarOverflow();
+
+  @override
+  String toString() => 'CalendarOverflow: outside the years -999999999 to 999999999';
 }
 
 /// A calendar month — Java's `YearMonth`, as the server's `BudgetResource.parseMonth` reads it

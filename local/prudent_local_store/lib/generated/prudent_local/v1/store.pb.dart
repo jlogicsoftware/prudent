@@ -566,10 +566,12 @@ class PlanLink extends $pb.GeneratedMessage {
   factory PlanLink({
     $core.String? planId,
     $core.String? occurrenceId,
+    $core.String? occurrenceDate,
   }) {
     final result = create();
     if (planId != null) result.planId = planId;
     if (occurrenceId != null) result.occurrenceId = occurrenceId;
+    if (occurrenceDate != null) result.occurrenceDate = occurrenceDate;
     return result;
   }
 
@@ -589,6 +591,7 @@ class PlanLink extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'planId')
     ..aOS(2, _omitFieldNames ? '' : 'occurrenceId')
+    ..aOS(3, _omitFieldNames ? '' : 'occurrenceDate')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -626,6 +629,19 @@ class PlanLink extends $pb.GeneratedMessage {
   $core.bool hasOccurrenceId() => $_has(1);
   @$pb.TagNumber(2)
   void clearOccurrenceId() => $_clearField(2);
+
+  /// The occurrence's civil date (YYYY-MM-DD), kept beside its id because the id is a hash and
+  /// cannot be turned back into a date: an occurrence completed under an earlier schedule of its
+  /// plan is still listed, as on the server, and only this says which day it fell on (unit 6b).
+  /// Immutable with the link.
+  @$pb.TagNumber(3)
+  $core.String get occurrenceDate => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set occurrenceDate($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasOccurrenceDate() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearOccurrenceDate() => $_clearField(3);
 }
 
 /// What recognises a re-imported statement row (ADR-091, finding F-02: the wire Record lacks it).

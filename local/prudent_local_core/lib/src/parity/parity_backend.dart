@@ -1,3 +1,5 @@
+import 'parity_clock.dart';
+
 /// What one step answered on one backend: an observation to compare, and the backend's own id of
 /// what the step created (if it created anything and the step binds it with `as`).
 ///
@@ -81,6 +83,11 @@ typedef ParityOp = Future<StepResult> Function(Map<String, Object?> input, Parit
 abstract class ParityBackend {
   /// `server` or `local`, for the report.
   String get name;
+
+  /// The moment the scenario runs at, pinned by the engine before [open] (finding F-07). The local
+  /// backend answers every time-dependent step as of [ParityClock.now]; the server reads its own
+  /// clock a moment later and ignores this.
+  ParityClock? clock;
 
   /// The operations this backend can run, by name.
   Map<String, ParityOp> get ops;

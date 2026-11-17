@@ -8,6 +8,7 @@ import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/goal_allocations.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/goals.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/imports.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/plans.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/records.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart' as wire;
 import 'package:protobuf/protobuf.dart';
@@ -18,6 +19,7 @@ import '../imports/import_workflow.dart';
 import '../ledger/ledger.dart';
 import '../ledger/ledger_errors.dart';
 import '../ledger/ledger_view.dart';
+import '../ledger/plan_ledger.dart';
 import '../ledger/record_query.dart';
 import '../prudent_local_store.dart';
 import 'import_parity.dart';
@@ -45,6 +47,7 @@ final class StoreBackend extends ParityBackend {
   late PrudentLocalStore _store;
   late Ledger _ledger;
   late ImportWorkflow _imports;
+  late PlanLedger _plans;
 
   @override
   late final Map<String, ParityOp> ops = {
@@ -97,6 +100,21 @@ final class StoreBackend extends ParityBackend {
     'allocation.list': _guarded(_listAllocations),
     'envelope.list': _guarded(_listEnvelopes),
     'freemoney.get': _guarded(_freeMoney),
+    // Unit 6b, plans (ADR-119). Request bodies are built by this class's helpers on both sides.
+    'plan.create': _guarded(_createPlan),
+    'plan.update': _guarded(_updatePlan),
+    'plan.delete': _guarded(_deletePlan),
+    'plan.list': _guarded(_listPlans),
+    'occurrence.find': _guarded(_findOccurrence),
+    'occurrence.upcoming': _guarded(_upcoming),
+    'occurrence.overdue': _guarded(_overdue),
+    'occurrence.skip': _guarded(_skip),
+    'occurrence.restore': _guarded(_restore),
+    'occurrence.confirm': _guarded(_confirm),
+    'reminder.list': _guarded(_listReminders),
+    'reminder.read': _guarded(_readReminder),
+    'reminder.unread': _guarded(_unreadReminder),
+    'reminder.readAll': _guarded(_readAllReminders),
   };
 
   int _lastTick = 0;
@@ -117,6 +135,7 @@ final class StoreBackend extends ParityBackend {
     _ledger = Ledger(_store, clock: _tick);
     // The wall clock, as the server's: its importer measures dates from today in UTC.
     _imports = ImportWorkflow(ledger: _store, nowMs: () => DateTime.now().millisecondsSinceEpoch);
+    _plans = PlanLedger(_store);
   }
 
   @override
@@ -652,6 +671,150 @@ final class StoreBackend extends ParityBackend {
   StepResult _session(ZenResult<wire.ImportSession> answer, ParityBindings bindings) => StepResult(
     ParityObservation.accepted(ImportParity.sessionObservation(_json(_ok(answer)), bindings)),
   );
+
+  // ── Plans, occurrences and reminders (unit 6b) ───────────────────────────────────────────────
+
+  /// The plan request a scenario's input names: account and category are references, the recurrence
+  /// and reminder are the wire's JSON as the scenario wrote it.
+  static Map<String, Object?> planBody(Map<String, Object?> input, ParityBindings bindings) => {
+    'title': input['title'],
+    'amountMinor': input['amountMinor'],
+    'currency': input['currency'],
+    'accountId': bindings.idOrLiteral(input['account']),
+    'categoryId': bindings.idOrLiteral(input['category']),
+    for (final key in const ['payee', 'note', 'recurrence', 'reminder'])
+      if (input.containsKey(key)) key: input[key],
+  };
+
+  /// A confirmation's overrides: only what the scenario names, under the wire's names.
+  static Map<String, Object?> confirmBody(Map<String, Object?> input, ParityBindings bindings) => {
+    if (input.containsKey('date')) 'date': input['date'],
+    if (input.containsKey('amountMinor')) 'amountMinor': input['amountMinor'],
+    if (input.containsKey('account')) 'accountId': bindings.idOrLiteral(input['account']),
+    if (input.containsKey('category')) 'categoryId': bindings.idOrLiteral(input['category']),
+  };
+
+  DateTime get _asOf =>
+      clock?.now ?? (throw StateError('a time-dependent step ran before the engine pinned a clock'));
+
+  Future<StepResult> _createPlan(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.CreatePlanRequest()
+      ..mergeFromProto3Json(_present(planBody(input, bindings)));
+    final plan = _ok(await _plans.createPlan(request));
+    return StepResult(
+      ParityObservation.accepted(ParityReaders.plan(_json(plan), bindings)),
+      createdId: plan.id,
+    );
+  }
+
+  Future<StepResult> _updatePlan(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.UpdatePlanRequest()
+      ..mergeFromProto3Json(_present(planBody(input, bindings)));
+    final plan = _ok(await _plans.replacePlan(bindings.idOrLiteral(input['plan'])!, request));
+    return StepResult(ParityObservation.accepted(ParityReaders.plan(_json(plan), bindings)));
+  }
+
+  Future<StepResult> _deletePlan(Map<String, Object?> input, ParityBindings bindings) async {
+    _ok(await _plans.deletePlan(bindings.idOrLiteral(input['plan'])!));
+    return StepResult(ParityObservation.accepted());
+  }
+
+  Future<StepResult> _listPlans(Map<String, Object?> input, ParityBindings bindings) async {
+    final list = _ok(await _plans.listPlans());
+    final rows = (_json(list)['plans'] as List<Object?>?) ?? const [];
+    return StepResult(ParityObservation.accepted({'plans': ParityReaders.planList(rows, bindings)}));
+  }
+
+  Future<StepResult> _findOccurrence(Map<String, Object?> input, ParityBindings bindings) async {
+    final occurrence = _ok(
+      await _plans.occurrenceOf(
+        bindings.idOrLiteral(input['plan'])!,
+        input['date']! as String,
+        asOf: _asOf,
+      ),
+    );
+    return StepResult(
+      ParityObservation.accepted(ParityReaders.occurrence(_json(occurrence), bindings)),
+      createdId: occurrence.id,
+    );
+  }
+
+  Future<StepResult> _upcoming(Map<String, Object?> input, ParityBindings bindings) async {
+    final list = _settled(_ok(await _plans.upcoming(days: input['days'] as int?, asOf: _asOf)));
+    final rows = (_json(list)['occurrences'] as List<Object?>?) ?? const [];
+    return StepResult(ParityObservation.accepted(ParityReaders.occurrenceList(rows, bindings)));
+  }
+
+  Future<StepResult> _overdue(Map<String, Object?> input, ParityBindings bindings) async {
+    final list = _settled(_ok(await _plans.overdue(asOf: _asOf)));
+    final rows = (_json(list)['occurrences'] as List<Object?>?) ?? const [];
+    return StepResult(ParityObservation.accepted(ParityReaders.occurrenceList(rows, bindings)));
+  }
+
+  Future<StepResult> _skip(Map<String, Object?> input, ParityBindings bindings) async {
+    final occurrence = _ok(
+      await _plans.skip(bindings.idOrLiteral(input['occurrence'])!, asOf: _asOf),
+    );
+    return StepResult(
+      ParityObservation.accepted(ParityReaders.occurrence(_json(occurrence), bindings)),
+    );
+  }
+
+  Future<StepResult> _restore(Map<String, Object?> input, ParityBindings bindings) async {
+    final occurrence = _ok(
+      await _plans.restore(bindings.idOrLiteral(input['occurrence'])!, asOf: _asOf),
+    );
+    return StepResult(
+      ParityObservation.accepted(ParityReaders.occurrence(_json(occurrence), bindings)),
+    );
+  }
+
+  Future<StepResult> _confirm(Map<String, Object?> input, ParityBindings bindings) async {
+    final request = wire.ConfirmOccurrenceRequest()
+      ..mergeFromProto3Json(_present(confirmBody(input, bindings)));
+    final answer = _ok(
+      await _plans.confirm(bindings.idOrLiteral(input['occurrence'])!, request, asOf: _asOf),
+    );
+    final json = _json(answer);
+    return StepResult(
+      ParityObservation.accepted({
+        'occurrence': ParityReaders.occurrence(
+          json['occurrence']! as Map<String, Object?>,
+          bindings,
+        ),
+        'record': ParityReaders.record(json['record']! as Map<String, Object?>, bindings),
+      }),
+      createdId: answer.record.id,
+    );
+  }
+
+  Future<StepResult> _listReminders(Map<String, Object?> input, ParityBindings bindings) async {
+    final list = _settled(_ok(await _plans.reminders(asOf: _asOf)));
+    final rows = (_json(list)['reminders'] as List<Object?>?) ?? const [];
+    return StepResult(
+      ParityObservation.accepted(ParityReaders.occurrenceList(rows, bindings, nested: true)),
+    );
+  }
+
+  Future<StepResult> _readReminder(Map<String, Object?> input, ParityBindings bindings) async {
+    final due = _ok(await _plans.markRead(bindings.idOrLiteral(input['occurrence'])!, asOf: _asOf));
+    return StepResult(ParityObservation.accepted(ParityReaders.reminder(_json(due), bindings)));
+  }
+
+  Future<StepResult> _unreadReminder(Map<String, Object?> input, ParityBindings bindings) async {
+    final due = _ok(
+      await _plans.markUnread(bindings.idOrLiteral(input['occurrence'])!, asOf: _asOf),
+    );
+    return StepResult(ParityObservation.accepted(ParityReaders.reminder(_json(due), bindings)));
+  }
+
+  Future<StepResult> _readAllReminders(Map<String, Object?> input, ParityBindings bindings) async {
+    final list = _settled(_ok(await _plans.markAllRead(asOf: _asOf)));
+    final rows = (_json(list)['reminders'] as List<Object?>?) ?? const [];
+    return StepResult(
+      ParityObservation.accepted(ParityReaders.occurrenceList(rows, bindings, nested: true)),
+    );
+  }
 
   // ── Plumbing ────────────────────────────────────────────────────────────────────────────────
 

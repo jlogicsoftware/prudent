@@ -282,7 +282,7 @@ at U+D7A4), root upper-casing the JDK's table (`tool/generate_root_upper_case.da
 Unit 5 (ADR-113) is the ledger: `Ledger` in `local/prudent_local_store/lib/src/ledger/` holds every account,
 category, record, transfer, correction and settings rule of §0.3 rows 5.1–5.53, wire requests in and wire messages out, refusals
 shaped as the server's (`LedgerErrors`). Several records are written as one only through jZen's `ZenStore.writeAll`
-(`PrudentLocalStore.writeAll(StoreBatch)`, jZenDev/jZen#232, consumed at `e6a06c6`), so an account deleted with its records is
+(`PrudentLocalStore.writeAll(StoreBatch)`, jZenDev/jZen#232; `JZEN_REF` is now `4fa887a`), so an account deleted with its records is
 all or nothing. A figure never reads a value two devices disagree about: a disputed posting, transfer or opening counts in no
 balance and is named on every read that answers a balance (`Settled<T>`, `AccountBalances.unsettled`), and a correction is refused until it is settled. Search and name order are the
 core's `SearchRules`, whose fold is a table from the JVM (`golden/fold.json`; the Dart VM's `toLowerCase` differs on 437 code
@@ -305,7 +305,18 @@ rows 6.1–6.28, 6.46–6.50, 6.54 in the server's order; the summary, carry-ove
 `Settled.unsettled` keyed by the figure's category, currency or goal; a reset or `ALLOCATE` refused while its figure is unsettled; every
 write rechecking its rule inside the store's turn through jZen's `expect` (#251), edits against the exact version read;
 `EnvelopeBelowZeroCheck` and `ArchivedGoalMoneyCheck`; `GoalArithmetic` held to `golden/goal_progress.json`; ten parity scenarios (`budget_*`, `carry_over*`, `goal*`, `free_money`) agree with the live server.
-`JZEN_REF` is `4fa887a`. No Local app or screen exists yet.
+`JZEN_REF` is `4fa887a`.
+Unit 6b (ADR-119) is plans, occurrences and reminders: `PlanLedger` (`local/prudent_local_store/lib/src/ledger/plan_ledger.dart`) answers the
+wire plan, occurrence and reminder messages with the server's statuses, over `RecurrenceRule`, `ReminderLeadTimes` (lead days `{0,1,2,3,7}`),
+`PlanZones` and `CivilDate`'s calendar arithmetic in `prudent_local_core`. An occurrence is read from the plan's schedule each time and never
+stored; what is stored is a skip or a reminder-read time (`OccurrenceState`, id derived from plan and date), and an occurrence is completed
+when its confirming record exists (one record, `DerivedIds.confirmation`, whose `PlanLink` carries `occurrence_date`). Every operation takes
+`asOf`; a plan's own zone decides its day. `plans.json` holds recurrence, zone ids, the day at the midnights of stable zones and lead days to the
+JVM (eight zones are refused, `PlanZones.unsupported`; no per-zone offsets are committed, they float with the JDK's tzdata). A plan, or an occurrence state, that two devices disagree about has no occurrence in any list and
+cannot be confirmed, and the lists answer `Settled`; `occurrence.skipped_and_paid` lists a skip and a confirmation that met. The six
+parity scenarios `plans`, `occurrence_windows`, `occurrences`, `schedule_change`, `day_boundary` and `reminders` name dates as
+`@today(Zone)±n` (`ParityClock`), because the server's plan routes take no `asOf`; the notification scheduler of `packages/prudent_ui`
+is reused unchanged. No Local app or screen exists yet, and nothing has been seen on a device.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

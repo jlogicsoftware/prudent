@@ -40,4 +40,10 @@ void main() {
     }
     expect(() => LocalIds.fromServerId('1-1-1-1-1'), throwsA(isA<Refusal>()));
   });
+
+  test("Java's signed UUID.compareTo, which two server routes tie-break by (rows 6.51, 6.52)", () {
+    final local = list('uuids').map(LocalIds.fromServerId).toList()
+      ..sort(LocalIds.compareAsJavaUuid);
+    expect(local, list('javaCompareToOrder').map(LocalIds.fromServerId).toList());
+  });
 }

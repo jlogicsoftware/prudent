@@ -1,0 +1,535 @@
+{
+  "name": "reminders",
+  "description": "A reminder is a still-planned occurrence of a plan whose reminder is on, within its lead time or past its date in the plan's own calendar day, oldest first; read and unread keep the first time and refuse an occurrence with no reminder; skipping or confirming ends one; the read state survives the reminder being switched off and on.",
+  "rules": [
+    "6.32",
+    "6.37",
+    "6.42",
+    "6.43",
+    "6.45",
+    "6.52"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "bills",
+      "outcome": "accepted",
+      "input": {
+        "title": "Bills",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "pay",
+      "outcome": "accepted",
+      "input": {
+        "title": "Pay",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "main",
+      "outcome": "accepted",
+      "input": {
+        "name": "Main",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "100000"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "5000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "other",
+      "outcome": "accepted",
+      "input": {
+        "name": "Other",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "r_in",
+      "outcome": "accepted",
+      "input": {
+        "title": "Within the lead",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+2",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 3
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "r_out",
+      "outcome": "accepted",
+      "input": {
+        "title": "Beyond the lead",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+5",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 3
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "r_today",
+      "outcome": "accepted",
+      "input": {
+        "title": "On the day",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 0
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "r_over",
+      "outcome": "accepted",
+      "input": {
+        "title": "Overdue, lead 0",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)-1",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 0
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "r_off",
+      "outcome": "accepted",
+      "input": {
+        "title": "Reminder off",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+1",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": false,
+          "leadDays": 1
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "r_none",
+      "outcome": "accepted",
+      "input": {
+        "title": "No reminder set",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+1",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "r_week",
+      "outcome": "accepted",
+      "input": {
+        "title": "Seven days",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+7",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 7
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "r_kiri",
+      "outcome": "accepted",
+      "input": {
+        "title": "Kiritimati, that date",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(Pacific/Pago_Pago)",
+          "timeZone": "Pacific/Kiritimati"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 0
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "r_pago_next",
+      "outcome": "accepted",
+      "input": {
+        "title": "Pago Pago, the day after",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(Pacific/Pago_Pago)+1",
+          "timeZone": "Pacific/Pago_Pago"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 0
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "r_kiri_next",
+      "outcome": "accepted",
+      "input": {
+        "title": "Kiritimati, the day after",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(Pacific/Pago_Pago)+1",
+          "timeZone": "Pacific/Kiritimati"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 0
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "r_rep",
+      "outcome": "accepted",
+      "input": {
+        "title": "Repeats",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_DAILY",
+          "startDate": "@today(UTC)-3",
+          "timeZone": "UTC",
+          "interval": 2,
+          "occurrenceCount": 6
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 1
+        }
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_in",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$r_in",
+        "date": "@today(UTC)+2"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_out",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$r_out",
+        "date": "@today(UTC)+5"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_over",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$r_over",
+        "date": "@today(UTC)-1"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_off",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$r_off",
+        "date": "@today(UTC)+1"
+      }
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "reminder.read",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_in"
+      }
+    },
+    {
+      "op": "reminder.read",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_in"
+      }
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "reminder.read",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_out"
+      }
+    },
+    {
+      "op": "reminder.read",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_off"
+      }
+    },
+    {
+      "op": "reminder.read",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "nope"
+      }
+    },
+    {
+      "op": "reminder.unread",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_in"
+      }
+    },
+    {
+      "op": "reminder.unread",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_out"
+      }
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.skip",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_in"
+      }
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "reminder.read",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_in"
+      }
+    },
+    {
+      "op": "occurrence.restore",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_in"
+      }
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.confirm",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_over"
+      }
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "reminder.readAll",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "reminder.unread",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_in"
+      }
+    },
+    {
+      "op": "plan.update",
+      "outcome": "accepted",
+      "input": {
+        "title": "Within the lead",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+2",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": false,
+          "leadDays": 3
+        },
+        "plan": "$r_in"
+      }
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "plan.update",
+      "outcome": "accepted",
+      "input": {
+        "title": "Within the lead",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+2",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 3
+        },
+        "plan": "$r_in"
+      }
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "plan.update",
+      "outcome": "accepted",
+      "input": {
+        "title": "Within the lead",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+3",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 3
+        },
+        "plan": "$r_in"
+      }
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    }
+  ]
+}

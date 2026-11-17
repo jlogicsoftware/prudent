@@ -40,4 +40,19 @@ abstract final class LocalIds {
 
   /// The order of two Local ids: text order, which is byte order.
   static int compare(String a, String b) => a.compareTo(b);
+
+  /// Java's `UUID.compareTo` of two Local ids: each half as a **signed** 64-bit integer, most
+  /// significant first (finding F-11). The two server routes that sort in memory use it
+  /// (`OccurrenceResource.view`, `ReminderResource.current`), so the plan code orders ties by it
+  /// where the server does, and by [compare] where the server's SQL does.
+  /// `test/golden/ids.json` holds it to the JVM.
+  static int compareAsJavaUuid(String a, String b) {
+    int half(String id, int from) =>
+        // 16 hex digits parse as an unsigned value; BigInt-free two's complement via two 32-bit
+        // halves keeps this exact on the web as well.
+        (int.parse(id.substring(from, from + 8), radix: 16) << 32) |
+        int.parse(id.substring(from + 8, from + 16), radix: 16);
+    final high = half(a, 0).compareTo(half(b, 0));
+    return high != 0 ? high : half(a, 16).compareTo(half(b, 16));
+  }
 }

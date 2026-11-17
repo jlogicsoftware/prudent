@@ -244,18 +244,12 @@ final class PrudentLocalStore {
 
   // ── Plans and occurrences ───────────────────────────────────────────────────────────────────
 
-  Future<ZenResult<Plan>> putPlan(Plan value) => _put(plans, value, _Rules<Plan>(id: _randomId));
+  Future<ZenResult<Plan>> putPlan(Plan value) => _put(plans, value, _planRules);
 
   Future<ZenResult<Plan>> deletePlan(String id) => plans.delete(id);
 
-  Future<ZenResult<OccurrenceState>> putOccurrenceState(OccurrenceState value) => _put(
-    occurrences,
-    value,
-    _Rules<OccurrenceState>(
-      id: (v) => _derivedId(v.id, () => DerivedIds.occurrence(v.planId, v.occurrenceDate)),
-      immutable: const ['planId', 'occurrenceDate'],
-    ),
-  );
+  Future<ZenResult<OccurrenceState>> putOccurrenceState(OccurrenceState value) =>
+      _put(occurrences, value, _occurrenceRules);
 
   Future<ZenResult<OccurrenceState>> deleteOccurrenceState(String id) => occurrences.delete(id);
 
@@ -313,6 +307,15 @@ final class PrudentLocalStore {
 
   static final _categoryRules = _Rules<Category>(id: _randomId);
 
+  static final _planRules = _Rules<Plan>(id: _randomId);
+
+  /// Stored only when it differs from the default (skipped, or a reminder read); the id is derived
+  /// from the plan and the date, so two devices that skip one occurrence write one record.
+  static final _occurrenceRules = _Rules<OccurrenceState>(
+    id: (v) => _derivedId(v.id, () => DerivedIds.occurrence(v.planId, v.occurrenceDate)),
+    immutable: const ['planId', 'occurrenceDate'],
+  );
+
   /// An ordinary record or a correction. The correction intent, the plan link and the import key are
   /// immutable, and a correction is never edited at all, only deleted (`RecordResource.java:232`). A
   /// record that confirms an occurrence carries the id derived from it, and an imported record the
@@ -320,7 +323,20 @@ final class PrudentLocalStore {
   static final _recordRules = _Rules<Record>(
     id: (v) {
       if (v.hasPlanLink()) {
-        return _derivedId(v.id, () => DerivedIds.confirmation(v.planLink.occurrenceId));
+        // The link's date, when it carries one, is the date the occurrence id derives from (unit
+        // 6b): a record that names a date its occurrence id does not belong to would complete a
+        // different day than it says.
+        final link = v.planLink;
+        if (link.occurrenceDate.isNotEmpty &&
+            _derivedId(
+                  link.occurrenceId,
+                  () => DerivedIds.occurrence(link.planId, link.occurrenceDate),
+                ) !=
+                null) {
+          return 'The plan link of records/${v.id} names an occurrence that is not its plan\'s on '
+              '${link.occurrenceDate}.';
+        }
+        return _derivedId(v.id, () => DerivedIds.confirmation(link.occurrenceId));
       }
       if (v.hasImportKey()) {
         return _derivedId(
@@ -500,8 +516,9 @@ final class _Rules<T extends GeneratedMessage> {
 /// Writes and deletes for [PrudentLocalStore.writeAll], named like the store's own methods and held
 /// to the same rules. Nothing is checked or written until `writeAll` runs it.
 ///
-/// Only the collections the ledger writes together are here (unit 5: an account with its currencies
-/// and the default setting, an account deleted with its records). A later unit that writes several
+/// Only the collections written together are here (unit 5: an account with its currencies and the
+/// default setting, an account deleted with its records; unit 6b: a plan with its occurrence states,
+/// a confirmation). A later unit that writes several
 /// records as one adds its own methods, each delegating to the single-record rules.
 final class StoreBatch {
   final PrudentLocalStore _store;
@@ -534,6 +551,15 @@ final class StoreBatch {
     LocalImportSession value, {
     ZenError? Function(LocalImportSession? current)? expect,
   }) => _put(_store.importSessions, value, PrudentLocalStore._importSessionRules, expect: expect);
+
+  void putPlan(Plan value) => _put(_store.plans, value, PrudentLocalStore._planRules);
+
+  void deletePlan(String id) => _delete(_store.plans, id);
+
+  void putOccurrenceState(OccurrenceState value) =>
+      _put(_store.occurrences, value, PrudentLocalStore._occurrenceRules);
+
+  void deleteOccurrenceState(String id) => _delete(_store.occurrences, id);
 
   void deleteRecord(String id) => _delete(_store.records, id);
 

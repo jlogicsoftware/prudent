@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../local_ids.dart';
 import 'parity_backend.dart';
 
 /// Reads the wire messages both backends answer — the server's canonical proto3 JSON, and Local's
@@ -255,5 +256,119 @@ abstract final class ParityReaders {
         ? int64(body, 'monthlyContributionMinor')
         : null,
     'monthsRemaining': body['monthsRemaining'] as int?,
+  };
+
+  // ── Plans, occurrences and reminders (unit 6b) ──────────────────────────────────────────────
+
+  /// A plan: every field but its id, with its recurrence and reminder written out in full.
+  static Map<String, Object?> plan(Map<String, Object?> body, ParityBindings bindings) {
+    final recurrence = (body['recurrence'] as Map<String, Object?>?) ?? const {};
+    final reminder = (body['reminder'] as Map<String, Object?>?) ?? const {};
+    return {
+      'title': string(body, 'title'),
+      'amountMinor': int64(body, 'amountMinor'),
+      'currency': string(body, 'currency'),
+      'account': bindings.nameOf(body['accountId'] as String?),
+      'category': bindings.nameOf(body['categoryId'] as String?),
+      'payee': body['payee'] as String?,
+      'note': body['note'] as String?,
+      'recurrence': {
+        'frequency': enumName(recurrence, 'frequency', 'RECURRENCE_FREQUENCY_UNSPECIFIED'),
+        'interval': uint32(recurrence, 'interval'),
+        'startDate': string(recurrence, 'startDate'),
+        'timeZone': string(recurrence, 'timeZone'),
+        'untilDate': recurrence['untilDate'] as String?,
+        'occurrenceCount': recurrence['occurrenceCount']?.toString(),
+      },
+      'reminder': {
+        'enabled': boolean(reminder, 'enabled'),
+        'leadDays': reminder['leadDays']?.toString(),
+      },
+    };
+  }
+
+  /// The plans a scenario bound, in the order the backend listed them. Plans that start on one date
+  /// tie-break by id, which differs between the backends, so each date's plans are read as a set.
+  static List<Map<String, Object?>> planList(List<Object?> rows, ParityBindings bindings) {
+    final days = <Map<String, Object?>>[];
+    for (final row in rows.cast<Map<String, Object?>>()) {
+      final name = bindings.nameOf(row['id'] as String?);
+      if (name == null) continue;
+      final start = string((row['recurrence'] as Map<String, Object?>?) ?? const {}, 'startDate');
+      if (days.isEmpty || days.last['startDate'] != start) {
+        days.add({'startDate': start, 'plans': <String>[]});
+      }
+      (days.last['plans']! as List<String>).add(name);
+    }
+    for (final day in days) {
+      (day['plans']! as List<String>).sort();
+    }
+    return days;
+  }
+
+  /// One occurrence: where it falls, how it stands and the plan's fields it shows. Its id differs
+  /// between the backends and is not observed.
+  static Map<String, Object?> occurrence(Map<String, Object?> body, ParityBindings bindings) => {
+    'plan': bindings.nameOf(body['planId'] as String?),
+    'date': string(body, 'occurrenceDate'),
+    'status': enumName(body, 'status', 'OCCURRENCE_STATUS_UNSPECIFIED'),
+    'title': string(body, 'title'),
+    'amountMinor': int64(body, 'amountMinor'),
+    'currency': string(body, 'currency'),
+    'account': bindings.nameOf(body['accountId'] as String?),
+    'category': bindings.nameOf(body['categoryId'] as String?),
+  };
+
+  /// A list of occurrences, or of reminders (whose occurrence is [nested]): the ones of the plans this
+  /// scenario bound, grouped by date in the order listed; within a date they are a set, because ids
+  /// differ between the backends. What is compared of the id order is whether ties come out in Java's
+  /// signed `UUID.compareTo` order, as the server's in-memory sorts put them (finding F-11): each
+  /// backend answers `"signed"` or `"not signed"`.
+  static Map<String, Object?> occurrenceList(
+    List<Object?> rows,
+    ParityBindings bindings, {
+    bool nested = false,
+  }) {
+    final days = <Map<String, Object?>>[];
+    var signed = true;
+    String? lastDate;
+    String? lastId;
+    for (final row in rows.cast<Map<String, Object?>>()) {
+      final occurrenceBody = nested ? row['occurrence']! as Map<String, Object?> : row;
+      final read = nested
+          ? {
+              'occurrence': occurrence(occurrenceBody, bindings),
+              'remindOn': string(row, 'remindOn'),
+              'leadDays': uint32(row, 'leadDays'),
+              'read': boolean(row, 'read'),
+            }
+          : occurrence(occurrenceBody, bindings);
+      final shown = nested ? read['occurrence']! as Map<String, Object?> : read;
+      if (shown['plan'] == null) continue;
+      final date = shown['date']! as String;
+      final id = string(occurrenceBody, 'id').replaceAll('-', '');
+      if (date != lastDate) {
+        days.add({'date': date, 'rows': <Map<String, Object?>>[]});
+        lastDate = date;
+      } else if (lastId != null && LocalIds.compareAsJavaUuid(lastId, id) >= 0) {
+        signed = false;
+      }
+      lastId = id;
+      (days.last['rows']! as List<Map<String, Object?>>).add(read);
+    }
+    for (final day in days) {
+      (day['rows']! as List<Map<String, Object?>>).sort(
+        (a, b) => jsonEncode(a).compareTo(jsonEncode(b)),
+      );
+    }
+    return {'days': days, 'tieOrder': signed ? 'signed' : 'not signed'};
+  }
+
+  /// One reminder: its occurrence, the day it fell due, the lead time and whether it was read.
+  static Map<String, Object?> reminder(Map<String, Object?> body, ParityBindings bindings) => {
+    'occurrence': occurrence((body['occurrence'] as Map<String, Object?>?) ?? const {}, bindings),
+    'remindOn': string(body, 'remindOn'),
+    'leadDays': uint32(body, 'leadDays'),
+    'read': boolean(body, 'read'),
   };
 }

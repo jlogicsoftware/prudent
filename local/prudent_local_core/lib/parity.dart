@@ -9,6 +9,7 @@
 library;
 
 export 'src/parity/parity_backend.dart';
+export 'src/parity/parity_clock.dart';
 export 'src/parity/parity_engine.dart';
 export 'src/parity/parity_readers.dart';
 export 'src/parity/parity_scenario.dart';

@@ -23,19 +23,20 @@ void main() {
   for (final file in files) {
     test(file.uri.pathSegments.last, () async {
       final scenario = ParityScenario.parse(file.readAsStringSync());
-      final local = StoreBackend();
+      final local = StoreBackend()..clock = ParityClock();
       final bindings = ParityBindings();
       await local.open(scenario.name);
       try {
         for (final (index, step) in scenario.steps.indexed) {
           final op = local.ops[step.op];
           expect(op, isNotNull, reason: 'the local backend has no "${step.op}"');
-          final result = await op!(step.input, bindings);
+          final input = local.clock!.expand(step.input)! as Map<String, Object?>;
+          final result = await op!(input, bindings);
           if (step.outcome != null) {
             expect(
               result.observation['outcome'],
               step.outcome,
-              reason: 'step $index ${step.op} ${step.input}: ${result.observation}',
+              reason: 'step $index ${step.op} $input: ${result.observation}',
             );
           }
           if (step.bindAs != null) bindings.bind(step.bindAs!, result.createdId!);
