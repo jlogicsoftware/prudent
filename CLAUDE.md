@@ -342,6 +342,15 @@ and refuses a sync folder inside the app's data; the app is behind `ZenLockGate(
 (`flutter test` with the client's defines; the touch-size rule runs when compiled for `android`/`ios`) and `integration_test/app_test.dart`
 (macOS) pass; an unsigned macOS build cannot reach the Keychain (`-34018`) and refuses to open, so a signed build and every device are
 unit 12's. The gates cover it (DART_ROOTS, `verify:analyze`, `verify:controls`, `verify:swiftpm`; boundaries F and H already did).
+Unit 10b (ADR-123) moves a server account in: `MoveIn` (`local/prudent_local_store/lib/src/move_in/`) reads the privacy export file
+(`MoveIn.read`, unknown fields refused) into an **empty** store as one `writeAll` whose first `expect` rechecks emptiness inside the turn;
+ids are the export's (`LocalIds.fromServerId`) or derived from natural keys (openings, budgets, skips, confirmations, imported records keyed
+by `record_import_keys`, so a statement imported on the server is a duplicate after the move); openings are `exported balance − Σ records`
+(F-03), transfer legs are joined, and the move is refused whole (`MoveInRule`, ids and amounts only in its facts) unless every balance from
+`LedgerView.planned` matches the export to the cent. **Only balances are checked at run time**; budgets, carry-over, envelopes, free money,
+goal progress and occurrences are proven by `tools/prudent_parity_server/test/move_in_test.dart` (`parity/move_in/move_in.json`), which moves
+the live server's export in and compares every answer. The Local app has "Move my data in" under Privacy and data (`MoveInScreen`, en/uk/pl).
+No real export and no device has been tried.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

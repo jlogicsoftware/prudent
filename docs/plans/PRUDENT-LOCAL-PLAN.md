@@ -314,6 +314,10 @@ compares the Local figures after the import with the server's own answers — ba
 carry-over, envelopes, free money and goal progress — to the cent. At run time only the balances are
 checked; the other figures are proven by that test, not by the app.
 
+**Status (ADR-123):** built. `MoveIn` in `local/prudent_local_store` (one `writeAll`, ids from the export, the balance check over
+`LedgerView.planned`), the round trip against the live server in `tools/prudent_parity_server/test/move_in_test.dart`
+(`parity/move_in/move_in.json`), and "Move my data in" in the Local app (en/uk/pl). **Open:** a real export, the picker on a device (unit 12).
+
 ### Unit 11 — Taskfile and CI
 `task` runs the Local app with no server, refuses web, and builds on iOS, macOS, Android, Windows
 and Linux in CI (jZen's `Taskfile.app.yml` already supports this). `verify:boundaries` forbids
