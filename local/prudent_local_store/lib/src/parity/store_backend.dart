@@ -23,6 +23,8 @@ import '../ledger/ledger_errors.dart';
 import '../ledger/ledger_view.dart';
 import '../ledger/plan_ledger.dart';
 import '../ledger/record_query.dart';
+import '../integrity/integrity_issue.dart';
+import '../integrity/integrity_runner.dart';
 import '../move_in/move_in.dart';
 import '../prudent_local_store.dart';
 import 'import_parity.dart';
@@ -149,6 +151,9 @@ final class StoreBackend extends ParityBackend {
   /// move-in suite runs a scenario's history on the server, moves the server's export in here, and
   /// then compares every figure on both sides.
   Future<MoveInResult> moveIn(wire.DataExport export) => MoveIn(_store).run(export);
+
+  /// Every integrity issue the store holds now (unit 10b's parity test expects none after a move).
+  ZenResult<List<IntegrityIssue>> integrityIssues() => IntegrityRunner(_store).evaluate();
 
   @override
   Future<void> close() async {

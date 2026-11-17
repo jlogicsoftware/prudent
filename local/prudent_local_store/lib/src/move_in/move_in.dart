@@ -4,6 +4,8 @@ import 'package:fixnum/fixnum.dart';
 import 'package:meta/meta.dart';
 import 'package:prudent_local_core/prudent_local_core.dart';
 import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/goal_allocations.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/goals.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/plans.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/privacy.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/records.pb.dart' as wire;
@@ -62,15 +64,69 @@ final class MoveIn {
   static final RegExp _fingerprint = RegExp(r'^v1:[0-9a-f]{64}$');
 
   /// The export in [bytes]: UTF-8, canonical proto3 JSON, as the server answers it and as both apps
-  /// save it. A field this build does not know is refused rather than dropped.
+  /// save it. A field this build does not know is refused rather than dropped, and so is a 64-bit
+  /// integer outside its range: the protobuf reader wraps one silently (`"9223372036854775808"`
+  /// reads as the most negative value), and an amount that wrapped would pass the balance check,
+  /// because the openings are derived from the very values read.
   static wire.DataExport read(List<int> bytes) {
     try {
       final Object? json = jsonDecode(utf8.decode(bytes));
-      return wire.DataExport()..mergeFromProto3Json(json, ignoreUnknownFields: false);
+      final export = wire.DataExport();
+      _int64sInRange(json, export.info_);
+      return export..mergeFromProto3Json(json, ignoreUnknownFields: false);
     } on FormatException {
       throw const MoveInRefusal(MoveInRule.unreadable);
     } on ArgumentError {
       throw const MoveInRefusal(MoveInRule.unreadable);
+    }
+  }
+
+  static final BigInt _int64Min = -(BigInt.one << 63);
+  static final BigInt _int64Max = (BigInt.one << 63) - BigInt.one;
+  static final BigInt _uint64Max = (BigInt.one << 64) - BigInt.one;
+
+  /// Walks [json] beside the message [info] describes and refuses any 64-bit integer field whose
+  /// value is not an integer in that field's range. Fields this walk does not know are left to the
+  /// reader, which refuses them.
+  static void _int64sInRange(Object? json, BuilderInfo info) {
+    if (json is! Map) return;
+    for (final MapEntry(:key, :value) in json.entries) {
+      FieldInfo<Object?>? field = info.byName[key];
+      if (field == null) {
+        for (final candidate in info.fieldInfo.values) {
+          if (candidate.protoName == key) field = candidate;
+        }
+      }
+      if (field == null || value == null) continue;
+      final values = field.isRepeated && value is List ? value : [value];
+      final base = PbFieldType.baseType(field.type);
+      final signed =
+          base == PbFieldType.INT64_BIT ||
+          base == PbFieldType.SINT64_BIT ||
+          base == PbFieldType.SFIXED64_BIT;
+      final unsigned = base == PbFieldType.UINT64_BIT || base == PbFieldType.FIXED64_BIT;
+      if (signed || unsigned) {
+        for (final item in values) {
+          final number = switch (item) {
+            final String text => BigInt.tryParse(text),
+            final int whole => BigInt.from(whole),
+            final double real when real == real.truncateToDouble() && real.isFinite => BigInt.from(
+              real,
+            ),
+            _ => null,
+          };
+          if (number == null ||
+              number < (signed ? _int64Min : BigInt.zero) ||
+              number > (signed ? _int64Max : _uint64Max)) {
+            throw const MoveInRefusal(MoveInRule.unreadable);
+          }
+        }
+      } else if (field.subBuilder != null) {
+        final sub = field.subBuilder!().info_;
+        for (final item in values) {
+          _int64sInRange(item, sub);
+        }
+      }
     }
   }
 
@@ -314,12 +370,22 @@ final class _Planner {
     for (final value in export.accounts) {
       final id = _id(value.id, 'accounts');
       _unique(wireAccounts.keys, id, 'accounts');
+      _value(value.type != wire.AccountType.ACCOUNT_TYPE_UNSPECIFIED, 'accounts', id, 'type');
+      if (value.hasAccountNumber()) {
+        _value(
+          AccountNumbers.normalize(value.accountNumber) == value.accountNumber,
+          'accounts',
+          id,
+          'account_number',
+        );
+      }
       wireAccounts[id] = value;
       if (value.isDefault) {
         defaults++;
         defaultAccount = id;
       }
       for (final balance in value.balances) {
+        _value(_currency(balance.currency), 'accounts', id, 'currency');
         _canonical(() => DerivedIds.accountCurrency(id, balance.currency), 'accounts', id);
         exported[(id, balance.currency)] = balance.amountMinor.toInt();
       }
@@ -341,9 +407,21 @@ final class _Planner {
       _unique(plans.keys, id, 'plans');
       final account = _ref(value.accountId, 'plans', id, 'accounts', wireAccounts.keys);
       final category = _ref(value.categoryId, 'plans', id, 'categories', categories.keys);
+      _value(_currency(value.currency), 'plans', id, 'currency');
       _held(exported, account, value.currency, 'plans', id);
+      _value(value.amountMinor != 0, 'plans', id, 'amount');
       if (value.hasRecurrence() && !PlanZones.isValid(value.recurrence.timeZone)) {
         throw MoveInRefusal(MoveInRule.planZone, {'plan': id});
+      }
+      _value(value.hasRecurrence(), 'plans', id, 'recurrence');
+      _value(_recurrence(value.recurrence), 'plans', id, 'recurrence');
+      if (value.hasReminder()) {
+        _value(
+          ReminderLeadTimes.supported.contains(value.reminder.leadDays),
+          'plans',
+          id,
+          'reminder',
+        );
       }
       plans[id] = WireMapper.planFromWire(
         value.deepCopy()
@@ -360,6 +438,13 @@ final class _Planner {
       final id = _id(value.id, 'occurrences');
       _unique(occurrences.keys, id, 'occurrences');
       final plan = _ref(value.planId, 'occurrences', id, 'plans', plans.keys);
+      _value(_date(value.occurrenceDate), 'occurrences', id, 'date');
+      _value(
+        value.status != wire.OccurrenceStatus.OCCURRENCE_STATUS_UNSPECIFIED,
+        'occurrences',
+        id,
+        'status',
+      );
       final slot = _canonical(
         () => DerivedIds.occurrence(plan, value.occurrenceDate),
         'occurrences',
@@ -386,7 +471,10 @@ final class _Planner {
       _unique(seenRecordIds, id, 'records');
       seenRecordIds.add(id);
       final account = _ref(value.accountId, 'records', id, 'accounts', wireAccounts.keys);
+      _value(_currency(value.currency), 'records', id, 'currency');
       _held(exported, account, value.currency, 'records', id);
+      _value(_date(value.date), 'records', id, 'date');
+      _value(value.amountMinor != 0, 'records', id, 'amount');
       final key = (account, value.currency);
       postings[key] = addExact(postings[key] ?? 0, value.amountMinor.toInt());
       if (value.hasTransferId()) {
@@ -439,7 +527,10 @@ final class _Planner {
     for (final MapEntry(key: id, value: pair) in legs.entries) {
       final from = pair.where((r) => r.amountMinor < 0).toList();
       final to = pair.where((r) => r.amountMinor > 0).toList();
-      if (pair.length != 2 || from.length != 1 || to.length != 1) {
+      if (pair.length != 2 ||
+          from.length != 1 ||
+          to.length != 1 ||
+          from.single.accountId == to.single.accountId) {
         throw MoveInRefusal(MoveInRule.transferBroken, {'transfer': id, 'legs': '${pair.length}'});
       }
       try {
@@ -494,7 +585,9 @@ final class _Planner {
       final key = keys[id];
       ImportKey? importKey;
       if (key != null) {
-        if (link != null || value.isCorrection || !MoveIn._fingerprint.hasMatch(key.fingerprint) ||
+        if (link != null ||
+            value.isCorrection ||
+            !MoveIn._fingerprint.hasMatch(key.fingerprint) ||
             key.occurrence < 1) {
           throw MoveInRefusal(MoveInRule.importKey, {'record': id});
         }
@@ -533,8 +626,16 @@ final class _Planner {
     // ── Budgets, resets, goals, allocations, settings ─────────────────────────────────────────
     final budgets = <String, Budget>{};
     for (final value in export.budgets) {
-      final category = _ref(value.categoryId, 'budgets', value.categoryId, 'categories',
-          categories.keys);
+      final category = _ref(
+        value.categoryId,
+        'budgets',
+        value.categoryId,
+        'categories',
+        categories.keys,
+      );
+      _value(_currency(value.currency), 'budgets', category, 'currency');
+      _value(_month(value.month), 'budgets', category, 'month');
+      _value(value.amountMinor > 0, 'budgets', category, 'amount');
       final budget = _canonical(
         () => WireMapper.budgetFromWire(value.deepCopy()..categoryId = category),
         'budgets',
@@ -547,8 +648,15 @@ final class _Planner {
     for (final value in export.carryOverResets) {
       final id = _id(value.id, 'carry_over_resets');
       _unique(resets.keys, id, 'carry_over_resets');
-      final category = _ref(value.categoryId, 'carry_over_resets', id, 'categories',
-          categories.keys);
+      final category = _ref(
+        value.categoryId,
+        'carry_over_resets',
+        id,
+        'categories',
+        categories.keys,
+      );
+      _value(_currency(value.currency), 'carry_over_resets', id, 'currency');
+      _value(_month(value.month), 'carry_over_resets', id, 'month');
       resets[id] = _canonical(
         () => WireMapper.resetFromWire(
           value.deepCopy()
@@ -563,6 +671,10 @@ final class _Planner {
     for (final value in export.goals) {
       final id = _id(value.id, 'goals');
       _unique(goals.keys, id, 'goals');
+      _value(_currency(value.currency), 'goals', id, 'currency');
+      _value(value.targetAmountMinor > 0, 'goals', id, 'target');
+      _value(value.status != wire.GoalStatus.GOAL_STATUS_UNSPECIFIED, 'goals', id, 'status');
+      if (value.hasTargetDate()) _value(_date(value.targetDate), 'goals', id, 'target_date');
       goals[id] = WireMapper.goalFromWire(value.deepCopy()..id = id);
     }
     final allocations = <String, GoalAllocation>{};
@@ -570,18 +682,53 @@ final class _Planner {
       final id = _id(value.id, 'goal_allocations');
       _unique(allocations.keys, id, 'goal_allocations');
       final copy = value.deepCopy()..id = id;
+      // `GoalAllocationResource.create`'s shape: a kind, a positive amount, exactly the goals the
+      // kind takes, two different goals for a move, and the currency of the goals it names.
+      final kind = value.kind;
+      _value(
+        kind != wire.GoalAllocationKind.GOAL_ALLOCATION_KIND_UNSPECIFIED,
+        'goal_allocations',
+        id,
+        'kind',
+      );
+      _value(value.amountMinor > 0, 'goal_allocations', id, 'amount');
+      _value(
+        value.hasSourceGoalId() == (kind != wire.GoalAllocationKind.GOAL_ALLOCATION_KIND_ALLOCATE),
+        'goal_allocations',
+        id,
+        'source_goal',
+      );
+      _value(
+        value.hasTargetGoalId() == (kind != wire.GoalAllocationKind.GOAL_ALLOCATION_KIND_WITHDRAW),
+        'goal_allocations',
+        id,
+        'target_goal',
+      );
+      _value(
+        !value.hasSourceGoalId() || value.sourceGoalId != value.targetGoalId,
+        'goal_allocations',
+        id,
+        'target_goal',
+      );
       if (value.hasSourceGoalId()) {
         copy.sourceGoalId = _ref(value.sourceGoalId, 'goal_allocations', id, 'goals', goals.keys);
       }
       if (value.hasTargetGoalId()) {
         copy.targetGoalId = _ref(value.targetGoalId, 'goal_allocations', id, 'goals', goals.keys);
       }
+      for (final goal in [
+        if (copy.hasSourceGoalId()) copy.sourceGoalId,
+        if (copy.hasTargetGoalId()) copy.targetGoalId,
+      ]) {
+        _value(goals[goal]!.currency == value.currency, 'goal_allocations', id, 'currency');
+      }
       allocations[id] = WireMapper.allocationFromWire(copy);
     }
-    final settings = WireMapper.settingsFromWire(
-      export.settings,
-      defaultAccountId: defaultAccount,
-    );
+    // No settings is what the server exports for a person who never saved any: the default stands.
+    if (export.hasSettings() && export.settings.mainCurrency.isNotEmpty) {
+      _value(_currency(export.settings.mainCurrency), 'settings', 'settings', 'main_currency');
+    }
+    final settings = WireMapper.settingsFromWire(export.settings, defaultAccountId: defaultAccount);
 
     // ── The balance check (ADR-103) ───────────────────────────────────────────────────────────
     fault?.call(records, transfers);
@@ -636,7 +783,8 @@ final class _Planner {
     );
     // Sorted by id, so the batch is the same on every device and in every run.
     List<T> sorted<T extends GeneratedMessage>(Iterable<T> values) =>
-        values.toList()..sort((a, b) => (a.getField(1) as String).compareTo(b.getField(1) as String));
+        values.toList()
+          ..sort((a, b) => (a.getField(1) as String).compareTo(b.getField(1) as String));
     out.accounts.addAll(sorted(accounts.values));
     out.accountCurrencies.addAll(sorted(currencies.values));
     out.categories.addAll(sorted(categories.values));
@@ -667,23 +815,24 @@ final class _Planner {
   ) {
     if (corrections.isEmpty) return;
     // Every posting as (date, id, account, currency, amount).
-    final entries = <(String, String, String, String, int)>[
-      for (final r in records.values)
-        (r.date, r.id, r.posting.accountId, r.posting.currency, r.posting.amountMinor.toInt()),
-      for (final t in transfers.values) ...[
-        (t.date, t.id, t.source.accountId, t.source.currency, -t.source.amountMinor.toInt()),
-        (
-          t.date,
-          t.id,
-          t.destination.accountId,
-          t.destination.currency,
-          t.destination.amountMinor.toInt(),
-        ),
-      ],
-    ]..sort((a, b) {
-      final byDate = a.$1.compareTo(b.$1);
-      return byDate != 0 ? byDate : a.$2.compareTo(b.$2);
-    });
+    final entries =
+        <(String, String, String, String, int)>[
+          for (final r in records.values)
+            (r.date, r.id, r.posting.accountId, r.posting.currency, r.posting.amountMinor.toInt()),
+          for (final t in transfers.values) ...[
+            (t.date, t.id, t.source.accountId, t.source.currency, -t.source.amountMinor.toInt()),
+            (
+              t.date,
+              t.id,
+              t.destination.accountId,
+              t.destination.currency,
+              t.destination.amountMinor.toInt(),
+            ),
+          ],
+        ]..sort((a, b) {
+          final byDate = a.$1.compareTo(b.$1);
+          return byDate != 0 ? byDate : a.$2.compareTo(b.$2);
+        });
     final running = <(String, String), int>{
       for (final c in currencies.values) (c.accountId, c.currency): c.openingMinor.toInt(),
     };
@@ -756,6 +905,54 @@ final class _Planner {
         'account': account,
         'currency': currency,
       });
+    }
+  }
+
+  /// Refused as [MoveInRule.invalidValue] unless [ok]: the value of [field] is not one the server
+  /// would have stored (the create-time checks of the Ledger and of the server's resources).
+  static void _value(bool ok, String collection, String id, String field) {
+    if (!ok) {
+      throw MoveInRefusal(MoveInRule.invalidValue, {
+        'collection': collection,
+        'id': id,
+        'field': field,
+      });
+    }
+  }
+
+  /// A canonical ISO-4217 code, as stored: valid and already in its normal form.
+  static bool _currency(String code) =>
+      Currencies.isValid(code) && Currencies.normalize(code) == code;
+
+  /// A date as stored: strict `YYYY-MM-DD` that prints back the same.
+  static bool _date(String text) => CivilDate.tryParse(text)?.toString() == text;
+
+  static bool _month(String text) => CivilMonth.tryParse(text)?.toString() == text;
+
+  /// A recurrence the plan rules accept (`RecurrenceRule.parse`).
+  static bool _recurrence(wire.Recurrence r) {
+    final frequency = switch (r.frequency) {
+      wire.RecurrenceFrequency.RECURRENCE_FREQUENCY_ONCE => PlanFrequency.once,
+      wire.RecurrenceFrequency.RECURRENCE_FREQUENCY_DAILY => PlanFrequency.daily,
+      wire.RecurrenceFrequency.RECURRENCE_FREQUENCY_WEEKLY => PlanFrequency.weekly,
+      wire.RecurrenceFrequency.RECURRENCE_FREQUENCY_MONTHLY => PlanFrequency.monthly,
+      wire.RecurrenceFrequency.RECURRENCE_FREQUENCY_YEARLY => PlanFrequency.yearly,
+      _ => null,
+    };
+    try {
+      final rule = RecurrenceRule.parse(
+        frequency: frequency,
+        interval: r.interval,
+        startDate: r.startDate,
+        timeZone: r.timeZone,
+        untilDate: r.whichEnd() == wire.Recurrence_End.untilDate ? r.untilDate : null,
+        occurrenceCount: r.whichEnd() == wire.Recurrence_End.occurrenceCount
+            ? r.occurrenceCount
+            : null,
+      );
+      return rule.startDate.toString() == r.startDate;
+    } on Refusal {
+      return false;
     }
   }
 

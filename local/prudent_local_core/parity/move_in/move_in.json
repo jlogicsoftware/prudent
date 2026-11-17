@@ -1,6 +1,6 @@
 {
   "name": "move_in",
-  "description": "A whole history built on the server - accounts in two currencies, an edited record, an archived category, transfers (one across currencies, one deleted), two corrections, settings, a weekly plan with a confirmed and a skipped occurrence and a monthly one, budgets and carry-over resets (one revoked), goals in every state with every kind of allocation, a committed statement and an open session - then the server's privacy export moved into an empty Local store (unit 10b, ADR-123), and every figure compared with the server's own answers: balances, records, budget summaries, carry-over, envelopes, free money, goal progress, occurrences, reminders and spend; then the same statement is a duplicate on both.",
+  "description": "A whole history built on the server - accounts in two currencies, an edited record, an archived category, transfers (one across currencies, one deleted), two corrections with records created after them, settings, a weekly plan with a confirmed and a skipped occurrence, a monthly one, and one whose schedule changed after a skip and a confirmation, budgets and carry-over resets (one revoked), goals in every state with every kind of allocation, a committed statement and an open session - then the server's privacy export moved into an empty Local store (unit 10b, ADR-123), and every figure compared with the server's own answers: balances, records, budget summaries, carry-over, envelopes, free money, goal progress, occurrences, reminders and spend; then the same statement is a duplicate on both.",
   "rules": [
     "10b"
   ],
@@ -315,6 +315,31 @@
       }
     },
     {
+      "comment": "Created after both corrections: one dated between them, one after them. The export has no order of creation, so the move rebuilds each correction's intent in date order; the integrity check after the move must still find nothing.",
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-300",
+        "currency": "PLN",
+        "date": "2026-10-15",
+        "title": "Between"
+      }
+    },
+    {
+      "op": "record.create",
+      "outcome": "accepted",
+      "input": {
+        "account": "$wallet",
+        "category": "$food",
+        "amountMinor": "-700",
+        "currency": "PLN",
+        "date": "2026-10-28",
+        "title": "After"
+      }
+    },
+    {
       "op": "settings.update",
       "outcome": "accepted",
       "input": {
@@ -393,6 +418,83 @@
       "outcome": "accepted",
       "input": {
         "occurrence": "$o2"
+      }
+    },
+    {
+      "comment": "A plan whose schedule changes after one occurrence was skipped and one confirmed (ADR-119): both decisions are off the new schedule when the export is made.",
+      "op": "plan.create",
+      "as": "shift",
+      "outcome": "accepted",
+      "input": {
+        "title": "Shift",
+        "amountMinor": "-100",
+        "currency": "EUR",
+        "account": "$wallet",
+        "category": "$fun",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_DAILY",
+          "startDate": "@today(UTC)-3",
+          "timeZone": "UTC",
+          "interval": 1,
+          "occurrenceCount": 8
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 2
+        }
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "s_skip",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$shift",
+        "date": "@today(UTC)-1"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "s_paid",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$shift",
+        "date": "@today(UTC)-2"
+      }
+    },
+    {
+      "op": "occurrence.skip",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$s_skip"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$s_paid"
+      }
+    },
+    {
+      "op": "plan.update",
+      "outcome": "accepted",
+      "input": {
+        "title": "Shift, once later",
+        "amountMinor": "-100",
+        "currency": "EUR",
+        "account": "$wallet",
+        "category": "$fun",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+20",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 2
+        },
+        "plan": "$shift"
       }
     },
     {

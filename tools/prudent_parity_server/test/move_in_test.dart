@@ -26,6 +26,7 @@ import 'package:prudent_local_store/parity.dart';
 import 'package:prudent_local_store/prudent_local_store.dart';
 import 'package:prudent_parity_server/server_backend.dart';
 import 'package:test/test.dart';
+import 'package:zen_core/zen_core.dart';
 
 void main() {
   final baseUrl = Platform.environment['ZEN_API_URL'];
@@ -78,6 +79,14 @@ void main() {
       };
       expect(summary.importKeys, 5);
       expect(summary.droppedImportSessions, greaterThanOrEqualTo(1));
+      // The moved ledger raises no integrity issue (review S4 on #273): the corrections' intents are
+      // rebuilt in date order, with records created after them dated between and after them, and no
+      // envelope, default account, reference or occurrence is left broken.
+      final issues = switch (local.integrityIssues()) {
+        ZenSuccess(:final data) => data,
+        ZenFailure(:final error) => fail('the moved store could not be read: $error'),
+      };
+      expect(issues, isEmpty, reason: 'integrity issues after the move: $issues');
       for (final MapEntry(key: name, value: id) in serverBindings.entries.entries) {
         localBindings.bind(name, LocalIds.fromServerId(id));
       }

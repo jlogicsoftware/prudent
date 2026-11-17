@@ -7,10 +7,13 @@ import 'dart:convert';
 
 import 'package:fixnum/fixnum.dart';
 import 'package:prudent_local_store/prudent_local_store.dart';
+import 'package:prudent_proto/generated/prudent/v1/goals.pb.dart' as wire;
+import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/goal_allocations.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/plans.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/privacy.pb.dart' as wire;
+import 'package:protobuf/protobuf.dart';
 import 'package:test/test.dart';
 import 'package:zen_store/zen_store.dart';
 
@@ -119,9 +122,11 @@ void main() {
       // The default account moved into settings, and the opening was rebuilt (F-03).
       final wallet = ok(await w.ledger.getAccount(ExportBuilder.local(l.wallet))).value;
       expect(wallet.isDefault, isTrue);
-      final opening = ok(w.store.accountCurrencies.get(
-        DerivedIds.accountCurrency(ExportBuilder.local(l.wallet), 'PLN'),
-      ));
+      final opening = ok(
+        w.store.accountCurrencies.get(
+          DerivedIds.accountCurrency(ExportBuilder.local(l.wallet), 'PLN'),
+        ),
+      );
       expect(opening.openingMinor, Int64(10000));
     });
 
@@ -178,14 +183,16 @@ void main() {
   });
 
   group('statement keys', () {
-    test('a statement imported on the server is a duplicate when imported again after the move',
-        () async {
+    test('a statement imported on the server is a duplicate when imported again after the move', () async {
       // The source of the keys: a statement committed into an account, as the server's commit does,
       // whose fingerprints embed the account id in the server's form (ADR-091, ADR-112).
       final source = await ImportWorld.create();
       addTearDown(source.dispose);
       final account = await source.account();
-      final spending = await source.category('Spending', kind: wire.CategoryKind.CATEGORY_KIND_EXPENSE);
+      final spending = await source.category(
+        'Spending',
+        kind: wire.CategoryKind.CATEGORY_KIND_EXPENSE,
+      );
       final income = await source.category('Income', kind: wire.CategoryKind.CATEGORY_KIND_INCOME);
       final session = await source.previewed(
         Erste.base(),
@@ -276,10 +283,7 @@ void main() {
     });
 
     test('an unknown format version', () async {
-      await expectNothingWritten(
-        _ledger().b.build()..formatVersion = 2,
-        MoveInRule.formatVersion,
-      );
+      await expectNothingWritten(_ledger().b.build()..formatVersion = 2, MoveInRule.formatVersion);
     });
 
     test('a transfer with one leg missing', () async {
@@ -327,6 +331,164 @@ void main() {
       await expectNothingWritten(export, MoveInRule.planZone);
     });
 
+    group('a value the server would not have stored', () {
+      // One per class of value (review S2 on #273): each is refused whole as `invalid_value`, naming
+      // the collection and field, before anything is written.
+      final cases = <String, (String, String, void Function(wire.DataExport))>{
+        'a record date that is not a date': (
+          'records',
+          'date',
+          (e) => e.records.first.date = '2026-13-45',
+        ),
+        'a record date that is not canonical': (
+          'records',
+          'date',
+          (e) => e.records.first.date = '2026-9-02',
+        ),
+        'a record currency in lower case': (
+          'records',
+          'currency',
+          (e) => e.records.first.currency = 'pln',
+        ),
+        'a record of zero': ('records', 'amount', (e) => e.records.first.amountMinor = Int64.ZERO),
+        'an account with no type': (
+          'accounts',
+          'type',
+          (e) => e.accounts.first.type = wire.AccountType.ACCOUNT_TYPE_UNSPECIFIED,
+        ),
+        'an account currency that is not one': (
+          'accounts',
+          'currency',
+          (e) => e.accounts.first.balances.first.currency = 'XX',
+        ),
+        'a goal currency that is not one': (
+          'goals',
+          'currency',
+          (e) => e.goals.first.currency = 'xx',
+        ),
+        'a goal target of zero': (
+          'goals',
+          'target',
+          (e) => e.goals.first.targetAmountMinor = Int64.ZERO,
+        ),
+        'a goal with no status': (
+          'goals',
+          'status',
+          (e) => e.goals.first.status = wire.GoalStatus.GOAL_STATUS_UNSPECIFIED,
+        ),
+        'a goal target date that is not a date': (
+          'goals',
+          'target_date',
+          (e) => e.goals.first.targetDate = '2027-02-30',
+        ),
+        'an envelope entry with no kind': (
+          'goal_allocations',
+          'kind',
+          (e) => e.goalAllocations.first.kind =
+              wire.GoalAllocationKind.GOAL_ALLOCATION_KIND_UNSPECIFIED,
+        ),
+        'an allocation with no goal to go into': (
+          'goal_allocations',
+          'target_goal',
+          (e) => e.goalAllocations.first.clearTargetGoalId(),
+        ),
+        'an envelope entry of zero': (
+          'goal_allocations',
+          'amount',
+          (e) => e.goalAllocations.first.amountMinor = Int64.ZERO,
+        ),
+        'a move into the goal it comes from': (
+          'goal_allocations',
+          'target_goal',
+          (e) => e.goalAllocations.last.targetGoalId = e.goalAllocations.last.sourceGoalId,
+        ),
+        'an envelope entry in another currency than its goal': (
+          'goal_allocations',
+          'currency',
+          (e) => e.goalAllocations.first.currency = 'EUR',
+        ),
+        'a budget month that is not one': (
+          'budgets',
+          'month',
+          (e) => e.budgets.first.month = '2026-13',
+        ),
+        'a budget of zero': ('budgets', 'amount', (e) => e.budgets.first.amountMinor = Int64.ZERO),
+        'a reset month that is not one': (
+          'carry_over_resets',
+          'month',
+          (e) => e.carryOverResets.first.month = '2026-1',
+        ),
+        'a plan of zero': ('plans', 'amount', (e) => e.plans.first.amountMinor = Int64.ZERO),
+        'a plan whose recurrence has no frequency': (
+          'plans',
+          'recurrence',
+          (e) => e.plans.first.recurrence.frequency =
+              wire.RecurrenceFrequency.RECURRENCE_FREQUENCY_UNSPECIFIED,
+        ),
+        'a plan with no recurrence': (
+          'plans',
+          'recurrence',
+          (e) => e.plans.first.clearRecurrence(),
+        ),
+        'a reminder lead time the rules refuse': (
+          'plans',
+          'reminder',
+          (e) => e.plans.first.reminder = wire.Reminder(enabled: true, leadDays: 5),
+        ),
+        'an occurrence date that is not a date': (
+          'occurrences',
+          'date',
+          (e) => e.occurrences.last.occurrenceDate = '2026-11-31',
+        ),
+        'a main currency in lower case': (
+          'settings',
+          'main_currency',
+          (e) => e.settings.mainCurrency = 'pln',
+        ),
+      };
+      for (final MapEntry(key: name, value: (collection, field, breakIt)) in cases.entries) {
+        test(name, () async {
+          final export = _ledger().b.build();
+          breakIt(export);
+          final before = w.snapshot();
+          final refusal = refusedWith(await MoveIn(w.store).run(export), MoveInRule.invalidValue);
+          expect(refusal.facts['collection'], collection, reason: '$refusal');
+          expect(refusal.facts['field'], field, reason: '$refusal');
+          expect(w.snapshot(), before);
+        });
+      }
+
+      test('a transfer whose two legs are on one account', () async {
+        final export = _ledger().b.build();
+        final legs = export.records.where((r) => r.hasTransferId()).toList();
+        final source = legs.singleWhere((r) => r.amountMinor < 0);
+        legs.singleWhere((r) => r.amountMinor > 0)
+          ..accountId = source.accountId
+          ..currency = source.currency;
+        await expectNothingWritten(export, MoveInRule.transferBroken);
+      });
+
+      test(
+        'no settings is the server\'s export of a person who never saved any, and moves in',
+        () async {
+          final export = _ledger().b.build()..clearSettings();
+          moved(await MoveIn(w.store).run(export));
+        },
+      );
+
+      test(
+        'a same-currency transfer with a fee between its legs is the server\'s, and moves in',
+        () async {
+          // `TransferResource.create` takes the two amounts apart and never requires them equal.
+          final b = ExportBuilder();
+          final one = b.account('One', {'PLN': 10000}, isDefault: true);
+          final two = b.account('Two', {'PLN': 0});
+          b.transfer(one, 'PLN', two, 'PLN', 5000, received: 4900);
+          moved(await MoveIn(w.store).run(b.build()));
+        },
+      );
+    });
+
     test('a record dropped on the way in fails the balance check (ADR-103)', () async {
       final before = w.snapshot();
       final result = await MoveIn(
@@ -355,9 +517,8 @@ void main() {
       // move is written.
       final devices = await TwoDevices.create();
       addTearDown(devices.dispose);
-      final elsewhere = await Ledger(devices.phone.store).createCategory(
-        wire.CreateCategoryRequest(title: 'Elsewhere', iconKey: 'food'),
-      );
+      final elsewhere = await Ledger(devices.phone.store)
+          .createCategory(wire.CreateCategoryRequest(title: 'Elsewhere', iconKey: 'food'));
       final name = 'categories:${ok(elsewhere).id}';
       final arriving = devices.laptop.zen.receive([
         ZenIncomingRecord(name, devices.phone.zen.outgoing(name)!.payload, null),
@@ -385,6 +546,53 @@ void main() {
       }
     });
 
+    test('with a 64-bit integer outside its range, which the reader would wrap', () {
+      final json = _ledger().b.build().toProto3Json()! as Map<String, Object?>;
+      final records = json['records']! as List<Object?>;
+      for (final (value, path) in [
+        ('9223372036854775808', 'one above the largest'),
+        ('-9223372036854775809', 'one below the smallest'),
+        ('99999999999999999999', 'far above'),
+        ('12.5', 'not whole'),
+      ]) {
+        final copy = jsonDecode(jsonEncode(json)) as Map<String, Object?>;
+        ((copy['records']! as List<Object?>).first! as Map<String, Object?>)['amountMinor'] = value;
+        expect(
+          () => MoveIn.read(utf8.encode(jsonEncode(copy))),
+          throwsA(isA<MoveInRefusal>().having((r) => r.rule, 'rule', MoveInRule.unreadable)),
+          reason: path,
+        );
+      }
+      // Nested, and by its proto name: a goal's target and an account balance.
+      for (final edit in <void Function(Map<String, Object?>)>[
+        (j) =>
+            ((j['goals']! as List<Object?>).first! as Map<String, Object?>)['target_amount_minor'] =
+                '9223372036854775808',
+        (j) =>
+            ((((j['accounts']! as List<Object?>).first! as Map<String, Object?>)['balances']!
+                            as List<Object?>)
+                        .first!
+                    as Map<String, Object?>)['amountMinor'] =
+                '-9223372036854775809',
+      ]) {
+        final copy = jsonDecode(jsonEncode(json)) as Map<String, Object?>;
+        edit(copy);
+        expect(
+          () => MoveIn.read(utf8.encode(jsonEncode(copy))),
+          throwsA(isA<MoveInRefusal>().having((r) => r.rule, 'rule', MoveInRule.unreadable)),
+        );
+      }
+      // The extremes themselves read, as strings and as numbers.
+      final edge = jsonDecode(jsonEncode(json)) as Map<String, Object?>;
+      ((edge['records']! as List<Object?>)[0]! as Map<String, Object?>)['amountMinor'] =
+          '9223372036854775807';
+      ((edge['records']! as List<Object?>)[1]! as Map<String, Object?>)['amountMinor'] = -42;
+      final read = MoveIn.read(utf8.encode(jsonEncode(edge)));
+      expect(read.records[0].amountMinor, Int64.MAX_VALUE);
+      expect(read.records[1].amountMinor, Int64(-42));
+      expect(records, isNotEmpty);
+    });
+
     test('never quotes a title, payee or note in a refusal', () async {
       final export = _ledger().b.build();
       export.records.first
@@ -396,44 +604,74 @@ void main() {
     });
   });
 
-  test('the same export moved in on two devices is one copy after they sync', () async {
-    final devices = await TwoDevices.create();
-    addTearDown(devices.dispose);
-    final export = _ledger().b.build();
-    for (final device in devices.both) {
-      moved(await MoveIn(device.store).run(export));
-    }
-    await devices.sync();
-    for (final device in devices.both) {
-      final store = device.store;
-      expect(ok(store.records.list()), hasLength(7));
-      expect(ok(store.transfers.list()), hasLength(1));
-      expect(ok(store.goalAllocations.list()), hasLength(3));
-      for (final collection in <ZenCollection<Object?>>[
-        store.accounts,
-        store.accountCurrencies,
-        store.categories,
-        store.records,
-        store.transfers,
-        store.plans,
-        store.occurrences,
-        store.budgets,
-        store.budgetResets,
-        store.goals,
-        store.goalAllocations,
-        store.settings,
-      ]) {
-        expect(ok(collection.conflicts()), isEmpty, reason: collection.name);
-      }
-    }
-    final balances = [
-      for (final device in devices.both)
-        {
-          for (final a in ok(await Ledger(device.store).listAccounts()).value.accounts)
-            a.id: [for (final b in a.balances) '${b.currency} ${b.amountMinor}'],
-        },
+  group('two devices', () {
+    /// Every synced collection of [store] beside the records [plan] says the move writes there.
+    List<(ZenCollection<GeneratedMessage>, List<GeneratedMessage>)> pairs(
+      PrudentLocalStore store,
+      MoveInPlan plan,
+    ) => [
+      (store.accounts, plan.accounts),
+      (store.accountCurrencies, plan.accountCurrencies),
+      (store.categories, plan.categories),
+      (store.records, plan.records),
+      (store.transfers, plan.transfers),
+      (store.plans, plan.plans),
+      (store.occurrences, plan.occurrences),
+      (store.budgets, plan.budgets),
+      (store.budgetResets, plan.resets),
+      (store.goals, plan.goals),
+      (store.goalAllocations, plan.allocations),
+      (store.settings, [plan.settings]),
     ];
-    expect(balances.first, balances.last);
+
+    String idOf(GeneratedMessage m) => m.getField(1) as String;
+
+    /// Every record of every synced collection, as bytes, by collection and id.
+    Map<String, Map<String, String>> dump(PrudentLocalStore store, MoveInPlan plan) => {
+      for (final (collection, _) in pairs(store, plan))
+        collection.name: {
+          for (final m in ok(collection.list())) idOf(m): base64.encode(m.writeToBuffer()),
+        },
+    };
+
+    test('two moves of one export write the same records, byte for byte', () async {
+      final devices = await TwoDevices.create();
+      addTearDown(devices.dispose);
+      final export = _ledger().b.build();
+      final plan = MoveInPlan.of(export);
+      for (final device in devices.both) {
+        moved(await MoveIn(device.store).run(export));
+      }
+      final phone = dump(devices.phone.store, plan);
+      expect(phone.values.every((records) => records.isNotEmpty), isTrue, reason: '$phone');
+      expect(dump(devices.laptop.store, plan), phone);
+    });
+
+    test('the same export moved in on both is one copy after they sync', () async {
+      final devices = await TwoDevices.create();
+      addTearDown(devices.dispose);
+      final export = _ledger().b.build();
+      for (final device in devices.both) {
+        moved(await MoveIn(device.store).run(export));
+      }
+      await devices.sync();
+      // Every collection holds exactly the ids the export derives — a random id anywhere would
+      // leave two copies after the sync, and a count or id set here would differ.
+      final plan = MoveInPlan.of(export);
+      for (final device in devices.both) {
+        for (final (collection, planned) in pairs(device.store, plan)) {
+          expect(
+            ok(collection.list()).map(idOf).toSet(),
+            planned.map(idOf).toSet(),
+            reason: collection.name,
+          );
+          expect(ok(collection.list()), hasLength(planned.length), reason: collection.name);
+          expect(ok(collection.conflicts()), isEmpty, reason: collection.name);
+        }
+      }
+      expect(dump(devices.laptop.store, plan), dump(devices.phone.store, plan));
+      expect(plan.resets, hasLength(2));
+      expect(plan.goals, hasLength(2));
+    });
   });
 }
-
