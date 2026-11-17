@@ -1,4 +1,5 @@
 import 'package:fixnum/fixnum.dart';
+import 'package:protobuf/protobuf.dart';
 import 'package:prudent_local_core/prudent_local_core.dart';
 import 'package:prudent_proto/generated/prudent/v1/plans.pb.dart' as wire;
 import 'package:prudent_proto/generated/prudent/v1/reminders.pb.dart' as wire;
@@ -13,6 +14,7 @@ import '../wire_mapper.dart';
 import 'ledger.dart';
 import 'ledger_errors.dart';
 import 'ledger_view.dart';
+import '../write_expect.dart';
 
 /// Prudent Local's plans, their occurrences and their reminders (unit 6b of
 /// `docs/plans/PRUDENT-LOCAL-PLAN.md`, ADR-119): phase-0 §0.3 rows 6.29–6.45 and 6.51–6.53, over
@@ -95,7 +97,7 @@ final class PlanLedger {
       recurrence: request.hasRecurrence() ? request.recurrence : null,
       reminder: request.hasReminder() ? request.reminder : null,
     );
-    return _planWire(await _write(store.putPlan(plan)));
+    return _planWire(await _write(store.putPlan(plan, expect: _asRead(null, _noPlan))));
   });
 
   /// `PlanResource.replace`: a full replacement, so an absent reminder resets it (row 6.33). When the
@@ -120,7 +122,7 @@ final class PlanLedger {
           recurrence: request.hasRecurrence() ? request.recurrence : null,
           reminder: request.hasReminder() ? request.reminder : null,
         );
-        final batch = StoreBatch(store)..putPlan(plan);
+        final batch = StoreBatch(store)..putPlan(plan, expect: _asRead(current, _noPlan));
         final before = _rule(current);
         final after = _rule(plan);
         if (before != after) {
@@ -129,11 +131,11 @@ final class PlanLedger {
             final date = CivilDate.parse(state.occurrenceDate);
             final confirmed = _confirmed(view, state.id) != null;
             if (!state.skipped && !confirmed && after.occurrencesBetween(date, date).isEmpty) {
-              batch.deleteOccurrenceState(state.id);
+              batch.deleteOccurrenceState(state.id, expect: _asRead(state, _changed));
             }
           }
         }
-        await _write(store.writeAll(batch));
+        await _write(store.writeAll(batch), missing: _changed);
         return _planWire(readOrThrow(store.plans.get(plan.id)));
       });
 
@@ -143,11 +145,11 @@ final class PlanLedger {
   Future<ZenResult<void>> deletePlan(String id) => _run(() async {
     final view = LedgerView.read(store);
     final plan = _requirePlan(view, id);
-    final batch = StoreBatch(store)..deletePlan(plan.id);
+    final batch = StoreBatch(store)..deletePlan(plan.id, expect: _asRead(plan, _noPlan));
     for (final state in _States.read(store).byPlan(plan.id)) {
-      batch.deleteOccurrenceState(state.id);
+      batch.deleteOccurrenceState(state.id, expect: _asRead(state, _changed));
     }
-    await _write(store.writeAll(batch));
+    await _write(store.writeAll(batch), missing: _noPlan);
   });
 
   // ── Occurrence views ────────────────────────────────────────────────────────────────────────
@@ -272,7 +274,16 @@ final class PlanLedger {
             occurrenceId: occurrence.id,
             occurrenceDate: occurrence.date.toString(),
           );
-    await _write(store.writeAll(StoreBatch(store)..putRecord(record)));
+    // One write: the record, expected still absent (a confirmation that landed meanwhile is a 409,
+    // as the server's second confirmation is), and the plan it was decided against, expected
+    // unchanged, so a plan a sync deleted or edited in between refuses the whole.
+    final batch = StoreBatch(store)
+      ..putRecord(record, expect: _asRead(null, _noOccurrence, changed: _alreadyConfirmed))
+      ..putPlan(plan, expect: _asRead(plan, _noOccurrence));
+    if (occurrence.state case final state?) {
+      batch.putOccurrenceState(state, expect: _asRead(state, _changed));
+    }
+    await _write(store.writeAll(batch), missing: _changed);
     return wire.ConfirmOccurrenceResponse(
       occurrence: _occurrenceWire(occurrence.with_(completed: true)),
       record: WireMapper.recordToWire(record),
@@ -315,10 +326,11 @@ final class PlanLedger {
         final view = _View.read(store);
         final due = _currentReminders(view, asOf).due;
         final batch = StoreBatch(store);
+        final planned = <String>{};
         for (final occurrence in due.where((o) => !o.read)) {
-          _stageState(batch, occurrence, readAtMs: asOf.millisecondsSinceEpoch);
+          _stageState(batch, occurrence, readAtMs: asOf.millisecondsSinceEpoch, planned: planned);
         }
-        if (batch.length > 0) await _write(store.writeAll(batch));
+        if (batch.length > 0) await _write(store.writeAll(batch), missing: _changed);
         return _reminderList(_View.read(store), asOf);
       });
 
@@ -487,14 +499,21 @@ final class PlanLedger {
   Future<void> _writeState(_Occurrence occurrence, {bool? skipped, int? readAtMs}) async {
     final batch = StoreBatch(store);
     _stageState(batch, occurrence, skipped: skipped, readAtMs: readAtMs);
-    if (batch.length > 0) await _write(store.writeAll(batch));
+    if (batch.length > 0) await _write(store.writeAll(batch), missing: _changed);
   }
 
   /// Stages the state [occurrence] has after the change: stored only while it differs from the
   /// default (skipped, or a reminder read) or while the schedule no longer produces the date — an
   /// occurrence restored after its schedule changed still exists on the server as a planned row, and
   /// here only a state keeps it. [readAtMs] of 0 clears the read time; null leaves it.
-  void _stageState(StoreBatch batch, _Occurrence occurrence, {bool? skipped, int? readAtMs}) {
+  void _stageState(
+    StoreBatch batch,
+    _Occurrence occurrence, {
+    bool? skipped,
+    int? readAtMs,
+    Set<String>? planned,
+  }) {
+    planned ??= {};
     final current = occurrence.state;
     final next = (current?.deepCopy() ?? occurrence.newState())
       ..clearSkipped()
@@ -505,9 +524,16 @@ final class PlanLedger {
     if (readAt != 0) next.reminderReadAtMs = Int64(readAt);
     final isDefault = !isSkipped && readAt == 0;
     if (isDefault && occurrence.fromRule) {
-      if (current != null) batch.deleteOccurrenceState(current.id);
+      if (current != null) {
+        batch.deleteOccurrenceState(current.id, expect: _asRead(current, _changed));
+      }
     } else {
-      batch.putOccurrenceState(next);
+      batch.putOccurrenceState(next, expect: _asRead(current, _changed));
+    }
+    // The plan the change was decided against, expected unchanged and written back as it is: a state
+    // for a plan a sync deleted, or whose schedule or reminder it edited, would be an orphan or a guess.
+    if (planned.add(occurrence.plan.id)) {
+      batch.putPlan(occurrence.plan, expect: _asRead(occurrence.plan, _noOccurrence));
     }
   }
 
@@ -710,7 +736,48 @@ final class PlanLedger {
 
   // ── Shared ──────────────────────────────────────────────────────────────────────────────────
 
-  static Future<T> _write<T>(Future<ZenResult<T>> write) async => readOrThrow(await write);
+  // ── Write preconditions ─────────────────────────────────────────────────────────────────────
+
+  /// The record must still be [basis] — the version this operation's rules were checked against, or
+  /// absent when [basis] is null — when the store runs the write (ADR-115, ADR-122). Gone since:
+  /// [gone], the 404 the server gives. Changed since: [changed], 409 under §0.3 X.7 unless the
+  /// caller says what that change means.
+  static WriteExpect<T> _asRead<T extends GeneratedMessage>(
+    T? basis,
+    Refusal gone, {
+    Refusal changed = _changed,
+  }) => WriteExpects.asRead(
+    basis,
+    gone: () => LedgerErrors.of(gone),
+    changed: () => LedgerErrors.of(changed),
+  );
+
+  static const _changed = Refusal.conflict(
+    'X.7',
+    'This changed on another device while it was being saved. Look at it again.',
+  );
+  static const _noPlan = Refusal.notFound('6.33', 'No such plan.');
+  static const _noOccurrence = Refusal.notFound('6.35', 'No such occurrence.');
+
+  /// A confirmation that landed on another device while this one was being made: the occurrence is
+  /// completed, which the server answers 409 (`OccurrenceState.successors`).
+  static const _alreadyConfirmed = Refusal.conflict(
+    '6.37',
+    'An occurrence that is COMPLETED cannot become COMPLETED.',
+  );
+
+  /// The value of a store write, or a [LedgerReadFailure] with the store's own error. [missing] is
+  /// the refusal for a **delete** whose record a sync removed between the check and the write: jZen
+  /// answers that itself with a bare not-found before any precondition runs, so it is mapped here
+  /// (see `Ledger._write`).
+  static Future<T> _write<T>(Future<ZenResult<T>> write, {Refusal? missing}) async {
+    final result = await write;
+    if (result case ZenFailure(:final error)
+        when missing != null && error is ZenNotFoundError && LedgerErrors.statusOf(error) == null) {
+      throw missing;
+    }
+    return readOrThrow(result);
+  }
 
   /// Runs one operation: a rule's [Refusal] becomes the server-shaped error, the store's errors are
   /// returned as they are, and a date outside the calendar is an error, never a wrapped value.

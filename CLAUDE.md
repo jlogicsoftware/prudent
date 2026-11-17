@@ -326,7 +326,7 @@ JVM (eight zones are refused, `PlanZones.unsupported`; no per-zone offsets are c
 cannot be confirmed, and the lists answer `Settled`; `occurrence.skipped_and_paid` lists a skip and a confirmation that met. The six
 parity scenarios `plans`, `occurrence_windows`, `occurrences`, `schedule_change`, `day_boundary` and `reminders` name dates as
 `@today(Zone)±n` (`ParityClock`), because the server's plan routes take no `asOf`; the notification scheduler of `packages/prudent_ui`
-is reused unchanged. No Local app or screen exists yet, and nothing has been seen on a device.
+is reused unchanged; every `PlanLedger` write carries its `expect` (ADR-122). No Local app or screen exists yet, and nothing has been seen on a device.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22
