@@ -69,7 +69,11 @@ final class PrudentLocalStore {
       ),
       goals = zen.collection('goals', Goal.fromBuffer, mergePolicies: StorePolicies.goals),
       goalAllocations = zen.collection('goal_allocations', GoalAllocation.fromBuffer),
-      plans = zen.collection('plans', Plan.fromBuffer),
+      plans = zen.collection(
+        'plans',
+        Plan.fromBuffer,
+        explicitNested: StorePolicies.planExplicitNested,
+      ),
       occurrences = zen.collection(
         'occurrences',
         OccurrenceState.fromBuffer,
@@ -490,6 +494,14 @@ abstract final class StorePolicies {
     _tag(BudgetCarryOverReset(), 'revocation'): ZenMergePolicy.earliestBy(
       _tag(Revocation(), 'atMs'),
     ),
+  };
+
+  /// `Plan.reminder.lead_days` is `optional`: a lead time of 0 is a value and the default (1) is absent
+  /// (ADR-119). jZen's presence rule leaves a plain nested scalar at its default out of the group's
+  /// bytes (jZenDev/jZen#255), so without this declaration a lead of 0 would read back as 1. The
+  /// numbers are read from the messages, not written here.
+  static final Map<int, ZenPresence> planExplicitNested = {
+    _tag(Plan(), 'reminder'): ZenPresence({_tag(ReminderSetting(), 'leadDays')}),
   };
 
   /// The `optional` fields of an import session, whose default is a value and not "unset"

@@ -272,8 +272,10 @@ never-deleted records), jZen's `ZenMergePolicy.earliest` on the goal-status and 
 `WireMapper` (presence-exact, derived figures as inputs) and the `IntegrityRunner`, whose `IntegrityCheck`s list what a merge broke across
 records with actions and fix nothing; units 5–8 add checks. `task test:local-store` proves every §0.2 row through two encrypted stores
 synced by `ZenFolderCloud`. A reset revoked on two devices stays a conflict (jZenDev/jZen#244). Since ADR-115 (jZen `4fa887a`) a top-level
-field set to its default is stored as unset (jZenDev/jZen#245; no synced collection declares `explicitPresence`, a nested group still compares its
-bytes, jZenDev/jZen#255), and every write carries its rules and the version it was decided against as the store's `expect`
+field set to its default is stored as unset (jZenDev/jZen#245; no synced collection declares `explicitPresence`) and, since jZen `139fcd6`
+(PR #259, jZenDev/jZen#255), so is a plain scalar at its default inside a nested message; the one nested `optional` field, `Plan.reminder.lead_days`
+(0 is a value, the default 1 is absent), is declared with `StorePolicies.planExplicitNested` so a lead of 0 is not lost, and `merge_table_test` pins
+that an explicit default inside a group agrees with an unset one (ADR-125); and every write carries its rules and the version it was decided against as the store's `expect`
 (`WriteExpects.asRead`, jZenDev/jZen#251): a record a sync deleted or changed in between refuses the write (404, or 409 under §0.3 X.7)
 rather than coming back or being written over. The issues reach no screen until the Local app wraps them in `zen_ui_store`'s `ZenIssueSource`
 (unit 9). Unit 8a (ADR-112) is the Erste parse stage in `prudent_local_core/lib/src/imports/`: `parseErsteStatement(bytes, today:)` is
@@ -285,7 +287,7 @@ at U+D7A4), root upper-casing the JDK's table (`tool/generate_root_upper_case.da
 Unit 5 (ADR-113) is the ledger: `Ledger` in `local/prudent_local_store/lib/src/ledger/` holds every account,
 category, record, transfer, correction and settings rule of §0.3 rows 5.1–5.53, wire requests in and wire messages out, refusals
 shaped as the server's (`LedgerErrors`). Several records are written as one only through jZen's `ZenStore.writeAll`
-(`PrudentLocalStore.writeAll(StoreBatch)`, jZenDev/jZen#232; `JZEN_REF` is now `4fa887a`), so an account deleted with its records is
+(`PrudentLocalStore.writeAll(StoreBatch)`, jZenDev/jZen#232; `JZEN_REF` was then `4fa887a`), so an account deleted with its records is
 all or nothing. A figure never reads a value two devices disagree about: a disputed posting, transfer or opening counts in no
 balance and is named on every read that answers a balance (`Settled<T>`, `AccountBalances.unsettled`), and a correction is refused until it is settled. Search and name order are the
 core's `SearchRules`, whose fold is a table from the JVM (`golden/fold.json`; the Dart VM's `toLowerCase` differs on 437 code
@@ -307,7 +309,7 @@ rows 6.1–6.28, 6.46–6.50, 6.54 in the server's order; the summary, carry-ove
 write rechecking its rule inside the store's turn through jZen's `expect` (#251), edits against the exact version read;
 `EnvelopeBelowZeroCheck` and `ArchivedGoalMoneyCheck`, whose repair entry's id derives from the entries it compensates, so
 two devices applying one repair write one record, and `RepairsMadeApartCheck` undoes two made from different reads (ADR-120); `GoalArithmetic` held to `golden/goal_progress.json`; ten parity scenarios (`budget_*`, `carry_over*`, `goal*`, `free_money`) agree with the live server.
-`JZEN_REF` is `4fa887a`.
+`JZEN_REF` is `139fcd6` (the pin moved from `4fa887a` in ADR-125).
 Unit 7 (ADR-118) is analytics: `Analytics` in `local/prudent_local_store/lib/src/analytics/` answers spend by category and by period with
 `AnalyticsResource`'s semantics (expenses only; a transfer, a correction, income and a refund are not spend; one currency, never
 inferred; whole-month windows; the UTC anchor), as `Settled`, leaving out of a figure only a record whose dispute changes *that* figure
@@ -351,6 +353,18 @@ by `record_import_keys`, so a statement imported on the server is a duplicate af
 goal progress and occurrences are proven by `tools/prudent_parity_server/test/move_in_test.dart` (`parity/move_in/move_in.json`), which moves
 the live server's export in, expects no `IntegrityRunner` issue, and compares every answer. The Local app has "Move my data in" under Privacy and data (`MoveInScreen`, en/uk/pl).
 No real export and no device has been tried.
+Unit 11 (ADR-124) is the Taskfile and CI: `task run:local DEVICE=<native>`, `task build:local:runners` and `build:local:runners:release` delegate to a
+third include of jZen's `Taskfile.app.yml` (`zenlocal`, with a server module that must stay nonexistent at `local/no_server`), so jZen's own Local
+behaviour applies and the web is refused by name; `task test:local-tasks` proves it through `task` against a stub `flutter`. CI builds Local on iOS,
+macOS (a new `macos-runner`, reversing ADR-003 for this app only), Android, Windows and Linux. `task verify:local-release` fails when the Android
+manifest (or, in CI, a merged one) allows a backup, when shipped Dart names `ZEN_SYNC` at all, when a sync transport or plan is built or started anywhere but
+`sync_starter.dart`, when a workflow sets it or when a web runner exists; a release build with `ZEN_SYNC` is refused by jZen at run time and
+`task test:local-release-refusal` proves it on a real release build. Each rule has a planted-violation test. **CI proved every step in run 44106692883 (head `5884c91`):
+the merged Android manifests, the Linux probe under `xvfb`, the Windows build and probe, the macOS and iOS release builds, `verify:swiftpm` after the
+builds and the macOS probe.** Windows failed in `local_auth_windows` under MSVC 14.51 (jZenDev/jZen#257); jZen fixed it by dropping that plugin from `zen_ui_lock`
+(PR #260, ADR-086) and `JZEN_REF` is `139fcd6`, with no override or silencing in Prudent. Android needed core-library desugaring (added), and
+`PlStoreLocalizations` the new `issueContinue` string of jZen #258. Still open: release builds are signed with the debug key (unit 12 owes a real signing configuration), no platform was
+seen on a device (unit 12), and Windows has no biometric or device-owner check by jZen's design (jZen ADR-086: "Forgot PIN?" offers erasing the device's copy).
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

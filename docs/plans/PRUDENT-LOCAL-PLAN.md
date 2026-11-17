@@ -326,6 +326,13 @@ and Linux in CI (jZen's `Taskfile.app.yml` already supports this). `verify:bound
 manifest refuses Auto Backup of the store (ADR-100 T10). **Done when:** a
 deliberate violation of each rule fails the gate.
 
+**Status (ADR-124):** built and proven in CI (run 44106692883, head `5884c91`: merged Android manifests, the Linux probe under `xvfb`, the Windows build and probe, the macOS and iOS release builds, `verify:swiftpm` after them and the macOS probe; Windows needed jZenDev/jZen#257, fixed upstream, `JZEN_REF` `139fcd6`, ADR-125). `task run:local` / `build:local:runners[:release]` delegate to a third include of jZen's `Taskfile.app.yml`
+(`zenlocal`, no server module, so jZen's own Local behaviour and web refusal); CI builds Local on all five platforms (`macos-runner` is new);
+`verify:local-release` gates T10 (source and merged Android manifests), the single `ZEN_SYNC` reader, no workflow setting it and no web runner;
+the T18 refusal is jZen's and is proven on a real release build by `test:local-release-refusal`. Each rule has a planted-violation test.
+**Still open:** release builds are signed with the debug key (unit 12 owes the real signing), no platform has been seen on a device (unit 12), and Windows has no
+biometric or device-owner check by jZen's design (jZen ADR-086).
+
 ---
 
 ## Phase 4 — Close

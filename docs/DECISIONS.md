@@ -13,6 +13,122 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-125 — Prudent Local moves to jZen `139fcd6`: nested presence is declared for the plan's lead time
+
+**Date:** 2026-11-17. **Status:** accepted. **Builds on:** ADR-115, ADR-119, ADR-124. **jZen:** consumes jZenDev/jZen#255 (PR #259), #256 (PR #258)
+and #257 (PR #260) at `JZEN_REF` `139fcd6`.
+
+### Decision
+
+- **`JZEN_REF` is `139fcd6`** in `ci.yml` and `audit.yml`. Earlier ADRs name the pin they were verified against and stay as written.
+- **A plain scalar at its default inside a nested message is now left out of the message's bytes (jZen #259).** Prudent has one nested field whose default
+  is a value, `ReminderSetting.lead_days` (`optional`; 0 is a lead of zero days, the default 1 is absent, ADR-119). Without a declaration the store
+  dropped a lead of 0, and a plan read back with a lead of 1 (`plans_test` failed on exactly that, and `read-all` marked a reminder it should not
+  have). `StorePolicies.planExplicitNested` declares it through `collection(..., explicitNested:)`, with the field numbers read from the messages.
+  `PlanLedger` itself did not change: it already wrote lead 0 as a present field and the default as absent.
+- **The pin ADR-115 and `merge_table_test` left for this fix is flipped.** Two devices that mean one reminder, one writing `enabled: false` out and one
+  leaving it unset, no longer conflict. The ledger's own clearing of a zero target and seen balance in a correction's intent stays; it is harmless.
+- **#256 is consumed only as far as the pin:** `zen_ui_store` gained a string, so Prudent's Polish `StoreLocalizations` implements `issueContinue`
+  ("Dalej", not reviewed by a native speaker). `askForName` stays; replacing it is a separate change.
+- **#257 is fixed upstream** (ADR-124).
+
+### Verified
+
+On 2026-11-17 in the worktree against jZen `139fcd6`, after rebasing onto unit 10b (ADR-123, whose own text names `4fa887a` and stays as written):
+`prudent_local_core` 3966 green, `prudent_local_store` 773 green and `prudent_local_client` 64 green (macOS defines), the move-in tests of the store
+and the client among them. Nothing of unit 10b needed a change for #259: no move-in test failed on `139fcd6`. **Not run locally:** `task test:e2e` and the
+parity server's live-stack suites (`move_in_test` included); they run in CI against the pinned jZen.
+
+---
+
+## ADR-124 — Prudent Local is run and built through a third include of jZen's own tasks, on all five native platforms in CI, and its release rules are gates that fail on a planted violation
+
+**Date:** 2026-11-17. **Status:** accepted. **Plan:** unit 11 (`docs/plans/PRUDENT-LOCAL-PLAN.md`). **Builds on:** ADR-100 (T10, T18),
+ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). **Supersedes ADR-003 for Prudent Local only.**
+
+### Decision
+
+- **`task run:local`, `task build:local:runners`, `task build:local:runners:release` are one-line delegations to a third include of jZen's
+  `Taskfile.app.yml`, `zenlocal`.** jZen decides "this is a Local application" by one fact of the tree: no `pom.xml` at `APP_SERVER_MODULE`
+  (jZen ADR-073). Prudent has a server, so the first include is a server-connected app; `zenlocal` names the Local app
+  (`APP_CLIENT_DIR: local/prudent_local_client`) and a server module that does not exist (`local/no_server`). The framework then gives it, with no
+  copy here: no backend health check, no `ZEN_API_URL`, no auth redirect, the web refused by name (`guard:web`) and each native runner built on the
+  host that can build it. Nothing is hand-rolled. `test_local_tasks.py` runs the real tasks against a stub `flutter` and requires the web refusal for
+  `chrome`, `edge`, `web-server` and `CLIENT_PLATFORM=web`, a native run with no backend probe, the Local app's directory, the server-connected
+  `run:client` as the control that does probe, and that a server module at the include's path would remove the refusal.
+- **CI builds Prudent Local on iOS, macOS, Android, Windows and Linux.** `android-runner` (Ubuntu) builds Android and Linux, debug and release;
+  `windows-runner` builds Windows, debug and release; a new `macos-runner` builds macOS and the iOS simulator (debug), then macOS and an unsigned iOS
+  device build (release). Desktop builds are host-only, so each is on its own host. **This reverses ADR-003 for this app**: the macOS runner costs
+  several times the Linux rate, and is accepted because Local ships on Apple platforms and nothing else proves their runners. The server-connected app
+  stays unbuilt on Apple in CI. `verify:swiftpm` runs on the macOS runner *after* the builds, because Flutter writes a Podfile during one when a plugin
+  has no Swift package; it also runs in `gates`.
+- **The boundaries were already enforced (ADR-109, checks F and H) and are not rebuilt:** nothing under `local/` depends on or imports
+  `zen_transport`, `zen_identity`, `zen_ui_identity` or `zen_secure_store`, with no exemption, and nothing in `client/` or `packages/` depends on or
+  imports a package under `local/`. `test_verify_boundaries.py` plants each.
+- **T18: a release build with `ZEN_SYNC` set fails, by jZen's refusal and nothing of Prudent's** (`ZenSyncPlan`, `ZenSync.plan`, jZenDev/jZen#238, in
+  `JZEN_REF` `4fa887a`). Three things hold it:
+  1. `scripts/verify_local_release.py` (`task verify:local-release`) fails when any shipped Dart (not a test, not generated) under `client/`, `packages/`
+     or `local/` names the define at all, outside comments (so `bool.hasEnvironment`, a multi-line `fromEnvironment` and a constant that is passed on
+     are all caught), because a second reader could decide differently and the framework's refusal would stop being the only one. It also fails when a
+     `ZenFolderCloud`, `ZenSharedFolderSync`, `ZenCloudKitSync` or `ZenSyncPlan` is constructed, or `ZenSync.start`/`startFor` called, anywhere but
+     `local/prudent_local_client/lib/core/sync_starter.dart`, and when a workflow sets the define. The probe does not spell the define's name in Dart
+     for that reason; `test:local-release-refusal` requires jZen's message, which names it, in the probe's output instead.
+  2. **The refusal is proven on a real release build.** `task test:local-release-refusal` compiles `tool/release_sync_probe.dart` with
+     `flutter build <host> --release` and `--dart-define=ZEN_SYNC=folder`, runs it, and requires the app's own `startSyncForBuild` to fail with jZen's
+     `ZenValidationError` naming `ZEN_SYNC` and "release build". `flutter test` cannot prove this (it is never a release build and ignores a
+     `dart.vm.product` define), so the existing unit test of `ZenSyncPlan(..., release: true)` in `threat_model_test.dart` proves the table and this
+     proves the build. CI runs it on the macOS, Linux (under `xvfb`) and Windows runners. The negative case: the same release build **without**
+     `ZEN_SYNC` does not report the refusal and the probe exits non-zero (seen locally: the unsigned macOS probe aborts in CloudKit, exit 133).
+  3. `build:local:runners:release` passes no `ZEN_SYNC` unless one is given on the command line (`test_local_tasks.py`); a build given one is built, and
+     refuses when it runs. **A build that compiles with it and fails only when started is the framework's design (jZenDev/jZen#238), not a gap
+     here:** the refusal sits in the one place that reads the define. Prudent adds no build-time duplicate.
+- **T10: the Android manifest refuses Auto Backup, and a gate checks it.** `verify:local-release` fails unless the app's manifest has
+  `android:allowBackup="false"` and `android:fullBackupContent="false"`, and fails on `android:dataExtractionRules`, on a `tools:replace` of a backup
+  attribute, and on the debug or profile manifest setting a backup attribute back on. In CI it also reads the **merged** manifests the release build
+  produced (`--merged`), because a plugin's manifest is merged in and can turn a backup on without the app's file changing; a build that produced none
+  fails. `threat_model_test` already asserted the two attributes; that test is not the gate, and stays.
+- **No web runner:** `verify:local-release` fails if `local/prudent_local_client/web` exists.
+- **Every gate is a script with a test that plants the violation** (`test_verify_local_release.py`: 28 cases, among them backup on, attribute missing, a
+  rules file, `tools:replace`, a debug override, a bad merged manifest, a missing merged manifest, a `fromEnvironment`, a `hasEnvironment` and a
+  multi-line reader of `ZEN_SYNC`, a block comment, a transport, a plan and `ZenSync.startFor` outside the starter, a missing starter, a workflow
+  setting it, a web runner, a missing scope).
+
+### What the first CI run found (review of PR #272)
+
+- **Android needs core-library desugaring.** `flutter_local_notifications`, through `packages/prudent_ui`, fails the Android build without it; Local's
+  `build.gradle.kts` now enables it with `desugar_jdk_libs:2.1.4`, as `client/` does.
+- **Windows did not compile: a framework gap, [jZenDev/jZen#257](https://github.com/jZenDev/jZen/issues/257), since fixed.** `zen_ui_lock` brought
+  `local_auth_windows` 2.0.2 (the newest), which builds with `/await`, and MSVC 14.51 on `windows-latest` rejects that (`STL1011`). Prudent did not
+  define `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` or override the dependency: either would have hidden the framework's problem here. jZen
+  fixed it in PR #260 (`139fcd6`, jZen ADR-086: `zen_ui_lock` names `local_auth`'s Android and Darwin packages, not the umbrella), `JZEN_REF` moved
+  there, and the Windows jobs of this PR are the proof; jZen's own note says its Windows run was not seen when it merged.
+- **The macOS runner** failed in `zenlocal:build:runners`, which on a macOS host also builds Android; the desugaring fix unblocked it.
+- **The probe's existence check was wrong on Windows.** With Windows compiling, the job printed `Built …\Release\prudent_local_client.exe` and the task
+  then reported the probe "not built where expected" at that same path: go-task runs `cmds` in its built-in shell, where `[ -x ]` on Windows reads
+  permission bits a file there does not have. The check is `[ -f ]` now, and that the probe executes is proven by running it, whose failure or missing
+  refusal fails the task (not weaker: the run was always the proof). `test_local_tasks.py` runs the task with a stub build on macOS and Linux for the
+  pass, the probe that exits zero without the refusal, the probe that fails and the missing binary. The Windows run itself is CI's.
+- **Release builds are signed with the debug key** (the template's `signingConfig = debug`). That is enough to compile and to run the probe, and is not a
+  shippable configuration; a real signing setup is unit 12's.
+
+### What was not run through `task`, and what is not verified
+
+- `task` does not load from a git worktree (ADR-065: the include path `../jZen` resolves wrongly there). The work was done in a worktree, so
+  `test_local_tasks.py` copies the Taskfile with `../jZen/` made absolute and runs `task -t` on the copy (it needs a jZen checkout: `JZEN_DIR`, or the main checkout's sibling). Run
+  that way and passing: `verify:local-release`, `verify:boundaries`, `verify:swiftpm`, `test:local-tasks`. Run directly and not through `task`: the
+  probe's `flutter build macos --release` and its run (`PROBE-OK`, exit 0; and without `ZEN_SYNC`, exit 133).
+- **Proven in CI, run 44106692883 on head `5884c91`, every job green:** the merged Android manifests (T10), the Linux probe under `xvfb`, the Windows build
+  and probe, the macOS and iOS release builds, `verify:swiftpm` after the builds, and the macOS probe (T18). The Linux probe path is the green
+  `android-runner`'s, the Windows one the build's own output.
+- **Not run through `task`:** `test:local-release-refusal` here in the worktree (CI ran it through `task`).
+- **Still open:** no platform has been seen on a device (unit 12); release builds are signed with the debug key; Windows has no biometric or device-owner
+  check, by jZen's design (jZen ADR-086).
+- **What the gates do not claim.** The `ZEN_SYNC` and transport checks read Dart text (comments and strings are told apart, a call is matched across
+  lines and type arguments). They guard against the ordinary slip and a reformatting, not against a determined evasion such as building a name from
+  parts or reflection; the framework's refusal and the probe on a real release build are what hold the rule.
+
+---
+
 ## ADR-123 — Existing data moves into Prudent Local from the server's export file, whole, with ids from the export, and refused unless every balance matches; the other figures are proven by the parity suite, not checked at run time
 
 **Date:** 2026-11-17. **Status:** accepted. **Plan:** unit 10b of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245), finding
