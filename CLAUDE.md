@@ -47,7 +47,7 @@ migration and its row-level security, and the client rewired onto `ZenClient` wi
 navigation shell. Screens and providers depend on the abstract `PrudentRepository` (`packages/prudent_ui/lib/prudent_repository.dart`); `ServerPrudentRepository` (`client/lib/server_prudent_repository.dart`) is its HTTP implementation and only `main.dart` names it (ADR-105). The third-party backend call the
 conversion existed to remove is gone.
 
-**The shared package (ADR-108, unit 2 of `docs/plans/PRUDENT-LOCAL-PLAN.md`).** `packages/prudent_ui` holds every screen, view model, provider,
+**The shared package (ADR-108, unit 2 of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`).** `packages/prudent_ui` holds every screen, view model, provider,
 the money formatting, `PrudentRepository`, the notification code and the `{en, uk, pl}` ARB files with `l10n.yaml`, imported as
 `package:prudent_ui/<folder>/<file>.dart`. The generated wire messages are **not** there since ADR-111: they are the pure-Dart package
 `packages/prudent_proto` (`package:prudent_proto/generated/prudent/v1/<file>.pb.dart`, `PROTO_DART_OUT`), which `prudent_ui`, `client/` and
@@ -260,7 +260,11 @@ proves. A file whose amount column has moved (a positive card or BLIK row, or th
 real change of the bank's format, the export steps beyond what the user reported (whether a file can hold several accounts and the filters' effect on it are open), a run on a device or with the native file picker, the client against the real server, and any
 Polish or Ukrainian string reviewed by a native speaker.
 
-Prudent Local (jlogicsoftware/prudent#245, `docs/plans/PRUDENT-LOCAL-PLAN.md`) has its phase-0 decisions (ADR-100 to ADR-103) and unit 3
+**Prudent Local's plan is closed in the docs, not finished:** units 0 to 11 of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245) are merged, with each
+unit's PRs and ADRs in its status table; **unit 12 (real devices) is open and NOT VERIFIED**, and Prudent Local is not released before it. The plan's
+closing section lists what is owed and the follow-ups (jlogicsoftware/prudent#274 to #278, #261). What follows is the per-unit detail.
+
+Prudent Local (jlogicsoftware/prudent#245, `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`) has its phase-0 decisions (ADR-100 to ADR-103) and unit 3
 (ADR-107): `local/prudent_local_core` is pure Dart and reproduces the server's money, currency, account-number, date, month and text
 rules method for method, held to the JVM by `test/golden/*.json` that `GoldenVectorsTest` writes and checks (`task golden:generate`,
 `task verify:golden`, also in `test:server`); `task test:local-core` runs its tests. The parity suite runs each scenario in

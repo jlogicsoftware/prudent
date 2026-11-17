@@ -1,6 +1,6 @@
 part of 'ledger.dart';
 
-/// Budgets and carry-over resets (unit 6a of `docs/plans/PRUDENT-LOCAL-PLAN.md`): phase-0 §0.3 rows
+/// Budgets and carry-over resets (unit 6a of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`): phase-0 §0.3 rows
 /// 6.1–6.12, 6.48–6.50, each the server's resource method check for check and in its order
 /// (`BudgetResource`, `BudgetCalculator`, `BudgetCarryOverResetResource`; ADR-043 to ADR-046).
 ///

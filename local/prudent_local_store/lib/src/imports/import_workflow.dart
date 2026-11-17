@@ -17,7 +17,7 @@ import '../write_expect.dart';
 import 'import_mapper.dart';
 import 'import_text.dart';
 
-/// Statement import on one device (unit 8b of `docs/plans/PRUDENT-LOCAL-PLAN.md`, ADR-114): the
+/// Statement import on one device (unit 8b of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`, ADR-114): the
 /// server's `ImportWorkflow`, `ImportDuplicateStage` and `LedgerImportCommitter`, check for check
 /// and in their order, over the ledger's store, whose `import_sessions` collection is device-only
 /// (jZenDev/jZen#252): a session never reaches another device, yet it is written in one `writeAll`

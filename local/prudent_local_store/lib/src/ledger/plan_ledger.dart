@@ -17,7 +17,7 @@ import 'ledger_view.dart';
 import '../write_expect.dart';
 
 /// Prudent Local's plans, their occurrences and their reminders (unit 6b of
-/// `docs/plans/PRUDENT-LOCAL-PLAN.md`, ADR-119): phase-0 §0.3 rows 6.29–6.45 and 6.51–6.53, over
+/// `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`, ADR-119): phase-0 §0.3 rows 6.29–6.45 and 6.51–6.53, over
 /// [PrudentLocalStore], with the server's `PlanResource`, `OccurrenceResource`, `ReminderResource`
 /// and `RecurrenceRule` as the specification. Wire requests in, wire messages out, refusals shaped
 /// as the server's, so the parity suite compares one answer against the other and the Local app's
