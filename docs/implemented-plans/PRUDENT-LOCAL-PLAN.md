@@ -71,7 +71,7 @@ All PRs are in `jlogicsoftware/prudent`. Each was derived from `git log origin/m
 | 7 | Analytics | built (Android bound **not met**, unit 12) | #265 | ADR-118 |
 | 9 | `prudent_local_client` | built; macOS only | #269 | ADR-121 |
 | 10b | Moving data in | built; no real export | #273 | ADR-123 |
-| 11 | Taskfile and CI, five platforms | built; PR checks green at final head `9dd59cc`; **main's push run at `f858dbf` failed** on one test (see follow-ups) | #272 | ADR-124, ADR-125 |
+| 11 | Taskfile and CI, five platforms | built; PR checks green at final head `9dd59cc`; main's push run at `f858dbf` was red on a two-device test-harness flaw (no money defect), fixed by #281 (ADR-126), green from `8447f8f` | #272 | ADR-124, ADR-125 |
 | **12** | **Real devices (release gate)** | **NOT VERIFIED, not started** | none | none |
 | 13 | Documents (this close-out) | **partly built**: plan moved, status and follow-ups written; the privacy statement and the other documents are not | #279 | none |
 
@@ -360,7 +360,7 @@ and Linux in CI (jZen's `Taskfile.app.yml` already supports this). `verify:bound
 manifest refuses Auto Backup of the store (ADR-100 T10). **Done when:** a
 deliberate violation of each rule fails the gate.
 
-**Status (ADR-124):** built and proven in CI (run 44106692883 on `5884c91`, then the PR's final head `9dd59cc`; **main's push run 44124134602 at `f858dbf` failed on one test, `task test:local-store` "three devices repairing from three different reads", which got 1100 where 2200 was expected, ADR-120; a fix PR is owed, see the follow-ups**). Proven: merged Android manifests, the Linux probe under `xvfb`, the Windows build and probe, the macOS and iOS release builds, `verify:swiftpm` after them and the macOS probe; Windows needed jZenDev/jZen#257, fixed upstream, `JZEN_REF` `139fcd6`, ADR-125). `task run:local` / `build:local:runners[:release]` delegate to a third include of jZen's `Taskfile.app.yml`
+**Status (ADR-124):** built and proven in CI (run 44106692883 on `5884c91`, then the PR's final head `9dd59cc`; main's push run 44124134602 at `f858dbf` was red on one test, `task test:local-store` "three devices repairing from three different reads" (1100 where 2200 was expected, ADR-120): a flaw of the test harness, where `ZenFolderCloud` with `pollEvery: null` still syncs, so "offline" writes leaked, not a money defect; fixed by #281, ADR-126, and main's push run 44165373573 at `8447f8f` is green). Proven: merged Android manifests, the Linux probe under `xvfb`, the Windows build and probe, the macOS and iOS release builds, `verify:swiftpm` after them and the macOS probe; Windows needed jZenDev/jZen#257, fixed upstream, `JZEN_REF` `139fcd6`, ADR-125). `task run:local` / `build:local:runners[:release]` delegate to a third include of jZen's `Taskfile.app.yml`
 (`zenlocal`, no server module, so jZen's own Local behaviour and web refusal); CI builds Local on all five platforms (`macos-runner` is new);
 `verify:local-release` gates T10 (source and merged Android manifests), the single `ZEN_SYNC` reader, no workflow setting it and no web runner;
 the T18 refusal is jZen's and is proven on a real release build by `test:local-release-refusal`. Each rule has a planted-violation test.
@@ -476,4 +476,5 @@ Known work left by the plan, each with its issue:
   stripping and line-based transport gates, 'Dalej' vs 'Kontynuuj', the probe's untested branch, no old-format fixture for ADR-125) —
   jlogicsoftware/prudent#278.
 - The privacy statement for a serverless app, owed before release — jlogicsoftware/prudent#280.
-- Main's push run at `f858dbf` failed on one test (`task test:local-store`, ADR-120, see unit 11) — fix PR: jlogicsoftware/prudent#281 (ADR-126; not yet merged when this was written, and the wording of the unit 11 row and `CLAUDE.md` waits for it). Related: jZenDev/jZen#263.
+- Main's push run at `f858dbf` was red on a two-device test-harness flaw, fixed by jlogicsoftware/prudent#281 (ADR-126), green from `8447f8f` (see unit 11); the reference helper's same flaw is jZenDev/jZen#263, open.
+- The import crash test once saw the commit succeed — jlogicsoftware/prudent#282.
