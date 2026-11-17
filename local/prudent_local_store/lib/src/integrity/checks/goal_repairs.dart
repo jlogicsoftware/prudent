@@ -4,6 +4,7 @@ import 'package:zen_core/zen_core.dart';
 import '../../../generated/prudent_local/v1/store.pb.dart';
 import '../../derived_ids.dart';
 import '../../prudent_local_store.dart';
+import '../../write_expect.dart';
 import '../integrity_issue.dart';
 
 /// The repairs of the envelope checks (ADR-116, ADR-120). Each writes through [PrudentLocalStore]'s
@@ -90,29 +91,24 @@ abstract final class GoalRepairs {
 
   /// Makes [goal] active again — only if it is still exactly the archived goal the issue was read
   /// from, so an edit another device made in between is never written back over.
-  static IntegrityAction reactivate(PrudentLocalStore store, Goal goal, int Function() now) =>
-      IntegrityAction.now(
-        'reactivate_goal',
-        () => store.putGoal(
-          goal.deepCopy()
-            ..status = GoalState.GOAL_STATE_ACTIVE
-            ..statusChangedAtMs = Int64(now()),
-          expect: (current) => current != null && _sameBytes(current, goal)
-              ? null
-              : const ZenConflictError('This goal changed since this was shown; look at it again.'),
-        ),
-      );
+  static IntegrityAction reactivate(
+    PrudentLocalStore store,
+    Goal goal,
+    int Function() now,
+  ) => IntegrityAction.now(
+    'reactivate_goal',
+    () => store.putGoal(
+      goal.deepCopy()
+        ..status = GoalState.GOAL_STATE_ACTIVE
+        ..statusChangedAtMs = Int64(now()),
+      // A goal is never deleted (ADR-049), so `gone` cannot happen; it answers as `changed` does.
+      expect: WriteExpects.asRead(goal, gone: _goalChanged, changed: _goalChanged),
+    ),
+  );
+
+  static ZenError _goalChanged() =>
+      const ZenConflictError('This goal changed since this was shown; look at it again.');
 
   static bool _sameIds(List<GoalAllocation> entries, Set<String> ids) =>
       entries.length == ids.length && entries.every((e) => ids.contains(e.id));
-
-  static bool _sameBytes(Goal a, Goal b) {
-    final x = a.writeToBuffer();
-    final y = b.writeToBuffer();
-    if (x.length != y.length) return false;
-    for (var i = 0; i < x.length; i++) {
-      if (x[i] != y[i]) return false;
-    }
-    return true;
-  }
 }

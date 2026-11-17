@@ -476,6 +476,71 @@ void main() {
       }
     });
 
+    test(
+      'three devices repairing from three different reads: one undo settles the overshoot',
+      () async {
+        final three = await TwoDevices.create(withTablet: true);
+        try {
+          final ledgers = [for (final d in three.all) Ledger(d.store, clock: tick)];
+          final first = ledgers.first;
+          Device.ok(
+            await first.createAccount(
+              wire.CreateAccountRequest(
+                name: 'Wallet',
+                type: wire.AccountType.ACCOUNT_TYPE_CASH,
+                isActive: true,
+                eligibleForGoals: true,
+                balances: [wire.CurrencyBalance(currency: 'PLN', amountMinor: Int64(100000))],
+              ),
+            ),
+          );
+          final bike = await goal(first);
+          Device.ok(await entry(first, allocate, 1000, target: bike));
+          await three.sync();
+          // Each device withdraws offline; after a sync all three read -1100.
+          for (final (ledger, amount) in [
+            (ledgers[0], 800),
+            (ledgers[1], 700),
+            (ledgers[2], 600),
+          ]) {
+            Device.ok(await entry(ledger, withdraw, amount, source: bike));
+          }
+          await three.sync();
+          // Then the reads diverge: the laptop takes 100 more, the phone 50, the tablet nothing.
+          await raw(three.laptop, AllocationKind.ALLOCATION_KIND_WITHDRAW, bike, 100);
+          await raw(three.phone, AllocationKind.ALLOCATION_KIND_WITHDRAW, bike, 50);
+          // -1200, -1150 and -1100: three repairs, three ids.
+          for (final device in three.all) {
+            Device.ok(await Device.ok(device.integrity().evaluate()).single.actions.single.run());
+          }
+          await three.sync();
+          // Entries -1250, repairs +3450: 2200 set aside by nobody, named as one group of three.
+          for (final device in three.all) {
+            final issues = Device.ok(device.integrity().evaluate());
+            expect(issues.map((i) => (i.code, i.facts['overshootMinor'])), [
+              ('goal.repairs_made_apart', '2200'),
+            ]);
+            // All three people undo it, offline: one entry.
+            Device.ok(await issues.single.actions.single.run());
+          }
+          await three.sync();
+          for (final device in three.all) {
+            expect(
+              Device.ok(await Ledger(device.store).listGoalEnvelopes())
+                  .envelopes
+                  .single
+                  .amountMinor,
+              Int64.ZERO,
+            );
+            expect(Device.ok(device.store.goalAllocations.conflicts()), isEmpty);
+            expect(Device.ok(device.integrity().evaluate()), isEmpty);
+          }
+        } finally {
+          await three.dispose();
+        }
+      },
+    );
+
     test('a goal reactivated on both devices merges, keeping the first moment', () async {
       await setUpLedger();
       final bike = await goal(laptop);
