@@ -332,7 +332,10 @@ tasks:
           windows) set -- build/windows/x64/runner/Release/prudent_local_client.exe ;;
         esac
         bin="$1"
-        if [ ! -x "$bin" ]; then echo "the release probe was not built where expected: $bin"; exit 1; fi
+        # `-f`, not `-x`: go-task runs this in its built-in shell, where on Windows `-x` reads permission
+        # bits a file there does not have and rejects the .exe the build just printed. Existence is checked
+        # here; that it EXECUTES is proven by running it below, whose failure fails the task.
+        if [ ! -f "$bin" ]; then echo "the release probe was not built where expected: $bin"; exit 1; fi
         echo ">> running $bin"
         out="$("$bin")" || { echo "$out"; echo "the release probe did not report a refusal"; exit 1; }
         echo "$out"

@@ -102,6 +102,11 @@ ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). *
   there, and the Windows jobs of this PR are the proof; jZen's own note says its Windows run was not seen when it merged.
 - **The macOS runner** failed in `zenlocal:build:runners`, which on a macOS host also builds Android; the desugaring fix is expected to unblock it,
   and it must then reach the macOS and iOS release builds, `verify:swiftpm` and the probe in a green run before those are called proven.
+- **The probe's existence check was wrong on Windows.** With Windows compiling, the job printed `Built …\Release\prudent_local_client.exe` and the task
+  then reported the probe "not built where expected" at that same path: go-task runs `cmds` in its built-in shell, where `[ -x ]` on Windows reads
+  permission bits a file there does not have. The check is `[ -f ]` now, and that the probe executes is proven by running it, whose failure or missing
+  refusal fails the task (not weaker: the run was always the proof). `test_local_tasks.py` runs the task with a stub build on macOS and Linux for the
+  pass, the probe that exits zero without the refusal, the probe that fails and the missing binary. The Windows run itself is CI's.
 - **Release builds are signed with the debug key** (the template's `signingConfig = debug`). That is enough to compile and to run the probe, and is not a
   shippable configuration; a real signing setup is unit 12's.
 
@@ -112,7 +117,7 @@ ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). *
   that way and passing: `verify:local-release`, `verify:boundaries`, `verify:swiftpm`, `test:local-tasks`. Run directly and not through `task`: the
   probe's `flutter build macos --release` and its run (`PROBE-OK`, exit 0; and without `ZEN_SYNC`, exit 133).
 - **Not run anywhere:** `test:local-release-refusal` through `task`; and no CI job or step is proven until it is green: the first run failed on
-  Android (desugaring, fixed), Windows (#257, fixed upstream) and macOS (see above). Their steps are written against jZen's task and the pinned runners. The Windows and Linux probe binaries' paths are the CMake `BINARY_NAME` (`prudent_local_client`) and are unconfirmed. The merged-manifest path
+  Android (desugaring, fixed), Windows (#257, fixed upstream) and macOS (see above). Their steps are written against jZen's task and the pinned runners. The Linux probe path is confirmed by a green `android-runner`, and the Windows one by the build's own output; the Windows probe run is unconfirmed until its job is green. The merged-manifest path
   is found with `find` and not assumed. No platform was installed on a device (unit 12).
 
 ---

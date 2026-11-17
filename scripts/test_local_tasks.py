@@ -25,6 +25,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import sys
 import stat
 import subprocess
 import tempfile
@@ -148,3 +149,73 @@ class LocalTasks(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+HOST_BINARY = {
+    "darwin": "build/macos/Build/Products/Release/Prudent Local.app/Contents/MacOS/Prudent Local",
+    "linux": "build/linux/x64/release/bundle/prudent_local_client",
+}
+
+
+class ReleaseRefusalTask(unittest.TestCase):
+    """`test:local-release-refusal`'s own logic, with a stub `flutter` that leaves a stub probe where
+    the real build would: the task must find it by existence, run it, and fail unless the probe reports
+    jZen's refusal naming the define (ADR-124). The real build is the CI jobs'."""
+
+    def setUp(self):
+        if shutil.which("task") is None:
+            self.skipTest("go-task is not installed")
+        host = {"darwin": "darwin", "linux": "linux"}.get(sys.platform)
+        if host is None:
+            self.skipTest("the probe task is exercised on macOS and Linux hosts here")
+        self.rel = HOST_BINARY[host]
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        (self.tmp / "Taskfile.yml").write_text(
+            (ROOT / "Taskfile.yml").read_text().replace("../jZen/", f"{jzen_dir()}/"))
+        (self.tmp / "local" / "prudent_local_client").mkdir(parents=True)
+        self.bin_dir = self.tmp / "bin"
+        self.bin_dir.mkdir()
+
+    def stub(self, probe_script: "str | None"):
+        """A `flutter` that, when it is asked to build, leaves [probe_script] at the host's path."""
+        target = self.tmp / "local" / "prudent_local_client" / self.rel
+        body = "#!/bin/sh\n"
+        if probe_script is not None:
+            body += f"mkdir -p '{target.parent}'\ncat > '{target}' <<'EOS'\n{probe_script}\nEOS\nchmod +x '{target}'\n"
+        flutter = self.bin_dir / "flutter"
+        flutter.write_text(body)
+        flutter.chmod(0o755)
+
+    def run_task(self) -> subprocess.CompletedProcess:
+        env = dict(os.environ, PATH=f"{self.bin_dir}:{os.environ['PATH']}")
+        return subprocess.run(["task", "-t", str(self.tmp / "Taskfile.yml"), "-d", str(self.tmp),
+                               "test:local-release-refusal"], capture_output=True, text=True, env=env)
+
+    def test_a_probe_that_reports_the_refusal_passes(self):
+        self.stub("#!/bin/sh\necho \"PROBE-OK refused: ZEN_SYNC='folder' is set in a release build.\"\nexit 0")
+        r = self.run_task()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_probe_that_exits_zero_without_the_refusal_fails(self):
+        self.stub("#!/bin/sh\necho started\nexit 0")
+        r = self.run_task()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("did not name ZEN_SYNC", r.stdout + r.stderr)
+
+    def test_a_probe_that_fails_fails_the_task(self):
+        self.stub("#!/bin/sh\necho PROBE-FAIL nope\nexit 1")
+        r = self.run_task()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("did not report a refusal", r.stdout + r.stderr)
+
+    def test_a_missing_binary_fails_and_says_where(self):
+        self.stub(None)
+        r = self.run_task()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("was not built where expected", r.stdout + r.stderr)
+
+    def test_the_check_is_existence_not_permission_bits(self):
+        text = (ROOT / "Taskfile.yml").read_text()
+        self.assertNotRegex(text, r'\[ ! -x "\$bin" \]')
+        self.assertIn('[ ! -f "$bin" ]', text)
