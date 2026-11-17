@@ -1,0 +1,228 @@
+{
+  "name": "schedule_change",
+  "description": "Replacing a plan's schedule drops the still-planned occurrences it no longer produces and keeps the ones a person decided \u2014 skipped or confirmed \u2014 listed as they were; an occurrence of the old schedule that is restored stays, planned; deleting a confirming record reopens an occurrence the new schedule no longer produces.",
+  "rules": [
+    "6.33",
+    "6.36",
+    "6.37",
+    "6.38",
+    "6.39",
+    "6.51"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "bills",
+      "outcome": "accepted",
+      "input": {
+        "title": "Bills",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "main",
+      "outcome": "accepted",
+      "input": {
+        "name": "Main",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "100000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "daily",
+      "outcome": "accepted",
+      "input": {
+        "title": "Daily",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_DAILY",
+          "startDate": "@today(UTC)-3",
+          "timeZone": "UTC",
+          "interval": 1,
+          "occurrenceCount": 8
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 2
+        }
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_skipped",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$daily",
+        "date": "@today(UTC)-1"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_paid",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$daily",
+        "date": "@today(UTC)"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_read",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$daily",
+        "date": "@today(UTC)-2"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_tomorrow",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$daily",
+        "date": "@today(UTC)+1"
+      }
+    },
+    {
+      "op": "occurrence.skip",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_skipped"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "as": "paid",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_paid"
+      }
+    },
+    {
+      "op": "reminder.read",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_tomorrow"
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 10
+      }
+    },
+    {
+      "op": "plan.update",
+      "outcome": "accepted",
+      "input": {
+        "title": "Once, later",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+20",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 2
+        },
+        "plan": "$daily"
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 30
+      }
+    },
+    {
+      "op": "reminder.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.skip",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_read"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "outcome": "refused",
+      "input": {
+        "plan": "$daily",
+        "date": "@today(UTC)+1"
+      }
+    },
+    {
+      "op": "occurrence.restore",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_skipped"
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.skip",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_skipped"
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "record.delete",
+      "outcome": "accepted",
+      "input": {
+        "record": "$paid"
+      }
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 30
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    }
+  ]
+}

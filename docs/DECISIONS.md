@@ -13,6 +13,107 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-119 — Prudent Local reads a plan's occurrences from its schedule and never generates them; completion is the confirming record; time is an argument; a plan two devices disagree about has no occurrences
+
+**Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 6b of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);
+phase-0 §0.3 rows 6.29–6.45 and 6.51–6.53; findings F-07, F-08, F-11. **Builds on:** ADR-037 to ADR-040 (plans, recurrence, occurrences,
+confirmation), ADR-042 (planned cash flow), ADR-054 to ADR-058 (reminders and their notifications), ADR-102, ADR-107, ADR-111, ADR-113.
+**jZen:** nothing new is asked of the framework; `JZEN_REF` moves to `4fa887a` (which carries jZenDev/jZen#245 and #251 for the write
+paths this unit's writes go through).
+
+### Decision
+
+- **Where it lives: `PlanLedger`, beside `Ledger`** (`local/prudent_local_store/lib/src/ledger/plan_ledger.dart`), taking the wire plan,
+  occurrence and reminder requests and answering the wire messages, as `ZenResult`s with the server's statuses (`LedgerErrors`). Its
+  pure rules are in `prudent_local_core`: `RecurrenceRule` (the date arithmetic), `ReminderLeadTimes` (finding F-08), `PlanZones` (the
+  zones and the day in one), `CivilDate`'s calendar arithmetic (`plusDays`/`plusMonths`/`plusYears`, epoch days), and
+  `LocalIds.compareAsJavaUuid` (finding F-11). The existing local-notification scheduler of `packages/prudent_ui` is **reused unchanged**:
+  it reads `Plan` and `PlanOccurrence` wire messages through the repository seam, and `PlanLedger.listPlans` and `upcoming` answer
+  exactly those. Wiring is unit 9's.
+- **Nothing is generated; an occurrence is read from the rule each time.** The server materialises a plan's window on every view and
+  keeps the rows. Here the dates a rule produces are a pure function of the plan (`RecurrenceRule.occurrencesBetween`, computed from the
+  anchor, so 31 January clamps to 28 February and returns to 31 March), and what is stored is only what a person decided: an
+  `OccurrenceState` (skipped, or a reminder read) under an id derived from the plan and the date (`DerivedIds.occurrence`), **only while it
+  differs from the default**. Listing writes nothing. Both sides look back at most 366 days (`OccurrenceResource.LOOKBACK_DAYS`); Local
+  makes that the rule in every case, where on the server an overdue row once generated stays for good (stated difference below).
+- **Completion is derived: an occurrence is completed when its confirming record exists.** Confirming writes **one** record — the plan's
+  title, payee, note, amount, account and category unless the request overrides date, amount, account or category — through
+  `Ledger.recordForConfirmation`, so every record rule applies in its order, under the id `DerivedIds.confirmation(occurrenceId)`, carrying
+  the plan link. Two devices that confirm one occurrence write one record; if their overrides differ it is one record in conflict, which
+  no balance reads (ADR-113). Deleting the record reopens the occurrence because nothing else said it was done. It goes through
+  `writeAll` as a batch of one, so it inherits the write precondition of jZenDev/jZen#251 with every other write. `PlanLink` gains
+  `occurrence_date` (immutable): the id is a hash and cannot be turned back into a date, and an occurrence completed under an earlier
+  schedule is still listed, as on the server.
+- **Skipped and completed together is a state a merge can reach and the server cannot.** One device skips, another confirms: the occurrence
+  reads as **completed** (money moved) and the new integrity check `occurrence.skipped_and_paid` lists it, with two actions: clear the
+  skip, or delete the record (which reopens it, skipped). Nothing is fixed silently.
+- **Deleting a plan** deletes it and its occurrence states in one `writeAll`. Its records are *detached by being read as detached*:
+  `Ledger` answers a record whose plan no longer exists without `planId` and `planOccurrenceId`, which is all `detachFromPlan` does
+  (row 6.34). Nothing is written to the records, so a plan deleted on one device while another confirms leaves a record that reads as
+  detached on both. Replacing a plan whose schedule changed deletes, in the same write, the stored states of still-planned
+  occurrences the new schedule no longer produces (`OccurrenceGenerator.dropStale`); skipped and completed ones stay. An occurrence the
+  schedule no longer produces that is *restored*, or whose confirming record is deleted, keeps a state record of its own, because the
+  server keeps its row planned (`Ledger.deleteRecord` writes it in its batch).
+- **Time is an argument** (finding F-07). Every operation whose answer depends on the day takes `asOf`, reckons it in each plan's own
+  zone (`RecurrenceRule.today`), and nothing in the package reads a clock. `reminder_read_at_ms` is written from `asOf` and kept at its
+  first value when already set; two devices that read on one reminder merge by `ZenMergePolicy.earliest` without a question
+  (ADR-111, jZenDev/jZen#235).
+- **Zones.** A plan may name exactly the ids `ZoneId.getAvailableZoneIds()` answers on the server's JDK (604 on JDK 25: region ids and
+  legacy aliases such as `US/Pacific`, never a fixed offset), a generated list (`java_zone_ids.dart`, `tool/generate_java_zone_ids.dart`),
+  less eight that Local refuses (`PlanZones.unsupported`): `Africa/Casablanca` and `Africa/El_Aaiun` (the clock follows Ramadan, which
+  the database does not carry) and the JDK's `SystemV/*DT` ids (the pre-2007 US rules, followed by no zone in the database). The
+  calendar day comes from `package:timezone`; `plans.json` holds it to `LocalDate.ofInstant` at each midnight of 22 zones whose rules
+  are stable, the second before and after. **No per-zone offsets are committed.** A first version did, and CI failed: Temurin 25.0.3 and
+  25.0.5 (and GraalVM 25.0.2) carry different tzdata, so a committed table of the JDK's offsets for legislated zones (Moldova, the
+  Canadian provinces, Morocco) is true of one JDK build and false of the next, and says nothing about what the server does. What the
+  limit costs is stated instead: a zone legislated since `package:timezone`'s data is read at the older rules until the package moves,
+  so a plan in it can turn overdue an hour early or late on the changed days. Beyond 2037 the package stops too. The server's
+  recurrence rule is held in `plans.json` (about 45 rules, 4 windows each, the `+999999999` calendar edge) and so are the lead days.
+- **Lists and their order.** Plans are ordered start date then id (SQL byte order, which is the text order of Local ids); upcoming,
+  overdue and reminders by date then **Java's signed `UUID.compareTo`** of the id, as the server's in-memory sorts do (F-11). Ids differ
+  between server and Local, so the parity suite compares ties as a set per date and states, for each side, whether ties came out in the
+  signed order.
+- **A figure never reads a value two devices disagree about** (ADR-113, carried forward). A plan in conflict about its amount, account,
+  category, schedule or reminder, or about whether it exists, and an occurrence state in conflict about whether it was skipped or its
+  confirming record about existing, has no occurrence in any list, no reminder, and cannot be skipped, restored, confirmed or read (409)
+  until it is settled. `upcoming`, `overdue` and the reminder list answer `Settled<…>` naming what was left out by plan — planned cash flow
+  (ADR-042) is their sum, so it leaves it out too. A conflict about a title, payee or note changes nothing. Unit 5's "still used by" reads
+  of plans (`deleteAccount`, `updateAccount`, `deleteCategory`) now read `LedgerView.planValues()`, which includes every side of a
+  conflicted plan, as `recordValues()` does for records.
+- **Parity without a pinned server.** The server's plan routes read the wall clock and take no `asOf`; adding one would change the contract
+  for the sake of a test. So a scenario never names a date: it names `@today(Europe/Warsaw)+3`, which `ParityClock` resolves once
+  before either backend runs the step, and Local reads the same instant as its `asOf` while the server reads its clock a moment
+  later. If a zone's midnight passed during the run the engine runs the scenario again (and fails if it happens twice). **The day
+  boundary is proved without pinning the instant:** `Pacific/Kiritimati` (UTC+14) and `Pacific/Pago_Pago` (UTC−11) are 25 hours apart, so a
+  date that is today in one is overdue in the other at every instant (`day_boundary`, `reminders`). The exact instants are proved
+  against the JVM's own `LocalDate.ofInstant` (`plans.json`, `plan_zones_test`) and at pinned instants in `plans_test`.
+
+### Differences from the server, on purpose
+
+1. **Nothing is materialised.** The server's overdue view lists rows generated in earlier views, however old; Local lists the last 366 days
+   from the schedule every time. A person who opened the app every day for two years sees, on the server, the same overdue list they
+   would see here, bar anything older than a year.
+2. **An id Local never listed** (an occurrence beyond today ± 366 days) is found by the same window and answers 404 where the server, which
+   would have no such row either, also answers 404 — a difference only for a guessed id.
+3. **Skipped-and-paid** (above) cannot happen on the server.
+4. **Two devices** can disagree about a plan, and then its occurrences leave the lists (above); the server has one writer.
+
+### Not verified
+
+- Nothing here has run on a device: no notification has been seen, the plan screens are not built (unit 9), and the shared screens'
+  plan forms do not exist (CLAUDE.md: no client screen sets a reminder).
+- The server was run in a local stack (`task test:e2e`'s shape, from a worktree: the jar on another port with the Supabase keys of
+  `supabase status`), not in CI by this change; CI runs `task test:e2e` and will compare every scenario.
+- Offsets past 2037 are not the JVM's, and a zone legislated since `package:timezone`'s data is read at the older rules.
+- A real daylight-saving change crossed while a plan is open on a device has not been seen.
+
+### Consequences
+
+New: `local/prudent_local_core/lib/src/plans/`, `test/golden/plans.json` (written by `GoldenVectorsTest.plans`), `ParityClock` and the
+engine's rerun, the readers for plans, occurrences and reminders, 14 parity operations on both backends and 6 scenarios (`plans`,
+`occurrence_windows`, `occurrences`, `schedule_change`, `day_boundary`, `reminders`), `PlanLedger`,
+`OccurrenceSkippedAndPaidCheck`, `PlanLink.occurrence_date`, `plans_test`, `plans_two_devices_test`, and a `timezone` dependency of
+`prudent_local_core`. `JZEN_REF` is `4fa887a`.
 ## ADR-117 — The server-connected app saves the privacy export through jZen's `zen_save_file` on every platform, so iOS and Android get "Save to a file" too
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 10a (mobile half) of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).

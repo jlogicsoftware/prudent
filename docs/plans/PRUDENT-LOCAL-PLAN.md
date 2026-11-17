@@ -212,6 +212,14 @@ them onto the same helper. **Done for budgets and resets (ADR-116):** `deleteCat
 `resetValues`; the plan reads are 6b's.
 
 ### Unit 6b — Plans, occurrences, reminders
+**Built: ADR-119** — `PlanLedger` in `local/prudent_local_store` (`lib/src/ledger/plan_ledger.dart`) over the plan rules of
+`prudent_local_core` (`RecurrenceRule`, `ReminderLeadTimes`, `PlanZones`, calendar arithmetic on `CivilDate`); occurrences are read from the
+schedule and never generated, completion is the confirming record (one record, derived id, `PlanLink.occurrence_date`), `asOf` is an
+argument everywhere, a plan two devices disagree about has no occurrences and is named (`Settled`), the check `occurrence.skipped_and_paid`;
+the notification scheduler of `packages/prudent_ui` is reused unchanged through the wire messages. Held to the JVM by `plans.json`
+(recurrence, zones and offsets, lead days) and by six parity scenarios (`plans`, `occurrence_windows`, `occurrences`, `schedule_change`,
+`day_boundary`, `reminders`) whose dates are relative to today in a zone (`ParityClock`), because the server's plan routes take no `asOf`.
+`JZEN_REF` `4fa887a`. Not here: the screens (unit 9); nothing seen on a device.
 Plans with their recurrence and reminder, occurrences by derived id (completion derived from the
 confirming record), confirmation, reminders. Reminders use local-device notifications only. The parity
 suite passes `asOf` explicitly (finding F-07). 20 rules (rows 6.29–6.45, 6.51–6.53), including the

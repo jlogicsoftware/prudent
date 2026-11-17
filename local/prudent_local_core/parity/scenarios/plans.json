@@ -1,0 +1,790 @@
+{
+  "name": "plans",
+  "description": "Plans are validated as records are (title, amount, account, category, currency), carry a recurrence and a reminder with their own rules (lead days only 0, 1, 2, 3 or 7), are replaced whole, listed by start date, deleted, and hold their account's currency and their category in place.",
+  "rules": [
+    "6.29",
+    "6.30",
+    "6.31",
+    "6.32",
+    "6.33",
+    "6.34",
+    "6.53",
+    "5.7",
+    "5.11",
+    "5.42"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "bills",
+      "outcome": "accepted",
+      "input": {
+        "title": "Bills",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "pay",
+      "outcome": "accepted",
+      "input": {
+        "title": "Pay",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "main",
+      "outcome": "accepted",
+      "input": {
+        "name": "Main",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "100000"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "5000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "other",
+      "outcome": "accepted",
+      "input": {
+        "name": "Other",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "old",
+      "outcome": "accepted",
+      "input": {
+        "title": "Old",
+        "iconKey": "leisure",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "rent",
+      "outcome": "accepted",
+      "input": {
+        "title": "  Rent  ",
+        "amountMinor": "-150000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_MONTHLY",
+          "startDate": "@today(Europe/Warsaw)",
+          "timeZone": "Europe/Warsaw",
+          "interval": 1,
+          "occurrenceCount": 6
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 3
+        },
+        "payee": "  Landlord ",
+        "note": "  monthly  "
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "paycheck",
+      "outcome": "accepted",
+      "input": {
+        "title": "Paycheck",
+        "amountMinor": "500000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$pay",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_WEEKLY",
+          "startDate": "@today(UTC)+10",
+          "timeZone": "UTC",
+          "interval": 2,
+          "untilDate": "@today(UTC)+90"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "zero",
+      "outcome": "accepted",
+      "input": {
+        "title": "Zero leads",
+        "amountMinor": "-500",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+1",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": false,
+          "leadDays": 0
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "euro",
+      "outcome": "accepted",
+      "input": {
+        "title": "Euro",
+        "amountMinor": "-900",
+        "currency": " eur ",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_YEARLY",
+          "startDate": "@today(UTC)+4",
+          "timeZone": "Europe/Warsaw",
+          "interval": 1,
+          "occurrenceCount": 3
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "late",
+      "outcome": "accepted",
+      "input": {
+        "title": "Late start",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_DAILY",
+          "startDate": "@today(UTC)+30",
+          "timeZone": "Pacific/Kiritimati",
+          "interval": 7
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "   ",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Zero amount",
+        "amountMinor": "0",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Unknown account",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "no-such-account",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Blank category",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Income in an expense category",
+        "amountMinor": "500",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Expense in an income category",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$pay",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Currency not held",
+        "amountMinor": "-1000",
+        "currency": "USD",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Not a currency",
+        "amountMinor": "-1000",
+        "currency": "XX",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Reminder lead 4",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 4
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Reminder lead 365",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 365
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Fixed offset zone",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "+02:00"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Lower-case zone",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "europe/warsaw"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Blank zone",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": ""
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Impossible start",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "2026-02-30",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Monthly with no interval",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_MONTHLY",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Interval 1001",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_DAILY",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC",
+          "interval": 1001
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Count 0",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_DAILY",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC",
+          "interval": 1,
+          "occurrenceCount": 0
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Count 10001",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_DAILY",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC",
+          "interval": 1,
+          "occurrenceCount": 10001
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Once, interval 2",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC",
+          "interval": 2
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Once, until",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC",
+          "untilDate": "@today(UTC)+5"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "Ends before it starts",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_DAILY",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC",
+          "interval": 1,
+          "untilDate": "@today(UTC)-1"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "No frequency",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_UNSPECIFIED",
+          "startDate": "@today(UTC)",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "No recurrence",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills"
+      }
+    },
+    {
+      "op": "plan.list",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "plan.update",
+      "outcome": "accepted",
+      "input": {
+        "title": "Rent, renamed",
+        "amountMinor": "-160000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_MONTHLY",
+          "startDate": "@today(Europe/Warsaw)",
+          "timeZone": "Europe/Warsaw",
+          "interval": 1,
+          "occurrenceCount": 6
+        },
+        "plan": "$rent"
+      }
+    },
+    {
+      "op": "plan.update",
+      "outcome": "accepted",
+      "input": {
+        "title": "Rent, a lead of 7",
+        "amountMinor": "-160000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_MONTHLY",
+          "startDate": "@today(Europe/Warsaw)",
+          "timeZone": "Europe/Warsaw",
+          "interval": 1,
+          "occurrenceCount": 6
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 7
+        },
+        "plan": "$rent"
+      }
+    },
+    {
+      "op": "plan.update",
+      "outcome": "refused",
+      "input": {
+        "title": "Rent, a bad lead",
+        "amountMinor": "-160000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_MONTHLY",
+          "startDate": "@today(Europe/Warsaw)",
+          "timeZone": "Europe/Warsaw",
+          "interval": 1,
+          "occurrenceCount": 6
+        },
+        "reminder": {
+          "enabled": true,
+          "leadDays": 5
+        },
+        "plan": "$rent"
+      }
+    },
+    {
+      "op": "plan.update",
+      "outcome": "refused",
+      "input": {
+        "title": "Nobody's",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(Europe/Warsaw)",
+          "timeZone": "UTC"
+        },
+        "plan": "no-such-plan"
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "oldbill",
+      "outcome": "accepted",
+      "input": {
+        "title": "Old bill",
+        "amountMinor": "-700",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$old",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+3",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "category.archive",
+      "outcome": "accepted",
+      "input": {
+        "category": "$old"
+      }
+    },
+    {
+      "op": "plan.update",
+      "outcome": "accepted",
+      "input": {
+        "title": "Old bill, edited",
+        "amountMinor": "-800",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$old",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+3",
+          "timeZone": "UTC"
+        },
+        "plan": "$oldbill"
+      }
+    },
+    {
+      "op": "plan.update",
+      "outcome": "refused",
+      "input": {
+        "title": "Old bill, amount sign flipped",
+        "amountMinor": "800",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$old",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+3",
+          "timeZone": "UTC"
+        },
+        "plan": "$oldbill"
+      }
+    },
+    {
+      "op": "plan.update",
+      "outcome": "refused",
+      "input": {
+        "title": "Rent in an archived category",
+        "amountMinor": "-800",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$old",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+3",
+          "timeZone": "UTC"
+        },
+        "plan": "$paycheck"
+      }
+    },
+    {
+      "op": "plan.create",
+      "outcome": "refused",
+      "input": {
+        "title": "New in an archived category",
+        "amountMinor": "-800",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$old",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+3",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "account.update",
+      "outcome": "refused",
+      "input": {
+        "account": "$main",
+        "name": "Main",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "100000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.delete",
+      "outcome": "refused",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "op": "category.delete",
+      "outcome": "refused",
+      "input": {
+        "category": "$bills"
+      }
+    },
+    {
+      "op": "plan.delete",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$late"
+      }
+    },
+    {
+      "op": "plan.delete",
+      "outcome": "refused",
+      "input": {
+        "plan": "$late"
+      }
+    },
+    {
+      "op": "plan.list",
+      "outcome": "accepted",
+      "input": {}
+    }
+  ]
+}

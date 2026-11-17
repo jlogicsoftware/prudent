@@ -22,6 +22,7 @@ import '../wire_mapper.dart';
 import 'envelopes.dart';
 import 'ledger_errors.dart';
 import 'ledger_view.dart';
+import 'plan_ledger.dart';
 import 'record_query.dart';
 
 part 'ledger_budgets.dart';
@@ -140,7 +141,7 @@ final class Ledger {
       request.balances,
       inUse: _currenciesInUse(view, current.id),
       planned: {
-        for (final p in view.plans.values)
+        for (final p in view.planValues())
           if (p.posting.accountId == current.id) p.posting.currency,
       },
     );
@@ -180,7 +181,7 @@ final class Ledger {
         'This account still has records. Delete them first, or delete the account with them.',
       );
     }
-    if (view.plans.values.any((p) => p.posting.accountId == account.id)) {
+    if (view.planValues().any((p) => p.posting.accountId == account.id)) {
       throw const Refusal.conflict(
         '5.11',
         'This account still has plans. Delete them or move them to another account first.',
@@ -287,7 +288,7 @@ final class Ledger {
     if (view.recordValues().any((r) => r.hasCategoryId() && r.categoryId == category.id)) {
       throw const Refusal.conflict('5.42', 'This category still has records.');
     }
-    if (view.plans.values.any((p) => p.categoryId == category.id)) {
+    if (view.planValues().any((p) => p.categoryId == category.id)) {
       throw const Refusal.conflict('5.42', 'This category still has plans.');
     }
     // Budgets and resets as every device holds them (unit 6a), as records are read above.
@@ -349,7 +350,7 @@ final class Ledger {
     final view = LedgerView.read(store);
     final rows = <(CivilDate, wire.Record)>[
       for (final r in view.records.values)
-        (_storedDate('records', r.id, r.date), WireMapper.recordToWire(r)),
+        (_storedDate('records', r.id, r.date), _recordWire(view, r)),
       for (final t in view.transfers.values)
         for (final leg in [
           WireMapper.transferToWire(t).fromRecord,
@@ -407,8 +408,37 @@ final class Ledger {
   Future<ZenResult<wire.Record>> getRecord(String id) => _run(() async {
     final view = LedgerView.read(store);
     if (_legOf(view, id) case final leg?) return leg;
-    return WireMapper.recordToWire(_requireRecord(view, id));
+    return _recordWire(view, _requireRecord(view, id));
   });
+
+  /// `RecordWriter.apply` for a record a plan's confirmation creates (unit 6b, `PlanLedger`): the
+  /// same checks in the same order as a record typed in by hand, so what a plan allowed can still be
+  /// refused here if the world moved, and a confirmation cannot slip past them. A new record, so an
+  /// archived category is refused (409).
+  static Record recordForConfirmation(
+    LedgerView view,
+    String id, {
+    required String title,
+    required int amountMinor,
+    required String date,
+    required String categoryId,
+    required String accountId,
+    required String currency,
+    required String? payee,
+    required String? note,
+  }) => _applyRecord(
+    view,
+    null,
+    id,
+    title: title,
+    amountMinor: amountMinor,
+    date: date,
+    categoryId: categoryId,
+    accountId: accountId,
+    currency: currency,
+    payee: payee,
+    note: note,
+  );
 
   /// `RecordResource.create` through `RecordWriter.apply` (rows 5.15–5.20, 5.23).
   Future<ZenResult<wire.Record>> createRecord(wire.CreateRecordRequest request) => _run(() async {
@@ -462,14 +492,36 @@ final class Ledger {
           await _write(store.writeAll(batch));
           return WireMapper.recordToWire(record);
         }
-        return WireMapper.recordToWire(await _write(store.putRecord(record)));
+        return _recordWire(view, await _write(store.putRecord(record)));
       });
 
   /// `RecordResource.delete`: a hard delete (row 5.24). A confirmed occurrence reopens by itself,
   /// because completion is derived from the confirming record existing (row 5.26).
   Future<ZenResult<void>> deleteRecord(String id) => _run(() async {
     final view = LedgerView.read(store);
-    await _write(store.deleteRecord(_requireEditableRecord(view, id).id));
+    final record = _requireEditableRecord(view, id);
+    final batch = StoreBatch(store)..deleteRecord(record.id);
+    // The server keeps an occurrence row for good, so the occurrence a deleted confirmation reopens
+    // is still listed when the plan's schedule no longer produces its date. Here only a stored state
+    // keeps such a date (unit 6b), so it is written in the same all-or-nothing batch.
+    if (record.hasPlanLink() && record.planLink.occurrenceDate.isNotEmpty) {
+      final link = record.planLink;
+      final plan = view.plans[link.planId];
+      final date = CivilDate.tryParse(link.occurrenceDate);
+      if (plan != null &&
+          date != null &&
+          !view.occurrenceStates.containsKey(link.occurrenceId) &&
+          PlanLedger.ruleOf(plan).occurrencesBetween(date, date).isEmpty) {
+        batch.putOccurrenceState(
+          OccurrenceState(
+            id: link.occurrenceId,
+            planId: link.planId,
+            occurrenceDate: link.occurrenceDate,
+          ),
+        );
+      }
+    }
+    await _write(store.writeAll(batch));
   });
 
   // ── Transfers ───────────────────────────────────────────────────────────────────────────────
@@ -931,6 +983,19 @@ final class Ledger {
     final record = LocalIds.isValid(id) ? view.records[id] : null;
     if (record == null) throw const Refusal.notFound('5.15', 'No such record.');
     return record;
+  }
+
+  /// A record as the wire carries it. A record whose plan was deleted reads as **detached**, as the
+  /// server's `detachFromPlan` leaves it (row 6.34): nothing is written when a plan is deleted, so
+  /// the link stays in the store and the answer is what shows it gone (ADR-102, unit 6b).
+  static wire.Record _recordWire(LedgerView view, Record record) {
+    final out = WireMapper.recordToWire(record);
+    if (record.hasPlanLink() && !view.planExists(record.planLink.planId)) {
+      out
+        ..clearPlanId()
+        ..clearPlanOccurrenceId();
+    }
+    return out;
   }
 
   /// The leg [id] of some transfer, or null.

@@ -229,13 +229,15 @@ const PlanLink$json = {
   '2': [
     {'1': 'plan_id', '3': 1, '4': 1, '5': 9, '10': 'planId'},
     {'1': 'occurrence_id', '3': 2, '4': 1, '5': 9, '10': 'occurrenceId'},
+    {'1': 'occurrence_date', '3': 3, '4': 1, '5': 9, '10': 'occurrenceDate'},
   ],
 };
 
 /// Descriptor for `PlanLink`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List planLinkDescriptor = $convert.base64Decode(
     'CghQbGFuTGluaxIXCgdwbGFuX2lkGAEgASgJUgZwbGFuSWQSIwoNb2NjdXJyZW5jZV9pZBgCIA'
-    'EoCVIMb2NjdXJyZW5jZUlk');
+    'EoCVIMb2NjdXJyZW5jZUlkEicKD29jY3VycmVuY2VfZGF0ZRgDIAEoCVIOb2NjdXJyZW5jZURh'
+    'dGU=');
 
 @$core.Deprecated('Use importKeyDescriptor instead')
 const ImportKey$json = {

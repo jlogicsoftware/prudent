@@ -144,6 +144,22 @@ final class ServerBackend extends ParityBackend {
     'correction.create': _createCorrection,
     'correction.delete': _deleteCorrection,
     'settings.update': _updateSettings,
+    // Unit 6b, plans (ADR-119). The server reads its own clock; a scenario names dates relative to
+    // today (ParityClock) so that both sides agree on what today is.
+    'plan.create': _createPlan,
+    'plan.update': _updatePlan,
+    'plan.delete': _deletePlan,
+    'plan.list': _listPlans,
+    'occurrence.find': _findOccurrence,
+    'occurrence.upcoming': _upcoming,
+    'occurrence.overdue': _overdue,
+    'occurrence.skip': _skip,
+    'occurrence.restore': _restore,
+    'occurrence.confirm': _confirm,
+    'reminder.list': _listReminders,
+    'reminder.read': _readReminder,
+    'reminder.unread': _unreadReminder,
+    'reminder.readAll': _readAllReminders,
     // Unit 8b, statement import (ADR-114): bodies and observations are ImportParity's, shared.
     'import.create': _createImport,
     'import.preview': _previewImport,
@@ -697,6 +713,188 @@ final class ServerBackend extends ParityBackend {
   static Map<String, Object?> _present(Map<String, Object?> body) => {
     for (final MapEntry(:key, :value) in body.entries) key: ?value,
   };
+
+  // ── Unit 6b: plans, occurrences, reminders ──────────────────────────────────────────────────
+
+  Future<StepResult> _createPlan(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', ['plans'], StoreBackend.planBody(input, bindings));
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(ParityReaders.plan(body, bindings)),
+        createdId: _string(body, 'id'),
+      ),
+    );
+  }
+
+  Future<StepResult> _updatePlan(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('PUT', [
+      'plans',
+      _id(input, 'plan', bindings),
+    ], StoreBackend.planBody(input, bindings));
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.plan(body, bindings))),
+    );
+  }
+
+  Future<StepResult> _deletePlan(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('DELETE', ['plans', _id(input, 'plan', bindings)]);
+    return answer.observe((_) => StepResult(ParityObservation.accepted()));
+  }
+
+  Future<StepResult> _listPlans(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['plans']);
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted({
+          'plans': ParityReaders.planList((body['plans'] as List<Object?>?) ?? const [], bindings),
+        }),
+      ),
+    );
+  }
+
+  /// The occurrence of a plan on a date, found the way a client finds one: in the two views, which
+  /// also make the server generate the window. Nothing in either is the plan's: 404.
+  Future<StepResult> _findOccurrence(Map<String, Object?> input, ParityBindings bindings) async {
+    final plan = _id(input, 'plan', bindings);
+    final date = input['date']! as String;
+    for (final (segments, query) in [
+      (['occurrences', 'upcoming'], {'days': '366'}),
+      (['occurrences', 'overdue'], <String, String>{}),
+    ]) {
+      final answer = await _send('GET', segments, null, query);
+      final found = answer.observe((body) {
+        for (final row
+            in ((body['occurrences'] as List<Object?>?) ?? const []).cast<Map<String, Object?>>()) {
+          if (row['planId'] == plan && row['occurrenceDate'] == date) {
+            return StepResult(
+              ParityObservation.accepted(ParityReaders.occurrence(row, bindings)),
+              createdId: _string(row, 'id'),
+            );
+          }
+        }
+        return const StepResult({}, createdId: null);
+      });
+      if (found.observation['outcome'] == 'refused' || found.createdId != null) return found;
+    }
+    return StepResult(ParityObservation.refused(404));
+  }
+
+  Future<StepResult> _upcoming(Map<String, Object?> input, ParityBindings bindings) async {
+    final days = input['days'];
+    final answer = await _send(
+      'GET',
+      ['occurrences', 'upcoming'],
+      null,
+      days == null ? null : {'days': '$days'},
+    );
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(
+          ParityReaders.occurrenceList(
+            (body['occurrences'] as List<Object?>?) ?? const [],
+            bindings,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<StepResult> _overdue(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['occurrences', 'overdue']);
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(
+          ParityReaders.occurrenceList(
+            (body['occurrences'] as List<Object?>?) ?? const [],
+            bindings,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<StepResult> _skip(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', ['occurrences', _id(input, 'occurrence', bindings), 'skip']);
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.occurrence(body, bindings))),
+    );
+  }
+
+  Future<StepResult> _restore(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', [
+      'occurrences',
+      _id(input, 'occurrence', bindings),
+      'restore',
+    ]);
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.occurrence(body, bindings))),
+    );
+  }
+
+  Future<StepResult> _confirm(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', [
+      'occurrences',
+      _id(input, 'occurrence', bindings),
+      'confirm',
+    ], StoreBackend.confirmBody(input, bindings));
+    return answer.observe((body) {
+      final record = body['record']! as Map<String, Object?>;
+      return StepResult(
+        ParityObservation.accepted({
+          'occurrence': ParityReaders.occurrence(
+            body['occurrence']! as Map<String, Object?>,
+            bindings,
+          ),
+          'record': ParityReaders.record(record, bindings),
+        }),
+        createdId: _string(record, 'id'),
+      );
+    });
+  }
+
+  Future<StepResult> _listReminders(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('GET', ['reminders']);
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(
+          ParityReaders.occurrenceList(
+            (body['reminders'] as List<Object?>?) ?? const [],
+            bindings,
+            nested: true,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<StepResult> _readReminder(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', ['reminders', _id(input, 'occurrence', bindings), 'read']);
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.reminder(body, bindings))),
+    );
+  }
+
+  Future<StepResult> _unreadReminder(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', ['reminders', _id(input, 'occurrence', bindings), 'unread']);
+    return answer.observe(
+      (body) => StepResult(ParityObservation.accepted(ParityReaders.reminder(body, bindings))),
+    );
+  }
+
+  Future<StepResult> _readAllReminders(Map<String, Object?> input, ParityBindings bindings) async {
+    final answer = await _send('POST', ['reminders', 'read-all']);
+    return answer.observe(
+      (body) => StepResult(
+        ParityObservation.accepted(
+          ParityReaders.occurrenceList(
+            (body['reminders'] as List<Object?>?) ?? const [],
+            bindings,
+            nested: true,
+          ),
+        ),
+      ),
+    );
+  }
 
   static Map<String, String> _balanceMap(Map<String, Object?> account) {
     final balances = (account['balances'] as List<Object?>?) ?? const [];

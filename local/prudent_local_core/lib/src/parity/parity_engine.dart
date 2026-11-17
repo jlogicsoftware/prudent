@@ -1,4 +1,5 @@
 import 'parity_backend.dart';
+import 'parity_clock.dart';
 import 'parity_scenario.dart';
 
 /// Runs a [ParityScenario] through two backends and compares every step's answer exactly
@@ -9,6 +10,9 @@ import 'parity_scenario.dart';
 /// tolerance anywhere and no field is skipped; what a backend must not compare (an id, a timestamp)
 /// it leaves out of its observation, and both backends then leave it out.
 ///
+/// A scenario may name dates relative to today in a zone (`@today(Europe/Warsaw)+3`, [ParityClock]);
+/// they are resolved once, before either backend runs the step.
+///
 /// A step that throws on either side (an unknown operation, a broken binding, a transport failure)
 /// ends the scenario as a failure with the error named — a step that could not run is never
 /// counted as a match.
@@ -18,7 +22,28 @@ final class ParityEngine {
   final ParityBackend server;
   final ParityBackend local;
 
+  /// Runs [scenario] once, or twice when a time zone's midnight passed during the first run: the
+  /// server reads the wall clock and Local reads the instant the scenario was pinned at, so a
+  /// scenario that straddled a midnight compared two different days (see [ParityClock]). A second
+  /// run that straddles one too is a failure, not a pass.
   Future<ParityReport> run(ParityScenario scenario) async {
+    for (var attempt = 1; ; attempt++) {
+      final clock = ParityClock();
+      final report = await _runOnce(scenario, clock);
+      if (!clock.crossedMidnight) return report;
+      if (attempt == 2) {
+        throw ParityStepFailed(
+          scenario.name,
+          'a time zone the scenario names passed midnight during two runs in a row, so server and '
+          'local were never compared on the same day; run it again.',
+        );
+      }
+    }
+  }
+
+  Future<ParityReport> _runOnce(ParityScenario scenario, ParityClock clock) async {
+    server.clock = clock;
+    local.clock = clock;
     final differences = <ParityDifference>[];
     final serverBindings = ParityBindings();
     final localBindings = ParityBindings();
@@ -29,8 +54,9 @@ final class ParityEngine {
         for (var index = 0; index < scenario.steps.length; index++) {
           final step = scenario.steps[index];
           final where = 'step ${index + 1} (${step.op})';
-          final serverResult = await _runOne(server, step, serverBindings);
-          final localResult = await _runOne(local, step, localBindings);
+          final input = clock.expand(step.input)! as Map<String, Object?>;
+          final serverResult = await _runOne(server, step, input, serverBindings);
+          final localResult = await _runOne(local, step, input, localBindings);
           _checkFigures(server.name, where, serverResult.observation);
           _checkFigures(local.name, where, localResult.observation);
 
@@ -75,11 +101,12 @@ final class ParityEngine {
   static Future<StepResult> _runOne(
     ParityBackend backend,
     ParityStep step,
+    Map<String, Object?> input,
     ParityBindings bindings,
   ) {
     final op = backend.ops[step.op];
     if (op == null) throw UnknownParityOp(backend.name, step.op);
-    return op(step.input, bindings);
+    return op(input, bindings);
   }
 
   static void _checkFigures(String backend, String where, Object? value) {

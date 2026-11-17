@@ -1,0 +1,426 @@
+{
+  "name": "occurrences",
+  "description": "An occurrence is planned, skipped or completed and overdue only when planned and before today; only confirming completes one and it writes exactly one record carrying both plan ids (overrides validated as a record); deleting that record reopens it; deleting the plan detaches its records and takes its occurrences.",
+  "rules": [
+    "6.34",
+    "6.35",
+    "6.37",
+    "6.38",
+    "6.39",
+    "6.40",
+    "6.41",
+    "6.51"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "bills",
+      "outcome": "accepted",
+      "input": {
+        "title": "Bills",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "pay",
+      "outcome": "accepted",
+      "input": {
+        "title": "Pay",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "main",
+      "outcome": "accepted",
+      "input": {
+        "name": "Main",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "100000"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "5000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "other",
+      "outcome": "accepted",
+      "input": {
+        "name": "Other",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "due",
+      "outcome": "accepted",
+      "input": {
+        "title": "Overdue bill",
+        "amountMinor": "-5000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)-2",
+          "timeZone": "UTC"
+        },
+        "payee": "Utility",
+        "note": "March"
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "later",
+      "outcome": "accepted",
+      "input": {
+        "title": "Later bill",
+        "amountMinor": "-7000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+3",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "foreign",
+      "outcome": "accepted",
+      "input": {
+        "title": "Foreign",
+        "amountMinor": "-900",
+        "currency": "EUR",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+2",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_due",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$due",
+        "date": "@today(UTC)-2"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_later",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$later",
+        "date": "@today(UTC)+3"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_foreign",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$foreign",
+        "date": "@today(UTC)+2"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "outcome": "refused",
+      "input": {
+        "plan": "$later",
+        "date": "@today(UTC)+4"
+      }
+    },
+    {
+      "op": "occurrence.skip",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_due"
+      }
+    },
+    {
+      "op": "occurrence.skip",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_due"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_due"
+      }
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 30
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.restore",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_due"
+      }
+    },
+    {
+      "op": "occurrence.restore",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_due"
+      }
+    },
+    {
+      "op": "occurrence.restore",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_later"
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.confirm",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_due",
+        "amountMinor": "0"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_due",
+        "date": "not-a-date"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_foreign",
+        "account": "$other"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_due",
+        "category": "$pay"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "nope"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "as": "paid",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_due",
+        "date": "@today(UTC)-1",
+        "amountMinor": "-5500",
+        "account": "$main"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_due"
+      }
+    },
+    {
+      "op": "occurrence.skip",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_due"
+      }
+    },
+    {
+      "op": "occurrence.restore",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_due"
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 30
+      }
+    },
+    {
+      "op": "record.delete",
+      "outcome": "accepted",
+      "input": {
+        "record": "$paid"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.confirm",
+      "as": "paid_again",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_due"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "as": "paid_early",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_later"
+      }
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 30
+      }
+    },
+    {
+      "op": "plan.delete",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$due"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "op": "record.list",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    },
+    {
+      "op": "occurrence.skip",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_due"
+      }
+    },
+    {
+      "op": "occurrence.restore",
+      "outcome": "refused",
+      "input": {
+        "occurrence": "$o_due"
+      }
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 30
+      }
+    },
+    {
+      "op": "record.delete",
+      "outcome": "accepted",
+      "input": {
+        "record": "$paid_again"
+      }
+    },
+    {
+      "op": "account.balances",
+      "outcome": "accepted",
+      "input": {
+        "account": "$main"
+      }
+    }
+  ]
+}

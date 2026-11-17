@@ -21,6 +21,11 @@ dependencies:
   # no normaliser; this is a pure-Dart port of unorm. It is held to the JDK's java.text.Normalizer
   # over every code point by test/golden/import_fingerprints.json (canonicalDecompositions).
   unorm_dart: ^0.3.3
+  # The IANA time-zone database, to name the calendar day a plan is in (PlanZones, ADR-119). Pure
+  # Dart. Which ids a plan may name is the JDK's list (java_zone_ids.dart), held to the JVM by
+  # test/golden/plans.json, which also proves every one of them resolves here and that the day
+  # agrees with `LocalDate.ofInstant` around each zone's midnight.
+  timezone: ^0.11.1
 
 dev_dependencies:
   lints: ^6.0.0

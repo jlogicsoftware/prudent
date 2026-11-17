@@ -10,6 +10,7 @@ import 'checks/duplicate_account_number_check.dart';
 import 'checks/envelope_below_zero_check.dart';
 import 'checks/held_currency_check.dart';
 import 'checks/live_reset_slot_check.dart';
+import 'checks/occurrence_skipped_and_paid_check.dart';
 import 'integrity_issue.dart';
 import 'store_snapshot.dart';
 
@@ -63,11 +64,17 @@ final class IntegrityRunner {
     const ArchivedGoalMoneyCheck(),
   ]);
 
+  /// The plan checks (unit 6b, ADR-119).
+  static final List<IntegrityCheck> planChecks = List.unmodifiable(<IntegrityCheck>[
+    const OccurrenceSkippedAndPaidCheck(),
+  ]);
+
   /// Every check that exists so far, which is what the Local app runs.
   static final List<IntegrityCheck> allChecks = List.unmodifiable(<IntegrityCheck>[
     ...storeModelChecks,
     ...ledgerChecks,
     ...goalChecks,
+    ...planChecks,
   ]);
 
   final PrudentLocalStore store;

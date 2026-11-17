@@ -1,0 +1,299 @@
+{
+  "name": "occurrence_windows",
+  "description": "The upcoming view is today through today plus days inclusive (1 to 366, 30 by default), the overdue view is the planned occurrences before today looking back at most 366 days, both reckoned in each plan's own zone, in date order; a schedule that never ends is only ever read through a window; a replaced schedule drops what it no longer produces.",
+  "rules": [
+    "6.30",
+    "6.35",
+    "6.36",
+    "6.38",
+    "6.41",
+    "6.51",
+    "6.53"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "bills",
+      "outcome": "accepted",
+      "input": {
+        "title": "Bills",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "pay",
+      "outcome": "accepted",
+      "input": {
+        "title": "Pay",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "main",
+      "outcome": "accepted",
+      "input": {
+        "name": "Main",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "100000"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "5000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "other",
+      "outcome": "accepted",
+      "input": {
+        "name": "Other",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "every3",
+      "outcome": "accepted",
+      "input": {
+        "title": "Every three days",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_DAILY",
+          "startDate": "@today(UTC)-400",
+          "timeZone": "UTC",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "weekly",
+      "outcome": "accepted",
+      "input": {
+        "title": "Weekly, twenty times",
+        "amountMinor": "-200",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_WEEKLY",
+          "startDate": "@today(UTC)-30",
+          "timeZone": "UTC",
+          "interval": 1,
+          "occurrenceCount": 20
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "monthly",
+      "outcome": "accepted",
+      "input": {
+        "title": "Monthly",
+        "amountMinor": "-300",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_MONTHLY",
+          "startDate": "@today(UTC)-200",
+          "timeZone": "Europe/Warsaw",
+          "interval": 1,
+          "untilDate": "@today(UTC)+400"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "yearly",
+      "outcome": "accepted",
+      "input": {
+        "title": "Yearly",
+        "amountMinor": "-400",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_YEARLY",
+          "startDate": "@today(UTC)-800",
+          "timeZone": "America/New_York",
+          "interval": 1,
+          "occurrenceCount": 5
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "ahead",
+      "outcome": "accepted",
+      "input": {
+        "title": "Once, ahead",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)+5",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "yesterday",
+      "outcome": "accepted",
+      "input": {
+        "title": "Once, yesterday",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)-1",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "ancient",
+      "outcome": "accepted",
+      "input": {
+        "title": "Once, a year and a half ago",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(UTC)-550",
+          "timeZone": "UTC"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "warsaw",
+      "outcome": "accepted",
+      "input": {
+        "title": "Once, today in Warsaw",
+        "amountMinor": "-1000",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(Europe/Warsaw)",
+          "timeZone": "Europe/Warsaw"
+        }
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 1
+      }
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 366
+      }
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "refused",
+      "input": {
+        "days": 0
+      }
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "refused",
+      "input": {
+        "days": 367
+      }
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "refused",
+      "input": {
+        "days": -1
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 366
+      }
+    },
+    {
+      "op": "plan.update",
+      "outcome": "accepted",
+      "input": {
+        "title": "Every three days, now weekly",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_WEEKLY",
+          "startDate": "@today(UTC)-400",
+          "timeZone": "UTC",
+          "interval": 1
+        },
+        "plan": "$every3"
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 60
+      }
+    }
+  ]
+}

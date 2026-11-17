@@ -103,6 +103,11 @@ message CorrectionIntent {
 message PlanLink {
   string plan_id = 1;
   string occurrence_id = 2;
+  // The occurrence's civil date (YYYY-MM-DD), kept beside its id because the id is a hash and
+  // cannot be turned back into a date: an occurrence completed under an earlier schedule of its
+  // plan is still listed, as on the server, and only this says which day it fell on (unit 6b).
+  // Immutable with the link.
+  string occurrence_date = 3;
 }
 
 // What recognises a re-imported statement row (ADR-091, finding F-02: the wire Record lacks it).

@@ -1,0 +1,234 @@
+{
+  "name": "day_boundary",
+  "description": "Which day it is \u2014 and so whether an occurrence is due, overdue or ahead \u2014 is decided by its plan's own time zone: one date is overdue in Kiritimati (UTC+14) and today in Pago Pago (UTC-11) at every instant, because the zones are 25 hours apart.",
+  "rules": [
+    "6.31",
+    "6.38",
+    "6.42",
+    "6.45",
+    "6.51"
+  ],
+  "steps": [
+    {
+      "op": "category.create",
+      "as": "bills",
+      "outcome": "accepted",
+      "input": {
+        "title": "Bills",
+        "iconKey": "food",
+        "kind": "CATEGORY_KIND_EXPENSE"
+      }
+    },
+    {
+      "op": "category.create",
+      "as": "pay",
+      "outcome": "accepted",
+      "input": {
+        "title": "Pay",
+        "iconKey": "work",
+        "kind": "CATEGORY_KIND_INCOME"
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "main",
+      "outcome": "accepted",
+      "input": {
+        "name": "Main",
+        "type": "ACCOUNT_TYPE_CHECKING",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "100000"
+          },
+          {
+            "currency": "EUR",
+            "amountMinor": "5000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "account.create",
+      "as": "other",
+      "outcome": "accepted",
+      "input": {
+        "name": "Other",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "0"
+          }
+        ]
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "kiri",
+      "outcome": "accepted",
+      "input": {
+        "title": "Kiritimati, that date",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(Pacific/Pago_Pago)",
+          "timeZone": "Pacific/Kiritimati"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "pago",
+      "outcome": "accepted",
+      "input": {
+        "title": "Pago Pago, that date",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(Pacific/Pago_Pago)",
+          "timeZone": "Pacific/Pago_Pago"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "kiri_next",
+      "outcome": "accepted",
+      "input": {
+        "title": "Kiritimati, the day after",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(Pacific/Pago_Pago)+1",
+          "timeZone": "Pacific/Kiritimati"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "pago_next",
+      "outcome": "accepted",
+      "input": {
+        "title": "Pago Pago, the day after",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(Pacific/Pago_Pago)+1",
+          "timeZone": "Pacific/Pago_Pago"
+        }
+      }
+    },
+    {
+      "op": "plan.create",
+      "as": "warsaw",
+      "outcome": "accepted",
+      "input": {
+        "title": "Warsaw, that date",
+        "amountMinor": "-100",
+        "currency": "PLN",
+        "account": "$main",
+        "category": "$bills",
+        "recurrence": {
+          "frequency": "RECURRENCE_FREQUENCY_ONCE",
+          "startDate": "@today(Pacific/Pago_Pago)",
+          "timeZone": "Europe/Warsaw"
+        }
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 1
+      }
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 30
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_kiri",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$kiri",
+        "date": "@today(Pacific/Pago_Pago)"
+      }
+    },
+    {
+      "op": "occurrence.find",
+      "as": "o_pago",
+      "outcome": "accepted",
+      "input": {
+        "plan": "$pago",
+        "date": "@today(Pacific/Pago_Pago)"
+      }
+    },
+    {
+      "op": "occurrence.skip",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_kiri"
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.restore",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_kiri"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_kiri"
+      }
+    },
+    {
+      "op": "occurrence.confirm",
+      "outcome": "accepted",
+      "input": {
+        "occurrence": "$o_pago"
+      }
+    },
+    {
+      "op": "occurrence.overdue",
+      "outcome": "accepted",
+      "input": {}
+    },
+    {
+      "op": "occurrence.upcoming",
+      "outcome": "accepted",
+      "input": {
+        "days": 30
+      }
+    }
+  ]
+}
