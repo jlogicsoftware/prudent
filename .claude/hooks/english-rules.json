@@ -3,11 +3,13 @@
   "locale_paths": [
     "packages/prudent_ui/lib/l10n/*_uk.arb",
     "packages/prudent_ui/lib/settings.dart",
+    "local/prudent_local_client/lib/l10n/*_uk.arb",
     "server/src/main/java/prudent/retention/*Uk.java",
     "server/src/main/resources/templates/mail/*_uk.html",
     "supabase/templates/*",
     "supabase/config.toml",
     "client/test/*",
+    "local/prudent_local_client/test/*",
     "server/src/test/*",
     "scripts/test_*",
     ".claude/hooks/test_*",

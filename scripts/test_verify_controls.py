@@ -19,6 +19,8 @@ import verify_controls as gate
 
 PACKAGE_LIB = Path("packages") / "prudent_ui" / "lib"
 CLIENT_LIB = Path("client") / "lib"
+LOCAL_LIB = Path("local") / "prudent_local_client" / "lib"
+SCOPES = (CLIENT_LIB, PACKAGE_LIB, LOCAL_LIB)
 
 
 def run_gate(
@@ -26,14 +28,20 @@ def run_gate(
     *,
     lib: Path = PACKAGE_LIB,
     other: "dict[str, str] | None" = None,
+    other_lib: "Path | None" = None,
 ) -> "tuple[int, str]":
     """Run the gate over a throwaway tree holding `files` (paths relative to `lib`, the shared
-    package's lib/ unless told otherwise). The other scope holds a clean file, so a test about one
-    scope is not also a test of the other being empty; pass `other` to put something in it."""
-    other_lib = CLIENT_LIB if lib == PACKAGE_LIB else PACKAGE_LIB
+    package's lib/ unless told otherwise). Every other scope holds a clean file, so a test about one
+    scope is not also a test of another being empty; pass `other` to put something in `other_lib`
+    (by default the client's lib/, or the shared package's when `lib` is the client's)."""
+    other_lib = other_lib or (CLIENT_LIB if lib == PACKAGE_LIB else PACKAGE_LIB)
+    trees = {scope: {"clean.dart": "final ok = 1;\n"} for scope in SCOPES}
+    trees[lib] = files
+    if other is not None:
+        trees[other_lib] = other
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        for base, tree in ((lib, files), (other_lib, other or {"clean.dart": "final ok = 1;\n"})):
+        for base, tree in trees.items():
             for rel, text in tree.items():
                 path = root / base / rel
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -211,21 +219,22 @@ class Scope(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("stale", out.getvalue())
 
-    def test_a_violation_in_either_scope_turns_the_gate_red(self) -> None:
-        for lib in (CLIENT_LIB, PACKAGE_LIB):
+    def test_a_violation_in_any_scope_turns_the_gate_red(self) -> None:
+        for lib in SCOPES:
             with self.subTest(scope=lib.as_posix()):
                 rc, out = run_gate({"screen.dart": "final x = TextButton();\n"}, lib=lib)
                 self.assertEqual(rc, 1, out)
                 self.assertIn(lib.as_posix(), out)
 
     def test_an_empty_or_missing_scope_fails_in_each_scope(self) -> None:
-        for lib in (CLIENT_LIB, PACKAGE_LIB):
+        for lib in SCOPES:
             with self.subTest(scope=lib.as_posix()):
-                # `other` is the scope under test: only excluded sources there.
+                # `other_lib` is the scope under test: only excluded sources there.
                 rc, out = run_gate(
                     {"clean.dart": "final ok = 1;\n"},
                     lib=PACKAGE_LIB if lib == CLIENT_LIB else CLIENT_LIB,
                     other={"generated/api.dart": "final ok = 1;\n"},
+                    other_lib=lib,
                 )
                 self.assertEqual(rc, 1, out)
                 self.assertIn("stale", out)

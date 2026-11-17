@@ -10,6 +10,7 @@ import 'package:prudent_proto/generated/prudent/v1/analytics.pb.dart';
 import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:prudent_ui/providers.dart';
+import 'package:prudent_ui/settled_figures.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 class _FixedCategories extends CategoriesNotifier {
@@ -37,11 +38,11 @@ void main() {
           categoriesProvider.overrideWith(_FixedCategories.new),
           spendByPeriodProvider.overrideWith((ref, params) async {
             byPeriod.add(params.currency);
-            return SpendByPeriodResponse();
+            return SettledFigures(SpendByPeriodResponse());
           }),
           spendByCategoryProvider.overrideWith((ref, params) async {
             byCategory.add(params.currency);
-            return SpendByCategoryResponse();
+            return SettledFigures(SpendByCategoryResponse());
           }),
         ],
         child: MaterialApp(

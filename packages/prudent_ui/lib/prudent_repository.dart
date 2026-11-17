@@ -12,6 +12,8 @@ import 'package:prudent_proto/generated/prudent/v1/privacy.pb.dart';
 import 'package:prudent_proto/generated/prudent/v1/records.pb.dart';
 import 'package:prudent_proto/generated/prudent/v1/reminders.pb.dart';
 import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart';
+import 'account/settled_accounts.dart';
+import 'settled_figures.dart';
 import 'record/record_filter.dart';
 
 /// Everything a screen, view model or provider asks of Prudent's data: the one seam between the
@@ -44,7 +46,10 @@ abstract interface class PrudentRepository {
 
   Future<ZenResult<Record>> deleteCorrection(String id);
 
-  Future<ZenResult<ListAccountsResponse>> listAccounts();
+  /// Every account, with what each one's balances leave out while two devices disagree about it
+  /// (ADR-113). The server's answer is always settled; Prudent Local's may not be, and the caveat
+  /// travels with the figures so a screen cannot show one without the other.
+  Future<ZenResult<SettledAccounts>> listAccounts();
 
   Future<ZenResult<Account>> createAccount(CreateAccountRequest request);
 
@@ -159,7 +164,9 @@ abstract interface class PrudentRepository {
   /// spread over. Calculated by the server on every call — the client re-derives none of it. [asOf]
   /// (`YYYY-MM-DD`) is the day to calculate for; omitted, the server uses its UTC date. Never summed
   /// across currencies.
-  Future<ZenResult<ListGoalProgressResponse>> getGoalProgress({String? asOf});
+  ///
+  /// The answer carries how many entries the figures leave out while devices disagree (ADR-116).
+  Future<ZenResult<SettledFigures<ListGoalProgressResponse>>> getGoalProgress({String? asOf});
 
   /// Allocates, withdraws or moves money between goal envelopes — one immutable history entry
   /// (ADR-050). [CreateGoalAllocationRequest.kind] decides which goal ids it needs: a target for
@@ -186,7 +193,9 @@ abstract interface class PrudentRepository {
   /// accounts marked `eligibleForGoals`), what the envelopes already hold, and the difference.
   /// `freeMinor` is negative when the envelopes hold more than the eligible accounts do. Calculated
   /// by the server on every call; an `ALLOCATE` above it is refused with a 409.
-  Future<ZenResult<GetFreeMoneyResponse>> getFreeMoney();
+  ///
+  /// The answer carries how many entries the figures leave out while devices disagree (ADR-116).
+  Future<ZenResult<SettledFigures<GetFreeMoneyResponse>>> getFreeMoney();
 
   /// The user's budgets, optionally narrowed to one [month] (`YYYY-MM`) and/or one [categoryId].
   Future<ZenResult<ListBudgetsResponse>> listBudgets({
@@ -198,7 +207,9 @@ abstract interface class PrudentRepository {
   /// [currency] (M3, jlogicsoftware/prudent#59). Both are required and the currency is never
   /// inferred: a summary is for one month in one currency and is never summed across currencies.
   /// Actual is net spending from posted records, refunds included.
-  Future<ZenResult<BudgetSummaryResponse>> getBudgetSummary({
+  ///
+  /// The answer carries how many entries the figures leave out while devices disagree (ADR-116).
+  Future<ZenResult<SettledFigures<BudgetSummaryResponse>>> getBudgetSummary({
     required String month,
     required String currency,
   });
@@ -308,7 +319,8 @@ abstract interface class PrudentRepository {
   );
 
   /// [year] required; [month] optional (1-12) — a single month, or the whole year when omitted.
-  Future<ZenResult<SpendByCategoryResponse>> spendByCategory({
+  /// The answer carries how many records the figures leave out while devices disagree (ADR-118).
+  Future<ZenResult<SettledFigures<SpendByCategoryResponse>>> spendByCategory({
     required String currency,
     required int year,
     int? month,
@@ -316,7 +328,8 @@ abstract interface class PrudentRepository {
 
   /// [granularity] is `MONTH` or `YEAR`; [count] is the number of trailing buckets (1-60), ending
   /// at the current period as the server resolves it in UTC.
-  Future<ZenResult<SpendByPeriodResponse>> spendByPeriod({
+  /// The answer carries how many records the figures leave out while devices disagree (ADR-118).
+  Future<ZenResult<SettledFigures<SpendByPeriodResponse>>> spendByPeriod({
     required String currency,
     required String granularity,
     required int count,

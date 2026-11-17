@@ -1,3 +1,4 @@
+import '../account/unsettled_balance_note.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
@@ -31,7 +32,15 @@ class SpendByMonthView extends ConsumerWidget {
         stackTrace: stack,
         onRetry: () => ref.invalidate(spendByPeriodProvider(params)),
       ),
-      data: (response) => AnalyticsContent(response: response, currency: currency, months: months),
+      data: (answer) => Column(
+        children: [
+          // What the bars leave out while devices disagree (ADR-118), beside them.
+          UnsettledBalanceNote(count: answer.leftOut),
+          Expanded(
+            child: AnalyticsContent(response: answer.value, currency: currency, months: months),
+          ),
+        ],
+      ),
     );
   }
 }

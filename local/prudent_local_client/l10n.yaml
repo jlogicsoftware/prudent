@@ -1,0 +1,9 @@
+# Prudent Local's own strings (jZen ADR-009): the words of what only the Local app has — sync, the
+# device's copy, the data copy, the integrity issues. Every shared screen's strings are
+# packages/prudent_ui's (ADR-108). Built, never tracked, like the shared package's.
+arb-dir: lib/l10n
+template-arb-file: local_en.arb
+output-dir: lib/l10n/generated
+output-localization-file: local_localizations.dart
+output-class: LocalLocalizations
+nullable-getter: false

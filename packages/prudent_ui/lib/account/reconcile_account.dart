@@ -5,6 +5,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 import 'package:prudent_proto/generated/prudent/v1/accounts.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
+import 'unsettled_balance_note.dart';
 
 /// Records an explicit, auditable balance correction against one currency of [account] (M1,
 /// jlogicsoftware/prudent#53) — the reconciliation flow the acceptance criterion asks for, instead
@@ -14,7 +15,17 @@ import '../money.dart';
 /// bank statement), never a delta: the server computes the difference against the current derived
 /// balance and stores exactly that difference as its own auditable record.
 class ReconcileAccount extends StatefulWidget {
-  const ReconcileAccount({super.key, required this.account, required this.onSave});
+  const ReconcileAccount({
+    super.key,
+    required this.account,
+    required this.onSave,
+    this.leftOut = 0,
+  });
+
+  /// How many entries [account]'s balances leave out while two devices disagree about them
+  /// (ADR-113). Prudent Local refuses a correction until they are settled, so the form says so
+  /// beside the balance it would correct.
+  final int leftOut;
 
   final Account account;
 
@@ -117,11 +128,17 @@ class _ReconcileAccountState extends State<ReconcileAccount> {
           if (currentBalance != null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                t.correctionsCurrentBalance(
-                  formatMinorUnits(currentBalance.amountMinor),
-                  currentBalance.currency,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    t.correctionsCurrentBalance(
+                      formatMinorUnits(currentBalance.amountMinor),
+                      currentBalance.currency,
+                    ),
+                  ),
+                  UnsettledBalanceNote(count: widget.leftOut),
+                ],
               ),
             ),
           ZenAmountField(

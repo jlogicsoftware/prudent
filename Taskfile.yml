@@ -37,7 +37,8 @@ includes:
       # one-widget-per-file gate and the test suites. The server-connected app AND the shared
       # package, so a gate that reads only `client/` cannot go green over a package it never read
       # (ADR-108). Space-separated, as jZen's DART_ROOTS documents.
-      DART_ROOTS: client packages/prudent_ui packages/prudent_proto
+      # Prudent Local's app (plan unit 9) is a Flutter package too, so it is walked like client/.
+      DART_ROOTS: client packages/prudent_ui packages/prudent_proto local/prudent_local_client
       # OVERRIDDEN for the same reason as PROTO_DART_OUT: zen:run:client / zen:run:dev default the
       # Flutter package to `<client>/<app>_client`, the per-concern-package layout. Prudent's
       # client tier IS the Flutter package, so it is `client/` itself. (build:runners already
@@ -309,6 +310,8 @@ tasks:
       - cd packages/prudent_ui && flutter gen-l10n
       - cd packages/prudent_ui && flutter analyze --fatal-infos --fatal-warnings
       - cd client && flutter analyze --fatal-infos --fatal-warnings
+      # Prudent Local's app (plan unit 9): its own strings, then the same severity.
+      - cd local/prudent_local_client && flutter gen-l10n && flutter analyze --fatal-infos --fatal-warnings
       # Prudent Local's pure-Dart packages (ADR-107): the same severity, through `dart analyze`.
       - cd local/prudent_local_core && dart pub get && dart analyze --fatal-infos --fatal-warnings
       - cd tools/prudent_parity_server && dart pub get && dart analyze --fatal-infos --fatal-warnings
@@ -318,7 +321,7 @@ tasks:
     desc: Fail if client screens use raw Material controls zen_ui_widgets replaces
     summary: |
       THE GATE BEHIND "Client UI: the framework's controls first" (CLAUDE.md, ADR-041, ADR-059).
-      Runs scripts/verify_controls.py over client/lib and packages/prudent_ui/lib (generated/ and l10n/ excluded) and fails on
+      Runs scripts/verify_controls.py over client/lib, packages/prudent_ui/lib and local/prudent_local_client/lib (generated/ and l10n/ excluded) and fails on
       ElevatedButton, FilledButton, OutlinedButton, TextButton, DropdownButton,
       DropdownButtonFormField, SegmentedButton, SwitchListTile, showDatePicker,
       showDateRangePicker, showModalBottomSheet, TextField, TextFormField, IconButton,
@@ -364,7 +367,8 @@ tasks:
       project and runs `pod install` on every build, and the build stays green. That is a second
       build description beside SwiftPM, so this fails instead.
 
-      Runs scripts/verify_no_cocoapods.py over client/ios and client/macos and fails on a Podfile,
+      Runs scripts/verify_no_cocoapods.py over client/ios, client/macos and Prudent Local's
+      local/prudent_local_client/ios and /macos (plan unit 9) and fails on a Podfile,
       a Podfile.lock, a Pods/ directory, or a Pods-Runner / `[CP]` / Pods/ reference in the Xcode
       project, a Flutter .xcconfig or the workspace. A runner that is missing is a failure, not a
       pass.

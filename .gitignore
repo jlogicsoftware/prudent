@@ -53,12 +53,16 @@ app.*.map.json
 client/android/app/debug
 client/android/app/profile
 client/android/app/release
+local/prudent_local_client/android/app/debug
+local/prudent_local_client/android/app/profile
+local/prudent_local_client/android/app/release
 
 # Generated localizations are BUILT, NOT TRACKED (jZen ADR-009): flutter gen-l10n ships inside
 # the Flutter SDK every consumer already has, so there is no toolchain boundary to carry the
 # output across. Listed now so the first ARB file cannot land with its output tracked by
 # accident. Prudent's contract gate asserts none of it is tracked (Phase 1).
 packages/prudent_ui/lib/l10n/generated/
+local/prudent_local_client/lib/l10n/generated/
 
 # --- server/ : Java/Maven ----------------------------------------------------------------------
 # `target/` is unanchored for the same reason as build/: the server is one Maven module today and

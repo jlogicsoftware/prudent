@@ -59,13 +59,7 @@ class PrivacyActions {
     );
     result.fold((_) {}, (error) => throw error);
 
-    _ref
-      ..invalidate(accountsProvider)
-      ..invalidate(categoriesProvider)
-      ..invalidate(recordsProvider)
-      ..invalidate(settingsProvider)
-      ..invalidate(goalsProvider)
-      ..invalidate(remindersProvider);
+    invalidateRepositoryReads(_ref.invalidate);
     try {
       await _ref.read(reminderNotificationSchedulerProvider).reconcile(const []);
     } finally {

@@ -32,3 +32,11 @@ Map<String, Int64> totalsByCurrency(List<Account> accounts, String? mainCurrency
 /// account can be visible without counting toward spendable funds.
 List<Account> accountsForOverview(List<Account> accounts) =>
     accounts.where((a) => a.isActive && a.includeInOverview).toList();
+
+/// How many entries the totals leave out while two devices disagree about them (ADR-113): every
+/// distinct record, transfer or opening left out of an account that [totalsByCurrency] sums. A
+/// transfer between two such accounts is one entry, not two.
+int unsettledInTotals(List<Account> accounts, Map<String, List<String>> unsettled) => {
+  for (final account in accounts)
+    if (account.isActive && account.includeInTotal) ...?unsettled[account.id],
+}.length;

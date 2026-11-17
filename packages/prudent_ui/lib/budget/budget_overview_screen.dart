@@ -4,6 +4,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../account/unsettled_balance_note.dart';
 import '../load_error_view.dart';
 import '../providers.dart';
 import 'budget_month.dart';
@@ -85,10 +86,21 @@ class _BudgetOverviewScreenState extends ConsumerState<BudgetOverviewScreen> {
                 onRetry: () => ref.invalidate(budgetSummaryProvider(params)),
               ),
               data:
-                  (summary) => BudgetSummaryView(
-                    summary: summary,
-                    month: _month,
-                    categories: categories,
+                  (answer) => Column(
+                    children: [
+                      // What the figures leave out while devices disagree (ADR-116), said above them.
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: UnsettledBalanceNote(count: answer.leftOut),
+                      ),
+                      Expanded(
+                        child: BudgetSummaryView(
+                          summary: answer.value,
+                          month: _month,
+                          categories: categories,
+                        ),
+                      ),
+                    ],
                   ),
             ),
           ),

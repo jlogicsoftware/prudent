@@ -59,6 +59,155 @@ jZenDev/jZen#251), ADR-119. **Follows:** the review's finding that ADR-115 reach
   not, for the reason above;
 - one case that a skip on one device and a schedule change on the other merge without a conflict.
 
+---
+
+## ADR-121 — Prudent Local is an app of its own over the shared screens: a Local repository over the ledger, budgets, goals, plans, analytics and the import workflow, figures that carry what they leave out, and sync, lock and erasure from jZen
+
+**Date:** 2026-11-17. **Status:** accepted. **Plan:** unit 9 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
+**Builds on:** ADR-100 (threat model), ADR-101, ADR-102, ADR-105, ADR-108, ADR-109, ADR-111, ADR-113 (its "Also done when"), ADR-114 (unit 8b),
+ADR-116 (unit 6a), ADR-118 (unit 7), ADR-119 (unit 6b), ADR-120 (envelope repairs).
+**jZen:** consumes jZenDev/jZen#233, #234, #236, #237, #238, #239, #240 and `zen_save_file` (#246) at `JZEN_REF` `4fa887a`; files
+jZenDev/jZen#256. (Written as ADR-120; renumbered at rebase, when #268 took 120.)
+
+### Decision
+
+- **The app is `local/prudent_local_client`** (ADR-101): a Flutter app with its own composition root (`lib/main.dart`,
+  `lib/app/local_composition.dart`), bundle id `com.jlogicsoftware.prudent.local`, the name "Prudent Local", runners for iOS, macOS,
+  Android, Windows and Linux and no web runner. Its pubspec names no server package (`task verify:boundaries` check F covers it with no
+  change). The Apple runners are Swift Package Manager only (`verify:swiftpm` now scans them too); `zen_store_cloudkit` needs macOS 14 and
+  iOS 17, so those are the deployment targets. Android's manifest refuses Auto Backup (ADR-100 T10), and its activity is a
+  `FlutterFragmentActivity`, which `local_auth` (the PIN's owner check) needs.
+- **`LocalPrudentRepository` implements `PrudentRepository`** over the ledger (ADR-113), its budget and goal extensions (unit 6a,
+  ADR-116), unit 6b's `PlanLedger` (ADR-119, given the device's clock as `asOf`), unit 7's `Analytics` (ADR-118) and unit 8b's `ImportWorkflow` (ADR-114), each read
+  from the session on every call because erasing this device's copy replaces the store. The ledger takes and answers the server's wire
+  messages, so the adapter only maps the record filter onto `RecordQuery`, answers a delete with the empty message the server's repository
+  answers, and passes refusals through for `failureCode`. The import sweep (`expireDue`) runs at launch and hourly. The server's erase-account
+  form has no meaning here (no account) and is refused.
+- **Every part of the interface is answered from the device.** Units 6a, 6b, 7 and 8b merged while this was built and each was wired
+  before the PR merged. An earlier revision answered the missing ones with a typed "not in this build yet" error shown by
+  `LoadErrorView`; with nothing left to answer it, the type, its strings and its retry policy were removed rather than kept unused, and
+  `every_tab_loads_test` holds that no tab shows a load error.
+- **A balance carries what it leaves out** (ADR-113's "Also done when"). `PrudentRepository.listAccounts()` now answers `SettledAccounts`
+  — the accounts and, by account, the ids its balances leave out — from one answer; the server's is always empty.
+  `unsettledBalancesProvider` is read from the same build of `accountsProvider`, and `UnsettledBalanceNote` ("Leaves out N entries your
+  devices disagree about, until you settle them", en/uk/pl) sits beside every figure: the overview's totals and each account, the accounts
+  page, and the correction form (which the ledger refuses while unsettled). Unit 6a's and unit 7's calculated answers — the budget summary, free
+  money, goal progress, spend by category and spend by period — leave disputed values out the same way, so `getBudgetSummary`,
+  `getFreeMoney`, `getGoalProgress`, `spendByCategory` and `spendByPeriod` answer `SettledFigures<T>` (the answer and how many entries it leaves out; the server's always 0), and the budget overview, the goals screen, a
+  goal's detail and both analytics views show the same note beside their figures. On every store change (a sync, a settled conflict, an integrity action,
+  this device's copy erased) the app drops every answer read from the repository at once — `invalidateRepositoryReads` in
+  `packages/prudent_ui`, which the server app's erase path now uses too — and bumps the reminder schedule, so no figure and no
+  "leaves out N" note is older than the store on any tab; `figures_refresh_test` syncs a dispute in while Budgets or Goals is open and
+  finds the note appear and go, and fails against a refresh that covered only accounts, records, categories and settings.
+  When the store itself is replaced (this device's copy erased) the refresh runs after the frame, since a provider may not change while
+  the tree builds; the macOS integration test found that, and `erase_test` now holds it.
+- **Sync is `ZenSync.start` only** (`LocalSession`, jZen's reference shape): CloudKit with Prudent Local's own container on Apple (record
+  names are HMACs, jZenDev/jZen#236), the shared folder with a pairing code elsewhere, `ZenFolderCloud` with `ZEN_SYNC=folder`, which
+  `ZenSyncPlan` refuses in a release build (#238, ADR-100 T18). Settings gains Lock (`ZenPinLockSwitch`), Sync and devices (folder,
+  first device, `ZenJoinScreen`, `ZenAddDeviceScreen`, replace the sync key) and Conflicts and issues (`ZenConflictsScreen`, settle-many
+  included); "Privacy and data" opens Local's own page. The shared Settings takes these through two new providers
+  (`settingsEntriesProvider`, `privacyScreenProvider`) and now scrolls, since three more entries overflow a phone.
+- **Screen capture is refused: `ZenLockGate(secureScreen: true)`** (#240, ADR-100 T15). A ledger's balances do not belong in Android's
+  recents thumbnail, a recording or a cast; the cost, that a person cannot screenshot their own balance to share it, is the right one for
+  this app. iOS and the desktops have no such flag; the lock's cover is the protection there.
+- **Integrity issues are `zen_ui_store` application issues** (#233) with Prudent's words chosen by code and records named as the person
+  knows them; a choice among records becomes one action per candidate and a name is asked through the app's root navigator, because a
+  `ZenIssueAction` takes no input (jZenDev/jZen#256, filed). The home banner counts conflicts and issues together.
+- **Erasure:** "Erase this device's copy" says what remains (the other devices, the folder, iCloud); "Erase everywhere" goes through the
+  transport's `eraseEverywhere` (#239) and asks twice; a device whose data was erased everywhere says so and starts again only when the
+  person asks — a new store, the erased sync key forgotten — so an erasure marker can never loop. On `ZEN_SYNC=folder` the marker is
+  folder-wide, so a new store in that development folder is erased again; that transport is refused in a release.
+- **The data copy** is ADR-071's `DataExport` built from the store (ledger accounts, categories and records as the screens read them,
+  import keys, and the plans, budgets, resets, goals and allocations as stored), saved through `zen_save_file` on every platform and never
+  copied to the clipboard (ADR-100 T14), with the plaintext warning above the button.
+- **English, Ukrainian and Polish.** Local's own strings are `local/prudent_local_client/lib/l10n` (en/uk/pl). `zen_ui_store` and
+  `zen_ui_lock` ship en/uk only, so Prudent supplies Polish delegates for both, as the server app does for identity and navigation.
+  `.claude/hooks/english-rules.json` admits Local's Ukrainian ARB and its tests, as it does the shared package's. Every integrity check the
+  store runs, unit 6a's goal checks included, has words; `l10n_test` reads the checks' codes from their sources and fails on one without.
+- **A secret storage that refuses a read after boot** (the first-run flag; a Keychain `-34018`) shows the start-failed page with Try
+  again and nothing that erases, never a splash screen that waits forever. The sync status's reason is the transport's English detail
+  after the localized "Sync is off:", never alone; jZen gives no code to word it by.
+- **ADR-100 T11 is shown in the shared import screens** (both apps): after a commit or when a session ended, "Prudent did not keep the
+  statement file; it is still where you picked it — delete it if you no longer need it."
+
+### The threat model, row by row (ADR-100)
+
+| Row | Answer in unit 9 |
+|---|---|
+| T1 lost device, locked | Accepted (written). The store key is in the platform's secret storage; the macOS integration test makes and re-reads a key there. Not on a device (#231). |
+| T2 unlocked or no PIN | First-run notice and the Lock page say it; a PIN is offered, never forced — `threat_model_test` (T2, T5), `settings_test`. |
+| T3 a paired device to cut off | "Replace the sync key" (`ZenSharedFolderSync.rekey`); the other device stops with `keyReplaced`; the page says what it cannot do; on iCloud, how Apple removes a device — `devices_and_issues_test`. |
+| T4 forgotten PIN | Words before the switch by recovery: owner check, erase and re-sync, or "nothing else holds a copy" with no paired device — `settings_test`. "Forgot PIN?" itself is `zen_ui_lock`'s, wired to `eraseThisDevice`. Not on a device (#231). |
+| T5 every device lost | First run and Sync and devices say nobody can recover it and offer the copy — `threat_model_test`, `settings_test`. Privacy text: unit 13. |
+| T6 a shared cloud folder | Warning above "Choose a folder"; a folder inside the app's data is refused — `threat_model_test` (T6), `devices_and_issues_test`. |
+| T7 CloudKit metadata | Consumed: the transport at the pin hashes record names (#236). Written; no CloudKit run (no paid programme). |
+| T8 Linux without a secret service | Boot fails and says what to install or unlock, offering nothing that erases — `threat_model_test`. |
+| T9 Windows "nothing stored" | jZen refuses a new key beside files; the page offers erase-and-re-sync behind a question, never on its own — `threat_model_test`. |
+| T10 a backup restored without its key | Same page; Android `allowBackup="false"` — `threat_model_test`. The manifest gate is unit 11. |
+| T11 statement left in Downloads | Shared import screens say it after commit or end (this ADR). The file is read once (ADR-089, unit 8b). |
+| T12 import rows syncing | Unit 8b's device-only collection; `local_prudent_repository_test` imports through the app and finds no session on the other device. |
+| T13 two devices import one statement | Accepted; unit 8b's derived ids (ADR-114). |
+| T14 plaintext copy | A chosen file, warned before, never the clipboard (the test records platform calls) — `data_copy_test`. |
+| T15 screen capture | `secureScreen: true`; the test sees `setSecure(true)` on the channel — `threat_model_test`. Android only; not on a device. |
+| T16 reminders on a lock screen | Unit 6b's reminders reach the shared notification scheduler, which puts no amount in a notification (ADR-056). The lock-screen title warning in the reminder setting waits for a plan screen (none exists in either app). |
+| T17 pairing code | `zen_ui_store`'s own screens (five minutes, hidden in the background, never logged); the app opens them — `devices_and_issues_test`. QR camera: #231. |
+| T18 release on the unencrypted folder | `ZenSyncPlan` refuses it for every platform — `threat_model_test`. Prudent's release-task gate: unit 11. |
+| T19 write access without the key | Accepted (written; ADR-076). |
+| T20 an old version re-saving a record | Forms go through the ledger, which applies the request onto the stored record (ADR-113); not separately tested here. |
+| T21 data in logs | Every log line names classes only; a source scan fails on `print` or an interpolated value — `threat_model_test`. |
+| T22 account numbers | Not in ids, file names (`prudent-export-<date>.json`) or issue labels — `data_copy_test`; ids are unit 4/5's. |
+| T23 a merge breaks a rule | Shown as an issue in words with actions, fixed only by the person — `devices_and_issues_test`; every check has words — `l10n_test`. |
+| T24 "delete my data" | Erase here says what remains; erase everywhere reaches the other device — `erase_test`. |
+| T25 one OS account, two people | Said on the Lock page — `settings_test`. Privacy text: unit 13. |
+| T26 a wrong clock | Accepted (written). |
+
+### What this supersedes, and why
+
+- **ADR-100 T15 "Accept for now that Android's `FLAG_SECURE` is not set"** → **refused: it is set.** *Why:* #240 merged; consumed rather
+  than accepted.
+- **ADR-100 T3 "refuse to call a device removed while no rekey exists"** → **a rekey exists on the folder transport and is used**; the
+  refusal stands for what a rekey cannot do. **T24 "refuse to say deleted everywhere"** → **"Erase everywhere" exists** (#239) and says
+  what it leaves (markers, an off device until it syncs).
+- **ADR-108's `PrudentRepository.listAccounts()` answering `ListAccountsResponse`** → **`SettledAccounts`**, and `getBudgetSummary`,
+  `getFreeMoney`, `getGoalProgress`, `spendByCategory` and `spendByPeriod` → **`SettledFigures<T>`.** *Why:* the wire messages have no room for what a figure leaves out, and
+  ADR-113 and ADR-116 require the caveat to travel with the figure.
+- **The shared Settings as a fixed column** → **scrolls, Log Out still at the bottom.** *Why:* it overflowed a phone with Local's entries.
+
+### Found on the way
+
+- **An unsigned macOS build cannot reach the Keychain** (`-34018`, "a required entitlement is not present"): a sandboxed app needs
+  `keychain-access-groups`, which needs a development certificate — jZen's documented no-signing boundary. So an unsigned Prudent Local on
+  macOS refuses to open (no key in a file, no fallback: ADR-100 T8) and shows its start failure; the integration test pins the refusal. A
+  signed build, with the entitlement, is unit 12's. Develop on macOS against a signed build or another platform until then.
+
+### Checked
+
+On 2026-11-17, in the worktree against jZen `4fa887a`: the Local suite (`flutter test`, compiled for macOS and, for settings and
+accessibility, for Android, where the touch-size rule runs) — the disputed-balance test syncs two devices and finds the words in en, uk
+and pl, and their removal once settled; the client suite (541); `packages/prudent_ui` (5); `local/prudent_local_store` (224, before the
+rebase onto 8b and 6a); `flutter analyze --fatal-infos --fatal-warnings` in the three Flutter packages; `verify_controls.py`,
+`verify_boundaries.py`, `verify_no_cocoapods.py` and their tests (147); a macOS debug build; and **the macOS integration test**
+(`integration_test/app_test.dart -d macos`, 2 passing): the built app on real files and plugins shows the derived balance, the records, a
+Budgets and Analytics loading, saves a data copy, and erases this device's copy through the buttons — after which a new store is opened and the
+sync folder's copy comes back into it; and the keychain refusal above.
+
+### Not verified
+
+- **The integration suite does not prove the signed macOS path**: on this unsigned build it asserts the Keychain refusal. A signed run
+  belongs to unit 12.
+- **No real device** (unit 12, jZenDev/jZen#231): CloudKit (no paid programme or iCloud entitlement), Android `FLAG_SECURE` and the owner
+  check, the Windows and Linux keystores, real Syncthing/Dropbox folders, the save sheet on a phone, QR scanning.
+- `task` does not load from a worktree (ADR-065): the tasks ran as their underlying commands; CI runs them as tasks. The Local suite on a
+  Linux host (CI's) has not been run here.
+- The erase flows through the buttons are driven in the macOS integration test; the widget tests prove the wording and questions and,
+  on the real event loop, the erasure itself (a widget test's fake clock cannot finish closing and reopening a store).
+- **Follow-up: the occurrence and reminder lists drop `Settled`.** `listUpcomingOccurrences`, `listOverdueOccurrences`, `listReminders`
+  and `markAllRemindersRead` answer the list without what it leaves out, so a plan two devices disagree about is absent from the planned
+  cash flow and the reminder centre with nothing beside them saying so; the conflict banner counts the dispute. Same shape as ADR-113;
+  not a balance, so not in this unit.
+- No notification has been seen to fire from the Local app.
+
+---
 ## ADR-118 — Prudent Local's analytics reproduce the server's spend by category and by period over the records, leave out of a figure what two devices disagree about and say so, and are held to the server on a generated ledger of thousands of records
 
 **Date:** 2026-11-16. **Status:** accepted. **Plan:** unit 7 of `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245);

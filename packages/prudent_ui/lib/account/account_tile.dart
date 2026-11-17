@@ -8,6 +8,7 @@ import 'package:prudent_proto/generated/prudent/v1/records.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../money.dart';
 import '../providers.dart';
+import 'account_balances_subtitle.dart';
 import 'account_edit.dart';
 import 'delete_account_form.dart';
 import 'reconcile_account.dart';
@@ -34,6 +35,7 @@ class AccountTile extends ConsumerWidget {
     final t = PrudentLocalizations.of(context);
     final body = ReconcileAccount(
       account: account,
+      leftOut: ref.read(unsettledBalancesProvider)[account.id]?.length ?? 0,
       onSave: ({
         required currency,
         required trueBalanceInput,
@@ -113,9 +115,6 @@ class AccountTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = PrudentLocalizations.of(context);
-    final balances = account.balances
-        .map((b) => '${formatMinorUnits(b.amountMinor)} ${b.currency}')
-        .join(', ');
     return ZenListItemActions(
       showActionsLabel: t.accountShowActions,
       hideActionsLabel: t.accountHideActions,
@@ -141,7 +140,7 @@ class AccountTile extends ConsumerWidget {
               : Icons.account_balance_wallet,
         ),
         title: account.name,
-        subtitle: balances.isEmpty ? t.accountsNoBalance : balances,
+        subtitleContent: AccountBalancesSubtitle(account: account),
       ),
     );
   }

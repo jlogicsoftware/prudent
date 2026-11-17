@@ -1,3 +1,4 @@
+import '../account/unsettled_balance_note.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -72,10 +73,18 @@ class _SpendByCategoryViewState extends ConsumerState<SpendByCategoryView> {
               onRetry: () => ref.invalidate(spendByCategoryProvider(params)),
             ),
             data:
-                (response) => ChartContent(
-                  response: response,
-                  categories: categories,
-                  currency: widget.currency,
+                (answer) => Column(
+                  children: [
+                    // What the chart leaves out while devices disagree (ADR-118), beside it.
+                    UnsettledBalanceNote(count: answer.leftOut),
+                    Expanded(
+                      child: ChartContent(
+                        response: answer.value,
+                        categories: categories,
+                        currency: widget.currency,
+                      ),
+                    ),
+                  ],
                 ),
           ),
         ),

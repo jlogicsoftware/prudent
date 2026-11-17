@@ -42,6 +42,14 @@ class ImportEndedView extends StatelessWidget {
                 style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 8),
+              // ADR-100 T11: the statement was read once and never kept; the person's own file is
+              // theirs to delete, and Prudent says so rather than leave it forgotten in Downloads.
+              Text(
+                t.importStatementFileKept,
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 16),
               ZenButton(
                 label: t.importBackToImport,

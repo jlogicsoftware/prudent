@@ -1,0 +1,79 @@
+name: prudent_local_client
+description: >-
+  Prudent Local: Prudent with no server and no sign-in. The ledger lives in an encrypted store on the
+  person's own devices and syncs through iCloud on iOS and macOS and a folder of their choosing on
+  Android, Windows and Linux (ADR-101, jZen ADR-073).
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.14.0 <4.0.0"
+  flutter: ">=3.50.0"
+
+# NO SERVER PACKAGE (ADR-101, ADR-109 check F): not zen_transport, zen_identity, zen_ui_identity or
+# zen_secure_store, in any section. A Local app has no server to talk to and nobody to sign in to;
+# `task verify:boundaries` fails when one of them appears here or in an import.
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  intl: ^0.20.2
+  flutter_riverpod: ^3.0.0-dev.17
+  # Flutter 3.50 moved Material and Cupertino out of the SDK libraries (ADR-099); versions as jZen's.
+  material_ui: ^1.11.0
+  cupertino_ui: ^1.1.6
+  # The app's data directory, where the store lives (as jZen's Local reference app finds it).
+  path_provider: ^2.1.5
+  protobuf: ^6.0.0
+  fixnum: ^1.1.0
+
+  # Every screen, view model and string the server-connected app has (ADR-108).
+  prudent_ui:
+    path: ../../packages/prudent_ui
+  prudent_proto:
+    path: ../../packages/prudent_proto
+  # The Local rules (ADR-107) and the ledger over the store (ADR-111, ADR-113).
+  prudent_local_core:
+    path: ../prudent_local_core
+  prudent_local_store:
+    path: ../prudent_local_store
+
+  # jZen's Local packages from the sibling checkout, by path (ADR-001): the encrypted store, its key
+  # in the platform's secret storage, the one route to a sync transport (ZenSync.start, jZen ADR-079),
+  # the folder picker, the PIN lock, the conflict and pairing screens, and the save sheet.
+  zen_core:
+    path: ../../../jZen/client/zen_core
+  zen_store:
+    path: ../../../jZen/client/zen_store
+  zen_store_key:
+    path: ../../../jZen/client/zen_store_key
+  zen_store_sync:
+    path: ../../../jZen/client/zen_store_sync
+  zen_store_folder:
+    path: ../../../jZen/client/zen_store_folder
+  zen_store_shared_folder:
+    path: ../../../jZen/client/zen_store_shared_folder
+  zen_ui_lock:
+    path: ../../../jZen/client/zen_ui_lock
+  zen_ui_store:
+    path: ../../../jZen/client/zen_ui_store
+  zen_ui_navigation:
+    path: ../../../jZen/client/zen_ui_navigation
+  zen_ui_widgets:
+    path: ../../../jZen/client/zen_ui_widgets
+  # "Save to a file" on every platform, iOS and Android included (jZenDev/jZen#246).
+  zen_save_file:
+    path: ../../../jZen/client/zen_save_file
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  generate: true

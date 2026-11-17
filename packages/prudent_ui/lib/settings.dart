@@ -5,9 +5,9 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 import 'account/account_screen.dart';
 import 'category/categories_screen.dart';
 import 'l10n/generated/prudent_localizations.dart';
-import 'privacy/privacy_screen.dart';
 import 'overview/planned_cash_flow.dart';
 import 'providers.dart';
+import 'settings_entries.dart';
 import 'settings_session.dart';
 
 /// Each language's own name (autonym), not translated per-locale — a language picker
@@ -23,6 +23,8 @@ class SettingsScreen extends ConsumerWidget {
     final locale = ref.watch(localeProvider);
     final t = PrudentLocalizations.of(context);
     final session = ref.watch(settingsSessionProvider);
+    final entries = ref.watch(settingsEntriesProvider);
+    final privacyScreen = ref.watch(privacyScreenProvider);
 
     // Accounts, Categories and Profile open as the detail of this screen (ADR-062): beside it on a
     // wide host, so the navigation sidebar stays, and a full-screen push on a narrow one.
@@ -34,9 +36,18 @@ class SettingsScreen extends ConsumerWidget {
               title:
                   t.settingsTitle, // Full width, so the actions stay centred: a Column is only as wide as its widest child, and
               // the language select no longer stretches to the edge the way its ListTile did.
-              body: SizedBox(
-                width: double.infinity,
-                child: Column(
+              // Scrolls when the entries outgrow the screen (Prudent Local adds three on a phone),
+              // and keeps Log Out at the bottom when they do not: the column is at least as tall
+              // as the page, and the Spacer takes what is left.
+              body: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: constraints.maxWidth,
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
                   children: [
                     ZenButton(
                       label: t.accountsTitle,
@@ -56,6 +67,12 @@ class SettingsScreen extends ConsumerWidget {
                             builder: (_) => const CategoriesScreen(),
                           ),
                     ),
+                    for (final entry in entries)
+                      ZenButton(
+                        label: entry.label(context),
+                        variant: ZenButtonVariant.text,
+                        onPressed: () => showZenDetail<void>(context, builder: entry.builder),
+                      ),
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -105,7 +122,7 @@ class SettingsScreen extends ConsumerWidget {
                       onPressed:
                           () => showZenDetail<void>(
                             context,
-                            builder: (_) => const PrivacyScreen(),
+                            builder: privacyScreen,
                           ),
                     ),
                     const Spacer(),
@@ -116,6 +133,9 @@ class SettingsScreen extends ConsumerWidget {
                         onPressed: session.signOut,
                       ),
                   ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

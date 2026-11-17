@@ -38,11 +38,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Only the apps' own source is in scope: the server-connected app and the shared package its screens
-# live in (ADR-108). Not the tests: a test double's fake server URL is not a call the product makes.
+# Only the apps' own source is in scope: the server-connected app, the shared package its screens
+# live in (ADR-108), and Prudent Local's app (plan unit 9), which has no server at all. Not the tests: a test double's fake server URL is not a call the product makes.
 # Not `generated/`: generated code is a derived artifact, and editing it is already a defect
 # `task verify:contracts` catches.
-DART_LIB_SCOPES = ("client/lib", "packages/prudent_ui/lib")
+DART_LIB_SCOPES = ("client/lib", "packages/prudent_ui/lib", "local/prudent_local_client/lib")
 
 # The shared package every Prudent app links, Local included (ADR-101). It must not be able to reach
 # the server: no dependency on the transport or on identity, and no import of either — nor of

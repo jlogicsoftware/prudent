@@ -326,7 +326,22 @@ JVM (eight zones are refused, `PlanZones.unsupported`; no per-zone offsets are c
 cannot be confirmed, and the lists answer `Settled`; `occurrence.skipped_and_paid` lists a skip and a confirmation that met. The six
 parity scenarios `plans`, `occurrence_windows`, `occurrences`, `schedule_change`, `day_boundary` and `reminders` name dates as
 `@today(Zone)±n` (`ParityClock`), because the server's plan routes take no `asOf`; the notification scheduler of `packages/prudent_ui`
-is reused unchanged; every `PlanLedger` write carries its `expect` (ADR-122). No Local app or screen exists yet, and nothing has been seen on a device.
+is reused unchanged; every `PlanLedger` write carries its `expect` (ADR-122). Nothing has been seen on a device.
+Unit 9 (ADR-121) is the app, `local/prudent_local_client`: its own composition root over the shared screens,
+`LocalPrudentRepository` over the ledger, the budget and goal extensions, `PlanLedger` (as of the device clock), `Analytics` and `ImportWorkflow`
+(the import sweep runs at launch and hourly);
+`PrudentRepository.listAccounts()` answers `SettledAccounts` and `getBudgetSummary`/`getFreeMoney`/`getGoalProgress`/`spendByCategory`/
+`spendByPeriod` answer `SettledFigures`, so every figure says beside it what it leaves out (`UnsettledBalanceNote`, en/uk/pl); analytics
+(`Analytics`, unit 7) is wired too, so every tab loads from the device. A store change drops every repository read at once
+(`invalidateRepositoryReads`).
+`LocalSession` starts sync only through `ZenSync.start`, replaces the sync key to remove a device (#237), erases here or everywhere (#239),
+and refuses a sync folder inside the app's data; the app is behind `ZenLockGate(secureScreen: true)` (#240); conflicts and integrity issues
+(`prudentIssueSource`, a choice as one action per candidate, a name asked via the root navigator: jZenDev/jZen#256) open in
+`ZenConflictsScreen`; the data copy is `DataExport` saved with `zen_save_file`, never the clipboard. Settings takes Local's pages through
+`settingsEntriesProvider` and `privacyScreenProvider` and now scrolls; `zen_ui_store`/`zen_ui_lock` get Polish delegates. Its suite
+(`flutter test` with the client's defines; the touch-size rule runs when compiled for `android`/`ios`) and `integration_test/app_test.dart`
+(macOS) pass; an unsigned macOS build cannot reach the Keychain (`-34018`) and refuses to open, so a signed build and every device are
+unit 12's. The gates cover it (DART_ROOTS, `verify:analyze`, `verify:controls`, `verify:swiftpm`; boundaries F and H already did).
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

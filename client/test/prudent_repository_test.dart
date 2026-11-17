@@ -701,7 +701,7 @@ void main() {
         'GET https://example.test/api/v1/goals/progress',
         'GET https://example.test/api/v1/goals/progress?asOf=2026-10-01',
       ]);
-      final response = result.fold((r) => r, (e) => throw e);
+      final response = result.fold((r) => r.value, (e) => throw e);
       expect(response.asOf, '2026-10-01');
       final dated = response.goals[0];
       expect(dated.remainingMinor.toInt(), 90000);
@@ -954,7 +954,7 @@ void main() {
       final result = await repository.getFreeMoney();
 
       expect(capturedUri!.path, '/api/v1/goal-allocations/free-money');
-      final currencies = result.fold((r) => r.currencies, (e) => throw e);
+      final currencies = result.fold((r) => r.value.currencies, (e) => throw e);
       expect(currencies.map((c) => c.currency), ['PLN', 'EUR']);
       expect(currencies[0].freeMinor.toInt(), -20000);
       expect(currencies[0].eligibleAccountIds, ['a1']);
@@ -1118,7 +1118,7 @@ void main() {
         final summary = (await repository.getBudgetSummary(
           month: '2026-10',
           currency: 'PLN',
-        )).fold((r) => r, (e) => throw e);
+        )).fold((r) => r.value, (e) => throw e);
 
         expect(summary.items.single.carryOverResetMonth, '2026-10');
       },
@@ -1163,7 +1163,7 @@ void main() {
           'month': '2026-10',
           'currency': 'PLN',
         });
-        final summary = result.fold((r) => r, (e) => throw e);
+        final summary = result.fold((r) => r.value, (e) => throw e);
         expect(summary.month, '2026-10');
         expect(summary.currency, 'PLN');
         final item = summary.items.single;
@@ -1371,7 +1371,7 @@ void main() {
         expect(capturedUri!.queryParameters['currency'], 'PLN');
         expect(capturedUri!.queryParameters['year'], '2026');
         expect(capturedUri!.queryParameters['month'], '8');
-        final response = result.fold((r) => r, (e) => throw e);
+        final response = result.fold((r) => r.value, (e) => throw e);
         expect(response.items.single.amountMinor.toInt(), 3500);
       },
     );
@@ -1406,7 +1406,7 @@ void main() {
       );
 
       expect(result.isSuccess, isTrue);
-      expect(result.fold((r) => r.items, (e) => throw e), isEmpty);
+      expect(result.fold((r) => r.value.items, (e) => throw e), isEmpty);
     });
   });
 
@@ -1436,7 +1436,7 @@ void main() {
 
         expect(capturedUri!.queryParameters['granularity'], 'MONTH');
         expect(capturedUri!.queryParameters['count'], '12');
-        final response = result.fold((r) => r, (e) => throw e);
+        final response = result.fold((r) => r.value, (e) => throw e);
         expect(response.periods.single.period, '2026-08');
       },
     );

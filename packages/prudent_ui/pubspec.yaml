@@ -33,6 +33,9 @@ dependencies:
     path: ../prudent_proto
   protobuf: ^6.0.0
   fixnum: ^1.1.0
+  # @immutable on the answer types the repository interface names (SettledAccounts, SettledFigures):
+  # from meta, not flutter/foundation, so the pure-Dart e2e suite can still import the interface.
+  meta: ^1.11.0
 
   # jZen's transport-free packages, by path from the sibling checkout (ADR-001). zen_core holds
   # ZenResult / ZenError; the two UI packages hold the controls and the navigation shell.

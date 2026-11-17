@@ -1,19 +1,15 @@
 {
   "@@locale": "pl",
-
   "appTitle": "Prudent",
-
   "navOverview": "Przegląd",
   "navRecords": "Wpisy",
   "navBudgets": "Budżety",
   "navGoals": "Cele",
   "navAnalytics": "Analityka",
   "navSettings": "Ustawienia",
-
   "cancel": "Anuluj",
   "okay": "Ok",
   "invalidInputTitle": "Nieprawidłowe dane",
-
   "recordsTitleField": "Tytuł",
   "recordsAmountField": "Kwota",
   "recordsPayeeField": "Odbiorca",
@@ -37,7 +33,6 @@
   "recordsUndo": "Cofnij",
   "recordsEmpty": "Nie znaleziono wpisów. Dodaj pierwszy!",
   "recordsLoadError": "Nie udało się wczytać wpisów.",
-
   "recordsFilterTooltip": "Filtr",
   "recordsFilterActiveTooltip": "Filtr (aktywny)",
   "recordsFilterTitle": "Filtruj wpisy",
@@ -52,7 +47,6 @@
   "recordsFilterApply": "Zastosuj",
   "recordsFilterClearAll": "Wyczyść wszystko",
   "recordsFilterEmpty": "Żaden wpis nie pasuje do filtrów.",
-
   "transfersNewTitle": "Nowy przelew",
   "transfersTitleField": "Tytuł",
   "transfersFromAmountField": "Kwota wysłana",
@@ -63,13 +57,19 @@
   "transfersToCurrency": "Waluta otrzymana",
   "transfersSave": "Przelej",
   "transfersInvalidInput": "Upewnij się, że podano obie kwoty, datę oraz dwa różne konta.",
-
   "correctionsTitle": "Uzgodnij saldo",
   "correctionsExplanation": "Podaj rzeczywiste saldo konta, np. z wyciągu bankowego. Prudent zapisze różnicę jako jawną, możliwą do zweryfikowania korektę — nic nie zostanie zmienione w tle.",
   "correctionsCurrencyField": "Waluta",
   "correctionsCurrentBalance": "Bieżące saldo: {amount} {currency}",
   "@correctionsCurrentBalance": {
-    "placeholders": { "amount": { "type": "String" }, "currency": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
+    }
   },
   "correctionsTrueBalanceField": "Rzeczywiste saldo",
   "correctionsDateField": "Data",
@@ -77,7 +77,6 @@
   "correctionsSave": "Uzgodnij",
   "correctionsInvalidInput": "Podaj prawidłowe saldo i wybierz walutę.",
   "correctionsAlreadyBalanced": "To konto już zgadza się z podanym saldem; nie ma czego korygować.",
-
   "categoriesTitle": "Kategorie",
   "categoriesEmpty": "Nie dodano jeszcze żadnej kategorii.",
   "categoriesLoadError": "Nie udało się wczytać kategorii.",
@@ -86,7 +85,6 @@
   "categorySave": "Zapisz kategorię",
   "categoryInvalidInput": "Upewnij się, że podano poprawny tytuł.",
   "categoryRecordsEmpty": "Brak wpisów w tej kategorii.",
-
   "accountsTitle": "Rachunki",
   "accountsBanksAndCards": "Banki i karty",
   "accountsOther": "Inne rachunki",
@@ -115,18 +113,30 @@
   "accountDeleteTitle": "Usuń rachunek",
   "accountDeleteConfirm": "Usunąć „{name}”? Zostaną też trwale usunięte wszystkie transakcje tego rachunku.",
   "@accountDeleteConfirm": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "accountDeleteContinue": "Dalej",
   "accountDeleteFinalTitle": "Usuń rachunek i transakcje",
   "accountDeleteFinalBody": "„{name}” i wszystkie jego transakcje zostaną trwale usunięte. Przelew jest usuwany po obu stronach, więc zmieni się też saldo drugiego rachunku. Tej operacji nie można cofnąć.",
   "@accountDeleteFinalBody": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "accountDeletePhrase": "USUŃ",
   "accountDeletePhraseField": "Wpisz {phrase}, aby potwierdzić",
   "@accountDeletePhraseField": {
-    "placeholders": { "phrase": { "type": "String" } }
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
   },
   "accountDeleteAction": "Usuń rachunek i transakcje",
   "accountDeleteFailed": "Nie udało się usunąć rachunku. Nic nie zostało zmienione.",
@@ -134,7 +144,6 @@
   "accountReconcile": "Uzgodnij saldo",
   "accountShowActions": "Pokaż działania rachunku",
   "accountHideActions": "Ukryj działania rachunku",
-
   "overviewEmpty": "Brak rachunków do pokazania. Dodaj pierwszy, aby zacząć.",
   "overviewTotalsTitle": "Saldo łączne",
   "overviewAccountsTitle": "Rachunki",
@@ -146,7 +155,6 @@
   "plannedCashFlowNet": "Planowany wynik",
   "plannedCashFlowEmpty": "Nic nie zaplanowano na następne {days} dni.",
   "plannedCashFlowLoadError": "Nie udało się wczytać planowanych przepływów.",
-
   "budgetsTitle": "Budżety",
   "budgetNoAccounts": "Dodaj konto, aby zacząć planować budżet.",
   "budgetPreviousMonth": "Poprzedni miesiąc",
@@ -164,7 +172,6 @@
   "budgetCategoryArchived": "Zarchiwizowana",
   "budgetEmpty": "Brak budżetów na {month} w walucie {currency}.",
   "budgetLoadError": "Nie udało się wczytać budżetów.",
-
   "goalsTitle": "Cele",
   "goalNew": "Nowy cel",
   "goalSegmentActive": "Aktywne",
@@ -231,7 +238,6 @@
   "goalMoveTitle": "Przenieś z „{goal}”",
   "goalNotFound": "Nie znaleziono celu.",
   "goalUnknown": "Nieznany cel",
-
   "remindersTitle": "Przypomnienia",
   "remindersOpen": "{count, plural, =0{Przypomnienia} one{Przypomnienia, 1 nieprzeczytane} few{Przypomnienia, {count} nieprzeczytane} many{Przypomnienia, {count} nieprzeczytanych} other{Przypomnienia, {count} nieprzeczytanego}}",
   "remindersSectionOverdue": "Zaległe",
@@ -269,20 +275,16 @@
   "occurrenceRestore": "Przywróć",
   "occurrenceActionFailed": "Nie wprowadzono zmiany.",
   "occurrenceNotPlannedHint": "Ta pozycja nie czeka już na Ciebie.",
-
   "analyticsTitle": "Analityka",
   "analyticsSpendByMonth": "Wydatki wg miesiąca",
   "analyticsSpendByCategory": "Wydatki wg kategorii",
   "analyticsEmpty": "Brak wydatków w ostatnich 12 miesiącach.",
   "analyticsLoadError": "Nie udało się wczytać analityki.",
-
   "analyticsCurrencyField": "Waluta",
-
   "chartNoAccounts": "Dodaj rachunek, aby zobaczyć wykres.",
   "chartEmpty": "Brak wydatków w tym miesiącu.",
   "chartUnknownCategory": "Nieznana kategoria",
   "chartLoadError": "Nie udało się wczytać wykresu.",
-
   "settingsTitle": "Ustawienia",
   "settingsLanguage": "Język",
   "settingsProfile": "Profil",
@@ -314,7 +316,6 @@
   "editCategoryTooltip": "Edytuj kategorię",
   "loadErrorHint": "Coś poszło nie tak. Sprawdź połączenie i spróbuj ponownie.",
   "loadErrorRetry": "Spróbuj ponownie",
-
   "accountNumberField": "Numer rachunku bankowego (opcjonalnie)",
   "accountNumberHint": "Służy tylko do sprawdzenia, czy importowany wyciąg należy do tego rachunku.",
   "accountNumberInvalid": "To nie wygląda na numer rachunku.",
@@ -455,5 +456,7 @@
   "importDestinationResetHint": "Wybór innego rachunku ponownie sprawdza wiersze pod kątem duplikatów dla niego. Twoje wybory „Importuj mimo to” są zerowane; kategorie i notatki zostają.",
   "importResultHint": "Zaimportowane wpisy widać w saldzie rachunku i na liście wpisów.",
   "importRowUnknownCode": "Ten wiersz nie zostanie zaimportowany (kod {code}). Wpisz go ręcznie, jeśli go potrzebujesz.",
-  "importRowNoteTooLong": "Notatka może mieć najwyżej 500 znaków."
+  "importRowNoteTooLong": "Notatka może mieć najwyżej 500 znaków.",
+  "unsettledBalanceNote": "{count, plural, one{Pomija 1 wpis, co do którego Twoje urządzenia się nie zgadzają, dopóki go nie rozstrzygniesz.} few{Pomija {count} wpisy, co do których Twoje urządzenia się nie zgadzają, dopóki ich nie rozstrzygniesz.} many{Pomija {count} wpisów, co do których Twoje urządzenia się nie zgadzają, dopóki ich nie rozstrzygniesz.} other{Pomija {count} wpisu, co do których Twoje urządzenia się nie zgadzają, dopóki ich nie rozstrzygniesz.}}",
+  "importStatementFileKept": "Prudent nie zachował pliku wyciągu. Nadal jest tam, skąd go wybrano — usuń go, jeśli nie jest już potrzebny."
 }
