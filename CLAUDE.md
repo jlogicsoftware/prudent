@@ -312,8 +312,8 @@ Unit 7 (ADR-118) is analytics: `Analytics` in `local/prudent_local_store/lib/src
 `AnalyticsResource`'s semantics (expenses only; a transfer, a correction, income and a refund are not spend; one currency, never
 inferred; whole-month windows; the UTC anchor), as `Settled`, leaving out of a figure only a record whose dispute changes *that* figure
 (amount, account, currency, date, existence — and category for the category figure). `SpendWindow` (core) holds the window rules.
-`analytics.json` and the generated `AnalyticsScenarios.large` (about 4 000 operations, reserved currencies SEK/NOK/DKK and
-CZK/HUF/ISK/RON) agree with the live server to the cent; `tools/prudent_parity_server/test/analytics_large_test.dart` runs the generated one.
+`analytics.json` and the generated `AnalyticsScenarios.large` (about 4 000 operations, reserved currencies THB/TRY/ILS and
+CAD/NZD/SGD/HKD) agree with the live server to the cent; `tools/prudent_parity_server/test/analytics_large_test.dart` runs the generated one.
 On the Dart VM on an M4 Pro an analytics question takes about 100 ms at 50 000 records; **no Android figure exists** (no device or
 runnable emulator was available) — unit 12 owes it, with `tool/analytics_benchmark.dart`.
 Unit 6b (ADR-119) is plans, occurrences and reminders: `PlanLedger` (`local/prudent_local_store/lib/src/ledger/plan_ledger.dart`) answers the

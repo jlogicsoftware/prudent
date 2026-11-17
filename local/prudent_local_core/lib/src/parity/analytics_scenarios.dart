@@ -23,8 +23,8 @@ import 'parity_scenario.dart';
 /// are its own only if nobody else uses its currencies: [currencies] are used by this generator
 /// and by no committed scenario, and `analytics_scenarios_test.dart` fails if that stops being true.
 abstract final class AnalyticsScenarios {
-  /// The currencies of the large ledger; `analytics.json` reserves SEK, NOK and DKK for itself.
-  static const currencies = ['CZK', 'HUF', 'ISK', 'RON'];
+  /// The currencies of the large ledger; `analytics.json` reserves THB, TRY and ILS for itself.
+  static const currencies = ['CAD', 'NZD', 'SGD', 'HKD'];
 
   /// A ledger of about [records] records, relative to [today] (read in UTC).
   static ParityScenario large({required DateTime today, int records = 4000, int seed = 20261116}) {

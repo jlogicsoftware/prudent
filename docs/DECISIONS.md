@@ -60,8 +60,8 @@ ADR-008 (no cross-currency sums), ADR-014 (the UTC anchor), ADR-107, ADR-111, AD
   transfer, the correction, an edit and a delete, an archived category, every refusal. Both run through the live server and Local and
   every figure is compared exactly (`tools/prudent_parity_server`: `parity_test.dart` runs `analytics.json` with the rest;
   `analytics_large_test.dart` runs the generated ledger). The server's analytics sum every record of its one user in a currency, and the
-  parity run shares one user across scenarios (ADR-107), so **the currencies are reserved**: SEK, NOK and DKK to `analytics.json`;
-  CZK, HUF, ISK and RON to the generated ledger (which registers a user of its own, so for it this is insurance).
+  parity run shares one user across scenarios (ADR-107), so **the currencies are reserved**: THB, TRY and ILS to `analytics.json`;
+  CAD, NZD, SGD and HKD to the generated ledger (which registers a user of its own, so for it this is insurance).
   `scenarios_test.dart` fails if any other scenario writes in them.
 
 ### Where Local differs from the server, on purpose
