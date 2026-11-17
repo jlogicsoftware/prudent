@@ -19,6 +19,8 @@ abstract final class WriteExpects {
   ///
   /// [gone] answers a record deleted since it was read; [changed] one that was edited, created or
   /// replaced. The defaults are the store's own kinds of error; the ledger passes the server's.
+  /// [gone] is reached by a put only: on a delete, jZen answers an absent record with its own
+  /// [ZenNotFoundError] before any precondition runs, and the caller maps that itself.
   ///
   /// Exact equality, not "the fields this write touches": a write puts a whole message, and the
   /// store counts every field that differs from the stored record as this device's edit — so a field

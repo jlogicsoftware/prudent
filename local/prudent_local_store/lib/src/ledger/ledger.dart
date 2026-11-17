@@ -159,7 +159,7 @@ final class Ledger {
       }
     }
     _applyDefault(batch, view, current.id, request.isDefault);
-    await _write(store.writeAll(batch));
+    await _write(store.writeAll(batch), missing: _changedMeanwhile);
     return _settledAccount(current.id);
   });
 
@@ -211,7 +211,9 @@ final class Ledger {
     }
     for (final conflict in view.currencyConflicts.values) {
       // An account currency deleted on one device and edited on another is not listed by the
-      // store; it still belongs to this account and goes (or blocks) with it.
+      // store; it still belongs to this account and goes (or blocks) with it. It carries no
+      // precondition: there is no one version of it to compare, and the store refuses a write to a
+      // record in conflict before any precondition runs, so this delete always blocks the batch.
       if (!view.accountCurrencies.containsKey(conflict.id) &&
           conflict.sides.any((s) => s.value?.accountId == account.id)) {
         batch.deleteAccountCurrency(conflict.id);
@@ -219,7 +221,7 @@ final class Ledger {
     }
     _applyDefault(batch, view, account.id, false);
     batch.deleteAccount(account.id, expect: _asRead(account, _noAccount));
-    await _write(store.writeAll(batch));
+    await _write(store.writeAll(batch), missing: _changedMeanwhile);
   });
 
   // ── Categories ──────────────────────────────────────────────────────────────────────────────
@@ -321,7 +323,10 @@ final class Ledger {
     }
     // A record, plan or budget a sync files under it in between is not seen here, as one arriving
     // a moment after would not be: the dangling reference is the integrity check's (D6).
-    await _write(store.deleteCategory(category.id, expect: _asRead(category, _noCategory)));
+    await _write(
+      store.deleteCategory(category.id, expect: _asRead(category, _noCategory)),
+      missing: _noCategory,
+    );
   });
 
   /// "Start fresh on this device" (row 5.43, `NewUserSetup`): the five starter categories, with ids
@@ -521,7 +526,7 @@ final class Ledger {
           final batch = StoreBatch(store)
             ..deleteRecord(current.id, expect: _asRead(current, _noRecord))
             ..putRecord(record, expect: _asRead(null, _noRecord));
-          await _write(store.writeAll(batch));
+          await _write(store.writeAll(batch), missing: _noRecord);
           return WireMapper.recordToWire(record);
         }
         return _recordWire(
@@ -557,7 +562,8 @@ final class Ledger {
         );
       }
     }
-    await _write(store.writeAll(batch));
+    // The record a sync deleted meanwhile is this operation's 404, as on a plain delete.
+    await _write(store.writeAll(batch), missing: _noRecord);
   });
 
   // ── Transfers ───────────────────────────────────────────────────────────────────────────────
@@ -609,7 +615,10 @@ final class Ledger {
     if (!LocalIds.isValid(id)) throw const Refusal.notFound('5.31', 'No such transfer.');
     final transfer = LedgerView.read(store).transfers[id];
     if (transfer == null) throw _noTransfer;
-    await _write(store.deleteTransfer(id, expect: _asRead(transfer, _noTransfer)));
+    await _write(
+      store.deleteTransfer(id, expect: _asRead(transfer, _noTransfer)),
+      missing: _noTransfer,
+    );
   });
 
   // ── Corrections ─────────────────────────────────────────────────────────────────────────────
@@ -681,7 +690,10 @@ final class Ledger {
     if (!LocalIds.isValid(id)) throw const Refusal.notFound('5.37', 'No such correction.');
     final record = LedgerView.read(store).records[id];
     if (record == null || !record.hasCorrection()) throw _noCorrection;
-    await _write(store.deleteRecord(id, expect: _asRead(record, _noCorrection)));
+    await _write(
+      store.deleteRecord(id, expect: _asRead(record, _noCorrection)),
+      missing: _noCorrection,
+    );
   });
 
   // ── Settings ────────────────────────────────────────────────────────────────────────────────
@@ -1116,7 +1128,21 @@ final class Ledger {
   static const _noSettings = Refusal.notFound('5.44', 'No settings.');
 
   /// The value of a store write, or a [LedgerReadFailure] with the store's own error.
-  static Future<T> _write<T>(Future<ZenResult<T>> write) async => readOrThrow(await write);
+  ///
+  /// [missing] is the refusal for a **delete** whose record a sync removed between the check and the
+  /// write. jZen answers that itself, with a bare [ZenNotFoundError], before any precondition runs
+  /// ("runs once the record is known to exist"), so the `gone` of [WriteExpects.asRead] never reaches
+  /// a delete; without this the caller would get a store error where the server answers its own 404
+  /// (or, inside a larger batch, the 409 of X.7: the state the operation was decided on is gone). A
+  /// not-found that already carries a ledger status — a put's `gone` — passes through unchanged.
+  static Future<T> _write<T>(Future<ZenResult<T>> write, {Refusal? missing}) async {
+    final result = await write;
+    if (result case ZenFailure(:final error)
+        when missing != null && error is ZenNotFoundError && LedgerErrors.statusOf(error) == null) {
+      throw missing;
+    }
+    return readOrThrow(result);
+  }
 
   /// Runs one operation: a rule's [Refusal] becomes the server-shaped error, the store's errors are
   /// returned as they are, and a figure that leaves the 64-bit range is an error, never a value.

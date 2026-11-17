@@ -246,14 +246,20 @@ precondition) and #245 (proto3 presence), both PR #254, at `JZEN_REF` `4fa887a`;
   version its rules were checked against; a create carries "still absent"; the account delete with its records carries each record,
   transfer, currency and the account as read; archive, restore and the category delete likewise; a correction is written "absent" and
   deleted "as read". A record deleted meanwhile answers **404 under the rule that finds it** (5.1, 5.15, 5.31, 5.37, 5.38) — what the
-  server answers when the delete came before the request — and stays deleted. One changed meanwhile answers **409 under §0.3 X.7**, where
+  server answers when the delete came before the request — and stays deleted. On a put that is the `gone` of `asRead`; on a delete jZen
+  answers an absent record itself, with a bare `ZenNotFoundError`, before any precondition runs, so the ledger maps that answer
+  (`_write(missing:)`) to the same 404 — or, when the missing record is one of many in a batch (an account deleted with its records, an
+  account update dropping a currency), to the 409 of X.7, because the state the operation was decided on is gone. A not-found that already
+  carries a ledger status passes through unchanged. One changed meanwhile answers **409 under §0.3 X.7**, where
   the server holds a row lock; the other device's edit survives. "Start fresh" accepts a starter that is absent or byte-equal (another
   device's identical starters arriving is no edit) and refuses any other.
 - **The repairs carry it too.** A re-creation (`recreate_account`, `recreate_category`, `add_currency`) expects "still absent", so a record
   another device restored or added is not reset to defaults; an edit built from a record (`move_to_*`, `clear_account_number`, the
   default-account choice, `category_takes_both`, which is built from the category the check saw) expects that version; the
-  correction-intent replacement expects each correction it summed and "absent" for the replacement. A plain delete repair acts on the
-  record as it stands when it runs, as before.
+  correction-intent replacement expects each correction it summed and "absent" for the replacement — a correction is immutable, so of
+  those what can happen meanwhile is its deletion, which jZen's own existence check on a batch delete already refuses; the precondition
+  states the intent and holds if corrections ever become editable. A plain delete repair acts on the record as it stands when it runs, as
+  before.
 - **What a precondition cannot hold is still the integrity checks'.** `expect` sees only the record being written. A rule across records
   — a record filed under a category another device deletes, a record added to an account being deleted, a balance a correction's delta is
   taken from — can be broken by a sync arriving one moment *after* the write just as well as one moment before, so checking it in the turn
@@ -301,16 +307,22 @@ precondition) and #245 (proto3 presence), both PR #254, at `JZEN_REF` `4fa887a`;
 
 ### Consequence
 
-Verified on 2026-11-16 in the worktree against jZen `4fa887a`, rebased onto unit 8b (ADR-114): `prudent_local_store` 593 green (unit
-8b's 579 unchanged, six presence cases in `merge_table_test` and eight in the new `write_precondition_test`, each on two encrypted stores:
+Verified on 2026-11-16 in the worktree against jZen `4fa887a`, rebased onto unit 8b (ADR-114): `prudent_local_store` 603 green (unit
+8b's 579 unchanged, six presence cases in `merge_table_test` and eighteen in the new `write_precondition_test`, each on two encrypted stores:
 an edit and a restore against a synced delete answer 404 and nothing comes back; an edit and a settings change against a synced edit
 answer 409 X.7 and the other device's value survives; an account delete with its records, one of which a sync moved, is refused whole
-with nothing written; "Start fresh" against the other device's identical starters writes them once; a transfer arriving before an add of
+with nothing written; review round (#264): a delete of a record, transfer and correction a sync deleted answers 404 under 5.15, 5.31 and
+5.37; an account delete with records, one of which a sync deleted, 409 X.7 with nothing written; an account update dropping a currency
+whose opening a sync changed, an archive and a category delete against a synced edit, 409 X.7; the correction-intent replacement against a
+synced delete of a summed correction refuses whole; `recreate_account` after the other device restored the account is refused and that
+version stays; an import session's immutable currency is held against a second write queued behind the first; "Start fresh" against the other device's identical starters writes them once; a transfer arriving before an add of
 the same id is never edited by it; a repair built from what the check saw is refused once `ZenFolderCloud` brought a change to that
 record). Mutations each turned the matching tests red and were restored: `asRead` passing everything (six of the eight; 8b's
 change-in-between cases stay green under it because the commit's own precondition re-plans the commit), write-once skipped in the turn
 (the transfer case), `explicitPresence: {7}` on accounts (the rebuilt-defaults case), `archived = false` in the restore (the
-answer-equals-read case). `prudent_local_core` 2 791 green. **The parity suite against a live Quarkus on the local Supabase (port 8113,
+answer-equals-read case); the delete mapping switched off (the three delete 404s and the batch case); the re-creation's "absent"
+removed (the `recreate_account` case). Creates are written "absent" but not tested: their ids are fresh random 128-bit ids no sync can
+deliver first. `prudent_local_core` 2 791 green. **The parity suite against a live Quarkus on the local Supabase (port 8113,
 built from this branch): all 15 scenarios agree**, the two import scenarios included. `dart analyze --fatal-infos --fatal-warnings` clean
 in the core, the store and `tools/prudent_parity_server`; before the rebase, `flutter analyze` with the same flags was clean in
 `packages/prudent_ui` and `client/` on the new jZen (the rebase touches neither); `verify_boundaries.py` and its tests and
