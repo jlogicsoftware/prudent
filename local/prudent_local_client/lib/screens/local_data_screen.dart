@@ -9,6 +9,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 import '../app/local_providers.dart';
 import '../l10n/generated/local_localizations.dart';
 import '../widgets/confirm_step.dart';
+import 'move_in_screen.dart';
 import '../widgets/settings_action.dart';
 import '../widgets/settings_heading.dart';
 import '../widgets/settings_paragraph.dart';
@@ -21,6 +22,7 @@ import '../widgets/settings_paragraph.dart';
 ///   plaintext, and the page says so before the button.
 /// - **"Erase this device's copy" says what remains** — the other devices, the folder, iCloud — and
 ///   never claims more (ADR-100 T24).
+/// - **"Move my data in"** opens the move of the server's export into this device (unit 10b).
 /// - **"Erase everywhere"** is jZen's (jZenDev/jZen#239): the transport cleans the shared place and
 ///   tells the other devices, which erase at their next sync. Irreversible, asked twice.
 class LocalDataScreen extends ConsumerStatefulWidget {
@@ -132,6 +134,16 @@ class _LocalDataScreenState extends ConsumerState<LocalDataScreen> {
           SettingsAction(
             label: t.dataEverywhereButton,
             onPressed: _busy ? null : () => _eraseEverywhere(t),
+          ),
+          SettingsHeading(t.moveInTitle),
+          SettingsParagraph(t.moveInEntryHint),
+          SettingsAction(
+            label: t.moveInTitle,
+            onPressed: _busy
+                ? null
+                : () => Navigator.of(context).push(
+                    ZenPageRoute<void>(builder: (_) => const MoveInScreen()),
+                  ),
           ),
         ],
       ),

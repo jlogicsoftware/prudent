@@ -28,6 +28,9 @@ dependencies:
   path_provider: ^2.1.5
   protobuf: ^6.0.0
   fixnum: ^1.1.0
+  # The platform's file picker for the server's export file (unit 10b, ADR-123). First party, with a
+  # Swift package on iOS and macOS (ADR-083); the shared package already brings it in for statements.
+  file_selector: ^1.1.0
 
   # Every screen, view model and string the server-connected app has (ADR-108).
   prudent_ui:

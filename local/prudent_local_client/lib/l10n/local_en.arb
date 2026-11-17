@@ -288,5 +288,69 @@
   "actionClearSkip": "Undo the skip",
   "issueRepairsMadeApart": "A goal was repaired twice on different devices",
   "issueRepairsMadeApartBody": "Each device put a goal's envelope back to zero without seeing the other's repair, so together they overshoot. One entry undoes the difference; the history is kept.",
-  "actionUndoOvershoot": "Undo the overshoot"
+  "actionUndoOvershoot": "Undo the overshoot",
+  "moveInTitle": "Move my data in",
+  "moveInEntryHint": "Bring the data of your Prudent server account onto this device, from the export file you saved in the server app.",
+  "moveInIntro": "Choose the export file you saved in the Prudent server app, under Privacy and data. Your data moves into this device only if it holds nothing yet, and only whole: if anything in the file cannot be moved exactly, nothing is written. After the move, every account balance is checked against the file to the cent.",
+  "moveInFileWarning": "The export file is not encrypted. Delete it once the move is done.",
+  "moveInServerNote": "The move does not erase your server account. Check your balances here first; then you can erase it in the server app, under Privacy and data.",
+  "moveInButton": "Choose the export file",
+  "moveInDone": "Your data has moved in: {accounts} accounts, {records} records, {transfers} transfers, {plans} plans, {budgets} budgets and {goals} goals. Every balance matches the file to the cent.",
+  "@moveInDone": {
+    "placeholders": {
+      "accounts": {
+        "type": "int"
+      },
+      "records": {
+        "type": "int"
+      },
+      "transfers": {
+        "type": "int"
+      },
+      "plans": {
+        "type": "int"
+      },
+      "budgets": {
+        "type": "int"
+      },
+      "goals": {
+        "type": "int"
+      }
+    }
+  },
+  "moveInDroppedSessions": "{count, plural, =1{One statement import was unfinished on the server and was not moved; import that statement again here.} other{{count} statement imports were unfinished on the server and were not moved; import those statements again here.}}",
+  "@moveInDroppedSessions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "moveInRefused": "Nothing was moved.",
+  "moveInDetails": "Details: {details}",
+  "@moveInDetails": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "moveInTooLarge": "The file is too large to be a Prudent export.",
+  "moveInUnreadable": "The file is not a Prudent export, or it was made by a newer version of Prudent than this app.",
+  "moveInFormatVersion": "The file is an export of a version this app cannot read.",
+  "moveInStoreNotEmpty": "This device already holds data. Data can be moved only into an empty Prudent Local; erase this device's copy first if you mean to replace it.",
+  "moveInMalformedId": "The file holds an id that Prudent's server does not write.",
+  "moveInDuplicateId": "The file holds the same id twice.",
+  "moveInUnknownReference": "A row in the file refers to something the file does not hold.",
+  "moveInCurrencyNotHeld": "A row in the file is in a currency its account does not hold.",
+  "moveInTransferBroken": "A transfer in the file does not have exactly one outgoing and one incoming part.",
+  "moveInTwoDefaults": "More than one account in the file is marked as the default.",
+  "moveInOccurrenceUnpaired": "A planned payment in the file is marked as paid without the record that paid it, or the other way round.",
+  "moveInPlanZone": "A plan in the file uses a time zone whose calendar this app cannot read.",
+  "moveInImportKey": "A record in the file carries a statement key this app cannot read.",
+  "moveInInvalidValue": "A row in the file holds a value this app cannot store as written.",
+  "moveInBalanceMismatch": "After the move, an account's balance would not match the file to the cent.",
+  "moveInChangedMeanwhile": "This device's data changed while the move was being written, so nothing was moved. Try again.",
+  "moveInStoreFailed": "This device's data could not be read or written, so nothing was moved.",
+  "moveInFileFailed": "The file could not be opened."
 }
