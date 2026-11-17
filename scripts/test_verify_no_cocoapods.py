@@ -17,7 +17,12 @@ CLEAN_WORKSPACE = '<Workspace>\n   <FileRef location = "group:Runner.xcodeproj">
 
 
 def tree(root: Path) -> None:
-    for runner in ("client/ios", "client/macos"):
+    for runner in (
+        "client/ios",
+        "client/macos",
+        "local/prudent_local_client/ios",
+        "local/prudent_local_client/macos",
+    ):
         base = root / runner
         (base / "Runner.xcodeproj").mkdir(parents=True)
         (base / "Runner.xcworkspace").mkdir()

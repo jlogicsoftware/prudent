@@ -26,6 +26,10 @@ LOCAL_FILES = {
     "local/prudent_local_core/lib/a.dart": "final a = 1;\n",
     "local/prudent_local_store/pubspec.yaml": "name: prudent_local_store\ndependencies:\n  zen_store:\n    path: x\n",
     "local/prudent_local_store/lib/a.dart": "final a = 1;\n",
+    # The Local app (plan unit 9): Flutter, the store, no server.
+    "local/prudent_local_client/pubspec.yaml": "name: prudent_local_client\ndependencies:\n"
+    "  flutter:\n    sdk: flutter\n  prudent_local_store:\n    path: ../prudent_local_store\n",
+    "local/prudent_local_client/lib/main.dart": "void main() {}\n",
     # The wire messages (ADR-111): generated code only, pure Dart.
     "packages/prudent_proto/pubspec.yaml": "name: prudent_proto\ndependencies:\n  protobuf: ^6.0.0\n",
     "packages/prudent_proto/lib/generated/prudent/v1/a.pb.dart": "import 'package:protobuf/protobuf.dart';\n",

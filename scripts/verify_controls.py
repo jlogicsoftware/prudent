@@ -9,7 +9,7 @@ treatment, silently became the one that does not have it.
 
 THE RULE, in two parts.
 
-1. **Banned** in `client/lib` and `packages/prudent_ui/lib` (generated code and `l10n/` excluded): every name in
+1. **Banned** in `client/lib`, `packages/prudent_ui/lib` and `local/prudent_local_client/lib` (generated code and `l10n/` excluded): every name in
    `BANNED_CONTROLS`. Each has a `zen_ui_widgets` counterpart — `ZenButton` (all three variants),
    `ZenSelect`, `ZenSegmentedControl`, `ZenSwitchRow`, `ZenDateField` / `ZenDateRangeField`,
    `ZenTextField`, `ZenIconButton`, `ZenProgressIndicator`, `ZenProgressBar`, `ZenPageScaffold` (for
@@ -56,9 +56,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Every Dart library whose screens are in scope. The screens moved into the shared package
-# (ADR-108), and client/lib keeps the composition root and sign-in: both are scanned, and an empty
-# scope is a failure in each, so neither can be emptied into green.
-LIB_SCOPES = ("client/lib", "packages/prudent_ui/lib")
+# (ADR-108), client/lib keeps the composition root and sign-in, and Prudent Local's app has its own
+# settings, sync and data pages (plan unit 9): all three are scanned, and an empty scope is a
+# failure in each, so none can be emptied into green.
+LIB_SCOPES = ("client/lib", "packages/prudent_ui/lib", "local/prudent_local_client/lib")
 # Generated output is a derived artifact; l10n holds generated accessors and .arb files.
 EXCLUDED_DIRS = ("generated", "l10n")
 

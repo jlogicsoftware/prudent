@@ -1,19 +1,15 @@
 {
   "@@locale": "en",
-
   "appTitle": "Prudent",
-
   "navOverview": "Overview",
   "navRecords": "Records",
   "navBudgets": "Budgets",
   "navGoals": "Goals",
   "navAnalytics": "Analytics",
   "navSettings": "Settings",
-
   "cancel": "Cancel",
   "okay": "Okay",
   "invalidInputTitle": "Invalid input",
-
   "recordsTitleField": "Title",
   "recordsAmountField": "Amount",
   "recordsPayeeField": "Payee",
@@ -37,7 +33,6 @@
   "recordsUndo": "Undo",
   "recordsEmpty": "No records found. Start adding some!",
   "recordsLoadError": "Could not load records.",
-
   "recordsFilterTooltip": "Filter",
   "recordsFilterActiveTooltip": "Filter (active)",
   "recordsFilterTitle": "Filter records",
@@ -52,7 +47,6 @@
   "recordsFilterApply": "Apply",
   "recordsFilterClearAll": "Clear all",
   "recordsFilterEmpty": "No records match these filters.",
-
   "transfersNewTitle": "New Transfer",
   "transfersTitleField": "Title",
   "transfersFromAmountField": "Amount sent",
@@ -63,13 +57,19 @@
   "transfersToCurrency": "Currency received",
   "transfersSave": "Transfer",
   "transfersInvalidInput": "Please make sure both amounts, a date, and two different accounts were entered.",
-
   "correctionsTitle": "Reconcile balance",
   "correctionsExplanation": "Enter the account's true balance, as you observe it (e.g. on a bank statement). Prudent records the difference as an explicit, auditable correction — nothing is silently rewritten.",
   "correctionsCurrencyField": "Currency",
   "correctionsCurrentBalance": "Current balance: {amount} {currency}",
   "@correctionsCurrentBalance": {
-    "placeholders": { "amount": { "type": "String" }, "currency": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
+    }
   },
   "correctionsTrueBalanceField": "True balance",
   "correctionsDateField": "Date",
@@ -77,7 +77,6 @@
   "correctionsSave": "Reconcile",
   "correctionsInvalidInput": "Please enter a valid balance and choose a currency.",
   "correctionsAlreadyBalanced": "This account already matches that balance; there is nothing to correct.",
-
   "categoriesTitle": "Categories",
   "categoriesEmpty": "No categories added yet.",
   "categoriesLoadError": "Could not load categories.",
@@ -86,7 +85,6 @@
   "categorySave": "Save Category",
   "categoryInvalidInput": "Please make sure a valid title was entered.",
   "categoryRecordsEmpty": "No records in this category yet.",
-
   "accountsTitle": "Accounts",
   "accountsBanksAndCards": "Banks and Cards",
   "accountsOther": "Other Accounts",
@@ -115,18 +113,30 @@
   "accountDeleteTitle": "Delete account",
   "accountDeleteConfirm": "Delete \"{name}\"? This also permanently deletes every transaction in this account.",
   "@accountDeleteConfirm": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "accountDeleteContinue": "Continue",
   "accountDeleteFinalTitle": "Delete account and transactions",
   "accountDeleteFinalBody": "\"{name}\" and every transaction in it will be permanently deleted. A transfer is deleted on both sides, so the other account's balance changes too. This cannot be undone.",
   "@accountDeleteFinalBody": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "accountDeletePhrase": "DELETE",
   "accountDeletePhraseField": "Type {phrase} to confirm",
   "@accountDeletePhraseField": {
-    "placeholders": { "phrase": { "type": "String" } }
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
   },
   "accountDeleteAction": "Delete account and transactions",
   "accountDeleteFailed": "The account could not be deleted. Nothing was changed.",
@@ -134,14 +144,17 @@
   "accountReconcile": "Reconcile balance",
   "accountShowActions": "Show account actions",
   "accountHideActions": "Hide account actions",
-
   "overviewEmpty": "No accounts to show. Add one to get started.",
   "overviewTotalsTitle": "Total balance",
   "overviewAccountsTitle": "Accounts",
   "plannedCashFlowToggle": "Include planned cash flow",
   "plannedCashFlowToggleHint": "Still expected: overdue and the next {days} days. Not part of your balances.",
   "@plannedCashFlowToggleHint": {
-    "placeholders": { "days": { "type": "int" } }
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
   },
   "plannedCashFlowTitle": "Planned cash flow",
   "plannedCashFlowIncome": "Expected income",
@@ -149,10 +162,13 @@
   "plannedCashFlowNet": "Net planned",
   "plannedCashFlowEmpty": "Nothing planned in the next {days} days.",
   "@plannedCashFlowEmpty": {
-    "placeholders": { "days": { "type": "int" } }
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
   },
   "plannedCashFlowLoadError": "Could not load planned cash flow.",
-
   "budgetsTitle": "Budgets",
   "budgetNoAccounts": "Add an account to start budgeting.",
   "budgetPreviousMonth": "Previous month",
@@ -166,23 +182,41 @@
   "budgetRemaining": "Remaining",
   "budgetPercentUsed": "{percent}% used",
   "@budgetPercentUsed": {
-    "placeholders": { "percent": { "type": "int" } }
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
   },
   "budgetOverspent": "Overspent by {amount}",
   "@budgetOverspent": {
-    "placeholders": { "amount": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
   },
   "budgetCarryOverReset": "Carry-over reset from {month}",
   "@budgetCarryOverReset": {
-    "placeholders": { "month": { "type": "String" } }
+    "placeholders": {
+      "month": {
+        "type": "String"
+      }
+    }
   },
   "budgetCategoryArchived": "Archived",
   "budgetEmpty": "No budgets for {month} in {currency}.",
   "@budgetEmpty": {
-    "placeholders": { "month": { "type": "String" }, "currency": { "type": "String" } }
+    "placeholders": {
+      "month": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
+    }
   },
   "budgetLoadError": "Could not load budgets.",
-
   "goalsTitle": "Goals",
   "goalNew": "New goal",
   "goalSegmentActive": "Active",
@@ -199,27 +233,47 @@
   "goalRemaining": "Still to save",
   "goalProgressPercent": "{percent}% of target",
   "@goalProgressPercent": {
-    "placeholders": { "percent": { "type": "int" } }
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
   },
   "goalTargetDate": "By {date}",
   "@goalTargetDate": {
-    "placeholders": { "date": { "type": "String" } }
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
   },
   "goalGuidanceContribution": "Set aside {amount} a month",
   "@goalGuidanceContribution": {
-    "placeholders": { "amount": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
   },
   "goalDueThisMonth": "Due this month",
   "goalMonthsLeft": "{months, plural, one{{months} month left} other{{months} months left}}",
   "@goalMonthsLeft": {
-    "placeholders": { "months": { "type": "int" } }
+    "placeholders": {
+      "months": {
+        "type": "int"
+      }
+    }
   },
   "goalGuidanceReached": "Target reached",
   "goalGuidanceNoDate": "No target date",
   "goalGuidanceOverdue": "The target date has passed",
   "goalEnvelopeSemantics": "Set aside for goals: {amount}",
   "@goalEnvelopeSemantics": {
-    "placeholders": { "amount": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
   },
   "goalFreeMoneyTitle": "Money for goals",
   "goalFreeMoneyNote": "Money set aside stays in your accounts. It never changes a balance or your spending.",
@@ -227,7 +281,11 @@
   "goalFree": "Free to set aside",
   "goalOverAllocated": "Envelopes hold {amount} more than your eligible accounts",
   "@goalOverAllocated": {
-    "placeholders": { "amount": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
   },
   "goalFreeMoneyEmpty": "Mark an account as available for goals to start setting money aside.",
   "goalFreeMoneyLoadError": "Could not load money for goals.",
@@ -238,11 +296,19 @@
   "goalEntryWithdraw": "Withdrawn",
   "goalEntryMoveIn": "Moved from {goal}",
   "@goalEntryMoveIn": {
-    "placeholders": { "goal": { "type": "String" } }
+    "placeholders": {
+      "goal": {
+        "type": "String"
+      }
+    }
   },
   "goalEntryMoveOut": "Moved to {goal}",
   "@goalEntryMoveOut": {
-    "placeholders": { "goal": { "type": "String" } }
+    "placeholders": {
+      "goal": {
+        "type": "String"
+      }
+    }
   },
   "goalActionAllocate": "Add money",
   "goalActionWithdraw": "Withdraw",
@@ -267,35 +333,62 @@
   "goalMoveTo": "Move to",
   "goalMoveNoTarget": "There is no other active goal in {currency}.",
   "@goalMoveNoTarget": {
-    "placeholders": { "currency": { "type": "String" } }
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
   },
   "goalAvailableFree": "Free to set aside: {amount}",
   "@goalAvailableFree": {
-    "placeholders": { "amount": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
   },
   "goalAvailableEnvelope": "In this envelope: {amount}",
   "@goalAvailableEnvelope": {
-    "placeholders": { "amount": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
   },
   "goalAllocateTitle": "Add money to {goal}",
   "@goalAllocateTitle": {
-    "placeholders": { "goal": { "type": "String" } }
+    "placeholders": {
+      "goal": {
+        "type": "String"
+      }
+    }
   },
   "goalWithdrawTitle": "Withdraw from {goal}",
   "@goalWithdrawTitle": {
-    "placeholders": { "goal": { "type": "String" } }
+    "placeholders": {
+      "goal": {
+        "type": "String"
+      }
+    }
   },
   "goalMoveTitle": "Move from {goal}",
   "@goalMoveTitle": {
-    "placeholders": { "goal": { "type": "String" } }
+    "placeholders": {
+      "goal": {
+        "type": "String"
+      }
+    }
   },
   "goalNotFound": "This goal could not be found.",
   "goalUnknown": "Unknown goal",
-
   "remindersTitle": "Reminders",
   "remindersOpen": "{count, plural, =0{Reminders} one{Reminders, 1 unread} other{Reminders, {count} unread}}",
   "@remindersOpen": {
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "remindersSectionOverdue": "Overdue",
   "remindersSectionDue": "Due soon",
@@ -309,22 +402,47 @@
   "reminderUnread": "Unread",
   "reminderDueOn": "Due {date}",
   "@reminderDueOn": {
-    "placeholders": { "date": { "type": "String" } }
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
   },
   "reminderOverdueSince": "Overdue since {date}",
   "@reminderOverdueSince": {
-    "placeholders": { "date": { "type": "String" } }
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
   },
   "reminderActionFailed": "The reminder was not updated.",
   "reminderNotificationChannel": "Planned transaction reminders",
   "reminderNotificationTitle": "Planned transaction due",
   "reminderNotificationBody": "{title} on {date}",
   "@reminderNotificationBody": {
-    "placeholders": { "title": { "type": "String" }, "date": { "type": "String" } }
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
   },
   "reminderNotificationBodyWithAmount": "{title}, {amount}, on {date}",
   "@reminderNotificationBodyWithAmount": {
-    "placeholders": { "title": { "type": "String" }, "amount": { "type": "String" }, "date": { "type": "String" } }
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
   },
   "occurrenceTitle": "Planned transaction",
   "occurrenceDate": "Date",
@@ -344,20 +462,16 @@
   "occurrenceRestore": "Restore",
   "occurrenceActionFailed": "The change was not made.",
   "occurrenceNotPlannedHint": "This occurrence is no longer waiting on you.",
-
   "analyticsTitle": "Analytics",
   "analyticsSpendByMonth": "Spend by month",
   "analyticsSpendByCategory": "Spend by category",
   "analyticsEmpty": "No spending in the last 12 months.",
   "analyticsLoadError": "Could not load analytics.",
-
   "analyticsCurrencyField": "Currency",
-
   "chartNoAccounts": "Add an account to see a chart.",
   "chartEmpty": "No spending this month.",
   "chartUnknownCategory": "Unknown category",
   "chartLoadError": "Could not load the chart.",
-
   "settingsTitle": "Settings",
   "settingsLanguage": "Language",
   "settingsProfile": "Profile",
@@ -389,7 +503,6 @@
   "editCategoryTooltip": "Edit category",
   "loadErrorHint": "Something went wrong. Check your connection and try again.",
   "loadErrorRetry": "Try again",
-
   "accountNumberField": "Bank account number (optional)",
   "accountNumberHint": "Used only to check that an imported statement belongs to this account.",
   "accountNumberInvalid": "This does not look like an account number.",
@@ -406,7 +519,13 @@
   "importChangeFile": "Choose another file",
   "importNoFile": "No file chosen yet.",
   "importFileChosen": "File: {name}",
-  "@importFileChosen": {"placeholders": {"name": {"type": "String"}}},
+  "@importFileChosen": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "importFileTooLarge": "This file is larger than 5 MiB, more than a statement import accepts. Export a shorter period and try again.",
   "importFileEmpty": "This file is empty. Choose the statement you downloaded from the bank.",
   "importFileReadFailed": "The file could not be read. Check that it is still available and choose it again.",
@@ -415,16 +534,49 @@
   "importOpenSessionsLoadError": "Could not load unfinished imports.",
   "importOpenSessionTitle": "Statement waiting for review",
   "importOpenSessionFigures": "To import: {accepted}, duplicates: {duplicates}, not readable: {rejected}",
-  "@importOpenSessionFigures": {"placeholders": {"accepted": {"type": "int"}, "duplicates": {"type": "int"}, "rejected": {"type": "int"}}},
+  "@importOpenSessionFigures": {
+    "placeholders": {
+      "accepted": {
+        "type": "int"
+      },
+      "duplicates": {
+        "type": "int"
+      },
+      "rejected": {
+        "type": "int"
+      }
+    }
+  },
   "importContinue": "Continue",
   "importDiscardAction": "Discard import",
   "importFailureTitle": "The statement was not accepted",
   "importFailureRowsList": "Rows involved: {rows}",
-  "@importFailureRowsList": {"placeholders": {"rows": {"type": "String"}}},
+  "@importFailureRowsList": {
+    "placeholders": {
+      "rows": {
+        "type": "String"
+      }
+    }
+  },
   "importFailureRowsMore": "Rows involved: {rows} and {more} more",
-  "@importFailureRowsMore": {"placeholders": {"rows": {"type": "String"}, "more": {"type": "int"}}},
+  "@importFailureRowsMore": {
+    "placeholders": {
+      "rows": {
+        "type": "String"
+      },
+      "more": {
+        "type": "int"
+      }
+    }
+  },
   "importFailureUnknownRule": "The statement was rejected (code {code}). Check that it is an unchanged Erste Polska CSV export and try again.",
-  "@importFailureUnknownRule": {"placeholders": {"code": {"type": "String"}}},
+  "@importFailureUnknownRule": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
   "importFailureGeneric": "The statement or the destination account was not accepted. Check that the account is active and holds the statement's currency, then try again.",
   "importFailureTooManyOpen": "Too many imports are waiting. Finish or discard one of the unfinished imports, then try again.",
   "importFailureConflict": "That could not be done in the import's current state. The import was reloaded; review it and try again.",
@@ -480,13 +632,40 @@
   "importPreviewTitle": "Review import",
   "importPreviewLoadError": "Could not load the import.",
   "importDestinationSummary": "Into {account} in {currency}",
-  "@importDestinationSummary": {"placeholders": {"account": {"type": "String"}, "currency": {"type": "String"}}},
+  "@importDestinationSummary": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
   "importGroupAccepted": "To import ({count})",
-  "@importGroupAccepted": {"placeholders": {"count": {"type": "int"}}},
+  "@importGroupAccepted": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "importGroupDuplicates": "Duplicates ({count})",
-  "@importGroupDuplicates": {"placeholders": {"count": {"type": "int"}}},
+  "@importGroupDuplicates": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "importGroupRejected": "Not readable ({count})",
-  "@importGroupRejected": {"placeholders": {"count": {"type": "int"}}},
+  "@importGroupRejected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "importGroupEmptyAccepted": "Nothing to import.",
   "importGroupEmptyDuplicates": "No duplicates.",
   "importGroupEmptyRejected": "Every row could be read.",
@@ -498,16 +677,46 @@
   "importDefaultIncome": "Default category for income",
   "importNoCategory": "No category",
   "importRowCategoryOwn": "Category: {name}",
-  "@importRowCategoryOwn": {"placeholders": {"name": {"type": "String"}}},
+  "@importRowCategoryOwn": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "importRowCategoryDefault": "Default category: {name}",
-  "@importRowCategoryDefault": {"placeholders": {"name": {"type": "String"}}},
+  "@importRowCategoryDefault": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "importRowCategoryMissing": "Needs a category",
   "importRowNoteShown": "Note: {note}",
-  "@importRowNoteShown": {"placeholders": {"note": {"type": "String"}}},
+  "@importRowNoteShown": {
+    "placeholders": {
+      "note": {
+        "type": "String"
+      }
+    }
+  },
   "importRowEditTitle": "Row {number}",
-  "@importRowEditTitle": {"placeholders": {"number": {"type": "int"}}},
+  "@importRowEditTitle": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "importRowEditAction": "Edit row {number}",
-  "@importRowEditAction": {"placeholders": {"number": {"type": "int"}}},
+  "@importRowEditAction": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "importRowCategoryField": "Category",
   "importRowNoteField": "Note (optional)",
   "importRowSave": "Save row",
@@ -518,11 +727,29 @@
   "importRowLeftOut": "Left out",
   "importRowOwnTransferWarning": "Check before importing",
   "importRejectedRow": "Row {number}: not imported",
-  "@importRejectedRow": {"placeholders": {"number": {"type": "int"}}},
+  "@importRejectedRow": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "importConfirm": "{count, plural, =0{Finish without importing} one{Import 1 row} other{Import {count} rows}}",
-  "@importConfirm": {"placeholders": {"count": {"type": "int"}}},
+  "@importConfirm": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "importConfirmNeedsCategory": "{count, plural, one{1 row needs a category.} other{{count} rows need a category.}} Choose one for each row or set a default category.",
-  "@importConfirmNeedsCategory": {"placeholders": {"count": {"type": "int"}}},
+  "@importConfirmNeedsCategory": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "importCountMismatch": "The row counts do not add up. Reload the import before confirming.",
   "importNoAccountChosen": "Choose a destination account to continue.",
   "importDiscardTitle": "Discard this import?",
@@ -541,14 +768,45 @@
   "importBackToImport": "Back to import",
   "importResultTitle": "Import finished",
   "importResultWritten": "{count, plural, =0{No records were added.} one{1 record was added.} other{{count} records were added.}}",
-  "@importResultWritten": {"placeholders": {"count": {"type": "int"}}},
+  "@importResultWritten": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "importResultAlready": "{count, plural, one{1 row was already in the account and was skipped.} other{{count} rows were already in the account and were skipped.}}",
-  "@importResultAlready": {"placeholders": {"count": {"type": "int"}}},
+  "@importResultAlready": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "importResultToAccounts": "Back to accounts",
   "importCommitFailed": "The import may not have been written. The import was reloaded to show where it stands; check it before trying again.",
   "importDestinationResetHint": "Choosing another account checks the rows for duplicates again for it. Your \"Import anyway\" choices are reset; categories and notes are kept.",
   "importResultHint": "Imported records appear in the account's balance and in the records list.",
   "importRowUnknownCode": "This row is not imported (code {code}). Enter it by hand if you need it.",
-  "@importRowUnknownCode": {"placeholders": {"code": {"type": "String"}}},
-  "importRowNoteTooLong": "A note can have at most 500 characters."
+  "@importRowUnknownCode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "importRowNoteTooLong": "A note can have at most 500 characters.",
+  "unsettledBalanceNote": "{count, plural, =1{Leaves out 1 entry your devices disagree about, until you settle it.} other{Leaves out {count} entries your devices disagree about, until you settle them.}}",
+  "@unsettledBalanceNote": {
+    "description": "Beside a balance that leaves out records two devices disagree about (Prudent Local, ADR-113).",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importStatementFileKept": "Prudent did not keep the statement file. It is still where you picked it from — delete it if you no longer need it.",
+  "@importStatementFileKept": {
+    "description": "After an import is committed or ended (ADR-100 T11): the app never keeps or deletes the person's own statement file."
+  }
 }

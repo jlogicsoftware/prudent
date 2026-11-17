@@ -1,0 +1,292 @@
+{
+  "@@locale": "en",
+  "appTitle": "Prudent Local",
+  "settingsSecurity": "Lock",
+  "settingsSync": "Sync and devices",
+  "settingsConflicts": "Conflicts and issues",
+  "securityTitle": "Lock",
+  "securityNoPinWarning": "Without a PIN, anyone holding this device unlocked sees all of your finances. With one, Prudent Local locks when it goes to the background.",
+  "securityForgetOwnerCheck": "If you forget the PIN, this device's own lock (passcode, Face ID, Touch ID or Windows Hello) confirms it is you and you set a new one.",
+  "securityForgetErase": "If you forget the PIN, this device's copy is erased and comes back from your other devices.",
+  "securityForgetAlone": "If you forget this PIN, this device's data is erased and nothing else holds a copy. Save a copy first, or pair another device.",
+  "securityPeopleNote": "Everyone who uses this account on this computer sees the same Prudent Local. The PIN is a door, not a lock on the data itself.",
+  "firstRunTitle": "Your finances stay on your devices",
+  "firstRunBody": "Prudent Local has no server and no account. Your data is encrypted on this device and syncs only with your own devices.",
+  "firstRunLoss": "Nobody can recover it if every device is lost — not even us. Save a copy from time to time.",
+  "firstRunPin": "Without a PIN, anyone holding this device unlocked sees all of your finances.",
+  "firstRunSetPin": "Set a PIN",
+  "firstRunNotNow": "Not now",
+  "syncTitle": "Sync and devices",
+  "syncApple": "This device syncs through your iCloud. Every device signed in to the same Apple ID gets your data.",
+  "syncDevelopmentFolder": "This build syncs through a development folder, unencrypted. It is for testing only.",
+  "syncRefused": "Sync is off: {reason}",
+  "@syncRefused": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "syncFolder": "Sync folder",
+  "syncFolderNone": "none chosen",
+  "syncFolderWarning": "Choose a folder only you can open. A sync service sees how many devices you have and when and how much you change, never what. If the folder is shared with someone, they see that too.",
+  "syncChooseFolder": "Choose a folder",
+  "syncChangeFolder": "Change the folder",
+  "syncFolderInsideApp": "That folder is inside Prudent Local's own data. Choose a folder your sync service keeps in step.",
+  "syncFolderFailed": "The folder could not be chosen. Try again.",
+  "syncFirstDeviceHint": "Make this the first device, or join a device that already has your data.",
+  "syncFirstDevice": "This is my first device",
+  "syncJoin": "Join another device",
+  "syncAddDevice": "Add a device",
+  "syncKeyMade": "This device is ready. Add your other devices from here.",
+  "syncKeyJoined": "Joined. Your data arrives as the devices sync.",
+  "syncKeyFailed": "The sync key could not be kept. Try again.",
+  "syncLossWarning": "If every device is lost, or your iCloud Keychain, nobody can recover this data. Save a copy from time to time under Privacy and data.",
+  "removeDeviceTitle": "Remove a device",
+  "removeDeviceHint": "If a device is lost, sold or no longer yours, replace the sync key. The removed device can no longer read or write what your devices share.",
+  "removeDeviceLimits": "It cannot take back what that device already read. Stop sharing the folder with it as well. Each of your other devices then has to be added again from this one.",
+  "removeDeviceButton": "Replace the sync key",
+  "removeDeviceConfirm": "Replace the sync key now?",
+  "removeDeviceDone": "The sync key is replaced. Add each of your other devices again.",
+  "removeDeviceFailed": "The sync key could not be replaced. Nothing changed. Try again when the folder can be reached.",
+  "removeDeviceApple": "To remove a device, remove it from your Apple ID (Settings → your name → Devices). It then no longer receives the keys your data is encrypted with.",
+  "dataTitle": "Privacy and data",
+  "dataIntro": "Everything Prudent Local knows is on your devices, encrypted. There is no server and no copy anywhere else.",
+  "dataCopyTitle": "Save a copy",
+  "dataCopyWarning": "The copy is a readable file and is not encrypted. Anyone who opens it sees your finances. Keep it somewhere safe and delete it when you no longer need it.",
+  "dataCopyButton": "Save a copy to a file",
+  "dataCopySaved": "The copy is saved.",
+  "dataCopyFailed": "The copy could not be saved.",
+  "dataEraseTitle": "Erase this device's copy",
+  "dataEraseHint": "Deletes Prudent Local's data on this device only. Your other devices keep theirs, and so do the sync folder and iCloud; this device gets it back from them when it syncs.",
+  "dataEraseButton": "Erase this device's copy",
+  "dataEraseConfirm": "Erase this device's copy? Your other devices keep theirs.",
+  "dataErased": "This device's copy is erased.",
+  "dataEraseFailed": "This device's copy could not be erased.",
+  "dataEverywhereTitle": "Erase everywhere",
+  "dataEverywhereHint": "Deletes your data on every device and in the sync folder or iCloud. A device that is off erases its copy the next time it syncs. This cannot be undone.",
+  "dataEverywhereNoSync": "This device is not syncing, so only its own copy is erased; your other devices are not reached and keep theirs.",
+  "dataEverywhereButton": "Erase everywhere",
+  "dataEverywhereConfirm": "Erase your data on every device? This cannot be undone.",
+  "dataEverywhereFailed": "Erasing everywhere did not finish. This device's copy is erased; the rest finishes at the next sync.",
+  "erase": "Erase",
+  "cancel": "Cancel",
+  "confirm": "Continue",
+  "erasedTitle": "Your data was erased everywhere",
+  "erasedBody": "Prudent Local's data was erased on every device, from this one or another. To use Prudent Local again, start with an empty ledger and pair your devices anew.",
+  "erasedStart": "Start again",
+  "erasedFailed": "Prudent Local could not start again. Close it and open it once more.",
+  "startFailedTitle": "Prudent Local cannot open its data",
+  "startFailedBody": "The key that unlocks this device's data cannot be read, or the data does not match it. Nothing was changed.",
+  "startFailedLinux": "On Linux, Prudent Local keeps its key in the desktop's keyring. Install a secret service (gnome-keyring or KWallet, with libsecret) and unlock it, then open Prudent Local again.",
+  "startFailedRestored": "If this device's files were restored from a backup, the key did not come with them. Erase this device's copy and let it sync again from your other devices.",
+  "startFailedErase": "Erase this device's copy",
+  "startFailedEraseConfirm": "Erase this device's copy? Only what your other devices hold comes back.",
+  "startFailedDetail": "Details: {detail}",
+  "@startFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "startFailedRetry": "Try again",
+  "issueUnknown": "Something in your data needs a look ({code})",
+  "@issueUnknown": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "issueUnknownBody": "Your devices together broke a rule of Prudent. Choose what to do.",
+  "issueRecordAccountMissing": "A record is on an account that was deleted",
+  "issueRecordAccountMissingBody": "One device deleted an account while another added a record to it. Move the record to another account, delete it, or bring the account back.",
+  "issueRecordCategoryMissing": "A record is in a category that was deleted",
+  "issueRecordCategoryMissingBody": "One device deleted a category while another filed a record under it. File the record elsewhere, delete it, or bring the category back.",
+  "issueTransferAccountMissing": "A transfer touches an account that was deleted",
+  "issueTransferAccountMissingBody": "One device deleted an account while another made a transfer with it. A transfer cannot be moved: delete it, or bring the account back.",
+  "issueCurrencyAccountMissing": "A currency belongs to an account that was deleted",
+  "issueCurrencyAccountMissingBody": "An opening amount was kept for an account another device deleted. Delete it, or bring the account back.",
+  "issuePlanAccountMissing": "A plan is on an account that was deleted",
+  "issuePlanAccountMissingBody": "Move the plan to another account, delete it, or bring the account back.",
+  "issuePlanCategoryMissing": "A plan is in a category that was deleted",
+  "issuePlanCategoryMissingBody": "File the plan elsewhere, delete it, or bring the category back.",
+  "issueBudgetCategoryMissing": "A budget is for a category that was deleted",
+  "issueBudgetCategoryMissingBody": "Delete the budget, or bring the category back.",
+  "issueResetCategoryMissing": "A carry-over reset is for a category that was deleted",
+  "issueResetCategoryMissingBody": "A reset is kept as history and is never deleted. Bring the category back to settle it.",
+  "issueDefaultAccountMissing": "The default account was deleted",
+  "issueDefaultAccountMissingBody": "One device deleted the account another made the default. Choose another default, or have none.",
+  "issueRecordNotHeld": "A record is in a currency its account does not hold",
+  "issueRecordNotHeldBody": "One device removed a currency from an account while another recorded money in it. Add the currency back, move the record, or delete it.",
+  "issueTransferNotHeld": "A transfer is in a currency its account does not hold",
+  "issueTransferNotHeldBody": "Add the currency back to the account, or delete the transfer.",
+  "issuePlanNotHeld": "A plan is in a currency its account does not hold",
+  "issuePlanNotHeldBody": "Add the currency back, move the plan, or delete it.",
+  "issueCategoryKind": "A record does not fit its category",
+  "issueCategoryKindBody": "One device made the category income-only or expense-only while another filed the other kind of record under it. File the record elsewhere, or let the category take both.",
+  "issueAccountNumberDuplicate": "Two accounts have the same bank account number",
+  "issueAccountNumberDuplicateBody": "Two devices gave one bank number to two accounts. Clear it on the one it does not belong to.",
+  "issueResetSlotTwice": "Two carry-over resets for the same month",
+  "issueResetSlotTwiceBody": "Two devices each reset one category's carry-over for the same month and currency. Take one of them back.",
+  "issueCorrectionsMadeApart": "Two corrections were made on different devices",
+  "issueCorrectionsMadeApartBody": "Each device corrected the same balance without seeing the other's correction, so together they overshoot. Delete one, or replace both by one correction to the balance one of them asked for.",
+  "actionDeleteRecord": "Delete the record",
+  "actionDeleteTransfer": "Delete the transfer",
+  "actionDeletePlan": "Delete the plan",
+  "actionDeleteBudget": "Delete the budget",
+  "actionDeleteAccountCurrency": "Delete the currency",
+  "actionRecreateAccount": "Bring the account back",
+  "actionRecreateCategory": "Bring the category back",
+  "actionAddCurrency": "Add the currency back",
+  "actionMoveToAccount": "Move to {name}",
+  "@actionMoveToAccount": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "actionMoveToCategory": "File under {name}",
+  "@actionMoveToCategory": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "actionCategoryTakesBoth": "Let the category take both",
+  "actionClearDefaultAccount": "Have no default account",
+  "actionChooseDefaultAccount": "Make {name} the default",
+  "@actionChooseDefaultAccount": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "actionDeleteCorrection": "Delete the correction of {name}",
+  "@actionDeleteCorrection": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "actionCorrectToTarget": "Keep one correction: {name}",
+  "@actionCorrectToTarget": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "actionClearAccountNumber": "Clear the number on {name}",
+  "@actionClearAccountNumber": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "actionRevokeReset": "Take back the reset made {name}",
+  "@actionRevokeReset": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "actionUnknown": "{code}: {name}",
+  "@actionUnknown": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "recreateNameTitle": "What is it called?",
+  "recreateNameField": "Name",
+  "recreateNameSave": "Bring it back",
+  "conflictNotSet": "not set",
+  "conflictAccount": "Account {name}",
+  "@conflictAccount": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "conflictAccountCurrency": "Opening amount in {currency}",
+  "@conflictAccountCurrency": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "conflictCategory": "Category {name}",
+  "@conflictCategory": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "conflictRecord": "Record {name}",
+  "@conflictRecord": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "conflictTransfer": "Transfer {name}",
+  "@conflictTransfer": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "conflictSettings": "Settings",
+  "conflictOther": "An entry in {collection}",
+  "@conflictOther": {
+    "placeholders": {
+      "collection": {
+        "type": "String"
+      }
+    }
+  },
+  "fieldName": "Name",
+  "fieldTitle": "Title",
+  "fieldAmount": "Amount",
+  "fieldDate": "Date",
+  "fieldNote": "Note",
+  "fieldPayee": "Payee",
+  "fieldCategory": "Category",
+  "fieldAccount": "Account",
+  "fieldOpening": "Opening amount",
+  "fieldArchived": "Archived",
+  "fieldActive": "Active",
+  "fieldDefaultAccount": "Default account",
+  "fieldMainCurrency": "Main currency",
+  "fieldOther": "Other",
+  "issueEnvelopeBelowZero": "A goal's envelope is below zero",
+  "issueEnvelopeBelowZeroBody": "Two devices each took money out of the same goal, and together they took more than it held. Put the missing amount back to bring it to zero.",
+  "issueArchivedGoalHoldsMoney": "An archived goal still holds money",
+  "issueArchivedGoalHoldsMoneyBody": "One device archived the goal while another set money aside for it. Make the goal active again, or take its money out.",
+  "actionAllocateDeficit": "Put the missing amount back",
+  "actionReactivateGoal": "Make the goal active again",
+  "actionWithdrawAll": "Take its money out",
+  "issueSkippedAndPaid": "A planned payment is skipped and paid",
+  "issueSkippedAndPaidBody": "One device skipped this occurrence while another confirmed it, so it is both skipped and paid. Undo the skip to keep the payment, or delete the payment to keep the skip.",
+  "actionClearSkip": "Undo the skip",
+  "issueRepairsMadeApart": "A goal was repaired twice on different devices",
+  "issueRepairsMadeApartBody": "Each device put a goal's envelope back to zero without seeing the other's repair, so together they overshoot. One entry undoes the difference; the history is kept.",
+  "actionUndoOvershoot": "Undo the overshoot"
+}

@@ -98,7 +98,7 @@ class _GoalAllocationFormState extends ConsumerState<GoalAllocationForm> {
 
     String? available;
     if (isAllocate) {
-      final free = ref.watch(goalFreeMoneyProvider).value;
+      final free = ref.watch(goalFreeMoneyProvider).value?.value;
       if (free != null) {
         // A currency with no eligible account and no goal is absent (ADR-051): nothing is free.
         final entry = free.where((c) => c.currency == goal.currency).firstOrNull;
@@ -107,7 +107,7 @@ class _GoalAllocationFormState extends ConsumerState<GoalAllocationForm> {
         );
       }
     } else {
-      final progress = ref.watch(goalProgressProvider).value?[goal.id];
+      final progress = ref.watch(goalProgressProvider).value?.value[goal.id];
       if (progress != null) {
         available = t.goalAvailableEnvelope(
           formatGoalAmount(progress.allocatedMinor, goal.currency),

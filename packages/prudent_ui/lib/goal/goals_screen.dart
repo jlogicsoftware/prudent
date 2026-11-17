@@ -4,6 +4,7 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import 'package:prudent_proto/generated/prudent/v1/goals.pb.dart';
 import '../l10n/generated/prudent_localizations.dart';
+import '../account/unsettled_balance_note.dart';
 import '../load_error_view.dart';
 import '../providers.dart';
 import 'free_money_card.dart';
@@ -33,7 +34,8 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
   Widget build(BuildContext context) {
     final t = PrudentLocalizations.of(context);
     final goalsAsync = ref.watch(goalsProvider);
-    final progress = ref.watch(goalProgressProvider).value ?? const {};
+    final progressAnswer = ref.watch(goalProgressProvider).value;
+    final progress = progressAnswer?.value ?? const {};
     final freeMoneyAsync = ref.watch(goalFreeMoneyProvider);
 
     return ZenDetailHost(
@@ -76,7 +78,17 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                         compact: true,
                       ),
                       data:
-                          (currencies) => FreeMoneyCard(currencies: currencies),
+                          (answer) => Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              FreeMoneyCard(currencies: answer.value),
+                              // What free money and progress leave out while devices disagree
+                              // (ADR-116), beside the figures.
+                              UnsettledBalanceNote(
+                                count: answer.leftOut + (progressAnswer?.leftOut ?? 0),
+                              ),
+                            ],
+                          ),
                     ),
                     const SizedBox(height: 16),
                     ZenSegmentedControl<GoalStatus>(

@@ -275,6 +275,13 @@ row once.
 ## Phase 3 — The application
 
 ### Unit 9 — `prudent_local_client`
+**Built: ADR-121** — `local/prudent_local_client`: `LocalPrudentRepository` over the ledger, unit 6a's budgets and goals, unit 6b's plans and
+reminders, unit 7's analytics and unit 8b's import workflow; balances, budget summaries, free money and goal progress carry what they leave out (`SettledAccounts`,
+`SettledFigures`) and say so beside the figure in en/uk/pl; analytics (unit 7) is wired too, so every tab loads from the device. Sync through `ZenSync.start` (CloudKit with Prudent Local's own container, the shared folder elsewhere), `zen_ui_lock`'s PIN with
+`secureScreen: true`, Settings → Lock, Sync and devices (pairing, replace the sync key), Conflicts and issues (`ZenConflictsScreen`, settle
+many) and Privacy and data (a `zen_save_file` copy, erase this device's copy, erase everywhere). Every ADR-100 row has a test or a written
+answer (the table in ADR-121). Filed jZenDev/jZen#256. Run on macOS (widget, a11y and integration suites); no device (unit 12), and an
+unsigned macOS build cannot reach the Keychain (ADR-121).
 No sign-in, no profile account section. Sync through `ZenSync.start`; PIN from `zen_ui_lock`;
 Settings → Sync, Add a device, Join, Erase this device's copy, all from `zen_ui_*`. English,
 Ukrainian and Polish. Screens from the shared package; nothing hand-rolled
@@ -362,13 +369,14 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | jZenDev/jZen#231 | device verification of jZen Local | 12 (release gate); ADR-100 rows marked #231 |
 | jZenDev/jZen#232 | multi-record write — **merged (PR #248, jZen `e6a06c6`: `ZenStore.writeAll`), consumed by unit 5** | 5, 8b |
 | jZenDev/jZen#233 | application issues beside conflicts — **merged (PR #242), consumed by unit 4** | 4, 9 |
-| jZenDev/jZen#234 | settle many conflicts at once — **merged (PR #250), consumed by unit 8b (the shape; ADR-114), wired by unit 9** | 8b, 9 |
+| jZenDev/jZen#234 | settle many conflicts at once — **merged (PR #250), consumed by unit 8b (the shape; ADR-114), wired by unit 9 (ADR-121)** | 8b, 9 |
 | jZenDev/jZen#235 | intent-preserving per-field merge policy — **merged (PR #241), consumed by unit 4** | 4, 6a, 6b |
-| jZenDev/jZen#236 | CloudKit record names in plaintext — **merged (PR #243, jZen `cf36d77`: HMAC-hashed names)**, consumed when unit 9 wires CloudKit | 4, 9 (ADR-100 T7) |
-| jZenDev/jZen#237 | rekey / remove a device | 9 (ADR-100 T3) |
+| jZenDev/jZen#236 | CloudKit record names in plaintext — **merged (PR #243, jZen `cf36d77`: HMAC-hashed names), consumed by unit 9 (ADR-121)**; no CloudKit run yet | 4, 9 (ADR-100 T7) |
+| jZenDev/jZen#237 | rekey / remove a device — **merged (PR #253), consumed by unit 9 (ADR-121)** | 9 (ADR-100 T3) |
 | jZenDev/jZen#238 | refuse the unencrypted folder in release | 11 (ADR-100 T18) |
-| jZenDev/jZen#239 | erase everywhere | 9 (ADR-100 T24) |
-| jZenDev/jZen#240 | screen-capture protection | 9 (ADR-100 T15) |
+| jZenDev/jZen#239 | erase everywhere — **merged (PR #253), consumed by unit 9 (ADR-121)** | 9 (ADR-100 T24) |
+| jZenDev/jZen#240 | screen-capture protection — **merged (PR #253), consumed by unit 9 (ADR-121): on** | 9 (ADR-100 T15) |
+| jZenDev/jZen#256 | a `ZenIssueAction` cannot ask for a choice or a text — **filed by unit 9**; one action per candidate and a name asked through the app's navigator until it lands | 9 |
 | jZenDev/jZen#244 | a merge policy over a group (a reset's revocation: who and when) — **merged (PR #249), consumed by unit 8b (ADR-114)**; unit 6a relies on it (ADR-116) | 4, 6a |
 | jZenDev/jZen#245 | a proto3 field set to its default differs from an unset one in the merge — **merged (PR #254, jZen `4fa887a`); consumed by unit 8b for the import sessions (ADR-114) and for the unit 4/5 collections by ADR-115** | 4, 5 (every write path), 8b |
 | jZenDev/jZen#246 | save-file capability on iOS and Android | 10a (mobile half) — fixed by PR #254, consumed (ADR-117) |

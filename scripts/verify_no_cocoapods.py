@@ -19,7 +19,13 @@ import re
 import sys
 from pathlib import Path
 
-RUNNERS = ("client/ios", "client/macos")
+RUNNERS = (
+    "client/ios",
+    "client/macos",
+    # Prudent Local (plan unit 9, ADR-101): its own runners, held to the same rule.
+    "local/prudent_local_client/ios",
+    "local/prudent_local_client/macos",
+)
 FILES = ("Podfile", "Podfile.lock")
 # What CocoaPods leaves in a file Xcode reads. `Pods_Runner` is the framework it links.
 TRACES = re.compile(r"Pods-Runner|Pods_Runner|\[CP\]|\bPods/")

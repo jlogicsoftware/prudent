@@ -13,8 +13,10 @@ import 'package:prudent_proto/generated/prudent/v1/records.pb.dart';
 import 'package:prudent_proto/generated/prudent/v1/reminders.pb.dart';
 import 'package:prudent_proto/generated/prudent/v1/privacy.pb.dart';
 import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart';
+import 'package:prudent_ui/account/settled_accounts.dart';
 import 'package:prudent_ui/prudent_repository.dart';
 import 'package:prudent_ui/record/record_filter.dart';
+import 'package:prudent_ui/settled_figures.dart';
 
 import 'record_filter_query.dart';
 
@@ -97,9 +99,14 @@ class ServerPrudentRepository implements PrudentRepository {
 
   // --- Accounts ---------------------------------------------------------------------------------
 
+  /// The server holds one copy of the ledger, so every balance it answers is settled (ADR-113).
   @override
-  Future<ZenResult<ListAccountsResponse>> listAccounts() => _client
-      .get<ListAccountsResponse>(ListAccountsResponse.new, _accountsPath);
+  Future<ZenResult<SettledAccounts>> listAccounts() async => (await _client
+          .get<ListAccountsResponse>(ListAccountsResponse.new, _accountsPath))
+      .fold(
+        (response) => ZenResult.ok(SettledAccounts(response.accounts)),
+        ZenResult.err,
+      );
 
   @override
   Future<ZenResult<Account>> createAccount(CreateAccountRequest request) =>
@@ -302,12 +309,14 @@ class ServerPrudentRepository implements PrudentRepository {
   /// (`YYYY-MM-DD`) is the day to calculate for; omitted, the server uses its UTC date. Never summed
   /// across currencies.
   @override
-  Future<ZenResult<ListGoalProgressResponse>> getGoalProgress({String? asOf}) =>
-      _client.get<ListGoalProgressResponse>(
-        ListGoalProgressResponse.new,
-        asOf == null
-            ? '$_goalsPath/progress'
-            : '$_goalsPath/progress?${_encodeQuery({'asOf': asOf})}',
+  Future<ZenResult<SettledFigures<ListGoalProgressResponse>>> getGoalProgress({String? asOf}) async =>
+      _settled(
+        await _client.get<ListGoalProgressResponse>(
+          ListGoalProgressResponse.new,
+          asOf == null
+              ? '$_goalsPath/progress'
+              : '$_goalsPath/progress?${_encodeQuery({'asOf': asOf})}',
+        ),
       );
 
   /// The name the server's `status` query takes — the constant without the proto prefix.
@@ -378,11 +387,12 @@ class ServerPrudentRepository implements PrudentRepository {
   /// `freeMinor` is negative when the envelopes hold more than the eligible accounts do. Calculated
   /// by the server on every call; an `ALLOCATE` above it is refused with a 409.
   @override
-  Future<ZenResult<GetFreeMoneyResponse>> getFreeMoney() =>
-      _client.get<GetFreeMoneyResponse>(
-        GetFreeMoneyResponse.new,
-        '$_goalAllocationsPath/free-money',
-      );
+  Future<ZenResult<SettledFigures<GetFreeMoneyResponse>>> getFreeMoney() async => _settled(
+    await _client.get<GetFreeMoneyResponse>(
+      GetFreeMoneyResponse.new,
+      '$_goalAllocationsPath/free-money',
+    ),
+  );
 
   // --- Budgets (M3, jlogicsoftware/prudent#36) — the amount that may be spent, never a transaction
 
@@ -406,13 +416,19 @@ class ServerPrudentRepository implements PrudentRepository {
   /// inferred: a summary is for one month in one currency and is never summed across currencies.
   /// Actual is net spending from posted records, refunds included.
   @override
-  Future<ZenResult<BudgetSummaryResponse>> getBudgetSummary({
+  Future<ZenResult<SettledFigures<BudgetSummaryResponse>>> getBudgetSummary({
     required String month,
     required String currency,
-  }) => _client.get<BudgetSummaryResponse>(
-    BudgetSummaryResponse.new,
-    '$_budgetsPath/summary?${_encodeQuery({'month': month, 'currency': currency})}',
+  }) async => _settled(
+    await _client.get<BudgetSummaryResponse>(
+      BudgetSummaryResponse.new,
+      '$_budgetsPath/summary?${_encodeQuery({'month': month, 'currency': currency})}',
+    ),
   );
+
+  /// The server holds one copy of the ledger, so its figures leave nothing out (ADR-113, ADR-116).
+  static ZenResult<SettledFigures<T>> _settled<T>(ZenResult<T> result) =>
+      result.fold((value) => ZenResult.ok(SettledFigures(value)), ZenResult.err);
 
   /// Sets the budget for one category, [month] (`YYYY-MM`) and [currency], creating it or replacing
   /// its amount — a slot holds at most one. The amount must be positive; to have no budget for the
@@ -624,38 +640,42 @@ class ServerPrudentRepository implements PrudentRepository {
 
   /// [year] required; [month] optional (1-12) — a single month, or the whole year when omitted.
   @override
-  Future<ZenResult<SpendByCategoryResponse>> spendByCategory({
+  Future<ZenResult<SettledFigures<SpendByCategoryResponse>>> spendByCategory({
     required String currency,
     required int year,
     int? month,
-  }) {
+  }) async {
     final query = {
       'currency': currency,
       'year': '$year',
       if (month != null) 'month': '$month',
     };
-    return _client.get<SpendByCategoryResponse>(
-      SpendByCategoryResponse.new,
-      '$_spendByCategoryPath?${_encodeQuery(query)}',
+    return _settled(
+      await _client.get<SpendByCategoryResponse>(
+        SpendByCategoryResponse.new,
+        '$_spendByCategoryPath?${_encodeQuery(query)}',
+      ),
     );
   }
 
   /// [granularity] is `MONTH` or `YEAR`; [count] is the number of trailing buckets (1-60), ending
   /// at the current period as the server resolves it in UTC.
   @override
-  Future<ZenResult<SpendByPeriodResponse>> spendByPeriod({
+  Future<ZenResult<SettledFigures<SpendByPeriodResponse>>> spendByPeriod({
     required String currency,
     required String granularity,
     required int count,
-  }) {
+  }) async {
     final query = {
       'currency': currency,
       'granularity': granularity,
       'count': '$count',
     };
-    return _client.get<SpendByPeriodResponse>(
-      SpendByPeriodResponse.new,
-      '$_spendByPeriodPath?${_encodeQuery(query)}',
+    return _settled(
+      await _client.get<SpendByPeriodResponse>(
+        SpendByPeriodResponse.new,
+        '$_spendByPeriodPath?${_encodeQuery(query)}',
+      ),
     );
   }
 

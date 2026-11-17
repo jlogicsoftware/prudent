@@ -14,6 +14,7 @@ import 'package:prudent_proto/generated/prudent/v1/categories.pb.dart';
 import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
 import 'package:prudent_ui/providers.dart';
+import 'package:prudent_ui/settled_figures.dart';
 import 'zen_fields.dart';
 
 Account _account(String id, String currency) => Account(
@@ -81,7 +82,7 @@ void main() {
           categoriesProvider.overrideWith(() => _FixedCategories(categories ?? [_food, _rent])),
           budgetSummaryProvider.overrideWith((ref, params) {
             requests.add(params);
-            return summary(params);
+            return summary(params).then(SettledFigures.new);
           }),
         ],
         child: const MaterialApp(

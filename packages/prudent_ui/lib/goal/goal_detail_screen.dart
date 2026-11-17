@@ -9,6 +9,7 @@ import '../l10n/generated/prudent_localizations.dart';
 import '../load_error_view.dart';
 import '../providers.dart';
 import 'goal_allocation_form.dart';
+import '../account/unsettled_balance_note.dart';
 import 'goal_card.dart';
 import 'goal_form.dart';
 import 'goal_history_tile.dart';
@@ -36,7 +37,8 @@ class GoalDetailScreen extends ConsumerWidget {
       return ZenPageScaffold(body: Center(child: Text(t.goalNotFound)));
     }
 
-    final progress = ref.watch(goalProgressProvider).value?[goalId];
+    final progressAnswer = ref.watch(goalProgressProvider).value;
+    final progress = progressAnswer?.value[goalId];
     final historyAsync = ref.watch(goalHistoryProvider(goalId));
     final names = {for (final g in goals) g.id: g.name};
     final status = goal.status;
@@ -82,6 +84,8 @@ class GoalDetailScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           GoalCard(goal: goal, progress: progress),
+          // What the progress leaves out while devices disagree (ADR-116), beside it.
+          UnsettledBalanceNote(count: progressAnswer?.leftOut ?? 0),
           const SizedBox(height: 8),
           if (archived)
             Text(

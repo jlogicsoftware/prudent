@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderOrFamily;
 import 'package:intl/intl.dart';
 import 'package:zen_core/zen_core.dart';
 
@@ -16,6 +17,7 @@ import 'package:prudent_proto/generated/prudent/v1/settings.pb.dart';
 import 'overview/planned_cash_flow.dart';
 import 'prudent_repository.dart';
 import 'record/record_filter.dart';
+import 'settled_figures.dart';
 
 /// The server client. Overridden in [ProviderScope] with an instance sharing the session
 /// http.Client (see main.dart), so it must be provided by the app.
@@ -179,10 +181,17 @@ final recordsProvider = AsyncNotifierProvider<RecordsNotifier, List<Record>>(Rec
 class AccountsNotifier extends AsyncNotifier<List<Account>> {
   PrudentRepository get _repository => ref.read(prudentRepositoryProvider);
 
+  /// By account id, what the balances in [state] leave out while two devices disagree about it
+  /// (ADR-113), from the same answer as the accounts. Always empty from the server. Read through
+  /// [unsettledBalancesProvider], which is in this library.
+  Map<String, List<String>> _unsettled = const {};
+
   @override
   Future<List<Account>> build() async {
     final result = await _repository.listAccounts();
-    return result.fold((response) => response.accounts, (error) => throw error);
+    final answer = result.fold((settled) => settled, (error) => throw error);
+    _unsettled = answer.unsettled;
+    return answer.accounts;
   }
 
   Future<void> addAccount(CreateAccountRequest request) async {
@@ -231,6 +240,14 @@ class AccountsNotifier extends AsyncNotifier<List<Account>> {
 final accountsProvider = AsyncNotifierProvider<AccountsNotifier, List<Account>>(
   AccountsNotifier.new,
 );
+
+/// What each account's balances leave out while two devices disagree about it (ADR-113): read with
+/// [accountsProvider] and rebuilt with it, so a balance and its caveat come from one answer. A
+/// screen that shows a balance shows `UnsettledBalanceNote` beside it when its account is here.
+final unsettledBalancesProvider = Provider<Map<String, List<String>>>((ref) {
+  ref.watch(accountsProvider);
+  return ref.read(accountsProvider.notifier)._unsettled;
+});
 
 // ---------------------------------------------------------------------------------------------
 // Categories
@@ -335,7 +352,7 @@ class SpendByCategoryParams {
 }
 
 final spendByCategoryProvider =
-    FutureProvider.autoDispose.family<SpendByCategoryResponse, SpendByCategoryParams>((
+    FutureProvider.autoDispose.family<SettledFigures<SpendByCategoryResponse>, SpendByCategoryParams>((
       ref,
       params,
     ) async {
@@ -368,7 +385,7 @@ class SpendByPeriodParams {
 }
 
 final spendByPeriodProvider =
-    FutureProvider.autoDispose.family<SpendByPeriodResponse, SpendByPeriodParams>((
+    FutureProvider.autoDispose.family<SettledFigures<SpendByPeriodResponse>, SpendByPeriodParams>((
       ref,
       params,
     ) async {
@@ -594,7 +611,7 @@ class BudgetSummaryParams {
 /// ledger. [RecordsNotifier] invalidates it when a record that counts toward `actual` changes
 /// (transfers and balance corrections are excluded by ADR-044, so they do not).
 final budgetSummaryProvider =
-    FutureProvider.autoDispose.family<BudgetSummaryResponse, BudgetSummaryParams>((
+    FutureProvider.autoDispose.family<SettledFigures<BudgetSummaryResponse>, BudgetSummaryParams>((
       ref,
       params,
     ) async {
@@ -690,19 +707,26 @@ final goalProgressAsOfProvider = Provider<String>(
 
 /// Allocated, remaining, percentage and contribution guidance per goal, keyed by goal id.
 /// Calculated by the server on every read (ADR-052); this only fetches.
-final goalProgressProvider = FutureProvider.autoDispose<Map<String, GoalProgress>>((ref) async {
+final goalProgressProvider = FutureProvider.autoDispose<SettledFigures<Map<String, GoalProgress>>>((
+  ref,
+) async {
   final repository = ref.watch(prudentRepositoryProvider);
   final result = await repository.getGoalProgress(asOf: ref.watch(goalProgressAsOfProvider));
-  final response = result.fold((r) => r, (error) => throw error);
-  return {for (final progress in response.goals) progress.goalId: progress};
+  final answer = result.fold((r) => r, (error) => throw error);
+  return SettledFigures({
+    for (final progress in answer.value.goals) progress.goalId: progress,
+  }, answer.leftOut);
 });
 
 /// Per currency: what the eligible accounts hold, what the envelopes hold, and the difference
 /// (ADR-051). Calculated from account balances, so a record or account change invalidates it too.
-final goalFreeMoneyProvider = FutureProvider.autoDispose<List<CurrencyFreeMoney>>((ref) async {
+final goalFreeMoneyProvider = FutureProvider.autoDispose<SettledFigures<List<CurrencyFreeMoney>>>((
+  ref,
+) async {
   final repository = ref.watch(prudentRepositoryProvider);
   final result = await repository.getFreeMoney();
-  return result.fold((response) => response.currencies, (error) => throw error);
+  final answer = result.fold((response) => response, (error) => throw error);
+  return SettledFigures(answer.value.currencies, answer.leftOut);
 });
 
 /// One goal's envelope history, newest first: the entries that put money into it or took money
@@ -715,3 +739,36 @@ final goalHistoryProvider = FutureProvider.autoDispose.family<List<GoalAllocatio
   final result = await repository.listGoalAllocations(goalId: goalId);
   return result.fold((response) => response.allocations, (error) => throw error);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Everything read from the repository, dropped at once
+// ---------------------------------------------------------------------------------------------
+
+/// Drops every cached answer the screens read from [PrudentRepository], so each is read again the
+/// next time it is watched: the lists, the calculated figures and what they leave out
+/// (`SettledAccounts`, `SettledFigures`), and the reminder schedule. For a change the providers did
+/// not make themselves — Prudent Local's store after a sync, a settled conflict or an integrity
+/// action — where invalidating only some of them would leave a budget, a goal or a "leaves out N"
+/// note older than the store (ADR-113, ADR-116).
+///
+/// [invalidate] is `ref.invalidate` of a widget or a provider. A provider added here later is one line;
+/// a provider that reads the repository and is missing from this list stays stale.
+void invalidateRepositoryReads(void Function(ProviderOrFamily provider) invalidate) {
+  for (final provider in <ProviderOrFamily>[
+    accountsProvider,
+    recordsProvider,
+    categoriesProvider,
+    settingsProvider,
+    spendByCategoryProvider,
+    spendByPeriodProvider,
+    plannedOccurrencesProvider,
+    remindersProvider,
+    budgetSummaryProvider,
+    goalsProvider,
+    goalProgressProvider,
+    goalFreeMoneyProvider,
+    goalHistoryProvider,
+  ]) {
+    invalidate(provider);
+  }
+}

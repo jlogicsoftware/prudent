@@ -1,19 +1,15 @@
 {
   "@@locale": "uk",
-
   "appTitle": "Prudent",
-
   "navOverview": "Огляд",
   "navRecords": "Записи",
   "navBudgets": "Бюджети",
   "navGoals": "Цілі",
   "navAnalytics": "Аналітика",
   "navSettings": "Налаштування",
-
   "cancel": "Скасувати",
   "okay": "Гаразд",
   "invalidInputTitle": "Некоректні дані",
-
   "recordsTitleField": "Назва",
   "recordsAmountField": "Сума",
   "recordsPayeeField": "Отримувач",
@@ -37,7 +33,6 @@
   "recordsUndo": "Скасувати",
   "recordsEmpty": "Записів не знайдено. Додайте перший!",
   "recordsLoadError": "Не вдалося завантажити записи.",
-
   "recordsFilterTooltip": "Фільтр",
   "recordsFilterActiveTooltip": "Фільтр (активний)",
   "recordsFilterTitle": "Фільтр записів",
@@ -52,7 +47,6 @@
   "recordsFilterApply": "Застосувати",
   "recordsFilterClearAll": "Скинути все",
   "recordsFilterEmpty": "Жоден запис не відповідає фільтрам.",
-
   "transfersNewTitle": "Новий переказ",
   "transfersTitleField": "Назва",
   "transfersFromAmountField": "Сума списання",
@@ -63,13 +57,19 @@
   "transfersToCurrency": "Валюта отримання",
   "transfersSave": "Переказати",
   "transfersInvalidInput": "Переконайтеся, що введено обидві суми, дату та два різні рахунки.",
-
   "correctionsTitle": "Звірити баланс",
   "correctionsExplanation": "Введіть фактичний баланс рахунку, наприклад, з банківської виписки. Prudent запише різницю як явне, перевірюване коригування — нічого не буде змінено непомітно.",
   "correctionsCurrencyField": "Валюта",
   "correctionsCurrentBalance": "Поточний баланс: {amount} {currency}",
   "@correctionsCurrentBalance": {
-    "placeholders": { "amount": { "type": "String" }, "currency": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
+    }
   },
   "correctionsTrueBalanceField": "Фактичний баланс",
   "correctionsDateField": "Дата",
@@ -77,7 +77,6 @@
   "correctionsSave": "Звірити",
   "correctionsInvalidInput": "Будь ласка, введіть коректний баланс і оберіть валюту.",
   "correctionsAlreadyBalanced": "Цей рахунок вже відповідає вказаному балансу; виправляти нічого.",
-
   "categoriesTitle": "Категорії",
   "categoriesEmpty": "Категорій ще не додано.",
   "categoriesLoadError": "Не вдалося завантажити категорії.",
@@ -86,7 +85,6 @@
   "categorySave": "Зберегти категорію",
   "categoryInvalidInput": "Будь ласка, введіть коректну назву.",
   "categoryRecordsEmpty": "У цій категорії ще немає записів.",
-
   "accountsTitle": "Рахунки",
   "accountsBanksAndCards": "Банки та картки",
   "accountsOther": "Інші рахунки",
@@ -115,18 +113,30 @@
   "accountDeleteTitle": "Видалити рахунок",
   "accountDeleteConfirm": "Видалити «{name}»? Також буде остаточно видалено всі транзакції цього рахунку.",
   "@accountDeleteConfirm": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "accountDeleteContinue": "Далі",
   "accountDeleteFinalTitle": "Видалити рахунок і транзакції",
   "accountDeleteFinalBody": "«{name}» і всі його транзакції буде остаточно видалено. Переказ видаляється з обох боків, тож баланс іншого рахунку теж зміниться. Цю дію не можна скасувати.",
   "@accountDeleteFinalBody": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "accountDeletePhrase": "ВИДАЛИТИ",
   "accountDeletePhraseField": "Введіть {phrase} для підтвердження",
   "@accountDeletePhraseField": {
-    "placeholders": { "phrase": { "type": "String" } }
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
   },
   "accountDeleteAction": "Видалити рахунок і транзакції",
   "accountDeleteFailed": "Не вдалося видалити рахунок. Нічого не змінено.",
@@ -134,7 +144,6 @@
   "accountReconcile": "Звірити баланс",
   "accountShowActions": "Показати дії з рахунком",
   "accountHideActions": "Приховати дії з рахунком",
-
   "overviewEmpty": "Немає рахунків для показу. Додайте перший, щоб почати.",
   "overviewTotalsTitle": "Загальний баланс",
   "overviewAccountsTitle": "Рахунки",
@@ -146,7 +155,6 @@
   "plannedCashFlowNet": "Разом заплановано",
   "plannedCashFlowEmpty": "Нічого не заплановано на наступні {days} днів.",
   "plannedCashFlowLoadError": "Не вдалося завантажити запланований рух коштів.",
-
   "budgetsTitle": "Бюджети",
   "budgetNoAccounts": "Додайте рахунок, щоб почати планувати бюджет.",
   "budgetPreviousMonth": "Попередній місяць",
@@ -164,7 +172,6 @@
   "budgetCategoryArchived": "В архіві",
   "budgetEmpty": "Немає бюджетів на {month} у валюті {currency}.",
   "budgetLoadError": "Не вдалося завантажити бюджети.",
-
   "goalsTitle": "Цілі",
   "goalNew": "Нова ціль",
   "goalSegmentActive": "Активні",
@@ -231,7 +238,6 @@
   "goalMoveTitle": "Перемістити з «{goal}»",
   "goalNotFound": "Ціль не знайдено.",
   "goalUnknown": "Невідома ціль",
-
   "remindersTitle": "Нагадування",
   "remindersOpen": "{count, plural, =0{Нагадування} one{Нагадування, {count} непрочитане} few{Нагадування, {count} непрочитані} many{Нагадування, {count} непрочитаних} other{Нагадування, {count} непрочитаного}}",
   "remindersSectionOverdue": "Прострочені",
@@ -269,20 +275,16 @@
   "occurrenceRestore": "Відновити",
   "occurrenceActionFailed": "Зміну не внесено.",
   "occurrenceNotPlannedHint": "Ця позиція більше не чекає на вас.",
-
   "analyticsTitle": "Аналітика",
   "analyticsSpendByMonth": "Витрати за місяцями",
   "analyticsSpendByCategory": "Витрати за категоріями",
   "analyticsEmpty": "Немає витрат за останні 12 місяців.",
   "analyticsLoadError": "Не вдалося завантажити аналітику.",
-
   "analyticsCurrencyField": "Валюта",
-
   "chartNoAccounts": "Додайте рахунок, щоб побачити діаграму.",
   "chartEmpty": "Немає витрат цього місяця.",
   "chartUnknownCategory": "Невідома категорія",
   "chartLoadError": "Не вдалося завантажити діаграму.",
-
   "settingsTitle": "Налаштування",
   "settingsLanguage": "Мова",
   "settingsProfile": "Профіль",
@@ -314,7 +316,6 @@
   "editCategoryTooltip": "Редагувати категорію",
   "loadErrorHint": "Щось пішло не так. Перевірте з’єднання та спробуйте ще раз.",
   "loadErrorRetry": "Спробувати ще раз",
-
   "accountNumberField": "Номер банківського рахунку (необов’язково)",
   "accountNumberHint": "Використовується лише для перевірки, що імпортована виписка належить цьому рахунку.",
   "accountNumberInvalid": "Це не схоже на номер рахунку.",
@@ -455,5 +456,7 @@
   "importDestinationResetHint": "Після вибору іншого рахунку рядки знову перевіряються на дублікати для нього. Ваші вибори «Імпортувати попри це» скидаються; категорії та нотатки зберігаються.",
   "importResultHint": "Імпортовані записи видно в балансі рахунку та у списку записів.",
   "importRowUnknownCode": "Цей рядок не буде імпортовано (код {code}). Внесіть його вручну, якщо він потрібен.",
-  "importRowNoteTooLong": "Нотатка може містити щонайбільше 500 символів."
+  "importRowNoteTooLong": "Нотатка може містити щонайбільше 500 символів.",
+  "unsettledBalanceNote": "{count, plural, one{Не враховує {count} запис, щодо якого ваші пристрої не згодні, доки ви його не узгодите.} few{Не враховує {count} записи, щодо яких ваші пристрої не згодні, доки ви їх не узгодите.} many{Не враховує {count} записів, щодо яких ваші пристрої не згодні, доки ви їх не узгодите.} other{Не враховує {count} запису, щодо яких ваші пристрої не згодні, доки ви їх не узгодите.}}",
+  "importStatementFileKept": "Prudent не зберіг файл виписки. Він досі там, звідки ви його вибрали, — видаліть його, якщо він більше не потрібен."
 }

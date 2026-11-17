@@ -2,7 +2,9 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
+import '../account/account_balances_subtitle.dart';
 import '../account/account_screen.dart';
+import '../account/unsettled_balance_note.dart';
 import '../l10n/generated/prudent_localizations.dart';
 import '../load_error_view.dart';
 import '../money.dart';
@@ -74,6 +76,10 @@ class OverviewScreen extends ConsumerWidget {
                 data: (accounts) {
                   final overviewAccounts = accountsForOverview(accounts);
                   final totals = totalsByCurrency(accounts, mainCurrency);
+                  final leftOutOfTotals = unsettledInTotals(
+                    accounts,
+                    ref.watch(unsettledBalancesProvider),
+                  );
 
                   if (overviewAccounts.isEmpty && totals.isEmpty) {
                     return Center(child: Text(t.overviewEmpty));
@@ -87,6 +93,7 @@ class OverviewScreen extends ConsumerWidget {
                           t.overviewTotalsTitle,
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
+                        UnsettledBalanceNote(count: leftOutOfTotals),
                         const SizedBox(height: 8),
                         for (final entry in totals.entries)
                           Card(
@@ -110,15 +117,7 @@ class OverviewScreen extends ConsumerWidget {
                           Card(
                             child: ZenListRow(
                               title: account.name,
-                              subtitle:
-                                  account.balances.isEmpty
-                                      ? t.accountsNoBalance
-                                      : account.balances
-                                          .map(
-                                            (b) =>
-                                                '${formatMinorUnits(b.amountMinor)} ${b.currency}',
-                                          )
-                                          .join(', '),
+                              subtitleContent: AccountBalancesSubtitle(account: account),
                             ),
                           ),
                         const SizedBox(height: 24),
