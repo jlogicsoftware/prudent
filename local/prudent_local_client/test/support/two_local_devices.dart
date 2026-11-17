@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent_local_client/core/local_session.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_store/zen_store.dart';
@@ -7,8 +8,17 @@ import 'package:zen_store_folder/zen_store_folder.dart';
 import 'package:zen_store_shared_folder/zen_store_shared_folder.dart';
 import 'package:zen_ui_lock/zen_ui_lock.dart';
 
+import 'offline_folder_cloud.dart';
+
 /// How a test's two devices reach each other: the development emulation of CloudKit, or the shared
 /// folder transport every Android, Windows and Linux build uses.
+///
+/// **Only [folderCloud] devices are offline between syncs** ([OfflineFolderCloud], ADR-126). A
+/// [sharedFolder] device keeps jZen's `ZenSharedFolderSync` running, because removing a device and
+/// waiting for it to rest need that class itself (`LocalSession.removeDevice` asks for it), and a
+/// running one syncs whenever a record becomes unsent. A test that needs two devices to act on
+/// different reads uses [folderCloud]; the shared-folder tests (removing a device, erasing
+/// everywhere) do not depend on it.
 enum TransportKind { folderCloud, sharedFolder }
 
 /// Two real Prudent Local sessions — real encrypted stores, real files, the real ledger — joined
@@ -39,16 +49,14 @@ final class TwoLocalDevices {
     );
     final cloud = Directory('${root.path}/cloud')..createSync();
 
-    // `pollEvery: null`: a test syncs when it says so, which is what makes "offline" exact.
+    // `pollEvery: null` stops only the polling; see [TransportKind] for what is offline.
     Future<ZenResult<ZenSyncTransport>> start(
       ZenStore store, {
       required ZenFolderAccess folder,
       required List<int>? syncKey,
     }) async => switch (kind) {
-      TransportKind.folderCloud => await ZenFolderCloud.start(
-        store,
-        cloud,
-        pollEvery: null,
+      TransportKind.folderCloud => ZenResult.ok(
+        OfflineFolderCloud(store, cloud),
       ),
       TransportKind.sharedFolder => await ZenSharedFolderSync.start(
         store,
@@ -111,8 +119,16 @@ final class TwoLocalDevices {
   /// other and anything that came back has been merged.
   Future<void> sync() async {
     for (var round = 0; round < 3; round++) {
-      await laptop.transport!.syncNow();
-      await phone.transport!.syncNow();
+      for (final device in [laptop, phone]) {
+        final transport = device.transport!;
+        await syncAndRest(device);
+        // A sync that could not finish says so in its status; a test must not go on as if it had.
+        expect(
+          transport.status.state,
+          ZenSyncState.upToDate,
+          reason: '${device.deviceName}: ${transport.status}',
+        );
+      }
     }
   }
 

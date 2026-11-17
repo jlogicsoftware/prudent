@@ -6,14 +6,35 @@ import 'package:test/test.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_store/zen_store.dart';
 
-/// One device: a real store in its own directory, encrypted with its own key, and its sync.
+/// One device: a real store in its own directory, encrypted with its own key, and the folder it
+/// syncs through.
+///
+/// **A device is offline except inside [syncNow].** A running `ZenFolderCloud` syncs whenever a
+/// record becomes unsent (`ZenStore.unsentChanges`), as CloudKit's engine does — `pollEvery: null`
+/// stops only the polling. A transport left running would therefore carry every write to the folder
+/// in the background, and a test's "offline" would hold or not depending on how that sync and the
+/// next step interleave (main's run 44124134602: a repair that should not have seen another device's
+/// repair did). So the transport is started for one sync and stopped after it; between syncs the
+/// store works offline and its unsent records stay unsent (`ZenSyncTransport.stop`).
 final class Device {
   final String name;
   final ZenStore zen;
   final PrudentLocalStore store;
-  final ZenFolderCloud cloud;
+  final Directory _folder;
 
-  Device._(this.name, this.zen, this.store, this.cloud);
+  Device._(this.name, this.zen, this.store, this._folder);
+
+  /// Sends what this device holds and fetches what the others sent, then goes offline again.
+  Future<void> syncNow() async {
+    final cloud = ok(await ZenFolderCloud.start(zen, _folder, pollEvery: null));
+    try {
+      await cloud.syncNow();
+      // A sync that could not finish says so in its status; a test must not go on as if it had.
+      expect(cloud.status.state, ZenSyncState.upToDate, reason: '$name: ${cloud.status}');
+    } finally {
+      await cloud.stop();
+    }
+  }
 
   /// The value [result] holds; fails the test with the error otherwise.
   static T ok<T>(ZenResult<T> result) => switch (result) {
@@ -52,9 +73,7 @@ final class TwoDevices {
           key: List.filled(32, keyByte),
         ),
       );
-      // `pollEvery: null`: a test syncs when it says so, which is what makes "offline" exact.
-      final cloud = Device.ok(await ZenFolderCloud.start(zen, folder, pollEvery: null));
-      return Device._(name, zen, PrudentLocalStore(zen), cloud);
+      return Device._(name, zen, PrudentLocalStore(zen), folder);
     }
 
     return TwoDevices._(
@@ -70,7 +89,7 @@ final class TwoDevices {
   Future<void> sync() async {
     for (var round = 0; round < 3; round++) {
       for (final device in all) {
-        await device.cloud.syncNow();
+        await device.syncNow();
       }
     }
   }
@@ -82,7 +101,6 @@ final class TwoDevices {
 
   Future<void> dispose() async {
     for (final device in all) {
-      await device.cloud.stop();
       await device.zen.close();
     }
     await root.delete(recursive: true);
