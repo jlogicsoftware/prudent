@@ -364,7 +364,7 @@ deliberate violation of each rule fails the gate.
 (`zenlocal`, no server module, so jZen's own Local behaviour and web refusal); CI builds Local on all five platforms (`macos-runner` is new);
 `verify:local-release` gates T10 (source and merged Android manifests), the single `ZEN_SYNC` reader, no workflow setting it and no web runner;
 the T18 refusal is jZen's and is proven on a real release build by `test:local-release-refusal`. Each rule has a planted-violation test.
-**Still open:** release builds are signed with the debug key (unit 12 owes the real signing), no platform has been seen on a device (unit 12), and Windows has no
+**Still open:** Android release uses the debug key; iOS, macOS and Windows have no real signing (unit 12 owes the real signing), no platform has been seen on a device (unit 12), and Windows has no
 biometric or device-owner check by jZen's design (jZen ADR-086).
 
 ---
@@ -396,7 +396,7 @@ PIN, a lost device.
 9. **The native file picker and a real Erste export** for import and for moving data in: a real statement (none may be committed, ADR-088), the picker on
    macOS, Windows, Linux and Android, a real privacy export (ADR-110, ADR-123); amounts of 1000 or more and the wording of an outgoing own-account transfer were never seen.
 10. **Move-in at scale and on a syncing device** (ADR-123, not verified): an export of tens of thousands of records moved in as one `writeAll`, and a move into a device that is already syncing with peers that hold nothing.
-11. **The macOS integration test is not run by CI** (ADR-121); it was run by hand and asserts the Keychain refusal of an unsigned build, so a signed run is owed.
+11. **The macOS integration test is not run by CI** (`.github/workflows/ci.yml` has no entry for it); it was run by hand (ADR-121) and asserts the Keychain refusal of an unsigned build, so a signed run is owed.
 12. **Performance of the write path**: building a 50 000-record ledger record by record is quadratic (379 s in batches of 500 on a Mac, ADR-118); an
     import of years of history and a first sync on a phone are where that shows, and have not been measured on a device.
 13. **jZenDev/jZen#231**, jZen's own device verification, which Local cannot be more verified than.
@@ -467,7 +467,7 @@ None blocks starting a unit; each is a stated limitation of that unit until it l
 Known work left by the plan, each with its issue:
 
 - The Local occurrence and reminder lists do not answer `Settled` — jlogicsoftware/prudent#274 (nit of the review of #269).
-- Android release builds are signed with the debug key — jlogicsoftware/prudent#275 (the real signing configuration also serves unit 12).
+- Android release uses the debug key; iOS, macOS and Windows have no real signing — jlogicsoftware/prudent#275 (the real signing configuration also serves unit 12).
 - The server answers 500 to an account update that reorders held currencies — jlogicsoftware/prudent#261 (found by unit 5, ADR-113).
 - Five low findings from the review of #265 (the account in the posting group, `nameOf` dropping an unbound category, no non-empty assertion on the
   large parity run, the benchmark's `_check`, the UTC-day comment of the large run) — jlogicsoftware/prudent#276.

@@ -262,7 +262,7 @@ Polish or Ukrainian string reviewed by a native speaker.
 
 **Prudent Local's plan is closed in the docs, not finished:** units 0 to 11 of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245) are merged, with each
 unit's PRs and ADRs in its status table; **unit 12 (real devices) is open and NOT VERIFIED**, and Prudent Local is not released before it. The plan's
-closing section lists what is owed and the follow-ups (jlogicsoftware/prudent#274 to #278, #261). What follows is the per-unit detail.
+closing section lists what is owed and the follow-ups (jlogicsoftware/prudent#274 to #278, #280, #282, #261). What follows is the per-unit detail.
 
 Prudent Local (jlogicsoftware/prudent#245, `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`) has its phase-0 decisions (ADR-100 to ADR-103) and unit 3
 (ADR-107): `local/prudent_local_core` is pure Dart and reproduces the server's money, currency, account-number, date, month and text
@@ -363,11 +363,9 @@ behaviour applies and the web is refused by name; `task test:local-tasks` proves
 macOS (a new `macos-runner`, reversing ADR-003 for this app only), Android, Windows and Linux. `task verify:local-release` fails when the Android
 manifest (or, in CI, a merged one) allows a backup, when shipped Dart names `ZEN_SYNC` at all, when a sync transport or plan is built or started anywhere but
 `sync_starter.dart`, when a workflow sets it or when a web runner exists; a release build with `ZEN_SYNC` is refused by jZen at run time and
-`task test:local-release-refusal` proves it on a real release build. Each rule has a planted-violation test. **CI proved every step in run 44106692883 (head `5884c91`; the PR's final head was `9dd59cc`), but main's push run 44124134602 at `f858dbf` was red on one test, `task test:local-store` "three devices repairing from three different reads", through a flaw in the two-device test harness ("offline" writes leaked; no money defect), fixed by #281 (ADR-126) and green from `8447f8f`:
-the merged Android manifests, the Linux probe under `xvfb`, the Windows build and probe, the macOS and iOS release builds, `verify:swiftpm` after the
-builds and the macOS probe.** Windows failed in `local_auth_windows` under MSVC 14.51 (jZenDev/jZen#257); jZen fixed it by dropping that plugin from `zen_ui_lock`
+`task test:local-release-refusal` proves it on a real release build. Each rule has a planted-violation test. **CI proved every step in run 44106692883 (head `5884c91`) and on the PR's final head `9dd59cc`: the merged Android manifests, the Linux probe under `xvfb`, the Windows build and probe, the macOS and iOS release builds, `verify:swiftpm` after the builds and the macOS probe.** Separately, main's push run 44124134602 at `f858dbf` was red on one test, `task test:local-store` "three devices repairing from three different reads", through a flaw in the two-device test harness ("offline" writes leaked; no money defect); #281 (ADR-126) fixed it and main is green from `8447f8f`. Windows failed in `local_auth_windows` under MSVC 14.51 (jZenDev/jZen#257); jZen fixed it by dropping that plugin from `zen_ui_lock`
 (PR #260, ADR-086) and `JZEN_REF` is `139fcd6`, with no override or silencing in Prudent. Android needed core-library desugaring (added), and
-`PlStoreLocalizations` the new `issueContinue` string of jZen #258. Still open: release builds are signed with the debug key (unit 12 owes a real signing configuration), no platform was
+`PlStoreLocalizations` the new `issueContinue` string of jZen #258. Still open: Android release uses the debug key; iOS, macOS and Windows have no real signing (unit 12 owes a real signing configuration), no platform was
 seen on a device (unit 12), and Windows has no biometric or device-owner check by jZen's design (jZen ADR-086: "Forgot PIN?" offers erasing the device's copy).
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
