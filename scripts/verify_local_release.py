@@ -44,7 +44,8 @@ ZEN_SYNC_LITERAL = re.compile(r"ZEN_SYNC")
 # Constructing a transport, a plan, or starting sync: only sync_starter.dart may (T18). `is` checks
 # and type annotations are fine; a constructor call or ZenSync.start/startFor is not.
 TRANSPORT_USE = re.compile(
-    r"\b(?:ZenFolderCloud|ZenSharedFolderSync|ZenCloudKitSync|ZenSyncPlan)\s*(?:\.\w+)?\s*\(|\bZenSync\s*\.\s*(?:start|startFor)\s*\(")
+    r"\b(?:ZenFolderCloud|ZenSharedFolderSync|ZenCloudKitSync|ZenSyncPlan)\s*(?:<[^>()]*>)?\s*(?:\.\s*\w+)?\s*\("
+    r"|\bZenSync\s*\.\s*(?:start|startFor)\s*\(")
 STARTER = "local/prudent_local_client/lib/core/sync_starter.dart"
 
 
@@ -92,10 +93,44 @@ def check_android(root: Path, merged: "list[Path]") -> "list[str]":
 
 
 def strip_dart_comments(text: str) -> str:
-    """Blank `//` and `/* */` comments, keeping line numbers. Strings are left alone: a `//` inside
-    a string is rare in this code and keeping it only ever flags more, never less."""
-    text = re.sub(r"/\*.*?\*/", lambda m: re.sub(r"[^\n]", " ", m.group(0)), text, flags=re.S)
-    return re.sub(r"//[^\n]*", "", text)
+    """Blank `//` and `/* */` comments (block comments nest, as in Dart), keeping line numbers.
+    String literals are skipped, so a `//` inside one (`'https://…'`) does not hide the rest of the
+    line, and a define named inside a string is still seen. Handles ', ", raw strings and the triple
+    quoted forms; `$`-interpolation is not parsed, which only ever leaves more code visible."""
+    out = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        two = text[i:i + 2]
+        if two == "//":
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif two == "/*":
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if text.startswith("/*", j):
+                    depth, j = depth + 1, j + 2
+                elif text.startswith("*/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            out.append(re.sub(r"[^\n]", " ", text[i:j]))
+            i = j
+        elif c in "'\"":
+            raw = i > 0 and text[i - 1] == "r"
+            quote = text[i:i + 3] if text[i:i + 3] in ("'''", '"""') else c
+            j = i + len(quote)
+            while j < n and not text.startswith(quote, j):
+                j += 2 if (text[j] == "\\" and not raw) else 1
+                if len(quote) == 1 and j < n and text[j] == "\n":
+                    break  # an unterminated single-line string ends at the line
+            j = min(n, j + len(quote))
+            out.append(text[i:j])
+            i = j
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
 
 
 def app_dart_files(root: Path):
@@ -133,11 +168,13 @@ def check_transport_construction(root: Path) -> "list[str]":
         rel = path.relative_to(root).as_posix()
         if rel == STARTER:
             continue
-        for number, line in enumerate(strip_dart_comments(path.read_text()).splitlines(), 1):
-            m = TRANSPORT_USE.search(line)
-            if m:
-                problems.append(f"{rel}:{number} calls {m.group(0).strip()} — only {STARTER} may start "
-                                "or build sync, through ZenSync.start (T18)")
+        text = strip_dart_comments(path.read_text())
+        # Matched across lines and type arguments (`ZenFolderCloud<T>\n(`), so a reformatted call is seen.
+        for m in TRANSPORT_USE.finditer(text):
+            number = text.count("\n", 0, m.start()) + 1
+            what = re.sub(r"\s+", "", m.group(0))
+            problems.append(f"{rel}:{number} calls {what} — only {STARTER} may start "
+                            "or build sync, through ZenSync.start (T18)")
     if not (root / STARTER).is_file():
         problems.append(f"{STARTER} does not exist — the one starter the rule names is gone")
     return problems

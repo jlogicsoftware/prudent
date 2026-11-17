@@ -88,7 +88,7 @@ ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). *
   produced (`--merged`), because a plugin's manifest is merged in and can turn a backup on without the app's file changing; a build that produced none
   fails. `threat_model_test` already asserted the two attributes; that test is not the gate, and stays.
 - **No web runner:** `verify:local-release` fails if `local/prudent_local_client/web` exists.
-- **Every gate is a script with a test that plants the violation** (`test_verify_local_release.py`: 25 cases, among them backup on, attribute missing, a
+- **Every gate is a script with a test that plants the violation** (`test_verify_local_release.py`: 28 cases, among them backup on, attribute missing, a
   rules file, `tools:replace`, a debug override, a bad merged manifest, a missing merged manifest, a `fromEnvironment`, a `hasEnvironment` and a
   multi-line reader of `ZEN_SYNC`, a block comment, a transport, a plan and `ZenSync.startFor` outside the starter, a missing starter, a workflow
   setting it, a web runner, a missing scope).
@@ -102,8 +102,7 @@ ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). *
   define `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` or override the dependency: either would have hidden the framework's problem here. jZen
   fixed it in PR #260 (`139fcd6`, jZen ADR-086: `zen_ui_lock` names `local_auth`'s Android and Darwin packages, not the umbrella), `JZEN_REF` moved
   there, and the Windows jobs of this PR are the proof; jZen's own note says its Windows run was not seen when it merged.
-- **The macOS runner** failed in `zenlocal:build:runners`, which on a macOS host also builds Android; the desugaring fix is expected to unblock it,
-  and it must then reach the macOS and iOS release builds, `verify:swiftpm` and the probe in a green run before those are called proven.
+- **The macOS runner** failed in `zenlocal:build:runners`, which on a macOS host also builds Android; the desugaring fix unblocked it.
 - **The probe's existence check was wrong on Windows.** With Windows compiling, the job printed `Built …\Release\prudent_local_client.exe` and the task
   then reported the probe "not built where expected" at that same path: go-task runs `cmds` in its built-in shell, where `[ -x ]` on Windows reads
   permission bits a file there does not have. The check is `[ -f ]` now, and that the probe executes is proven by running it, whose failure or missing
@@ -118,9 +117,15 @@ ADR-109 (boundaries), ADR-121 (the app), ADR-083 (Swift Package Manager only). *
   `test_local_tasks.py` copies the Taskfile with `../jZen/` made absolute and runs `task -t` on the copy (it needs a jZen checkout: `JZEN_DIR`, or the main checkout's sibling). Run
   that way and passing: `verify:local-release`, `verify:boundaries`, `verify:swiftpm`, `test:local-tasks`. Run directly and not through `task`: the
   probe's `flutter build macos --release` and its run (`PROBE-OK`, exit 0; and without `ZEN_SYNC`, exit 133).
-- **Not run anywhere:** `test:local-release-refusal` through `task`; and no CI job or step is proven until it is green: the first run failed on
-  Android (desugaring, fixed), Windows (#257, fixed upstream) and macOS (see above). Their steps are written against jZen's task and the pinned runners. The Linux probe path is confirmed by a green `android-runner`, and the Windows one by the build's own output; the Windows probe run is unconfirmed until its job is green. The merged-manifest path
-  is found with `find` and not assumed. No platform was installed on a device (unit 12).
+- **Proven in CI, run 44106692883 on head `5884c91`, every job green:** the merged Android manifests (T10), the Linux probe under `xvfb`, the Windows build
+  and probe, the macOS and iOS release builds, `verify:swiftpm` after the builds, and the macOS probe (T18). The Linux probe path is the green
+  `android-runner`'s, the Windows one the build's own output.
+- **Not run through `task`:** `test:local-release-refusal` here in the worktree (CI ran it through `task`).
+- **Still open:** no platform has been seen on a device (unit 12); release builds are signed with the debug key; Windows has no biometric or device-owner
+  check, by jZen's design (jZen ADR-086).
+- **What the gates do not claim.** The `ZEN_SYNC` and transport checks read Dart text (comments and strings are told apart, a call is matched across
+  lines and type arguments). They guard against the ordinary slip and a reformatting, not against a determined evasion such as building a name from
+  parts or reflection; the framework's refusal and the probe on a real release build are what hold the rule.
 
 ---
 

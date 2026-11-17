@@ -147,10 +147,6 @@ class LocalTasks(unittest.TestCase):
         self.assertIn("neither folder nor cloudkit", r.stdout + r.stderr)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 HOST_BINARY = {
     "darwin": "build/macos/Build/Products/Release/Prudent Local.app/Contents/MacOS/Prudent Local",
     "linux": "build/linux/x64/release/bundle/prudent_local_client",
@@ -203,6 +199,12 @@ class ReleaseRefusalTask(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("did not name ZEN_SYNC", r.stdout + r.stderr)
 
+    def test_probe_ok_without_naming_the_define_fails(self):
+        self.stub("#!/bin/sh\necho 'PROBE-OK refused: a release build refuses it'\nexit 0")
+        r = self.run_task()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("did not name ZEN_SYNC", r.stdout + r.stderr)
+
     def test_a_probe_that_fails_fails_the_task(self):
         self.stub("#!/bin/sh\necho PROBE-FAIL nope\nexit 1")
         r = self.run_task()
@@ -219,3 +221,7 @@ class ReleaseRefusalTask(unittest.TestCase):
         text = (ROOT / "Taskfile.yml").read_text()
         self.assertNotRegex(text, r'\[ ! -x "\$bin" \]')
         self.assertIn('[ ! -f "$bin" ]', text)
+
+
+if __name__ == "__main__":
+    unittest.main()

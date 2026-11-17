@@ -174,6 +174,19 @@ class Gate(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("does not exist", r.stdout)
 
+    def test_a_url_in_a_string_does_not_hide_the_define(self):
+        r = run(write(f"{APP}/lib/u.dart", "const u = 'https://x'; const k = 'ZEN_SYNC';\n"))
+        self.assertEqual(r.returncode, 1)
+
+    def test_a_comment_marker_in_a_string_is_not_a_comment(self):
+        r = run(write(f"{APP}/lib/v.dart", "const s = '/* not a comment'; const k = 'ZEN_SYNC';\n"))
+        self.assertEqual(r.returncode, 1)
+
+    def test_a_reformatted_transport_call_is_seen(self):
+        r = run(write(f"{APP}/lib/w.dart", "final t = ZenFolderCloud<Object>\n  (\n    store,\n  );\n"))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("w.dart:1", r.stdout)
+
     def test_a_commented_mention_passes(self):
         r = run(write(f"{APP}/lib/doc.dart", "// String.fromEnvironment('ZEN_SYNC') is jZen's\n"))
         self.assertEqual(r.returncode, 0, r.stdout)
