@@ -137,30 +137,27 @@ void main() {
       },
     );
 
-    test(
-      'a create writes the account, one opening record per currency in order, presence-exact',
-      () async {
-        final a = await account(name: '  Wallet ', balances: {'eur': 0, 'PLN': 500});
-        expect(a.name, 'Wallet');
-        expect(
-          [for (final b in a.balances) b.currency],
-          ['EUR', 'PLN'],
-          reason: '5.5: declared order',
-        );
-        final stored = Device.ok(store.accounts.get(a.id));
-        // Only what differs from a default is set. The store would keep a false flag and an absent
-        // one alike anyway (jZenDev/jZen#245); the ledger builds it so because the answer of a write
-        // is the value it was given, and must read as the stored record does (ADR-115).
-        expect(stored.hasActive(), isFalse);
-        expect(stored.hasAccountNumber(), isFalse);
-        expect(stored.hasEligibleForGoals(), isFalse, reason: '5.13: off by default');
-        final eur = Device.ok(store.accountCurrencies.get(DerivedIds.accountCurrency(a.id, 'EUR')));
-        expect(eur.hasOpeningMinor(), isFalse);
-        expect(eur.hasPosition(), isFalse);
-        final pln = Device.ok(store.accountCurrencies.get(DerivedIds.accountCurrency(a.id, 'PLN')));
-        expect((pln.openingMinor.toInt(), pln.position), (500, 1));
-      },
-    );
+    test('a create writes the account, one opening record per currency in order, presence-exact', () async {
+      final a = await account(name: '  Wallet ', balances: {'eur': 0, 'PLN': 500});
+      expect(a.name, 'Wallet');
+      expect(
+        [for (final b in a.balances) b.currency],
+        ['EUR', 'PLN'],
+        reason: '5.5: declared order',
+      );
+      final stored = Device.ok(store.accounts.get(a.id));
+      // Only what differs from a default is set. The store would keep a false flag and an absent
+      // one alike anyway (jZenDev/jZen#245); the ledger builds it so because the answer of a write
+      // is the value it was given, and must read as the stored record does (ADR-115).
+      expect(stored.hasActive(), isFalse);
+      expect(stored.hasAccountNumber(), isFalse);
+      expect(stored.hasEligibleForGoals(), isFalse, reason: '5.13: off by default');
+      final eur = Device.ok(store.accountCurrencies.get(DerivedIds.accountCurrency(a.id, 'EUR')));
+      expect(eur.hasOpeningMinor(), isFalse);
+      expect(eur.hasPosition(), isFalse);
+      final pln = Device.ok(store.accountCurrencies.get(DerivedIds.accountCurrency(a.id, 'PLN')));
+      expect((pln.openingMinor.toInt(), pln.position), (500, 1));
+    });
 
     test('5.8: the default is one settings field; a new default replaces the old', () async {
       final a = await account(name: 'A', isDefault: true);
