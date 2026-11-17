@@ -40,7 +40,7 @@ import prudent.record.RecordRulesAccess;
 
 /**
  * The golden vectors of Prudent Local's domain core (unit 3 of {@code
- * docs/plans/PRUDENT-LOCAL-PLAN.md}, ADR-107): what the server's own rule methods answer for a
+ * docs/implemented-plans/PRUDENT-LOCAL-PLAN.md}, ADR-107): what the server's own rule methods answer for a
  * fixed set of inputs, written to {@code local/prudent_local_core/test/golden/*.json} and run by
  * the Dart tests there, so that the Dart port is held to the Java implementation and not to a
  * reading of it.

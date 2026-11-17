@@ -29,7 +29,7 @@ import 'record_query.dart';
 part 'ledger_budgets.dart';
 part 'ledger_goals.dart';
 
-/// Prudent Local's ledger (unit 5 of `docs/plans/PRUDENT-LOCAL-PLAN.md`, ADR-113): accounts,
+/// Prudent Local's ledger (unit 5 of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`, ADR-113): accounts,
 /// categories, records, transfers, corrections and settings, with every rule the server enforces on
 /// them (phase-0 §0.3 rows 5.1–5.53), over [PrudentLocalStore].
 ///

@@ -16,7 +16,7 @@ import prudent.imports.ImportTestSupport.Erste;
 /**
  * Opens the package-private import code to the golden-vector generator ({@link
  * prudent.parity.GoldenVectorsTest}), so that Prudent Local's port of the Erste importer and the
- * row fingerprints (unit 8a of {@code docs/plans/PRUDENT-LOCAL-PLAN.md}) is held to the methods the
+ * row fingerprints (unit 8a of {@code docs/implemented-plans/PRUDENT-LOCAL-PLAN.md}) is held to the methods the
  * server runs and to the failure catalogue of ADR-094, not to a copy of either.
  *
  * <p><strong>The parse stage.</strong> {@link #parseStage} is what {@link ImportWorkflow#create}

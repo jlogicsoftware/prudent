@@ -220,7 +220,7 @@ tasks:
   test:local-core:
     desc: Prudent Local's domain core — analyzer, golden vectors and the parity engine (pure Dart, no server)
     summary: |
-      Unit 3 of docs/plans/PRUDENT-LOCAL-PLAN.md (ADR-107). Triggers the native tools only:
+      Unit 3 of docs/implemented-plans/PRUDENT-LOCAL-PLAN.md (ADR-107). Triggers the native tools only:
       `dart pub get` and `dart test` in local/prudent_local_core (the server's rules ported to
       Dart, held to the JVM by test/golden/*.json, plus the parity engine's own tests, which prove
       a one-cent difference fails). tools/prudent_parity_server's suite needs the live stack and
@@ -231,7 +231,7 @@ tasks:
   test:local-store:
     desc: Prudent Local's store model — merge table, mapper, integrity checks, two devices (pure Dart)
     summary: |
-      Unit 4 of docs/plans/PRUDENT-LOCAL-PLAN.md (ADR-111). `dart pub get` and `dart test` in
+      Unit 4 of docs/implemented-plans/PRUDENT-LOCAL-PLAN.md (ADR-111). `dart pub get` and `dart test` in
       local/prudent_local_store: every row of the per-field merge table (ADR-102) through two real
       encrypted stores synced by jZen's ZenFolderCloud, the store's structural write rules, the
       derived-id vectors, the mapper's byte-for-byte round trip, each integrity check and its actions,

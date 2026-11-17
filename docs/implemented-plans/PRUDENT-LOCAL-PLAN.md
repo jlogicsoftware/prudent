@@ -1,10 +1,11 @@
 # Plan: Prudent Local — Prudent with no server, on every native target
 
-> **Status: phase 0 decided (0.1–0.5: ADR-100–103; 0.6: ADR-099, jlogicsoftware/prudent#248), nothing built.** Written 2026-11-15, on top of jZen's Local mode
-> (jZen ADR-073, issue jZenDev/jZen#210, all code units merged). jZen's **device verification is
-> still open** (jZenDev/jZen#231): Android folder access, the store key off Apple, real CloudKit and
-> every cross-device matrix row are *not verified*. Prudent Local inherits that gap; unit 12 is the
-> release gate that closes it.
+> **Status (closed 2026-11-17, unit 13): units 0 to 11 are built and merged; unit 12 (real devices) is NOT VERIFIED and was never a session.**
+> Prudent Local is **not released** and must not be until a person has done unit 12. Written 2026-11-15, on top of jZen's Local mode
+> (jZen ADR-073, issue jZenDev/jZen#210). jZen's **device verification is still open** (jZenDev/jZen#231): Android folder access, the store
+> key off Apple, real CloudKit and every cross-device matrix row are *not verified*. Prudent Local inherits that gap. Everything below
+> unit 12's list is proven by tests, the parity suite against the live server and CI, on a Mac and CI runners, never on a device.
+> The status of each unit, its PRs and ADRs is in "Unit status"; what is owed is in unit 12; the follow-ups that are not unit 12 are at the end.
 
 **Source:** jZen ADR-073 — a serverless application is a *Local* application on iOS, macOS,
 Android, Windows and Linux (no web); its data lives in `zen_store`, encrypted on the device, and
@@ -42,6 +43,39 @@ gates pass, and what it could not verify is written in its PR and in `docs/DECIS
 - **Nothing real in the repository.** Fixtures are synthetic, as ADR-088 requires; no real
   statement, no real amounts.
 - **Decisions get ADRs** in `docs/DECISIONS.md` (Prudent's numbering) as they are made.
+
+---
+
+## Unit status
+
+All PRs are in `jlogicsoftware/prudent`. Each was derived from `git log origin/main` and the `**Plan:**` line of the ADR.
+
+| Unit | What | Status | PRs | ADRs |
+|---|---|---|---|---|
+| 0 (0.1–0.5) | Phase-0 decisions, inventory, threat model | built | #246 (the plan), #249 | ADR-100, 101, 102, 103 |
+| 0.6 | Pins: jZen `fdef7e8`, Flutter 3.50 | built | #248 | ADR-099 |
+| (gate) | `flutter analyze` as a CI gate | built | #250 | ADR-104 |
+| 1 | `PrudentRepository` interface | built | #251 | ADR-105 |
+| 4a | Server search and name order | built | #252 | ADR-106 |
+| 3 | Domain core and parity suite | built | #253 | ADR-107 |
+| 2 | Shared package `packages/prudent_ui` | built | #254 | ADR-108 |
+| (gate) | `verify:boundaries` keeps Local and server apart | built | #255 | ADR-109 |
+| 4 | Store model and merge | built | #256; fix #258 | ADR-111 |
+| 10a | Export carries import keys; save to a file | built | #257 (server, desktop, web); #263 (iOS, Android) | ADR-110, ADR-117 |
+| 8a | Erste parser and fingerprints | built | #259 | ADR-112 |
+| 5 | Ledger | built | #260 | ADR-113 |
+| 8b | Import sessions, duplicates, commit | built | #262 | ADR-114 |
+| (jZen bump) | Store precondition and presence (`expect`) | built | #264 | ADR-115 |
+| 6a | Budgets, resets, goals, envelopes | built | #267; repairs #268; fix #271 | ADR-116, ADR-120 |
+| 6b | Plans, occurrences, reminders | built | #266; every write's `expect` #270 | ADR-119, ADR-122 |
+| 7 | Analytics | built (Android bound **not met**, unit 12) | #265 | ADR-118 |
+| 9 | `prudent_local_client` | built; macOS only | #269 | ADR-121 |
+| 10b | Moving data in | built; no real export | #273 | ADR-123 |
+| 11 | Taskfile and CI, five platforms | built; PR checks green at final head `9dd59cc`; main's push run at `f858dbf` was red on a two-device test-harness flaw (no money defect), fixed by #281 (ADR-126), green from `8447f8f` | #272 | ADR-124, ADR-125 |
+| **12** | **Real devices (release gate)** | **NOT VERIFIED, not started** | none | none |
+| 13 | Documents (this close-out) | **partly built**: plan moved, status and follow-ups written; the privacy statement and the other documents are not | #279 | none |
+
+Epic: jlogicsoftware/prudent#245. #269's title says ADR-120; the app's ADR is ADR-121 (ADR-120 is the envelope repair of #268).
 
 ---
 
@@ -326,11 +360,11 @@ and Linux in CI (jZen's `Taskfile.app.yml` already supports this). `verify:bound
 manifest refuses Auto Backup of the store (ADR-100 T10). **Done when:** a
 deliberate violation of each rule fails the gate.
 
-**Status (ADR-124):** built and proven in CI (run 44106692883, head `5884c91`: merged Android manifests, the Linux probe under `xvfb`, the Windows build and probe, the macOS and iOS release builds, `verify:swiftpm` after them and the macOS probe; Windows needed jZenDev/jZen#257, fixed upstream, `JZEN_REF` `139fcd6`, ADR-125). `task run:local` / `build:local:runners[:release]` delegate to a third include of jZen's `Taskfile.app.yml`
+**Status (ADR-124):** built and proven in CI (run 44106692883 on `5884c91`, then the PR's final head `9dd59cc`; main's push run 44124134602 at `f858dbf` was red on one test, `task test:local-store` "three devices repairing from three different reads" (1100 where 2200 was expected, ADR-120): a flaw of the test harness, where `ZenFolderCloud` with `pollEvery: null` still syncs, so "offline" writes leaked, not a money defect; fixed by #281, ADR-126, and main's push run 44165373573 at `8447f8f` is green). Proven: merged Android manifests, the Linux probe under `xvfb`, the Windows build and probe, the macOS and iOS release builds, `verify:swiftpm` after them and the macOS probe; Windows needed jZenDev/jZen#257, fixed upstream, `JZEN_REF` `139fcd6`, ADR-125). `task run:local` / `build:local:runners[:release]` delegate to a third include of jZen's `Taskfile.app.yml`
 (`zenlocal`, no server module, so jZen's own Local behaviour and web refusal); CI builds Local on all five platforms (`macos-runner` is new);
 `verify:local-release` gates T10 (source and merged Android manifests), the single `ZEN_SYNC` reader, no workflow setting it and no web runner;
 the T18 refusal is jZen's and is proven on a real release build by `test:local-release-refusal`. Each rule has a planted-violation test.
-**Still open:** release builds are signed with the debug key (unit 12 owes the real signing), no platform has been seen on a device (unit 12), and Windows has no
+**Still open:** Android release uses the debug key; iOS, macOS and Windows have no real signing (unit 12 owes the real signing), no platform has been seen on a device (unit 12), and Windows has no
 biometric or device-owner check by jZen's design (jZen ADR-086).
 
 ---
@@ -338,20 +372,40 @@ biometric or device-owner check by jZen's design (jZen ADR-086).
 ## Phase 4 — Close
 
 ### Unit 12 — Verification on real devices (release gate)
-Depends on jZenDev/jZen#231. Windows ↔ Linux ↔ Android over Syncthing and Dropbox/OneDrive;
-macOS ↔ iOS over CloudKit once a paid Apple Developer Program exists, `ZenFolderCloud` before. For a
-ledger the matrix adds: the same balance on every device after offline edits, an import on two
-devices, a forgotten PIN, a lost device. **Not done by a coding session; recorded as "not
-verified" in `docs/` until a person does it.** Prudent Local is **not released** before this.
-**Also owed here (ADR-118): the Android timing of the analytics screens and the overview at 50 000 records** — run
-`runAnalyticsBenchmark` (`local/prudent_local_store/tool/analytics_benchmark.dart`) in a Flutter harness on a real mid-range phone and
-write the figures into ADR-118's successor. **Not verified.**
+**NOT VERIFIED. Not started, never a coding session; a person does it.** Depends on jZenDev/jZen#231. Prudent Local is **not released** before this.
+
+Matrix: Windows ↔ Linux ↔ Android over Syncthing and Dropbox/OneDrive; macOS ↔ iOS over CloudKit once a paid Apple Developer Program exists,
+`ZenFolderCloud` before. For a ledger the matrix adds: the same balance on every device after offline edits, an import on two devices, a forgotten
+PIN, a lost device.
+
+**What unit 12 owes, gathered from the ADRs and `CLAUDE.md`:**
+
+1. **Every platform on a real device** — iOS, macOS, Android, Windows, Linux have each been built in CI (ADR-124) and none has been seen running
+   as a user would; the Windows and Linux keystores, Android `FLAG_SECURE` and the owner check, QR scanning and real
+   Syncthing/Dropbox/OneDrive folders have not been exercised (ADR-121). Windows has no biometric or device-owner check by jZen's design (ADR-086).
+2. **CloudKit**: no paid Apple Developer Program or iCloud entitlement, so no CloudKit run has happened (jZenDev/jZen#236 is consumed, unseen).
+3. **A signed macOS build.** An unsigned one cannot reach the Keychain (`-34018`) and refuses to open; the integration test asserts that refusal, so
+   the suite proves the refusal and **not** the signed path (ADR-121).
+4. **Real release signing.** Android release uses the debug key; iOS, macOS and Windows have no real signing (ADR-124; jlogicsoftware/prudent#275).
+5. **The Android analytics benchmark**: run `runAnalyticsBenchmark` (`local/prudent_local_store/tool/analytics_benchmark.dart`) in a Flutter harness on a
+   real mid-range Android phone at 50 000 records and write the figures into a successor ADR (ADR-118 is append-only). Unit 7's "Done when" bound is not met until then.
+6. **The save-file sheet on devices** (`zenSaveFile`): never run on a real device or platform, on any of macOS, Windows, Linux, iOS, Android; and on
+   Linux the move to `file_picker_linux` (a dialog helper such as zenity or kdialog) was not read for runtime requirements (ADR-110, ADR-117, ADR-121).
+7. **Notifications firing**: no local notification has been seen to fire or be cancelled on a device (ADR-056 to ADR-058, ADR-119).
+8. **A native-speaker review of every uk and pl string**, Local's and the server-connected app's (e.g. 'Dalej' vs 'Kontynuuj', ADR-124); none has been reviewed.
+9. **The native file picker and a real Erste export** for import and for moving data in: a real statement (none may be committed, ADR-088), the picker on
+   macOS, Windows, Linux and Android, a real privacy export (ADR-110, ADR-123); amounts of 1000 or more and the wording of an outgoing own-account transfer were never seen.
+10. **Move-in at scale and on a syncing device** (ADR-123, not verified): an export of tens of thousands of records moved in as one `writeAll`, and a move into a device that is already syncing with peers that hold nothing.
+11. **The macOS integration test is not run by CI** (`.github/workflows/ci.yml` has no entry for it); it was run by hand (ADR-121) and asserts the Keychain refusal of an unsigned build, so a signed run is owed.
+12. **Performance of the write path**: building a 50 000-record ledger record by record is quadratic (379 s in batches of 500 on a Mac, ADR-118); an
+    import of years of history and a first sync on a phone are where that shows, and have not been measured on a device.
+13. **jZenDev/jZen#231**, jZen's own device verification, which Local cannot be more verified than.
 
 ### Unit 13 — Documents
-README, `CLAUDE.md`/`AGENTS.md`, `docs/product-roadmap.md`, `docs/zen-architecture.md`, the privacy
-policy (a Local app has no server to hold data: say so, and say what the sync service sees),
-`docs/jzen/README.md`. Move this plan to `docs/implemented-plans/` with each unit's PR linked and
-whatever was not verified stated at the top.
+**Partly built** (#279). The plan is moved to `docs/implemented-plans/` with the status table above; `CLAUDE.md` says units 0–11 are merged and
+unit 12 is open; the follow-ups are listed at the end. The README, `docs/product-roadmap.md`, `docs/zen-architecture.md`, the privacy policy
+and `docs/jzen/README.md` were not rewritten by this change: the policy describes the server-connected app, and a statement of what a
+serverless app and its sync service see is **still owed** before release (jlogicsoftware/prudent#280).
 
 ---
 
@@ -407,3 +461,20 @@ None blocks starting a unit; each is a stated limitation of that unit until it l
 - **Inherited jZen gaps** (#231). Prudent Local cannot be more verified than the framework under it.
 - **Size of the port.** The importer and the budget/goal rules are the bulk; units 6 and 8 are split
   (6a/6b, 8a/8b) on 0.3's count.
+
+## Follow-ups that are not unit 12
+
+Known work left by the plan, each with its issue:
+
+- The Local occurrence and reminder lists do not answer `Settled` — jlogicsoftware/prudent#274 (nit of the review of #269).
+- Android release uses the debug key; iOS, macOS and Windows have no real signing — jlogicsoftware/prudent#275 (the real signing configuration also serves unit 12).
+- The server answers 500 to an account update that reorders held currencies — jlogicsoftware/prudent#261 (found by unit 5, ADR-113).
+- Five low findings from the review of #265 (the account in the posting group, `nameOf` dropping an unbound category, no non-empty assertion on the
+  large parity run, the benchmark's `_check`, the UTC-day comment of the large run) — jlogicsoftware/prudent#276.
+- `askForName` and one-action-per-candidate are workarounds until jZenDev/jZen#256 lands — jlogicsoftware/prudent#277 (ADR-121, ADR-125).
+- Nits from the reviews of #269 and #272 (unreadable-store 'Retry', raw English `syncProblem`, the comment
+  stripping and line-based transport gates, 'Dalej' vs 'Kontynuuj', the probe's untested branch, no old-format fixture for ADR-125) —
+  jlogicsoftware/prudent#278.
+- The privacy statement for a serverless app, owed before release — jlogicsoftware/prudent#280.
+- Main's push run at `f858dbf` was red on a two-device test-harness flaw, fixed by jlogicsoftware/prudent#281 (ADR-126), green from `8447f8f` (see unit 11); the reference helper's same flaw is jZenDev/jZen#263, open.
+- The import crash test once saw the commit succeed — jlogicsoftware/prudent#282.

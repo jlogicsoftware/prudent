@@ -9,7 +9,7 @@ import '../ledger/ledger_errors.dart';
 import '../ledger/ledger_view.dart' show LedgerReadFailure, Settled, readOrThrow;
 import '../prudent_local_store.dart';
 
-/// Prudent Local's analytics (unit 7 of `docs/plans/PRUDENT-LOCAL-PLAN.md`, ADR-118): spend by
+/// Prudent Local's analytics (unit 7 of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`, ADR-118): spend by
 /// category and spend by period, computed from the records in the store with `AnalyticsResource`'s
 /// semantics, to the cent.
 ///

@@ -1,6 +1,6 @@
 # Prudent Local — phase 0, decisions 0.1 to 0.5
 
-> **Status:** written 2026-11-15 for `docs/plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
+> **Status:** written 2026-11-15 for `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245).
 > **All five are decided.** The user accepted every recommendation of 0.1, 0.2 and 0.4 as proposed:
 > 0.1 is ADR-101, 0.2 is ADR-102, 0.4 is ADR-103, 0.5 (the threat model) is ADR-100, and 0.3 (the
 > inventory) is folded into the plan. The sections below keep the analysis as it was put to the

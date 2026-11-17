@@ -1,6 +1,6 @@
 part of 'ledger.dart';
 
-/// Goals, their envelopes, free money and progress (unit 6a of `docs/plans/PRUDENT-LOCAL-PLAN.md`):
+/// Goals, their envelopes, free money and progress (unit 6a of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`):
 /// phase-0 §0.3 rows 6.13–6.28, 6.46, 6.47, 6.54, each the server's resource method check for check
 /// and in its order (`GoalResource`, `GoalState`, `GoalAllocationResource`, `FreeMoney`,
 /// `GoalProgressCalculator`; ADR-049 to ADR-052).
