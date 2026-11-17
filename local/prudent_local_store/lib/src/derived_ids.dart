@@ -50,6 +50,17 @@ abstract final class DerivedIds {
     return _derive('import', [_id(accountId), fingerprint, '$occurrence']);
   }
 
+  /// The one entry an envelope repair writes (ADR-120): [action] (`allocate_deficit`,
+  /// `withdraw_all`) for goal [goalId], computed from exactly the entries [entryIds] (in any order).
+  /// Two devices that read the same entries and choose the same repair derive the same id and write
+  /// one record, so a deficit is made good once, not once per device.
+  static String goalRepair(String goalId, String action, Iterable<String> entryIds) {
+    if (action.isEmpty) throw ArgumentError.value(action, 'action', 'is empty');
+    final ids = [for (final id in entryIds) _id(id)]..sort();
+    if (ids.isEmpty) throw ArgumentError.value(ids, 'entryIds', 'is empty');
+    return _derive('goal_repair', [_id(goalId), action, ...ids]);
+  }
+
   /// A starter category, seeded only by "Start fresh on this device", never by "Join"
   /// (`NewUserSetup.java:88`), so two devices that both start fresh do not double the list.
   static String starterCategory(String key) {

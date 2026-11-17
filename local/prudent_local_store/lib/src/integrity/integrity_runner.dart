@@ -9,6 +9,7 @@ import 'checks/default_account_check.dart';
 import 'checks/duplicate_account_number_check.dart';
 import 'checks/envelope_below_zero_check.dart';
 import 'checks/held_currency_check.dart';
+import 'checks/repairs_made_apart_check.dart';
 import 'checks/live_reset_slot_check.dart';
 import 'checks/occurrence_skipped_and_paid_check.dart';
 import 'integrity_issue.dart';
@@ -62,6 +63,7 @@ final class IntegrityRunner {
   static final List<IntegrityCheck> goalChecks = List.unmodifiable(<IntegrityCheck>[
     const EnvelopeBelowZeroCheck(),
     const ArchivedGoalMoneyCheck(),
+    const RepairsMadeApartCheck(),
   ]);
 
   /// The plan checks (unit 6b, ADR-119).

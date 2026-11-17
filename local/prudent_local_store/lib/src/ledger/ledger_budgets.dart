@@ -322,7 +322,9 @@ extension LedgerBudgets on Ledger {
   static int _discarded(LedgerView view, String category, CivilMonth month, String currency) {
     final figures = _BudgetFigures(view, currency);
     final carry = figures.carryOverInto(month, {category});
-    if (figures.unsettledFor(month, {category}).isNotEmpty) {
+    // Only what the carry-over *into* the month reads: a dispute dated in the month itself cannot
+    // reach the figure the reset records (ADR-120).
+    if (figures.unsettledFor(month, {category}, carryOverOnly: true).isNotEmpty) {
       throw const Refusal.conflict(
         '6.12',
         'This carry-over leaves out a change two devices disagree about. Settle it first.',
@@ -523,7 +525,14 @@ final class _BudgetFigures {
 
   /// By category of [categories], what their figures for [month] leave out: a disputed record,
   /// budget or reset in this currency that would count in the month or before it. Sorted.
-  Map<String, List<String>> unsettledFor(CivilMonth month, Set<String> categories) {
+  ///
+  /// With [carryOverOnly], only what the carry-over *into* [month] reads: records and budgets of
+  /// earlier months (a reset at or before [month] still bounds it).
+  Map<String, List<String>> unsettledFor(
+    CivilMonth month,
+    Set<String> categories, {
+    bool carryOverOnly = false,
+  }) {
     final end = (month.year, month.month);
     final out = <String, List<String>>{};
     for (final category in categories) {
@@ -532,7 +541,8 @@ final class _BudgetFigures {
             in _disputed[category] ?? const <(String, CivilDate?, CivilMonth?)>[])
           if (resetAt != null
               ? resetAt.compareTo(month) <= 0
-              : date == null || _compareMonths((date.year, date.month), end) <= 0)
+              : date == null ||
+                    _inBound(_compareMonths((date.year, date.month), end), carryOverOnly))
             id,
       };
       if (ids.isNotEmpty) out[category] = ids.toList()..sort();
@@ -540,6 +550,10 @@ final class _BudgetFigures {
     return out;
   }
 }
+
+/// Whether a month ordered [order] against the figure's month counts: before it only, for the
+/// carry-over into it; up to and including it, for the month's own figures.
+bool _inBound(int order, bool beforeOnly) => beforeOnly ? order < 0 : order <= 0;
 
 /// Orders two (year, month) pairs.
 int _compareMonths((int, int) a, (int, int) b) =>

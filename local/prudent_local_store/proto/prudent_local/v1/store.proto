@@ -217,6 +217,11 @@ message GoalAllocation {
   string note = 7;
   int64 created_at_ms = 8;
   string created_by = 9;
+  // On a repair entry only (ADR-120): the ids of the goal's entries the repair was computed from,
+  // sorted. Local-only, immutable with the rest. Two repairs neither of which lists the other were
+  // made apart — on two devices that read different entries — and together they overshoot zero;
+  // `RepairsMadeApartCheck` names that and offers one entry that undoes the overshoot.
+  repeated string compensates = 10;
 }
 
 enum Frequency {

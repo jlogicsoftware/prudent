@@ -19,6 +19,10 @@ void main() {
     expect(DerivedIds.starterCategory('groceries'), '2ad37f80647cf95a81cbd1db1aab00b4');
     expect(DerivedIds.transferLeg(b, source: true), '9bf004f78085756ab667c7f3e03cfd00');
     expect(DerivedIds.transferLeg(b, source: false), '8dcce47a393cf98d5fd2a6452a0c9a8e');
+    expect(
+      DerivedIds.goalRepair(a, 'allocate_deficit', [b, a]),
+      '62503cad4315962dabd881067a5a9bba',
+    );
     expect(DerivedIds.settings, 'settings');
   });
 
@@ -40,6 +44,19 @@ void main() {
     expect(DerivedIds.occurrence(a, '2026-12-01'), isNot(DerivedIds.confirmation(a)));
     expect(DerivedIds.imported(a, 'ab', 1), isNot(DerivedIds.imported(a, 'a', 1)));
     expect(DerivedIds.starterCategory('ab'), isNot(DerivedIds.starterCategory('a')));
+    // A repair is one record whatever order the entries were read in, and another set is another.
+    expect(
+      DerivedIds.goalRepair(a, 'withdraw_all', [a, b]),
+      DerivedIds.goalRepair(a, 'withdraw_all', [b, a]),
+    );
+    expect(
+      DerivedIds.goalRepair(a, 'withdraw_all', [a, b]),
+      isNot(DerivedIds.goalRepair(a, 'withdraw_all', [a])),
+    );
+    expect(
+      DerivedIds.goalRepair(a, 'withdraw_all', [b]),
+      isNot(DerivedIds.goalRepair(a, 'allocate_deficit', [b])),
+    );
     expect(
       DerivedIds.transferLeg(a, source: true),
       isNot(DerivedIds.transferLeg(a, source: false)),
@@ -58,6 +75,9 @@ void main() {
       () => DerivedIds.occurrence(a, '2026-02-30'),
       () => DerivedIds.imported(a, '', 1),
       () => DerivedIds.imported(a, 'x', 0),
+      () => DerivedIds.goalRepair(a, 'withdraw_all', const []),
+      () => DerivedIds.goalRepair(a, '', [b]),
+      () => DerivedIds.goalRepair(a, 'withdraw_all', [b.toUpperCase()]),
       () => DerivedIds.starterCategory(''),
     ]) {
       expect(spelling, throwsArgumentError);

@@ -322,6 +322,21 @@ void main() {
       }
     });
 
+    test('a repair entry: its compensated entries are local-only, an input going in', () {
+      final repair = GoalAllocation(
+        id: rec,
+        kind: AllocationKind.ALLOCATION_KIND_ALLOCATE,
+        targetGoalId: goal,
+        currency: 'PLN',
+        amountMinor: Int64(500),
+        createdAtMs: Int64(4),
+        compensates: [goal, goal2],
+      );
+      final out = WireMapper.allocationToWire(repair);
+      expect(out.writeToJson().contains(goal2), isFalse);
+      expect(WireMapper.allocationFromWire(out, compensates: repair.compensates), sameAs(repair));
+    });
+
     test('a plan with each kind of schedule end and reminder', () {
       final base = Plan(
         id: plan,

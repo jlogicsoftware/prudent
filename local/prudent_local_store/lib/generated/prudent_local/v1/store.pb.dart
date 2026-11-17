@@ -1485,6 +1485,7 @@ class GoalAllocation extends $pb.GeneratedMessage {
     $core.String? note,
     $fixnum.Int64? createdAtMs,
     $core.String? createdBy,
+    $core.Iterable<$core.String>? compensates,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -1496,6 +1497,7 @@ class GoalAllocation extends $pb.GeneratedMessage {
     if (note != null) result.note = note;
     if (createdAtMs != null) result.createdAtMs = createdAtMs;
     if (createdBy != null) result.createdBy = createdBy;
+    if (compensates != null) result.compensates.addAll(compensates);
     return result;
   }
 
@@ -1523,6 +1525,7 @@ class GoalAllocation extends $pb.GeneratedMessage {
     ..aOS(7, _omitFieldNames ? '' : 'note')
     ..aInt64(8, _omitFieldNames ? '' : 'createdAtMs')
     ..aOS(9, _omitFieldNames ? '' : 'createdBy')
+    ..pPS(10, _omitFieldNames ? '' : 'compensates')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1624,6 +1627,13 @@ class GoalAllocation extends $pb.GeneratedMessage {
   $core.bool hasCreatedBy() => $_has(8);
   @$pb.TagNumber(9)
   void clearCreatedBy() => $_clearField(9);
+
+  /// On a repair entry only (ADR-120): the ids of the goal's entries the repair was computed from,
+  /// sorted. Local-only, immutable with the rest. Two repairs neither of which lists the other were
+  /// made apart — on two devices that read different entries — and together they overshoot zero;
+  /// `RepairsMadeApartCheck` names that and offers one entry that undoes the overshoot.
+  @$pb.TagNumber(10)
+  $pb.PbList<$core.String> get compensates => $_getList(9);
 }
 
 enum Schedule_End { untilDate, occurrenceCount, notSet }

@@ -31,6 +31,7 @@ export 'src/integrity/checks/envelope_below_zero_check.dart';
 export 'src/integrity/checks/held_currency_check.dart';
 export 'src/integrity/checks/live_reset_slot_check.dart';
 export 'src/integrity/checks/occurrence_skipped_and_paid_check.dart';
+export 'src/integrity/checks/repairs_made_apart_check.dart';
 export 'src/integrity/integrity_issue.dart';
 export 'src/integrity/integrity_runner.dart';
 export 'src/integrity/store_snapshot.dart';
