@@ -273,9 +273,13 @@ tasks:
     summary: |
       Delegated to zenlocal:build:runners:release. Passes no ZEN_SYNC unless one is given on the
       command line, and a build that is given one is refused when it runs, by jZen's ZenSyncPlan and
-      not by anything here (ADR-100 T18; `task test:local-release-refusal`).
+      not by anything here (ADR-100 T18; `task test:local-release-refusal`). It is built with
+      ZEN_ENV=prd, not the include's default `dev`: jZen keeps the store key and the PIN hash of a
+      non-release dev build in the macOS login keychain (jZen ADR-087, `zenIsDevBuild`), and a release
+      build must never be taken for one even if `--release` were ever dropped (ADR-127).
     cmds:
       - task: zenlocal:build:runners:release
+        vars: {ZEN_ENV: prd}
 
   verify:local-release:
     desc: Fail if Prudent Local could ship a backup of its store, the unencrypted sync transport or a web target

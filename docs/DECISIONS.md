@@ -13,6 +13,37 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-127 — Prudent Local moves to jZen `270590a`: a release build says `ZEN_ENV=prd`, and Android's launch theme and biometric permission follow jZen's demo
+
+**Date:** 2026-11-18. **Status:** accepted. **Builds on:** ADR-121, ADR-124, ADR-125. **jZen:** consumes jZenDev/jZen#231 (closed; PR #261, PR #264, PR #272) at `JZEN_REF` `270590a`.
+
+### Decision
+
+- **`JZEN_REF` is `270590a`** (`270590ab731319cd56246b43c19ca09e83248dd9`) in `ci.yml` and `audit.yml`. Earlier ADRs name the pin they were verified against and stay as written.
+- **HKDF (PR #261).** The Android salt is now 32 zero bytes, not empty, so the native HMAC no longer throws `Empty key`; jZen pins that derived keys are byte-identical. Nothing stored by Prudent Local changes.
+  `prudent_local_store`, which holds the two-device and sync tests, passes unchanged (821 tests). The host tests use the pure-Dart HMAC, so the native Android path is not exercised here.
+- **Android runner.** `local/prudent_local_client/android` already used `FlutterFragmentActivity`. It now also declares `USE_BIOMETRIC` and `LaunchTheme` parents `Theme.AppCompat.DayNight.NoActionBar` (both `values` and `values-night`), as jZen's demo app does, so "Forgot PIN?" can show the system prompt.
+  The merged manifest and an Android build are CI's to prove; AppCompat comes through `local_auth_android`, not a Prudent dependency.
+- **macOS key storage (PR #264, jZen ADR-087, still *proposed* upstream).** A non-release build with `ZEN_ENV=dev` (`zenIsDevBuild`) keeps the store key and the PIN hash in the login keychain; every other build keeps the data-protection keychain. jZen's include defaults `ZEN_ENV` to `dev`, so
+  `task build:local:runners:release` now passes `ZEN_ENV=prd` (`scripts/test_local_tasks.py` pins it, and pins that the debug build keeps `dev`). `zenIsDevBuild` already excludes `--release`; the define is the second guard, so dropping `--release` could not ship the weaker storage.
+  `test:local-release-refusal` and the tests run with `ZEN_ENV=local`, which is not `dev`, so they use the data-protection keychain: the integration test's `-34018` assertion still holds there, and it now also asserts `zenIsDevBuild` is false when it fails. Under `ZEN_ENV=dev` the same unsigned build succeeds, which that test's existing branch accepts.
+  `zenIsDev` is exactly `ZEN_ENV == 'dev'`, so `local` uses the data-protection keychain too. **CLAUDE.md's "an unsigned macOS build refuses to open" is true for every build except a `ZEN_ENV=dev` non-release one**, and says so. A Mac switched between dev and release builds is refused rather than given a new key (the two keychains do not see each other's items).
+- **`ZEN_SYNC_FOLDER` with a space** is now refused by jZen's tasks. Prudent's Taskfile, scripts and docs use no such path.
+- **No pubspec lock is tracked**, so none changed; `client/` and `local/` resolve `270590a` from the path dependencies.
+
+### What jZen verified, and what that is not
+
+jZen's #231 closed after checks of **its own demo app**: an iOS Simulator, a macOS debug build and an Android emulator, then a real Mac (dev build, and a build signed with the free personal team that is not a dev build) and a real iPhone: store key, PIN, "Forgot PIN?", app-switcher cover, erase. Face ID was not exercised.
+Open in jZen: #266 Android phone, #267 Windows, #268 Linux, #269 sync between devices through a folder service, #270 Apple (Face ID, `--release`, CloudKit, Developer ID), #271 camera QR. **None of it is a check of Prudent Local.** Unit 12 stays NOT VERIFIED and Prudent Local is not released.
+
+### Verified
+
+On 2026-11-18 in the worktree against `270590a`: `prudent_local_core` (3966), `prudent_local_store` (821), `prudent_local_client` (64, with `ZEN_ENV=local ZEN_PLATFORM=macos`), `packages/prudent_ui` (5) and `client/` (543) pass; `flutter analyze --fatal-infos --fatal-warnings` is clean in `client/` and the Local client;
+`test_local_tasks.py` (17) and `test_verify_local_release.py` (28) pass, as does `verify_local_release.py`. `integration_test/app_test.dart` passed on this Mac with `ZEN_ENV=local` (both tests, `-34018` included), and its keychain test passed with `ZEN_ENV=dev` (unsigned, key created and removed).
+The first `prudent_local_client` run reported ten files failing to *load* (none failed a test); the same suite passed on the next two runs and singly, and the cause was not found (most likely generated l10n missing in a fresh worktree).
+
+**Not run:** `task` from the worktree (ADR-065) beyond `test_local_tasks.py`, so `task zen:test:client` was replaced by `flutter test` with the same defines; `task test:e2e`; an Android build or the merged manifest; any Windows or Linux build; any device.
+
 ## ADR-126 — A two-device test is offline between its syncs: the transport runs only inside a sync, and the made-apart overshoot is pinned over every sequential order
 
 **Date:** 2026-11-17. **Status:** accepted. **Amends:** ADR-120 (its "Not proven" line). **Builds on:** ADR-111 (the two-device harness).

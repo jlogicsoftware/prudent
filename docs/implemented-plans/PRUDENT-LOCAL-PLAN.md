@@ -2,8 +2,9 @@
 
 > **Status (closed 2026-11-17, unit 13): units 0 to 11 are built and merged; unit 12 (real devices) is NOT VERIFIED and was never a session.**
 > Prudent Local is **not released** and must not be until a person has done unit 12. Written 2026-11-15, on top of jZen's Local mode
-> (jZen ADR-073, issue jZenDev/jZen#210). jZen's **device verification is still open** (jZenDev/jZen#231): Android folder access, the store
-> key off Apple, real CloudKit and every cross-device matrix row are *not verified*. Prudent Local inherits that gap. Everything below
+> (jZen ADR-073, issue jZenDev/jZen#210). jZen's **device verification (jZenDev/jZen#231) is closed upstream** (2026-11-18, jZen `270590a`, ADR-127): it was run on simulators and an emulator and on a real Mac and iPhone, for
+> *jZen's demo app*, not for Prudent Local. What jZen still lists as open is Android on a phone (#266), Windows (#267), Linux (#268), sync through a folder service between devices (#269),
+> Apple Face ID, `--release`, CloudKit and Developer ID (#270) and the camera QR (#271); Prudent Local inherits those gaps. Everything below
 > unit 12's list is proven by tests, the parity suite against the live server and CI, on a Mac and CI runners, never on a device.
 > The status of each unit, its PRs and ADRs is in "Unit status"; what is owed is in unit 12; the follow-ups that are not unit 12 are at the end.
 
@@ -315,7 +316,7 @@ reminders, unit 7's analytics and unit 8b's import workflow; balances, budget su
 `secureScreen: true`, Settings → Lock, Sync and devices (pairing, replace the sync key), Conflicts and issues (`ZenConflictsScreen`, settle
 many) and Privacy and data (a `zen_save_file` copy, erase this device's copy, erase everywhere). Every ADR-100 row has a test or a written
 answer (the table in ADR-121). Filed jZenDev/jZen#256. Run on macOS (widget, a11y and integration suites); no device (unit 12), and an
-unsigned macOS build cannot reach the Keychain (ADR-121).
+unsigned macOS build cannot reach the Keychain, a non-release `ZEN_ENV=dev` build excepted (ADR-121, ADR-127).
 No sign-in, no profile account section. Sync through `ZenSync.start`; PIN from `zen_ui_lock`;
 Settings → Sync, Add a device, Join, Erase this device's copy, all from `zen_ui_*`. English,
 Ukrainian and Polish. Screens from the shared package; nothing hand-rolled
@@ -372,7 +373,7 @@ biometric or device-owner check by jZen's design (jZen ADR-086).
 ## Phase 4 — Close
 
 ### Unit 12 — Verification on real devices (release gate)
-**NOT VERIFIED. Not started, never a coding session; a person does it.** Depends on jZenDev/jZen#231. Prudent Local is **not released** before this.
+**NOT VERIFIED. Not started, never a coding session; a person does it.** Builds on jZen's closed device verification (jZenDev/jZen#231; its open follow-ups are #266 to #271) and repeats none of it for Prudent Local. Prudent Local is **not released** before this.
 
 Matrix: Windows ↔ Linux ↔ Android over Syncthing and Dropbox/OneDrive; macOS ↔ iOS over CloudKit once a paid Apple Developer Program exists,
 `ZenFolderCloud` before. For a ledger the matrix adds: the same balance on every device after offline edits, an import on two devices, a forgotten
@@ -384,8 +385,8 @@ PIN, a lost device.
    as a user would; the Windows and Linux keystores, Android `FLAG_SECURE` and the owner check, QR scanning and real
    Syncthing/Dropbox/OneDrive folders have not been exercised (ADR-121). Windows has no biometric or device-owner check by jZen's design (ADR-086).
 2. **CloudKit**: no paid Apple Developer Program or iCloud entitlement, so no CloudKit run has happened (jZenDev/jZen#236 is consumed, unseen).
-3. **A signed macOS build.** An unsigned one cannot reach the Keychain (`-34018`) and refuses to open; the integration test asserts that refusal, so
-   the suite proves the refusal and **not** the signed path (ADR-121).
+3. **A signed macOS build.** An unsigned one cannot reach the Keychain (`-34018`) and refuses to open, a non-release `ZEN_ENV=dev` build excepted (ADR-127); the integration test (run with `ZEN_ENV=local`) asserts that refusal, so
+   the suite proves the refusal and **not** the signed path (ADR-121). **The signed device run must be a non-dev build (`ZEN_ENV=prd`, or `local`)**: a dev build keeps its key in the login keychain and would not test the data-protection path.
 4. **Real release signing.** Android release uses the debug key; iOS, macOS and Windows have no real signing (ADR-124; jlogicsoftware/prudent#275).
 5. **The Android analytics benchmark**: run `runAnalyticsBenchmark` (`local/prudent_local_store/tool/analytics_benchmark.dart`) in a Flutter harness on a
    real mid-range Android phone at 50 000 records and write the figures into a successor ADR (ADR-118 is append-only). Unit 7's "Done when" bound is not met until then.
@@ -396,10 +397,10 @@ PIN, a lost device.
 9. **The native file picker and a real Erste export** for import and for moving data in: a real statement (none may be committed, ADR-088), the picker on
    macOS, Windows, Linux and Android, a real privacy export (ADR-110, ADR-123); amounts of 1000 or more and the wording of an outgoing own-account transfer were never seen.
 10. **Move-in at scale and on a syncing device** (ADR-123, not verified): an export of tens of thousands of records moved in as one `writeAll`, and a move into a device that is already syncing with peers that hold nothing.
-11. **The macOS integration test is not run by CI** (`.github/workflows/ci.yml` has no entry for it); it was run by hand (ADR-121) and asserts the Keychain refusal of an unsigned build, so a signed run is owed.
+11. **The macOS integration test is not run by CI** (`.github/workflows/ci.yml` has no entry for it); it was run by hand (ADR-121) and asserts the Keychain refusal of an unsigned build (a non-release `ZEN_ENV=dev` build excepted, ADR-127), so a signed non-dev run is owed.
 12. **Performance of the write path**: building a 50 000-record ledger record by record is quadratic (379 s in batches of 500 on a Mac, ADR-118); an
     import of years of history and a first sync on a phone are where that shows, and have not been measured on a device.
-13. **jZenDev/jZen#231**, jZen's own device verification, which Local cannot be more verified than.
+13. **jZen's device verification** (jZenDev/jZen#231, closed 2026-11-18) covered jZen's demo app on simulators, an emulator and a real Mac and iPhone, so it does not stand in for any step here; its open follow-ups are #266 (Android), #267 (Windows), #268 (Linux), #269 (folder-service sync), #270 (Apple: Face ID, `--release`, CloudKit, Developer ID) and #271 (camera QR), and Local cannot be more verified than the framework under it.
 
 ### Unit 13 — Documents
 **Partly built** (#279). The plan is moved to `docs/implemented-plans/` with the status table above; `CLAUDE.md` says units 0–11 are merged and
@@ -431,7 +432,7 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 
 | Issue | What | Units |
 |---|---|---|
-| jZenDev/jZen#231 | device verification of jZen Local | 12 (release gate); ADR-100 rows marked #231 |
+| jZenDev/jZen#231 (closed), #266–#271 (open) | device verification of jZen Local: closed upstream for the demo app; the follow-ups are Android, Windows, Linux, folder-service sync, Apple release and CloudKit, camera QR | 12 (release gate); ADR-100 rows marked #231 |
 | jZenDev/jZen#232 | multi-record write — **merged (PR #248, jZen `e6a06c6`: `ZenStore.writeAll`), consumed by unit 5** | 5, 8b |
 | jZenDev/jZen#233 | application issues beside conflicts — **merged (PR #242), consumed by unit 4** | 4, 9 |
 | jZenDev/jZen#234 | settle many conflicts at once — **merged (PR #250), consumed by unit 8b (the shape; ADR-114), wired by unit 9 (ADR-121)** | 8b, 9 |
@@ -458,7 +459,7 @@ None blocks starting a unit; each is a stated limitation of that unit until it l
   not a silent compromise.
 - **Parity drift:** a server change that is not mirrored locally. The parity suite is the guard;
   until it covers a rule, the rule is listed as uncovered in 0.3.
-- **Inherited jZen gaps** (#231). Prudent Local cannot be more verified than the framework under it.
+- **Inherited jZen gaps** (jZenDev/jZen#266 to #271; #231 is closed). Prudent Local cannot be more verified than the framework under it.
 - **Size of the port.** The importer and the budget/goal rules are the bulk; units 6 and 8 are split
   (6a/6b, 8a/8b) on 0.3's count.
 

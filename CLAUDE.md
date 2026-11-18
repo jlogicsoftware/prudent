@@ -313,7 +313,7 @@ rows 6.1–6.28, 6.46–6.50, 6.54 in the server's order; the summary, carry-ove
 write rechecking its rule inside the store's turn through jZen's `expect` (#251), edits against the exact version read;
 `EnvelopeBelowZeroCheck` and `ArchivedGoalMoneyCheck`, whose repair entry's id derives from the entries it compensates, so
 two devices applying one repair write one record, and `RepairsMadeApartCheck` undoes two made from different reads (ADR-120); `GoalArithmetic` held to `golden/goal_progress.json`; ten parity scenarios (`budget_*`, `carry_over*`, `goal*`, `free_money`) agree with the live server.
-`JZEN_REF` is `139fcd6` (the pin moved from `4fa887a` in ADR-125).
+`JZEN_REF` is `270590a` (the pin moved from `4fa887a` to `139fcd6` in ADR-125 and on to `270590a` in ADR-127).
 Unit 7 (ADR-118) is analytics: `Analytics` in `local/prudent_local_store/lib/src/analytics/` answers spend by category and by period with
 `AnalyticsResource`'s semantics (expenses only; a transfer, a correction, income and a refund are not spend; one currency, never
 inferred; whole-month windows; the UTC anchor), as `Settled`, leaving out of a figure only a record whose dispute changes *that* figure
@@ -346,7 +346,7 @@ and refuses a sync folder inside the app's data; the app is behind `ZenLockGate(
 `ZenConflictsScreen`; the data copy is `DataExport` saved with `zen_save_file`, never the clipboard. Settings takes Local's pages through
 `settingsEntriesProvider` and `privacyScreenProvider` and now scrolls; `zen_ui_store`/`zen_ui_lock` get Polish delegates. Its suite
 (`flutter test` with the client's defines; the touch-size rule runs when compiled for `android`/`ios`) and `integration_test/app_test.dart`
-(macOS) pass; an unsigned macOS build cannot reach the Keychain (`-34018`) and refuses to open, so a signed build and every device are
+(macOS) pass; an unsigned macOS build cannot reach the Keychain (`-34018`) and refuses to open, a non-release `ZEN_ENV=dev` build excepted (ADR-127; see the jZen paragraph below), so a signed build and every device are
 unit 12's. The gates cover it (DART_ROOTS, `verify:analyze`, `verify:controls`, `verify:swiftpm`; boundaries F and H already did).
 Unit 10b (ADR-123) moves a server account in: `MoveIn` (`local/prudent_local_store/lib/src/move_in/`) reads the privacy export file
 (`MoveIn.read`, unknown fields and out-of-range 64-bit integers refused; every value held to the create-time rules, `move_in.invalid_value`) into an **empty** store as one `writeAll` whose first `expect` rechecks emptiness inside the turn;
@@ -364,9 +364,15 @@ macOS (a new `macos-runner`, reversing ADR-003 for this app only), Android, Wind
 manifest (or, in CI, a merged one) allows a backup, when shipped Dart names `ZEN_SYNC` at all, when a sync transport or plan is built or started anywhere but
 `sync_starter.dart`, when a workflow sets it or when a web runner exists; a release build with `ZEN_SYNC` is refused by jZen at run time and
 `task test:local-release-refusal` proves it on a real release build. Each rule has a planted-violation test. **CI proved every step in run 44106692883 (head `5884c91`) and on the PR's final head `9dd59cc`: the merged Android manifests, the Linux probe under `xvfb`, the Windows build and probe, the macOS and iOS release builds, `verify:swiftpm` after the builds and the macOS probe.** Separately, main's push run 44124134602 at `f858dbf` was red on one test, `task test:local-store` "three devices repairing from three different reads", through a flaw in the two-device test harness ("offline" writes leaked; no money defect); #281 (ADR-126) fixed it and main is green from `8447f8f`. Windows failed in `local_auth_windows` under MSVC 14.51 (jZenDev/jZen#257); jZen fixed it by dropping that plugin from `zen_ui_lock`
-(PR #260, ADR-086) and `JZEN_REF` is `139fcd6`, with no override or silencing in Prudent. Android needed core-library desugaring (added), and
+(PR #260, ADR-086) and `JZEN_REF` is now `270590a` (ADR-127), with no override or silencing in Prudent. Android needed core-library desugaring (added), and
 `PlStoreLocalizations` the new `issueContinue` string of jZen #258. Still open: Android release uses the debug key; iOS, macOS and Windows have no real signing (unit 12 owes a real signing configuration), no platform was
 seen on a device (unit 12), and Windows has no biometric or device-owner check by jZen's design (jZen ADR-086: "Forgot PIN?" offers erasing the device's copy).
+jZen's own device verification (jZenDev/jZen#231) is closed upstream (jZen `270590a`, ADR-127): it ran on simulators and an emulator and on a real Mac and iPhone, **for jZen's
+demo app, not for Prudent Local**, and left #266 (Android), #267 (Windows), #268 (Linux), #269 (folder-service sync), #270 (Apple: Face ID, `--release`, CloudKit, Developer ID) and #271 (camera QR) open;
+`docs/jzen/README.md` has the row. Since jZen ADR-087 (proposed upstream) a macOS build with `ZEN_ENV=dev` that is not `--release` (`zenIsDevBuild`) keeps the store key and PIN hash in the
+login keychain, so it opens unsigned; every other build keeps the data-protection keychain and an unsigned one still refuses with `-34018` (the integration test and ADR-121's start failure,
+run with `ZEN_ENV=local`). `task build:local:runners:release` passes `ZEN_ENV=prd` so a release build is never taken for a dev one; the two keychains do not see each other's items, so a Mac switched between
+a dev and a release build refuses to open its data until it is erased and synced again.
 
 **The deploy path: run against disposable environments, and once against a persistent proof of concept.**
 `task deploy:cloudrun` and `task verify:deploy` exist (ADR-020, ADR-021, ADR-023). On 2026-10-22

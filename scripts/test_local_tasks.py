@@ -135,6 +135,24 @@ class LocalTasks(unittest.TestCase):
             self.assertNotIn("ZEN_SYNC", line)
             self.assertNotIn("ZEN_API_URL", line)
 
+    def test_release_build_carries_zen_env_prd(self):
+        # jZen's include defaults ZEN_ENV to dev; a dev build keeps the macOS store key in the weaker
+        # login keychain (jZen ADR-087), so a release build must say prd (ADR-127).
+        r = self.task("build:local:runners:release")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        builds = [l for l in self.calls().splitlines() if l.startswith("flutter build")]
+        self.assertTrue(builds, self.calls())
+        for line in builds:
+            self.assertIn("--dart-define=ZEN_ENV=prd", line)
+            self.assertNotIn("ZEN_ENV=dev", line)
+
+    def test_debug_build_keeps_the_dev_default(self):
+        r = self.task("build:local:runners")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        builds = [l for l in self.calls().splitlines() if l.startswith("flutter build")]
+        for line in builds:
+            self.assertIn("--dart-define=ZEN_ENV=dev", line)
+
     def test_release_build_given_zen_sync_passes_it_on_unchanged(self):
         r = self.task("build:local:runners:release", "ZEN_SYNC=folder", "ZEN_SYNC_FOLDER=/abs/x")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

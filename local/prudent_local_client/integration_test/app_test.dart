@@ -144,7 +144,9 @@ void main() {
       // development certificate (jZen's documented no-signing boundary). This build is unsigned, so
       // the platform answers -34018 and `ZenDeviceStoreKey` must fail: no key in a file, no
       // fallback, nothing written beside the store (ADR-100 T8), which the app then shows as its
-      // start failure. A signed build, where this succeeds, is unit 12's.
+      // start failure. A signed build, where this succeeds, is unit 12's. A non-release `ZEN_ENV=dev`
+      // build is different: since jZen ADR-087 it keeps the key in the login keychain, which needs no
+      // signing, so it succeeds unsigned (the branch below) and this refusal is for every other build.
       final support = await getApplicationSupportDirectory();
       final directory = Directory('${support.path}/prudent_local_it_keystore');
       const name = 'prudent_local_it.store_key';
@@ -163,6 +165,11 @@ void main() {
         await ZenDeviceStoreKey.platformStorage.delete(key: name);
         return;
       }
+      expect(
+        zenIsDevBuild,
+        isFalse,
+        reason: 'a dev build uses the login keychain (jZen ADR-087) and must not be refused',
+      );
       expect((key as ZenFailure).error.message, contains('-34018'));
       expect(
         directory.existsSync() && directory.listSync().isNotEmpty,
