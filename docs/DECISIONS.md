@@ -49,6 +49,11 @@ own — ADR-001 is the first instance.
 - The README, `docs/product-roadmap.md`, `docs/zen-architecture.md`, `docs/jzen/README.md` and `CLAUDE.md` were brought up to date
   in the same change (unit 13). In `docs/jzen/README.md` five rows still read "Reported, waiting" for jZen issues closed in
   October (jZenDev/jZen#140, #141, #142, #145, #154); they now say what landed upstream and what Prudent still carries.
+- **Corrected in review (same PR):** the data copy is described by what it holds and what it leaves out (skipped dates and
+  reminder-read marks are not in it, jlogicsoftware/prudent#288); the store key is "kept, wrapped or encrypted by" the platform,
+  not "never beside the data"; the device's host name, written into every record and shown on the other devices, is disclosed;
+  the "never sends" claims say what the gate checks and that no device's traffic has been observed. Two stale code comments
+  (`local_boot.dart`, `local_data_export.dart`) were corrected; no code changed.
 - **Not verified:** the statement is a document; nothing new was built or run. Its "not verified" list is unit 12's.
 - **Found and not fixed here:** the server policy still says "Save to a file" is not yet on iOS and Android, which ADR-117 made
   untrue; this change was scoped not to alter the server policy's claims, so it stays for a change of its own (jlogicsoftware/prudent#286).

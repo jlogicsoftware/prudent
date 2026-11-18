@@ -74,7 +74,7 @@ All PRs are in `jlogicsoftware/prudent`. Each was derived from `git log origin/m
 | 10b | Moving data in | built; no real export | #273 | ADR-123 |
 | 11 | Taskfile and CI, five platforms | built; PR checks green at final head `9dd59cc`; main's push run at `f858dbf` was red on a two-device test-harness flaw (no money defect), fixed by #281 (ADR-126), green from `8447f8f` | #272 | ADR-124, ADR-125 |
 | **12** | **Real devices (release gate)** | **NOT VERIFIED, not started** | none | none |
-| 13 | Documents (this close-out) | built: plan moved, status and follow-ups (#279); the Local privacy statement, README, roadmap, architecture, `docs/jzen/README.md` and `CLAUDE.md` (docs/local-documents) | #279; docs/local-documents | ADR-128 |
+| 13 | Documents (this close-out) | built: plan moved, status and follow-ups (#279); the Local privacy statement, README, roadmap, architecture, `docs/jzen/README.md` and `CLAUDE.md` (#287) | #279, #287 | ADR-128 |
 
 Epic: jlogicsoftware/prudent#245. #269's title says ADR-120; the app's ADR is ADR-121 (ADR-120 is the envelope repair of #268).
 
@@ -403,7 +403,7 @@ PIN, a lost device.
 13. **jZen's device verification** (jZenDev/jZen#231, closed 2026-11-18) covered jZen's demo app on simulators, an emulator and a real Mac and iPhone, so it does not stand in for any step here; its open follow-ups are #266 (Android), #267 (Windows), #268 (Linux), #269 (folder-service sync), #270 (Apple: Face ID, `--release`, CloudKit, Developer ID) and #271 (camera QR), and Local cannot be more verified than the framework under it.
 
 ### Unit 13 — Documents
-**Built** (#279 and the `docs/local-documents` PR, ADR-128). #279 moved the plan to `docs/implemented-plans/` with the status table above
+**Built** (#279 and #287, ADR-128). #279 moved the plan to `docs/implemented-plans/` with the status table above
 and listed the follow-ups at the end. The second change wrote what #279 left:
 
 - **`docs/privacy-policy-local.md`**, Prudent Local's privacy statement (jlogicsoftware/prudent#280): what stays on the device, what the
@@ -483,6 +483,7 @@ Known work left by the plan, each with its issue:
 - Nits from the reviews of #269 and #272 (unreadable-store 'Retry', raw English `syncProblem`, the comment
   stripping and line-based transport gates, 'Dalej' vs 'Kontynuuj', the probe's untested branch, no old-format fixture for ADR-125) —
   jlogicsoftware/prudent#278.
+- The Local data copy leaves out skipped dates and reminder-read marks — jlogicsoftware/prudent#288 (found by the review of #287).
 - iOS Data Protection is not set on the Local store, which ADR-100 T1 assumed — jlogicsoftware/prudent#285 (found by unit 13, ADR-128).
 - The server policy still says "Save to a file" is not on iOS and Android, which ADR-117 made untrue — jlogicsoftware/prudent#286 (found by unit 13, ADR-128).
 - Main's push run at `f858dbf` was red on a two-device test-harness flaw, fixed by jlogicsoftware/prudent#281 (ADR-126), green from `8447f8f` (see unit 11); the reference helper's same flaw is jZenDev/jZen#263, open.

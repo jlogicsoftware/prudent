@@ -35,7 +35,7 @@ same, to the cent, as the server-connected app computes. The plan is
 | The ledger on jZen's store: accounts, records, transfers, corrections, settings | Built (ADR-111, ADR-113) |
 | Budgets, carry-over resets, goals and envelopes; plans, occurrences and reminders; analytics | Built (ADR-116, ADR-118 to ADR-120, ADR-122) |
 | Erste statement import with no server | Built (ADR-112, ADR-114) |
-| The app: sync, lock, conflicts and integrity issues, erasure, the data copy | Built; macOS only (ADR-121) |
+| The app: sync, lock, conflicts and integrity issues, erasure, the data copy | Built; run only as an unsigned macOS debug build, which cannot reach the Keychain and refuses to open its data except under `ZEN_ENV=dev` (ADR-121, ADR-127) |
 | Moving a server account in | Built; no real export tried (ADR-123) |
 | Tasks and CI on iOS, macOS, Android, Windows and Linux, with release gates | Built (ADR-124, ADR-126, ADR-127) |
 | Documents | Built (ADR-128) |

@@ -29,21 +29,22 @@ Everything Prudent Local knows, in the app's own data directory:[^boot]
 | What | How it is kept |
 |---|---|
 | The ledger: accounts (with any bank account number you enter), categories, records, transfers, corrections, plans and their skipped or confirmed dates, reminder settings and read marks, budgets, carry-over resets, goals and the history of money set aside for them, settings | In jZen's store: every file but the device's random id is AES-256-GCM, with a key of this device's own[^store] |
-| The store key | In the platform's secret storage, never beside the data (table below)[^key] |
+| The store key | Kept by the platform's secret storage, or wrapped or encrypted by a key the platform keeps: never in the clear beside the data (table below)[^key] |
 | The sync key, once this device is paired (Android, Windows, Linux) | In the same secret storage[^synckey] |
 | The PIN, if you set one, and its failure count | A hash, in the same secret storage; a PIN is off unless you turn it on[^pin] |
 | A statement you are importing: the rows read from it, the categories and notes you give them, their fingerprints | Inside the encrypted store, in a collection that **never syncs** — not to your other devices, not to the folder, not to iCloud. Deleted when you confirm or discard the import, or 24 hours after you started it. The statement file itself is read once and never copied, cached or logged; it stays where you picked it, and Prudent says so after the import[^import] |
 | Reminder notifications the app has scheduled | With the operating system. Their text has the plan's title and no amount, and a title can show on a lock screen[^notify] |
 | Whether the notification permission was already refused | One flag in the app's preferences[^notify] |
+| This device's name: the computer's or phone's host name (for example "my-laptop"), or the operating system's name if it has none | Inside the encrypted store, written into **every record** this device saves, and so **synced to and shown on your other devices** when two devices disagree about a record. It travels encrypted like the rest: the sync service cannot read it[^devicename] |
 
 **Where the store key is kept**, by platform:[^key]
 
 | Platform | Where | What that means |
 |---|---|---|
 | iOS, macOS (a release build) | The Keychain, readable only while the device is unlocked, on this device only | Not in a backup, not on another device |
-| Android | A key wrapped by the Android Keystore | The wrapping key cannot leave the device; it is **not** tied to the screen lock |
-| Windows | A key in Credential Manager (this machine, this user) that encrypts a file under `%APPDATA%` | The file is useless on another machine |
-| Linux | The login keyring (libsecret: GNOME Keyring, KWallet or the portal) | As strong as that keyring. With no secret service, or a locked one, Prudent Local refuses to open rather than keep the key in a file |
+| Android | Prudent's key, encrypted (AES-GCM) by a key the Android Keystore holds, stored in the app's private storage | The Keystore key cannot leave the device; it is **not** tied to the screen lock |
+| Windows | Prudent's key in a file under `%APPDATA%`, encrypted by a key in Credential Manager (this machine, this user) | The file is useless on another machine; a program running as you can read Credential Manager |
+| Linux | The login keyring (libsecret: GNOME Keyring, KWallet or the portal) | As strong as that keyring; a program running as you can read it while it is unlocked. With no secret service, or a locked one, Prudent Local refuses to open rather than keep the key in a file |
 
 Prudent Local never makes a new key over data it cannot open. If the key is missing or unreadable —
 for example after files were restored from a backup without it — the app says so and offers to
@@ -53,12 +54,15 @@ a manifest ever allows it.[^backup]
 
 ## What the app never sends
 
-- **No server, no account, no analytics, no crash reporting, no advertising.** The app's own code
-  contains no network client: `task verify:boundaries` fails if the Local app reaches for any of
-  the server-connected app's transport or identity packages, or holds an absolute URL.[^boundaries]
-  On Android and macOS the release build does not even ask the operating system for network access
-  (no `INTERNET` permission in the Android release manifest, no network entitlement in the macOS
-  release sandbox).[^manifest]
+- **No server, no account, no analytics, no crash reporting, no advertising.** Prudent's own code
+  for the Local app contains no code that calls a server. What a gate checks is narrower than that
+  sentence: `task verify:boundaries` fails if the Local app depends on the server-connected app's
+  transport or identity packages, imports `package:http` or holds an absolute `http(s)://` URL. It
+  does not scan for `dart:io`'s `HttpClient`, raw sockets or what a third-party plugin does.[^boundaries]
+  Today the Android release manifest asks for no `INTERNET` permission and the macOS release sandbox
+  has no network entitlement; the iCloud entitlement CloudKit needs (unit 12) will change the
+  macOS side.[^manifest] **Not verified:** nobody has watched a device's traffic to confirm that
+  nothing else goes out.
 - **Sync is the only thing that leaves the device**, and only in encrypted form, through the one
   transport described below.[^syncstart]
 - **No log line carries your data.** Amounts, titles, payees, notes, account numbers, statement
@@ -66,7 +70,7 @@ a manifest ever allows it.[^backup]
   codes. A test scans the app's source for it.[^logs]
 - **A pairing code is never logged, put in a URL or on the clipboard.** It is shown on request,
   for five minutes, and hidden when the app goes to the background.[^pairing]
-- **A bank account number is never part of an id, a file name, a log line or a notification.**[^numbers]
+- **A bank account number never appears in the clear in an id, a file name, a log line or a notification.** An imported record's id is derived from a SHA-256 digest of the statement row (which covers its account, amount and text), so it carries the digest, never the values.[^numbers]
 - **Screenshots and screen recordings are blocked on Android** while the app is open, so balances
   do not show in the recents thumbnail, a recording or a cast. iOS and the desktops have no such
   switch; there the lock's cover hides the app when it goes to the background.[^screen]
@@ -88,6 +92,10 @@ one file per record. Every file is AES-256-GCM under a key derived from the sync
 collection, its id and every field are inside the ciphertext, and a file's name is a keyed hash of
 the record's name, so the name says nothing. The file's path is bound into the encryption, so a
 file copied, renamed or replayed elsewhere fails to open instead of merging as something else.[^folder]
+
+This is true of every release build. A **development** build started with `ZEN_SYNC=folder` syncs
+through jZen's development stand-in instead, which stores records **unencrypted**; a release build
+with that setting refuses to sync, and a gate and a test prove it.[^plan]
 
 **What whoever stores the folder can see** — your sync service, and anyone you share the folder
 with:[^folder]
@@ -151,11 +159,29 @@ first launch and under Sync and devices, and offers a copy (below).[^loss]
 
 ## Your copy
 
-**Settings → Privacy and data → Save a copy to a file** writes everything the store holds to a file
-you choose, as readable JSON: accounts, categories and records (with each imported record's
-statement key, a fingerprint and a number, never the statement's text), plans, budgets, resets,
-goals and the money set aside for them. It is the same document the server-connected app exports,
-so it can be read the same way.[^export]
+**Settings → Privacy and data → Save a copy to a file** writes a file you choose, as readable JSON,
+in the same document format the server-connected app exports.[^export] **It is not everything the
+store holds.**
+
+It holds:
+
+- your main-currency setting;
+- accounts, categories and records, as the screens show them (a transfer as its two legs; a record
+  that confirmed a planned payment carries its link to the plan and date);
+- each imported record's statement key: a fingerprint and a number, never the statement's text;
+- plans (with their reminder settings), budgets, carry-over resets, goals, and the history of money
+  set aside for goals.
+
+It leaves out:
+
+- **the dates you skipped** in a plan and **which reminders you marked as read** (they are kept in
+  the store, but the copy does not carry them yet, so a ledger rebuilt from the copy would show
+  skipped payments as due again and read reminders as unread; jlogicsoftware/prudent#288);
+- occurrences themselves, which are worked out from each plan's schedule and are never stored;
+- an import you have not finished (its rows never leave the device);
+- the device names written into records (above), and any disagreement between devices that has not
+  been settled: a disputed record is copied as this device shows it;
+- balances, budget summaries, goal progress and analytics, which are calculated from the rest.
 
 - **The file is not encrypted.** It holds all of your finances in plain text; the app says so above
   the button. Keep it somewhere private and delete it when you are done with it.[^export]
@@ -202,8 +228,8 @@ buttons of a macOS build; it has not run against iCloud or a real sync service.[
 
 ## What is not protected
 
-Prudent Local protects data at rest on a locked device and in transit through the sync service. It
-does not protect against these, and says so:
+Prudent Local is designed to protect data at rest on a locked device and in transit through the
+sync service. It does not protect against these, and says so:
 
 - **A device someone holds unlocked.** Without a PIN, anyone holding the unlocked device sees all
   of your finances. The PIN is off by default and offered on first launch; with one, the app locks
@@ -211,12 +237,13 @@ does not protect against these, and says so:
 - **A shared operating-system account.** Everyone who uses the same account on a computer sees the
   same Prudent Local. The PIN is a door, not a key: the data is not encrypted under it.[^shared]
 - **A forgotten PIN.** On iOS, macOS and Android the device's own lock (passcode, Face ID, Touch ID,
-  fingerprint) confirms it is you. **Windows has no biometric or device-owner check** in this
+  fingerprint) confirms it is you — if the device has a passcode or a biometric set; without one,
+  "Forgot PIN?" erases this device's copy as below. **Windows has no biometric or device-owner check** in this
   version: "Forgot PIN?" there — and on Linux — erases this device's copy, which comes back from
   your other devices. With no other device, nothing else holds a copy; the app says so before you
   turn a PIN on, and asks you to save a copy first.[^forgot]
-- **A key read from a backup on a macOS developer build.** A build made for development
-  (`ZEN_ENV=dev`, not a release build) keeps the store key and the PIN hash in the macOS login
+- **A key read from a backup on a macOS developer build.** Under jZen's ADR-087, which is still
+  *proposed* upstream, a build made for development (`ZEN_ENV=dev`, not a release build) keeps the store key and the PIN hash in the macOS login
   keychain, which can be in a backup. A release build uses the device-only Keychain and the release
   task builds with `ZEN_ENV=prd`; the developer build is never meant to reach a person. A Mac that
   switches between the two cannot open its data until it is erased and synced again.[^devkeychain]
@@ -226,6 +253,13 @@ does not protect against these, and says so:
 - **iOS Data Protection on the store's directory is not set.** jZen offers it
   (`ZenDataProtection.protectDirectory`) and the threat model assumed it, but Prudent Local does not
   call it yet; the store's own encryption protects the files regardless.[^dataprotection]
+- **A photograph of a pairing code.** While a pairing code is on screen (five minutes at most), a
+  photograph of it, or someone reading it over your shoulder, is the sync key: with it and access to
+  the folder, they can read and write your records. Show it only where nobody else can see it; if it
+  was seen, replace the sync key.[^pairing-risk]
+- **Other programs running as you.** On Windows and Linux a program running under your account can
+  read Credential Manager or the unlocked keyring, and so the store key; on any platform such a
+  program can read a plaintext copy you saved.[^key]
 - **The plan's title on a lock screen**, in a reminder notification (never the amount).[^notify]
 - **What the sync service infers from sizes and timing** (above), and anyone the folder is shared
   with.
@@ -247,7 +281,9 @@ What this page states but has not been seen on a device:[^unit12]
   and what such a service's history and trash keep;
 - Android's screen-capture block, its owner check, and the Keystore after a restore;
 - "Forgot PIN?" on real Android, Windows and Linux;
-- the save sheet on a phone, a notification firing, and scanning a pairing code with a camera.
+- the save sheet on a phone, a notification firing, and scanning a pairing code with a camera;
+- that no traffic leaves a device other than through the sync transport (no device's network
+  traffic has been observed).
 
 jZen's own device check (jZenDev/jZen#231) ran its demo app on simulators, an emulator and a real Mac
 and iPhone; it does not stand in for any of this, and its open follow-ups (jZenDev/jZen#266 to #271)
@@ -266,12 +302,12 @@ server-connected app's policy are separate on purpose (ADR-128).*
 [^notify]: ADR-056 (no amount in a notification), ADR-058 (the remembered refusal), ADR-119 (the shared scheduler reused by Local); ADR-100 T16.
 [^restore]: jZen ADR-075 (no key over existing files); ADR-100 T8–T10; ADR-121 (the start-failed page offers erase-and-re-sync behind a question).
 [^backup]: ADR-100 T10; ADR-124 (`task verify:local-release`, `scripts/verify_local_release.py`, which also checks the merged manifest in CI).
-[^boundaries]: `scripts/verify_boundaries.py` (checks C and F; `DART_LIB_SCOPES` includes `local/prudent_local_client/lib`); ADR-109.
+[^boundaries]: `scripts/verify_boundaries.py` (checks C, D and F; `DART_LIB_SCOPES` includes `local/prudent_local_client/lib`); ADR-109. Check D bans `package:http` outside a composition root, check C absolute URL literals, check F the server packages in Local's pubspec.
 [^manifest]: `local/prudent_local_client/android/app/src/main/AndroidManifest.xml` (the debug and profile manifests add `INTERNET` for Flutter's tooling) and `local/prudent_local_client/macos/Runner/Release.entitlements`. iOS has no such permission to omit.
 [^syncstart]: ADR-121 ("Sync is `ZenSync.start` only"); ADR-124 (`verify:local-release` fails when a transport is built or started anywhere but `sync_starter.dart`).
 [^logs]: ADR-100 T21; ADR-121 (`threat_model_test` scans the source); ADR-072, ADR-094.
 [^pairing]: jZen ADR-077 (a code of 77 characters with a QR code beside it, carrying the sync key; five minutes; hidden in the background; never logged); ADR-100 T17.
-[^numbers]: ADR-100 T22; ADR-121 (`data_copy_test`); `packages/prudent_ui/lib/privacy/privacy_actions.dart` (the file name).
+[^numbers]: ADR-100 T7, T22; ADR-121 (`data_copy_test`); `packages/prudent_ui/lib/privacy/privacy_actions.dart` (the file name); `DerivedIds.imported` (`local/prudent_local_store`) over `RowFingerprints` (ADR-091, ADR-112, ADR-114).
 [^screen]: ADR-121 (`ZenLockGate(secureScreen: true)`); jZen ADR-085 (`FLAG_SECURE`); ADR-100 T15. Not seen on a device.
 [^plan]: jZen ADR-079 and `client/zen_store_sync/lib/src/zen_sync_plan.dart` (CloudKit on iOS and macOS, the shared folder on Android, Windows and Linux; the unencrypted development transport refused in a release build, jZen ADR-085, ADR-100 T18, `task test:local-release-refusal`).
 [^folder]: jZen ADR-076 (layout, encryption, "what the folder exposes", bad files skipped) as refined by jZen ADR-085 (the key-id directory); ADR-100 T6, T19.
@@ -281,14 +317,16 @@ server-connected app's policy are separate on purpose (ADR-128).*
 [^cloudkit-unverified]: ADR-121 ("Not verified"); plan unit 12, item 2; jZenDev/jZen#270.
 [^cloudkit]: jZen ADR-065 (records in `encryptedValues`), jZen ADR-083 (HMAC record names, jZenDev/jZen#236; "Apple still sees how many records exist, their sizes and times"); `client/zen_store_cloudkit/darwin/.../ZenCloudKitBridge.swift` (one record type, the data zone and the marker zone); ADR-100 T7.
 [^loss]: ADR-100 T5; ADR-121 (`threat_model_test`, `settings_test`); `local/prudent_local_client/lib/l10n/local_en.arb` (`firstRunLoss`, `syncLossWarning`).
-[^export]: ADR-071 (the `DataExport` document), ADR-110 (import keys), ADR-117 (`zen_save_file`), ADR-121 (the data copy; `data_copy_test` records platform calls and finds no clipboard); ADR-100 T14.
+[^export]: ADR-071 (the `DataExport` document), ADR-110 (import keys), ADR-117 (`zen_save_file`), ADR-121 (the data copy; `data_copy_test` records platform calls and finds no clipboard); ADR-100 T14. What it holds and leaves out: `LocalDataExport.build` in `local/prudent_local_client/lib/repository/local_data_export.dart` (no occurrence states, no occurrences, no import sessions, no profile).
 [^movein]: ADR-103, ADR-123 (`MoveIn`, an empty store only, refused unless every balance matches); `local/prudent_local_client/lib/l10n/local_en.arb` (`moveInServerNote`).
 [^erase]: jZen ADR-078 (erase this device's copy, "Forgot PIN?"), jZen ADR-085 (`eraseEverywhere`); ADR-100 T24; ADR-121 (`erase_test`); the wording is `dataEraseHint`, `dataEverywhereHint`, `dataEverywhereNoSync` in `local_en.arb`.
 [^erase-leaves]: jZen ADR-085 ("Erasing leaves markers, not data"); ADR-121.
 [^erase-unverified]: ADR-121 ("Checked", "Not verified"); jZen ADR-085 ("Not verified on a device").
+[^devicename]: `local/prudent_local_client/lib/core/local_boot.dart` (`Platform.localHostname`, the operating system's name as a fallback); jZen's `ZenStore.outgoing` writes the device-name map into every record's payload (`client/zen_store/lib/src/zen_store.dart`), and `zen_ui_store` names the device in a conflict; the payload is encrypted by the transport (jZen ADR-076, ADR-083).
+[^pairing-risk]: ADR-100 T17 (accepted); jZen ADR-077 (the code carries the sync key); jZen ADR-085 (replacing the key, folder transport only).
 [^shared]: ADR-100 T25; `securityPeopleNote` in `local_en.arb`; jZen ADR-065.
-[^forgot]: ADR-100 T4; jZen ADR-078, ADR-081 and ADR-086 (`zen_ui_lock` resolves no Windows owner check); ADR-127; `securityForgetAlone` in `local_en.arb`.
-[^devkeychain]: jZen ADR-087 (`zenIsDevBuild`; "can be in a backup"); ADR-127 (`task build:local:runners:release` passes `ZEN_ENV=prd`).
+[^forgot]: ADR-100 T4; jZen ADR-078 (the owner check needs a passcode or biometric set), ADR-081 and ADR-086 (`zen_ui_lock` resolves no Windows owner check); ADR-127; `securityForgetAlone` in `local_en.arb`.
+[^devkeychain]: jZen ADR-087 (status: proposed; `zenIsDevBuild`; "can be in a backup"); ADR-127 (`task build:local:runners:release` passes `ZEN_ENV=prd`).
 [^dataprotection]: ADR-100 T1 ("iOS adds Data Protection `complete`"); `client/zen_store_cloudkit/lib/src/zen_data_protection.dart`; no call to it in `local/prudent_local_client/lib` (checked 2026-11-18); ADR-128. The follow-up is jlogicsoftware/prudent#285.
 [^unit12]: Plan unit 12 (items 1–3, 6, 7) and ADR-121 ("Not verified").
 [^jzen231]: ADR-127; `docs/jzen/README.md`.

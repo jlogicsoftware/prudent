@@ -127,8 +127,9 @@ enforce its rules.
 - **The same fact on two devices is one record.** Where a record stands for something in the world
   — a budget slot, a confirmed occurrence, an imported statement row — its id is derived from that
   thing, not minted, so two devices that do the same thing write the same record instead of two
-  (ADR-102, ADR-111, ADR-114). An id is never derived from an amount, a name or an account number
-  (ADR-100 T7).
+  (ADR-102, ADR-111, ADR-114). An id never carries an amount, a name or an account number in the
+  clear: where one goes into an id, as a statement row's does, the id holds only its digest
+  (ADR-100 T7, ADR-091).
 - **A rule is checked where the write happens.** A rule checked before a write can be broken by a
   sync that lands in between, so every write carries the rule and the version it was decided
   against as the store's precondition (`expect`), and is refused rather than written over a change

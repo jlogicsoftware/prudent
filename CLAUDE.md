@@ -264,7 +264,7 @@ Polish or Ukrainian string reviewed by a native speaker.
 unit's PRs and ADRs in its status table; **unit 12 (real devices) is open and NOT VERIFIED**, and Prudent Local is not released before it. Unit 13 (ADR-128) wrote
 Prudent Local's privacy statement, `docs/privacy-policy-local.md` (#280), and brought the README, `docs/product-roadmap.md`, `docs/zen-architecture.md` and
 `docs/jzen/README.md` up to date; it found that iOS Data Protection, which ADR-100 T1 assumed, is not set on the store (#285). The plan's
-closing section lists what is owed and the follow-ups (jlogicsoftware/prudent#274 to #278, #282, #285, #286, #261). What follows is the per-unit detail.
+closing section lists what is owed and the follow-ups (jlogicsoftware/prudent#274 to #278, #282, #285, #286, #288, #261). What follows is the per-unit detail.
 
 Prudent Local (jlogicsoftware/prudent#245, `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`) has its phase-0 decisions (ADR-100 to ADR-103) and unit 3
 (ADR-107): `local/prudent_local_core` is pure Dart and reproduces the server's money, currency, account-number, date, month and text

@@ -16,11 +16,13 @@ import 'package:zen_core/zen_core.dart';
 ///   is of what the person has, not of a figure.
 /// - **record import keys** (ADR-110): each imported record's statement key beside it.
 /// - **plans, budgets, carry-over resets, goals and goal allocations** are mapped from the store as
-///   they are held; nothing in this build writes them yet (units 6a and 6b), so they are empty until
-///   those units land.
-/// - **occurrences** are derived from plans and their state (unit 6b) and are left out until then.
+///   they are held (units 6a and 6b).
+/// - **occurrences** stay empty: an occurrence is read from its plan's schedule and never stored
+///   (ADR-119). **Occurrence states** — skipped dates and reminder-read marks — are stored but not in
+///   this copy yet: the server's document carries them on its `occurrences` rows, which this copy
+///   leaves empty (jlogicsoftware/prudent#288).
 /// - **profile, import sessions and import rows** stay empty: there is no sign-in, and import
-///   sessions are never synced or kept (ADR-100 T12).
+///   sessions are device-only and never leave the device (ADR-100 T12, ADR-114).
 ///
 /// The copy is plaintext. The screen that saves it warns first and never uses the clipboard
 /// (ADR-100 T14).
