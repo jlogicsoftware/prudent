@@ -59,7 +59,9 @@ Future<ZenResult<LocalBoot>> bootPrudentLocal({ZenLockStorage? secrets}) async {
 }
 
 // What another device shows in a conflict. A machine's host name is the one name a person already
-// knows it by; it is only ever shown to them, never sent anywhere (there is no server).
+// knows it by. The store writes it into every record this device saves, so it syncs to the person's
+// other devices and is shown there; the transport encrypts it like the rest of the record, so the
+// sync service cannot read it (docs/privacy-policy-local.md).
 String _deviceName() {
   final host = Platform.localHostname.trim();
   return host.isEmpty ? Platform.operatingSystem : host;

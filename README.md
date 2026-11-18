@@ -10,7 +10,39 @@ checkout.
 
 On wide windows, page content stays centred in a readable column. Charts have more room, while navigation and page headers continue to use the available width.
 
-## The three tiers
+## Two forms of one product
+
+Prudent comes in two forms that share every screen (`packages/prudent_ui`, ADR-108):
+
+- **The server-connected app** — `client/` talking to `server/`. You sign in; your ledger lives in the
+  server's Postgres database; the server enforces the rules. It targets Android, iOS, the web, macOS,
+  Linux and Windows. Its privacy policy is [`docs/privacy-policy.md`](docs/privacy-policy.md).
+- **Prudent Local** — `local/prudent_local_client`. **No server, no sign-in, no account**: the whole
+  ledger runs on the device over jZen's encrypted store and syncs between a person's own devices
+  through iCloud (Apple) or a folder they choose (Android, Windows, Linux). It is built for iOS,
+  macOS, Android, Windows and Linux; there is no web build. Its privacy statement is
+  [`docs/privacy-policy-local.md`](docs/privacy-policy-local.md).
+
+> **Prudent Local is not released.** Its code is built, merged and proven by tests, the parity suite
+> against the live server and CI, which compiles it for all five platforms. It has been run only as an
+> unsigned debug build on a Mac, by its integration test (ADR-121), which keeps its secrets in memory;
+> the real Keychain was reached only to see it refuse an unsigned build (`-34018`). It has never run on
+> a phone, never as a signed build, never as a person would use it. It is not released until unit 12 of
+> [`docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`](docs/implemented-plans/PRUDENT-LOCAL-PLAN.md)
+> (real devices, signing, CloudKit) has been done by a person.
+
+```bash
+# the server-connected app: Supabase + backend + web client together, one Ctrl-C stops it
+task run:dev
+
+# Prudent Local on a native device (no server is started or looked for; the web is refused)
+task run:local DEVICE=macos
+```
+
+On macOS an unsigned Prudent Local cannot reach the Keychain and refuses to open, except a debug
+build with `ZEN_ENV=dev`, which keeps its key in the login keychain (ADR-121, ADR-127).
+
+## The tiers
 
 The repository root is **language-neutral** on purpose: no root `pom.xml`, no root `pubspec.yaml`,
 no root `package.json`. Each tier owns its own build file, and the root owns none of them.
@@ -18,12 +50,15 @@ no root `package.json`. Each tier owns its own build file, and the root owns non
 ```
 prudent/
 ├── Taskfile.yml   the single entry point; includes ../jZen/Taskfile.app.yml
-├── client/        the Flutter application (Android, iOS, web, macOS, Linux, Windows)
+├── client/        the server-connected Flutter app (Android, iOS, web, macOS, Linux, Windows)
 ├── server/        the Quarkus backend
+├── packages/      prudent_ui (every screen, shared by both apps) and prudent_proto (wire messages)
+├── local/         Prudent Local: its rules, its ledger on jZen's store, and its app (no web)
+├── tools/         the parity server that holds Local's figures to the live server's
 ├── admin/         the react-admin panel (assembles @jzen/admin-core)
 ├── proto/         the wire contract (canonical for models)
 ├── docs/          the architecture, the plan, and the decision log
-├── .github/       CI (two operating systems) and the scheduled dependency audit
+├── .github/       CI (Linux, Windows and macOS) and the scheduled dependency audit
 └── LICENSE
 ```
 
@@ -122,7 +157,12 @@ never replaces them**: `mvnw` owns Java, `flutter`/`dart pub` owns Dart, `pnpm` 
 | `task run:dev` | Supabase + backend + web client together, one Ctrl-C tears it down |
 | `task run:server` / `task run:client` / `task run:supabase` / `task run:admin` | The tiers separately |
 | `task zen:build:runners` | Every delivery runner this host can build; skips are announced |
-| `(cd client && flutter run)` | Runs the application |
+| `(cd client && flutter run)` | Runs the server-connected application |
+| `task run:local DEVICE=<native device>` | Runs Prudent Local; the web is refused by name |
+| `task build:local:runners` / `task build:local:runners:release` | Compiles Prudent Local's runners this host can build (release with `ZEN_ENV=prd`) |
+| `task test:local-core` / `task test:local-store` | Prudent Local's rules and its ledger on the store (pure Dart, no server) |
+| `task verify:local-release` | Fails if Local could ship a backup of its store, the unencrypted sync transport or a web target |
+| `task verify:golden` | Fails if Local's rules drift from the server's golden vectors |
 
 The `zen:` tasks — and `deps` / `generate` / `verify:contracts` plus the whole `run:*` family,
 which are one-line aliases to them — come from jZen's `Taskfile.app.yml`, which Prudent
@@ -133,8 +173,9 @@ something for them to act on — see `docs/DECISIONS.md` for what each one found
 
 ## CI
 
-`.github/workflows/ci.yml` runs on `ubuntu-latest` and `windows-latest` — Windows exists only to
-build the Windows desktop app, which Flutter refuses to cross-compile. Every job checks out `../jZen`
+`.github/workflows/ci.yml` runs on Ubuntu, `windows-latest` and `macos-latest` — Windows exists to
+build the Windows desktop apps, which Flutter refuses to cross-compile, and macOS to build Prudent
+Local's iOS and macOS runners (ADR-124). Every job checks out `../jZen`
 at a **pinned SHA** (`env.JZEN_REF`) rather than `main`, because a CI runner has no sibling checkout
 and no local Maven repository of its own — see `docs/DECISIONS.md` ADR-018 for the full reasoning and
 its cost. `.github/workflows/audit.yml` runs `task audit` on a weekly schedule, deliberately outside
@@ -142,15 +183,21 @@ the merge gate.
 
 ## Deploying
 
-**Nothing is deployed anywhere today.** The deploy path — a native image, a same-origin-staged web
-and admin bundle, migration run as a one-shot job ahead of the serving revision — is built and proven
-against a throwaway, local Docker + Postgres stack (`task test:native`), not against a real cloud
-project. See `docs/DECISIONS.md` ADR-020 for what was built, what a real deploy's secret inventory
-looks like, and what stays an explicit `prudent.invalid` placeholder until a real domain exists.
+**Nothing is released.** The server-connected app's deploy path — a native image, a same-origin-staged
+web and admin bundle, migration run as a one-shot job ahead of the serving revision — is
+`task deploy:cloudrun` and `task verify:deploy` (ADR-020, ADR-021, ADR-023). It has run against
+disposable cloud environments that were then deleted (ADR-065 to ADR-067) and once against a persistent
+proof of concept that holds test data only and has no backups (ADR-068, ADR-069,
+[`docs/persistent-environment.md`](docs/persistent-environment.md)). No environment fact is written
+into this repository (ADR-021). Prudent Local has nothing to deploy.
 
 ## Platforms
 
-Prudent ships **Android, iOS, web, macOS, Linux and Windows**.
+The server-connected app targets **Android, iOS, web, macOS, Linux and Windows**; Prudent Local targets
+the same less the web (jZen ADR-073: a browser has no durable place for the encrypted store and no
+secure key storage). CI compiles Prudent Local for all five (ADR-124); apart from the unsigned macOS
+debug build its integration test runs on a Mac, with secrets in memory, no Local build has been run on
+a device yet.
 
 **Desktop and Apple builds are host-only**: Flutter refuses `build linux` off a Linux host and
 `build windows` off a Windows host, and the Apple targets need Xcode. **No single machine verifies
@@ -194,8 +241,11 @@ pkill -f GradleDaemon
 | [`docs/zen-architecture.md`](docs/zen-architecture.md) | **Prudent's cornerstone** — the design philosophy this product is built on. Read it before non-trivial work. |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Prudent's own decision log, numbered from ADR-001, append-only |
 | [`docs/erste-csv-contract.md`](docs/erste-csv-contract.md) | The Erste Polska CSV statement format as observed, what the importer must validate, and the synthetic fixtures (M6) |
-| [`docs/privacy-policy.md`](docs/privacy-policy.md) | What Prudent keeps, how to copy it, how to erase it, and what erasure does not remove |
-| [`docs/prudent-migration-plan.md`](docs/prudent-migration-plan.md) | The approved plan, and the phase sequence |
+| [`docs/privacy-policy.md`](docs/privacy-policy.md) | The server-connected app: what it keeps, how to copy it, how to erase it, and what erasure does not remove |
+| [`docs/privacy-policy-local.md`](docs/privacy-policy-local.md) | Prudent Local: what stays on the device, what the sync service sees, erasure, and what is not protected or not verified |
+| [`docs/product-roadmap.md`](docs/product-roadmap.md) | The product's milestones and where each stands |
+| [`docs/implemented-plans/prudent-migration-plan.md`](docs/implemented-plans/prudent-migration-plan.md) | The approved plan the server-connected app was built to, and its phase sequence |
+| [`docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`](docs/implemented-plans/PRUDENT-LOCAL-PLAN.md) | Prudent Local's plan: each unit's PRs and ADRs, and what unit 12 (real devices) still owes |
 | [`docs/jzen/README.md`](docs/jzen/README.md) | Where jZen's rules live — pointers into `../jZen`, never copies |
 
 jZen's documents are **read from `../jZen`, not copied here**: a copy drifts, and a drifted rule is

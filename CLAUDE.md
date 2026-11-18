@@ -187,7 +187,7 @@ anonymises the profile in one transaction, refused unless the body repeats the a
 a table with a `user_id` that the exporter and eraser do not know fails the suite. Settings has a "Privacy and data" detail (copy to
 the clipboard, save to a file, delete). The export also carries each imported record's statement key beside the record (`record_import_keys`, ADR-110,
 unit 10a), so a statement imported before a move to Prudent Local is still recognised; "Save to a file" warns first that the file is not encrypted, and is
-offered on every platform through jZen's `zen_save_file` (`zenSaveFile`, jZenDev/jZen#246 fixed by PR #254, ADR-117; `JZEN_REF` `4fa887a`), and the sheet has not been seen on a real device (unit 12). `docs/privacy-policy.md` is the published policy. Both request routes delete the person's Supabase sign-in
+offered on every platform through jZen's `zen_save_file` (`zenSaveFile`, jZenDev/jZen#246 fixed by PR #254, ADR-117; `JZEN_REF` `4fa887a`), and the sheet has not been seen on a real device (unit 12). `docs/privacy-policy.md` is the server-connected app's published policy (its "Save to a file" sentence is stale, jlogicsoftware/prudent#286); Prudent Local's is `docs/privacy-policy-local.md` (ADR-128). Both request routes delete the person's Supabase sign-in
 record too (ADR-075, jlogicsoftware/prudent#173): `SignInRecordEraser` calls GoTrue's admin delete with `SUPABASE_SECRET_KEY`,
 last in the erasure's transaction, so a refusal is a 503 with nothing erased; a dormancy-erased person keeps theirs (the operator
 deletes it). `task test:e2e` proves the deletion against a real local Supabase; no deployed service has the key yet. Dormancy erasure
@@ -260,9 +260,11 @@ proves. A file whose amount column has moved (a positive card or BLIK row, or th
 real change of the bank's format, the export steps beyond what the user reported (whether a file can hold several accounts and the filters' effect on it are open), a run on a device or with the native file picker, the client against the real server, and any
 Polish or Ukrainian string reviewed by a native speaker.
 
-**Prudent Local's plan is closed in the docs, not finished:** units 0 to 11 of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245) are merged, with each
-unit's PRs and ADRs in its status table; **unit 12 (real devices) is open and NOT VERIFIED**, and Prudent Local is not released before it. The plan's
-closing section lists what is owed and the follow-ups (jlogicsoftware/prudent#274 to #278, #280, #282, #261). What follows is the per-unit detail.
+**Prudent Local's plan is closed in the docs, not finished:** units 0 to 11 and 13 of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md` (jlogicsoftware/prudent#245) are built, with each
+unit's PRs and ADRs in its status table; **unit 12 (real devices) is open and NOT VERIFIED**, and Prudent Local is not released before it. Unit 13 (ADR-128) wrote
+Prudent Local's privacy statement, `docs/privacy-policy-local.md` (#280), and brought the README, `docs/product-roadmap.md`, `docs/zen-architecture.md` and
+`docs/jzen/README.md` up to date; it found that iOS Data Protection, which ADR-100 T1 assumed, is not set on the store (#285). The plan's
+closing section lists what is owed and the follow-ups (jlogicsoftware/prudent#274 to #278, #282, #285, #286, #288, #261). What follows is the per-unit detail.
 
 Prudent Local (jlogicsoftware/prudent#245, `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`) has its phase-0 decisions (ADR-100 to ADR-103) and unit 3
 (ADR-107): `local/prudent_local_core` is pure Dart and reproduces the server's money, currency, account-number, date, month and text

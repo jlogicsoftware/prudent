@@ -4,6 +4,9 @@ Prudent is a minimalist personal-finance application. This page says what it kee
 where, for how long, and how to get a copy of it or have it deleted. It is written to be true of the
 code in this repository; the tests named at the end are what keep it true.
 
+**This page is the server-connected app's.** Prudent Local, which has no server and no account, has
+a statement of its own: [`privacy-policy-local.md`](privacy-policy-local.md) (ADR-128).
+
 **Who "the operator" is.** Prudent is software, and each deployment of it is run by someone — the
 person or organisation whose server your app talks to. That is the party responsible for your data
 and the one to contact about it. This repository does not name one, because it describes the

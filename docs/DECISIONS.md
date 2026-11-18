@@ -13,6 +13,53 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-128 — Prudent Local's privacy statement is a document of its own beside the server app's policy, and every claim in it names its source
+
+**Date:** 2026-11-18. **Status:** accepted. **Plan:** unit 13 of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`
+(jlogicsoftware/prudent#245). **Answers:** jlogicsoftware/prudent#280. **Builds on:** ADR-071, ADR-100, ADR-121, ADR-127.
+
+### Decision
+
+- **Prudent Local's privacy statement is `docs/privacy-policy-local.md`**, a file of its own. `docs/privacy-policy.md` stays the
+  server-connected app's policy, unchanged but for one added paragraph under its introduction that says it is the server app's and
+  points to the Local statement.
+- **Every claim names its source** in a footnote: a Prudent ADR, a jZen ADR or a file at the pinned jZen revision. A claim that rests
+  on something never run on a device says **not verified**, and the statement ends with the list of what unit 12 owes it.
+- **It states what is not protected**, not only what is: an unlocked device, a shared OS account, Windows without an owner check,
+  a macOS developer build's key in the login keychain (jZen ADR-087, ADR-127), Android's Keystore key not tied to the screen lock,
+  sizes and timing visible to the sync service, and iOS Data Protection, which is not set (below).
+
+### What this supersedes, and why
+
+- **"the privacy policy (a Local app has no server to hold data: say so, and say what the sync service sees)"** (the plan's
+  unit 13) → **a separate document, not a section of the existing policy.** *Why:* almost every sentence of the server policy —
+  the operator, the processors, the dormancy schedule, the Supabase sign-in record, the operator's erasure route, the server tests
+  that prove it — is false of an app with no server. Interleaving the two would put a Local reader one misread heading away from
+  believing an operator holds their data or will warn them before deleting it, and would put the server policy's wording at risk
+  each time Local's changes. Two documents that point to each other keep each one true on its own.
+- **ADR-100 T1's "iOS adds Data Protection `complete`"** → **not true of the code; stated as not set.** *Why:* jZen offers it
+  (`ZenDataProtection.protectDirectory`) but nothing in `local/prudent_local_client/lib` calls it (checked at `JZEN_REF` `270590a`).
+  The store's own AES-256-GCM still protects the files. Setting it, or deciding not to, is jlogicsoftware/prudent#285. ADR-100 stays
+  as written.
+
+### Consequence
+
+- `docs/privacy-policy-local.md` answers #280: what stays on the device, what the folder and CloudKit hold and can see, what is
+  never sent, the copy, both erasures and what they leave, and what is not protected or not verified.
+- The README, `docs/product-roadmap.md`, `docs/zen-architecture.md`, `docs/jzen/README.md` and `CLAUDE.md` were brought up to date
+  in the same change (unit 13). In `docs/jzen/README.md` five rows still read "Reported, waiting" for jZen issues closed in
+  October (jZenDev/jZen#140, #141, #142, #145, #154); they now say what landed upstream and what Prudent still carries.
+- **Corrected in review (same PR):** the data copy is described by what it holds and what it leaves out (skipped dates and
+  reminder-read marks are not in it, jlogicsoftware/prudent#288); the store key is "kept, wrapped or encrypted by" the platform,
+  not "never beside the data"; the device's host name, written into every record and shown on the other devices, is disclosed;
+  the "never sends" claims say what the gate checks and that no device's traffic has been observed. Two stale code comments
+  (`local_boot.dart`, `local_data_export.dart`) were corrected; no code changed.
+- **Not verified:** the statement is a document; nothing new was built or run. Its "not verified" list is unit 12's.
+- **Found and not fixed here:** the server policy still says "Save to a file" is not yet on iOS and Android, which ADR-117 made
+  untrue; this change was scoped not to alter the server policy's claims, so it stays for a change of its own (jlogicsoftware/prudent#286).
+
+---
+
 ## ADR-127 — Prudent Local moves to jZen `270590a`: a release build says `ZEN_ENV=prd`, and Android's launch theme and biometric permission follow jZen's demo
 
 **Date:** 2026-11-18. **Status:** accepted. **Builds on:** ADR-121, ADR-124, ADR-125. **jZen:** consumes jZenDev/jZen#231 (closed; PR #261, PR #264, PR #272) at `JZEN_REF` `270590a`.
