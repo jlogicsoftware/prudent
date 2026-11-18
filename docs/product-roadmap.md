@@ -4,6 +4,49 @@
 creating GitHub milestones and issues.  It does not authorise implementation or publication of
 the issues.
 
+## Where it stands (2026-11-18)
+
+The draft below is kept as it was agreed; this section says what has happened to it since.
+`CLAUDE.md` ("Current state") and `docs/DECISIONS.md` are the detailed record and win on conflict.
+
+- **M1 to M6 are built in code**, each through its ADRs: transfers and corrections, plans and
+  occurrences (ADR-037 to ADR-040, ADR-042), budgets and carry-over (ADR-043 to ADR-048; no client screen yet
+  sets or edits a budget or a reset, jlogicsoftware/prudent#35), goal envelopes (ADR-049 to ADR-053),
+  reminders (ADR-054 to ADR-058; no notification has been seen to fire on a device), and the Erste CSV
+  import (ADR-088 to ADR-095; no real statement is ever committed).
+- **M0 is partly done**: health and error reporting (ADR-072), export and erasure (ADR-071, ADR-073 to
+  ADR-075) and a persistent proof of concept with test data only and no backups (ADR-068, ADR-069).
+  Backups, restore verification and a real environment wait for jlogicsoftware/prudent#47.
+- **M7 has not started.** Nothing is released.
+- **Prudent Local** was added after this draft; see the next section.
+
+## Prudent Local: the same product with no server
+
+**Outcome:** a person keeps the whole ledger on their own devices, encrypted, synced between them
+through iCloud or a folder they choose, with no server, sign-in or account — and every figure the
+same, to the cent, as the server-connected app computes. The plan is
+[`implemented-plans/PRUDENT-LOCAL-PLAN.md`](implemented-plans/PRUDENT-LOCAL-PLAN.md)
+(jlogicsoftware/prudent#245); the privacy statement is [`privacy-policy-local.md`](privacy-policy-local.md).
+
+| Milestone | State |
+|---|---|
+| Phase 0: threat model, the shared package, the money model under merge, moving data in (ADR-100 to ADR-103) | Decided |
+| Shared screens (`packages/prudent_ui`), the rules ported and held to the server (golden vectors, the parity suite) | Built (ADR-107, ADR-108) |
+| The ledger on jZen's store: accounts, records, transfers, corrections, settings | Built (ADR-111, ADR-113) |
+| Budgets, carry-over resets, goals and envelopes; plans, occurrences and reminders; analytics | Built (ADR-116, ADR-118 to ADR-120, ADR-122) |
+| Erste statement import with no server | Built (ADR-112, ADR-114) |
+| The app: sync, lock, conflicts and integrity issues, erasure, the data copy | Built; macOS only (ADR-121) |
+| Moving a server account in | Built; no real export tried (ADR-123) |
+| Tasks and CI on iOS, macOS, Android, Windows and Linux, with release gates | Built (ADR-124, ADR-126, ADR-127) |
+| Documents | Built (ADR-128) |
+| **Real devices, signing, CloudKit, the Android analytics benchmark (unit 12)** | **Open — NOT VERIFIED** |
+
+**Prudent Local is not released until unit 12 is done** by a person on real devices: every platform
+as a user would run it, a signed macOS build, real release signing (jlogicsoftware/prudent#275), a
+CloudKit run (it needs the paid Apple Developer Program), real sync services, notifications firing
+and a native-speaker review of the Ukrainian and Polish strings. The plan's unit 12 lists all
+thirteen items.
+
 ## Product boundary
 
 Prudent is a private, manual-first personal-finance application for Poland and the EU.  Its first
