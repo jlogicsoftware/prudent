@@ -167,7 +167,8 @@ It holds:
 
 - your main-currency setting;
 - accounts, categories and records, as the screens show them (a transfer as its two legs; a record
-  that confirmed a planned payment carries its link to the plan and date);
+  that confirmed a planned payment carries its plan and an occurrence id, a one-way digest; the
+  occurrence itself, and so its date, is not in the copy, jlogicsoftware/prudent#288);
 - each imported record's statement key: a fingerprint and a number, never the statement's text;
 - plans (with their reminder settings), budgets, carry-over resets, goals, and the history of money
   set aside for goals.
@@ -177,7 +178,8 @@ It leaves out:
 - **the dates you skipped** in a plan and **which reminders you marked as read** (they are kept in
   the store, but the copy does not carry them yet, so a ledger rebuilt from the copy would show
   skipped payments as due again and read reminders as unread; jlogicsoftware/prudent#288);
-- occurrences themselves, which are worked out from each plan's schedule and are never stored;
+- occurrences themselves, which are worked out from each plan's schedule (what the store keeps
+  about a particular date, such as a skip, is the item above);
 - an import you have not finished (its rows never leave the device);
 - the device names written into records (above), and any disagreement between devices that has not
   been settled: a disputed record is copied as this device shows it;
@@ -253,8 +255,9 @@ sync service. It does not protect against these, and says so:
 - **iOS Data Protection on the store's directory is not set.** jZen offers it
   (`ZenDataProtection.protectDirectory`) and the threat model assumed it, but Prudent Local does not
   call it yet; the store's own encryption protects the files regardless.[^dataprotection]
-- **A photograph of a pairing code.** While a pairing code is on screen (five minutes at most), a
-  photograph of it, or someone reading it over your shoulder, is the sync key: with it and access to
+- **A photograph of a pairing code.** A pairing code is on screen for five minutes at most, but a
+  photograph of it, or a copy someone wrote down, stays the sync key after that, because the code
+  carries the key itself: with it and access to
   the folder, they can read and write your records. Show it only where nobody else can see it; if it
   was seen, replace the sync key.[^pairing-risk]
 - **Other programs running as you.** On Windows and Linux a program running under your account can
@@ -295,7 +298,7 @@ server-connected app's policy are separate on purpose (ADR-128).*
 [^t-model]: ADR-100 (the threat model, rows T1–T26) and its row-by-row answer in ADR-121. T26: a wrong clock.
 [^boot]: `local/prudent_local_client/lib/core/local_boot.dart` (the store's directory inside the app's support directory).
 [^store]: jZen's `zen_store` (`client/zen_store/lib/src/zen_store.dart`, `zen_store_cipher.dart`); jZen ADR-065; ADR-100 T1; ADR-111.
-[^key]: jZen ADR-075 and `client/zen_store_key/lib/src/zen_device_store_key.dart` (the per-platform table); ADR-100 T1, T8.
+[^key]: jZen ADR-075 and `client/zen_store_key/lib/src/zen_device_store_key.dart` (the per-platform table); ADR-100 T1, T8. That another program running as the same user can read Credential Manager or the unlocked keyring is inferred from ADR-075's "this machine, this user" and "as strong as the unlocked login keyring"; it has not been tried.
 [^synckey]: `local/prudent_local_client/lib/core/local_session.dart` (`prudent_local.sync_key`, written to the secret storage).
 [^pin]: ADR-100 T2; ADR-121 (first-run notice and the Lock page, `threat_model_test`, `settings_test`); jZen ADR-065 (PIN off by default), jZen ADR-087 (where its hash is kept).
 [^import]: ADR-114 (the device-only collection `import_sessions`, `collection(syncs: false)`, 24-hour expiry, hourly sweep); ADR-089 (the statement read once); ADR-100 T11, T12; ADR-121 (the "file is still where you picked it" sentence).

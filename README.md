@@ -15,7 +15,7 @@ On wide windows, page content stays centred in a readable column. Charts have mo
 Prudent comes in two forms that share every screen (`packages/prudent_ui`, ADR-108):
 
 - **The server-connected app** — `client/` talking to `server/`. You sign in; your ledger lives in the
-  server's Postgres database; the server enforces the rules. It runs on Android, iOS, the web, macOS,
+  server's Postgres database; the server enforces the rules. It targets Android, iOS, the web, macOS,
   Linux and Windows. Its privacy policy is [`docs/privacy-policy.md`](docs/privacy-policy.md).
 - **Prudent Local** — `local/prudent_local_client`. **No server, no sign-in, no account**: the whole
   ledger runs on the device over jZen's encrypted store and syncs between a person's own devices
@@ -25,8 +25,9 @@ Prudent comes in two forms that share every screen (`packages/prudent_ui`, ADR-1
 
 > **Prudent Local is not released.** Its code is built, merged and proven by tests, the parity suite
 > against the live server and CI, which compiles it for all five platforms. It has been run only as an
-> unsigned debug build on a Mac, by its integration test (ADR-121): never on a phone, never as a signed
-> build, never as a person would use it. It is not released until unit 12 of
+> unsigned debug build on a Mac, by its integration test (ADR-121), which keeps its secrets in memory;
+> the real Keychain was reached only to see it refuse an unsigned build (`-34018`). It has never run on
+> a phone, never as a signed build, never as a person would use it. It is not released until unit 12 of
 > [`docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`](docs/implemented-plans/PRUDENT-LOCAL-PLAN.md)
 > (real devices, signing, CloudKit) has been done by a person.
 
@@ -195,7 +196,8 @@ into this repository (ADR-021). Prudent Local has nothing to deploy.
 The server-connected app targets **Android, iOS, web, macOS, Linux and Windows**; Prudent Local targets
 the same less the web (jZen ADR-073: a browser has no durable place for the encrypted store and no
 secure key storage). CI compiles Prudent Local for all five (ADR-124); apart from the unsigned macOS
-debug build its integration test runs on a Mac, no Local build has been run on a device yet.
+debug build its integration test runs on a Mac, with secrets in memory, no Local build has been run on
+a device yet.
 
 **Desktop and Apple builds are host-only**: Flutter refuses `build linux` off a Linux host and
 `build windows` off a Windows host, and the Apple targets need Xcode. **No single machine verifies
