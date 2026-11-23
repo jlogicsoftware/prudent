@@ -474,6 +474,10 @@
   "chartLoadError": "Could not load the chart.",
   "settingsTitle": "Settings",
   "settingsLanguage": "Language",
+  "settingsLanguageNotSent": "Your language is changed on this device, but the server could not be told. E-mail from Prudent may still arrive in the earlier language.",
+  "@settingsLanguageNotSent": {
+    "description": "Shown when the chosen language was kept on the device but the server could not be told."
+  },
   "settingsProfile": "Profile",
   "settingsLogOut": "Log Out",
   "settingsPrivacy": "Privacy and data",

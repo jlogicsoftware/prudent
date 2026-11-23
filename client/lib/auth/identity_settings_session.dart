@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:prudent_ui/settings_session.dart';
+import 'package:zen_core/zen_core.dart';
 import 'package:zen_ui_identity/zen_ui_identity.dart';
 
 /// Gives Settings the signed-in person's profile page and sign-out, from `zen_ui_identity`. Added to
@@ -10,6 +11,12 @@ final Override identitySettingsSession = settingsSessionProvider.overrideWith(
     profileBuilder: (_) => const ProfileScreen(),
     signOut: () async {
       await ref.read(identitySessionStoreProvider.notifier).logout();
+    },
+    // PUT /auth/language: `users.language` decides the language of the e-mail the server sends
+    // (ADR-130). A refusal is thrown so Settings can say so; it never undoes the device's choice.
+    setLanguage: (language) async {
+      final result = await ref.read(identityRepositoryProvider).setLanguage(language);
+      if (result case ZenFailure(:final error)) throw error;
     },
   ),
 );

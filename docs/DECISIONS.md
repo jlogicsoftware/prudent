@@ -13,6 +13,24 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-130 — A signed-in person's language choice is told to the server after the device has it; Prudent Local's language stays on each device
+
+**Date:** 2026-11-23. **Status:** accepted. **Builds on:** ADR-129, ADR-073, ADR-101. **jZen:** consumes jZenDev/jZen#275 (`IdentityRepository.setLanguage`, `PUT /api/v1/auth/language`). jlogicsoftware/prudent#291.
+
+### Decision
+
+- **The server-connected app tells the server.** `SettingsSession` gains an optional `setLanguage`; `identitySettingsSession` (`client/`) answers it with `IdentityRepository.setLanguage`, so `users.language`, which decides the language of the dormancy warning (ADR-073), follows the choice. The shared package still imports no identity code (`task verify:boundaries` check E): it only calls a function it was given.
+- **The device first, the server second.** Settings applies and stores the language (ADR-129), then calls the server. A refused or unreachable call is **logged** (`developer.log`, level 1000) and **reported in one localized sentence** (`settingsLanguageNotSent`, `en`/`uk`/`pl`), never the exception's text, and never undoes the device's choice: the interface language must work with no server, and a language change that failed because the network was down is not an error in the interface.
+- **Not retried.** A failed call is not remembered and not repeated at the next sign-in. The cost is that e-mail may stay in the earlier language until the person picks again, which the sentence says. A retry needs somewhere to keep the unsent choice and a rule for which device wins when two disagree; neither is worth building for a warning sent after a year of dormancy. **Revisit** if it proves wrong.
+- **A language chosen before sign-in is not sent.** Registration already seeds `users.language` from the `Accept-Language` the sign-in screen sends, which is the current language, and sign-in sends nothing: a person who signs in on a second device in another language does not overwrite what they chose on the first.
+- **Prudent Local keeps its language on each device and syncs none of it.** It has no server and no sign-in (ADR-101), so there is nothing to tell. Its language is a device preference (ADR-129) and is deliberately **not** in the synced store: two devices of one person may differ, and a language is not ledger data. A shared language would be a synced setting with a conflict between two devices' choices to resolve, a cost with no benefit a person asked for. Local has no `setLanguage`, so it sends nothing.
+
+### Not verified
+
+No device and no real server: the tests prove the call, the sentence and that the device language survives a refusal, over fakes. Whether the e-mail then comes in the new language is jZen's `SetLanguageTest`, not run here.
+
+---
+
 ## ADR-129 — A chosen language is remembered on the device, in `prudent_ui`'s one `LocaleNotifier`; Prudent moves to jZen `24cd68c`
 
 **Date:** 2026-11-23. **Status:** accepted. **Builds on:** ADR-007, ADR-108. **jZen:** consumes jZenDev/jZen#276 (PR #278, `ZenLocalePreference`) and #275 (PR #277, `IdentityRepository.setLanguage`) at `JZEN_REF` `24cd68c` (`24cd68ce43c6073f43560910a6f53a04b8192d63`). jlogicsoftware/prudent#289.
