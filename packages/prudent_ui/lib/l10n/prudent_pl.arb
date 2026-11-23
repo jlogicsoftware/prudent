@@ -287,6 +287,7 @@
   "chartLoadError": "Nie udało się wczytać wykresu.",
   "settingsTitle": "Ustawienia",
   "settingsLanguage": "Język",
+  "settingsLanguageNotSent": "Język zmieniono na tym urządzeniu, ale nie udało się powiadomić serwera. Wiadomości e-mail od Prudent mogą nadal przychodzić w poprzednim języku.",
   "settingsProfile": "Profil",
   "settingsLogOut": "Wyloguj się",
   "settingsPrivacy": "Prywatność i dane",

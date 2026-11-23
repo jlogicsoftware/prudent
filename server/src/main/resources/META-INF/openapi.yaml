@@ -168,6 +168,17 @@ components:
       properties:
         password:
           type: string
+    SetLanguageRequest:
+      type: object
+      description: >-
+        Body for PUT /api/v1/auth/language; changes the signed-in caller's own stored language,
+        which decides the language of the e-mail the server sends them.
+      properties:
+        language:
+          type: string
+          description: >-
+            A language the application supports. A region-qualified tag is matched on its primary
+            subtag; an unsupported tag is refused with 400, never replaced by the fallback.
     AdminUser:
       type: object
       description: >-

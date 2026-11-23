@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +20,32 @@ const _languageNames = {'en': 'English', 'uk': 'Українська', 'pl': 'Po
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
+
+  /// Switches the app to [code] and stores it on the device, then, when someone is signed in, tells
+  /// the server. The device comes first and never waits on the server: a refused or unreachable
+  /// call is reported in a sentence and logged, and the language stays as chosen (ADR-130).
+  Future<void> _chooseLanguage(
+    BuildContext context,
+    WidgetRef ref,
+    String code,
+  ) async {
+    final tell = ref.read(settingsSessionProvider)?.setLanguage;
+    final t = PrudentLocalizations.of(context);
+    await ref.read(localeProvider.notifier).setLocale(Locale(code));
+    if (tell == null) return;
+    try {
+      await tell(code);
+    } catch (error, stack) {
+      developer.log(
+        'The server did not take the language',
+        name: 'prudent',
+        level: 1000,
+        error: error,
+        stackTrace: stack,
+      );
+      if (context.mounted) showZenMessage(context, t.settingsLanguageNotSent);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -89,9 +116,7 @@ class SettingsScreen extends ConsumerWidget {
                         // error zone, because the choice would not survive a restart.
                         onChanged:
                             (code) => unawaited(
-                              ref
-                                  .read(localeProvider.notifier)
-                                  .setLocale(Locale(code)),
+                              _chooseLanguage(context, ref, code),
                             ),
                       ),
                     ),
