@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:prudent_ui/locale/persisted_locale.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_store/zen_store.dart';
 import 'package:zen_ui_lock/zen_ui_lock.dart';
@@ -25,16 +26,21 @@ Future<void> main() async {
 }
 
 Future<void> _start() async {
+  // Before the first frame, so the app opens in the language last chosen, not in English.
+  final persistedLocale = await loadPersistedLocale();
   final storage = ZenSecureLockStorage();
   switch (await bootPrudentLocal(secrets: storage)) {
     case ZenSuccess(:final data):
       runApp(
         ProviderScope(
-          overrides: localOverrides(
-            session: data.session,
-            lock: data.lock,
-            storage: storage,
-          ),
+          overrides: [
+            ...localOverrides(
+              session: data.session,
+              lock: data.lock,
+              storage: storage,
+            ),
+            persistedLocale,
+          ],
           child: const PrudentLocalApp(),
         ),
       );

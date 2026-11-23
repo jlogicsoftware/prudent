@@ -19,6 +19,10 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 /// Records the address each call received and refuses every one, so the screen stays put and the
 /// next call can be made from the same widget tree.
 class _Identity implements IdentityRepository {
+  // Nothing here changes the server's copy of the language (jZen #275).
+  @override
+  Future<ZenResult<void>> setLanguage(String language) async => const ZenResult.ok(null);
+
   final List<String> logins = [];
   final List<String> registrations = [];
   final List<String> restores = [];

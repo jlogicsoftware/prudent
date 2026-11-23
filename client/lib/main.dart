@@ -11,6 +11,7 @@ import 'app.dart';
 import 'auth/auth_deep_links.dart';
 import 'auth/identity_settings_session.dart';
 import 'server_prudent_repository.dart';
+import 'package:prudent_ui/locale/persisted_locale.dart';
 import 'package:prudent_ui/providers.dart';
 
 /// Wires Prudent to the real backend. One session [http.Client] ([createSessionClient], the
@@ -35,6 +36,7 @@ void main() async {
   // locale intl ships, which is what makes `DateFormat.yMd(locale.toLanguageTag())` in
   // new_record.dart safe to call for any of prudentSupportedLocales.
   await initializeDateFormatting();
+  final persistedLocale = await loadPersistedLocale();
 
   // `zenIsWeb` is a const, so this whole branch folds away at compile time: a web build carries
   // no keystore code, and a native build carries no dead check. Null on web is not a gap — the
@@ -80,6 +82,8 @@ void main() async {
       // cookie into this jar, and a second client would restore it into a jar nobody sends from.
       sessionClientProvider.overrideWithValue(session),
       identitySettingsSession,
+      // Loaded above, before the first frame, so the app opens in the language last chosen.
+      persistedLocale,
     ],
   );
 

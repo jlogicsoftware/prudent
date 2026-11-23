@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
@@ -83,10 +85,14 @@ class SettingsScreen extends ConsumerWidget {
                         items: _languageNames.keys.toList(),
                         itemLabel: (code) => _languageNames[code]!,
                         value: locale.languageCode,
+                        // The switch is immediate; a failed write is not swallowed, it reaches the
+                        // error zone, because the choice would not survive a restart.
                         onChanged:
-                            (code) => ref
-                                .read(localeProvider.notifier)
-                                .setLocale(Locale(code)),
+                            (code) => unawaited(
+                              ref
+                                  .read(localeProvider.notifier)
+                                  .setLocale(Locale(code)),
+                            ),
                       ),
                     ),
                     Padding(

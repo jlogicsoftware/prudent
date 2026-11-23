@@ -23,6 +23,10 @@ import 'package:zen_ui_identity/zen_ui_identity.dart';
 /// An identity repository that is signed out of nothing and counts how often it is asked to sign
 /// the user out.
 class _CountingIdentityRepository implements IdentityRepository {
+  // Nothing here changes the server's copy of the language (jZen #275).
+  @override
+  Future<ZenResult<void>> setLanguage(String language) async => const ZenResult.ok(null);
+
   int logouts = 0;
 
   @override

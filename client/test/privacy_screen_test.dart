@@ -43,6 +43,10 @@ final _exportBody = {
 };
 
 class _Identity implements IdentityRepository {
+  // Nothing here changes the server's copy of the language (jZen #275).
+  @override
+  Future<ZenResult<void>> setLanguage(String language) async => const ZenResult.ok(null);
+
   int logouts = 0;
 
   @override

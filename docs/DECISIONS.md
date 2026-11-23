@@ -13,6 +13,28 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-129 — A chosen language is remembered on the device, in `prudent_ui`'s one `LocaleNotifier`; Prudent moves to jZen `24cd68c`
+
+**Date:** 2026-11-23. **Status:** accepted. **Builds on:** ADR-007, ADR-108. **jZen:** consumes jZenDev/jZen#276 (PR #278, `ZenLocalePreference`) and #275 (PR #277, `IdentityRepository.setLanguage`) at `JZEN_REF` `24cd68c` (`24cd68ce43c6073f43560910a6f53a04b8192d63`). jlogicsoftware/prudent#289.
+
+### Decision
+
+- **The language is a device preference.** `LocaleNotifier.build()` now returns `ZenLocalePreference.initial(...)`: the stored choice if Prudent still ships it, else the device's first supported language, else English. `setLocale` switches the screens first and then stores the choice, and a failed write is thrown to the caller, not swallowed. The check against `prudentSupportedLocales` is jZen's `ZenLocalePreference.match`, applied on every read, so a stored tag a later release dropped (or a garbage one) falls through instead of reaching `MaterialApp.locale`.
+- **Storage is `shared_preferences`, key `prudent.language`** (`SharedPreferencesLocaleStore`), never the encrypted Local store (which syncs between devices, and a person may want a different interface language on each) and never the server. It changes nothing `docs/privacy-policy-local.md` says: a language tag is not ledger data and leaves no device.
+- **Read before the first frame, by an override.** `build()` is synchronous and loading the preferences is not, so both `main`s `await loadPersistedLocale()` before `runApp` and pass the result as a `localePreferenceProvider` override. The alternative (a `FutureProvider` and a splash) would flash English or hold a blank frame. Prudent Local loads it inside `_start`, so the retry and erase paths of the failure page get it too.
+- **`ZenClient`'s `Accept-Language`** still reads `localeProvider` on every request, so a restored language is the one sent from the first request, `POST /auth/register` included.
+- **The jZen pin moves to `24cd68c`.** `IdentityRepository` gained `setLanguage`, so every Prudent fake of it implements it (nothing calls it yet).
+
+### Not in this entry
+
+The server's copy, `users.language`, is still written only at registration. Sending the choice to `PUT /api/v1/auth/language` from the server-connected app's Settings is a separate step, because it adds a request that can fail on its own and a decision about what Settings shows then.
+
+### Not verified
+
+No device or browser: the tests restart a `ProviderContainer` over mock preferences, which proves the logic and the wiring of the provider, not `main`'s order of `await`s nor the platform's persistence.
+
+---
+
 ## ADR-128 — Prudent Local's privacy statement is a document of its own beside the server app's policy, and every claim in it names its source
 
 **Date:** 2026-11-18. **Status:** accepted. **Plan:** unit 13 of `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`

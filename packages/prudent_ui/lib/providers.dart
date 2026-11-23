@@ -1,3 +1,5 @@
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderOrFamily;
@@ -30,18 +32,49 @@ final prudentRepositoryProvider = Provider<PrudentRepository>((ref) {
 /// `pl`, and Prudent supplies its own delegates so its own screens do not have to.
 const List<String> prudentSupportedLocales = ['en', 'uk', 'pl'];
 
+/// The language list the device is set to, most preferred first, as language tags.
+///
+/// A provider so a test can say what the device speaks; the default is the platform's own list.
+final deviceLanguagesProvider = Provider<List<String>>(
+  (ref) => [for (final l in PlatformDispatcher.instance.locales) l.toLanguageTag()],
+);
+
+/// How the chosen language is remembered across launches.
+///
+/// The default keeps it in memory only, which is what a test wants; both apps' `main` override it
+/// with the persisted one (`loadPersistedLocale`), so a language picked in Settings is still
+/// picked after a restart.
+final localePreferenceProvider = Provider<ZenLocalePreference>(
+  (ref) => ZenLocalePreference(supported: prudentSupportedLocales, store: ZenMemoryLocaleStore()),
+);
+
 /// The current UI locale, one of [prudentSupportedLocales].
 ///
-/// Two jobs, kept on one provider so a language switch is honest end to end: it is
-/// `MaterialApp.locale`, so every generated accessor re-renders, and its language tag is what
+/// Three jobs, kept on one provider so a language switch is honest end to end: it is
+/// `MaterialApp.locale`, so every generated accessor re-renders; its language tag is what
 /// `ZenClient` sends as `Accept-Language` on every request (ADR-007) — including
-/// `POST /auth/register`, where the server seeds `users.language`, which is Prudent's only later
-/// source for a localized email.
+/// `POST /auth/register`, where the server seeds `users.language`; and it is remembered on the
+/// device. It starts in the person's earlier choice, else the device's language if Prudent ships
+/// it, else English (`ZenLocalePreference.initial`) — with no server involved, because the sign-in
+/// screen is shown before any session exists. The stored tag is checked against
+/// [prudentSupportedLocales] on every read, so one a later release dropped falls through.
 class LocaleNotifier extends Notifier<Locale> {
   @override
-  Locale build() => const Locale(ZenLocales.fallback);
+  Locale build() =>
+      Locale(ref.read(localePreferenceProvider).initial(ref.read(deviceLanguagesProvider)));
 
-  void setLocale(Locale locale) => state = locale;
+  /// Switches the language now and remembers it. The screens change first, so the switch is
+  /// immediate; a failed write is then thrown to the caller rather than swallowed, because the
+  /// choice would not survive a restart and that is worth knowing about.
+  Future<void> setLocale(Locale locale) async {
+    final preference = ref.read(localePreferenceProvider);
+    final language = preference.match(locale.languageCode);
+    if (language == null) {
+      throw ArgumentError.value(locale, 'locale', 'is not a supported language');
+    }
+    state = Locale(language);
+    await preference.choose(language);
+  }
 }
 
 final localeProvider = NotifierProvider<LocaleNotifier, Locale>(LocaleNotifier.new);

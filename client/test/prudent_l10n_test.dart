@@ -23,6 +23,10 @@ import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 /// A repository that answers nothing — the widgets under test here never complete a real auth
 /// flow, they only render.
 class _IdleIdentityRepository implements IdentityRepository {
+  // Nothing here changes the server's copy of the language (jZen #275).
+  @override
+  Future<ZenResult<void>> setLanguage(String language) async => const ZenResult.ok(null);
+
   const _IdleIdentityRepository();
 
   @override
