@@ -622,12 +622,18 @@ tasks:
                                       the push and before anything runs the image, and cleans up
                                       last, after the service is accepted.
 
+        test_with_env_file.py         scripts/with_env_file.sh and the committed deploy/persistent.env
+                                      (ADR-131): the shell wins, values are literal, a malformed line,
+                                      a secret-looking name and an sb_secret_ value are refused, and
+                                      the real file names every required variable and holds no secret.
+
       It needs python3, curl and go-task; it starts no container and touches no cloud.
     cmds:
       - python3 -m unittest discover -s scripts -p 'test_check_origin_serves.py'
       - python3 -m unittest discover -s scripts -p 'test_deploy_origin_tasks.py'
       - python3 -m unittest discover -s scripts -p 'test_public_config.py'
       - python3 -m unittest discover -s scripts -p 'test_deploy_cleanup.py'
+      - python3 -m unittest discover -s scripts -p 'test_with_env_file.py'
 
   test:admin:
     desc: Typecheck the admin panel (also typechecks the @jzen/admin-core scaffold it imports)
@@ -1223,6 +1229,30 @@ tasks:
   # ---------------------------------------------------------------------------
   # Deploy (Phase 5). NOTHING HERE NAMES AN ENVIRONMENT.
   # ---------------------------------------------------------------------------
+  deploy:persistent:
+    desc: Deploy the persistent environment from deploy/persistent.env, then verify it (ADR-131)
+    silent: true
+    summary: |
+      `deploy:cloudrun` and `verify:deploy` for the ONE persistent environment, with its public
+      values and identifiers read from `deploy/persistent.env` instead of typed into the shell.
+      Nothing else changes: this runs those two tasks, in that order, and stops on the first failure.
+
+      A variable already exported in the shell wins over the file, so one value can be overridden
+      for one run, and a throwaway environment is still deployed by exporting its own values (or
+      by running `deploy:cloudrun` directly, which reads only the shell).
+
+      The file holds no secret and the loader refuses one by name and by shape
+      (scripts/with_env_file.sh, proved by test:public-config). The nine secrets stay in Secret
+      Manager and are bound by name. When the environment changes, the file changes in the same PR:
+      a stale file fails loudly before the build, because deploy:check-origin-config compares
+      WEB_API_URL with the project's real number.
+
+      Run it from the main checkout on a clean tree (`task` does not load from a git worktree,
+      ADR-065, and deploy:cloudrun refuses a dirty tree). The native build takes about eleven minutes.
+    cmds:
+      - sh scripts/with_env_file.sh deploy/persistent.env {{.TASK_EXE}} deploy:cloudrun
+      - sh scripts/with_env_file.sh deploy/persistent.env {{.TASK_EXE}} verify:deploy
+
   deploy:cloudrun:
     desc: Build, push, migrate, and deploy Prudent to Cloud Run — every environment fact passed in
     silent: true
@@ -1230,7 +1260,10 @@ tasks:
       Deploys the artifact `task test:native` already proved locally. Read that task first: this
       one adds a registry, a service account and a bill, and changes nothing about what is shipped.
 
-      NO ENVIRONMENT FACT IS WRITTEN INTO THIS REPOSITORY — not the project, not the region, not
+      THIS TASK READS ONLY THE SHELL. The persistent environment's values are committed in
+      deploy/persistent.env and read by `task deploy:persistent` (ADR-131); this task never reads them.
+
+      NO OTHER ENVIRONMENT FACT IS WRITTEN INTO THIS REPOSITORY — not the project, not the region, not
       the service name, not the URL, not the image tag (CLAUDE.md; jZen STANDARDS "Deployment
       model"). They are REQUIRED VARIABLES and their absence is a loud failure naming what to set,
       never a default. The reason is teardown: this repository outlives any environment it deploys

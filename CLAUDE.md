@@ -401,9 +401,10 @@ wait for #47. Its first sign-in found that no Prudent message was registered for
 and both Supabase keys are checked at boot);
 the six public configuration values (`SUPABASE_URL`, `SUPABASE_KEY`, `SITE_URL`, `CORS_ORIGINS`, `AUTH_REDIRECT_URI`, `AUTH_REDIRECT_URIS`) and the
 three mail values (`SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`) are plain environment variables on the service and the migration job
-(ADR-070, #166, ADR-073, ADR-085), and `verify:deploy` fails when one is not. The persistent environment has the relay and the mail values since 2026-11-01 and was last deployed on 2026-11-22 at `7e9bb65`; a redeploy of `main` is what brings it ADR-130 (`docs/persistent-environment.md`, section 3). Never invent or commit a project, region,
-service name or URL: no environment fact is ever written into this repository (ADR-021) — the tasks
-themselves are real; use them rather than treating deployment as unstarted. Run them from the main checkout: `task` does not
+(ADR-070, #166, ADR-073, ADR-085), and `verify:deploy` fails when one is not. The persistent environment has the relay and the mail values since 2026-11-01 and was last deployed on 2026-11-22 at `7e9bb65`; a redeploy of `main` is what brings it ADR-130 (`docs/persistent-environment.md`, section 3). Never invent a project, region,
+service name or URL, and never commit a credential: the persistent environment's values (and only they) are in
+`deploy/persistent.env`, which `task deploy:persistent` reads (ADR-131); any other environment's come from the
+shell (ADR-021) — the tasks themselves are real; use them rather than treating deployment as unstarted. Run them from the main checkout: `task` does not
 load from a git worktree (ADR-065).
 
 **A deploy cleans up after itself (ADR-087, #165).** `deploy:cloudrun` pins the pushed image (`deploy:pin`, jZen's

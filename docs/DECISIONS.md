@@ -13,6 +13,36 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-131 — The persistent environment's deploy values are committed in `deploy/persistent.env`; no secret ever is
+
+**Date:** 2026-11-24. **Status:** accepted. **Refines:** ADR-021 (for the one persistent environment only), ADR-070, ADR-085.
+
+### Decision
+
+- **`deploy/persistent.env` is committed** and holds the eleven values `deploy:cloudrun` requires from the shell: project, region, service name, registry repository, runtime service account, the origin the bundle calls, the Supabase URL and publishable key, the native return address and the mail relay's host, port and sender. **`task deploy:persistent`** runs `deploy:cloudrun` and then `verify:deploy` with them. A variable already exported in the shell wins over the file, so one value can be overridden for one run.
+- **`deploy:cloudrun` itself is unchanged and still reads only the shell**, with no defaults and a loud failure naming each missing variable. A throwaway environment is deployed as before, by exporting its own values or by running that task directly.
+- **No secret is ever in the file.** The nine secrets stay in Secret Manager and are bound by name (`--set-secrets`). `scripts/with_env_file.sh` refuses, before anything is built, a name that looks like a secret (`SECRET`, `PASSWORD`, `TOKEN`, `PRIVATE`, `DB_*`, `APP_DB_*`), a value that begins `sb_secret_`, a line that is not `KEY=value` and an invalid name. It reads the file as data: values are literal, never expanded or run. `test_with_env_file.py` (in `task test:deploy-origin`, run by CI) proves each refusal and that the committed file names every required variable and holds no secret shape.
+- **When the environment changes, the file changes in the same PR.**
+
+### Why ADR-021's rule is lifted here, and why it holds elsewhere
+
+ADR-021 wrote "no environment fact in the repository" for one reason: this repository outlives any environment, and a stale default keeps working while pointing a build at a host that no longer exists. That risk is real for a task default and for a throwaway environment, so both stay as they were. For the persistent environment it is smaller than it looked, for two reasons found when the question was asked:
+
+- **Most of these values are public already.** `SUPABASE_URL`, the publishable key, the origin and the return address are compiled into the client bundle and visible in its network traffic; the region and the project number are in the `*.run.app` address; the sender is in every mail. What is not visible from outside (the GCP project id, the runtime account, the registry repository, the relay's host) are identifiers, not credentials: knowing them grants nothing, because access is decided by IAM and not by the names being unknown. The repository being public therefore costs a little tidiness of the attack surface, not a secret.
+- **A stale file fails before the build, not after it.** `deploy:check-origin-config` compares the origin with the project's real number in seconds, so a file left pointing at a deleted project stops the deploy at that step.
+
+What this does **not** change: the rule against committing a credential, the rule that `deploy:cloudrun` has no defaults, and the teardown runbook, which is for throwaway environments and is never run against this one.
+
+### Cost, stated
+
+A public repository's history now holds the project id for good, including after a future teardown; renaming it is not possible. That was weighed and accepted by the owner on 2026-11-24.
+
+### Not verified
+
+`task deploy:persistent` was not run against the cloud in this change (it builds a native image and deploys); what is proved is the loader, the committed file and that the task is listed. The first real run is the proof.
+
+---
+
 ## ADR-130 — A signed-in person's language choice is told to the server after the device has it; Prudent Local's language stays on each device
 
 **Date:** 2026-11-23. **Status:** accepted. **Builds on:** ADR-129, ADR-073, ADR-101. **jZen:** consumes jZenDev/jZen#275 (`IdentityRepository.setLanguage`, `PUT /api/v1/auth/language`). jlogicsoftware/prudent#291.
