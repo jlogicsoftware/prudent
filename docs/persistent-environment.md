@@ -180,7 +180,9 @@ real message was received, the real Management API was not called, the local sta
 templates, and this environment still sends Supabase's default template.** Run the apply, send a real
 registration to an address you control, and record the date and the client here.
 
-**The mail relay (ADR-073).** The environment made before this change has no relay, and `deploy:cloudrun`
+**The mail relay (ADR-073).** The persistent environment has one now: its `SMTP_USERNAME` and `SMTP_PASSWORD`
+secrets were created on 2026-11-01 and every revision since carries the three mail values (the deploy of
+2026-11-22, `7e9bb65`, among them). Before that it had none, and `deploy:cloudrun`
 now refuses to run without one: `SMTP_HOST` and `SMTP_FROM` exported, `SMTP_PORT` optional (587),
 and the secrets `SMTP_USERNAME` and `SMTP_PASSWORD` created (runbook step 2). It exists for one
 message, the warning a dormant account must be sent before it can be erased (`docs/privacy-policy.md`,
@@ -471,9 +473,11 @@ an undelete; a deployer without Owner.
   (#186), the templates in three languages (#187: written and gated, **not yet applied** to this
   environment), and the link that still names the Supabase project's host until #188 consumes jZenDev/jZen#154. The relay must not rewrite links, and it is the
   same relay the dormancy warning needs.
-- **The deployed service is older than `main`** (the privacy routes, the readiness probe, the dormancy
-  mail). The phone shows the older surface until a redeploy, which needs the mail relay and
-  `SUPABASE_SECRET_KEY` (section 3).
+- **The deployed service is behind `main` by what landed after 2026-11-22.** That deploy ran `7e9bb65`, with the
+  privacy routes, the readiness probe, the dormancy mail, the mail relay and `SUPABASE_SECRET_KEY`. What it lacks
+  is ADR-129 and ADR-130: jZen `24cd68c` and its `PUT /api/v1/auth/language`, which a client built from
+  `main` calls when the language is changed, so against the older service the person sees the "could not be told"
+  sentence. A redeploy of `main` closes it; nothing else is owed (section 3).
 - **Backups (#47)** are not provided by this environment and are not closed by it.
 
 The native JSON serializer requires reflection for generated protobuf messages and enums.
