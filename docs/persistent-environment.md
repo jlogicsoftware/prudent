@@ -6,11 +6,13 @@ to do with them and what to watch for; where it still reads as a plan, section 9
 been done. It keeps **what is proven, what is only documented by
 the provider, and what nobody has tried** apart.
 
-It holds **no environment fact** — no project id or number, region, service name, URL, domain or
-Supabase reference — and no credential, now or ever (ADR-021). Everything below is a placeholder:
-`PROJECT`, `PROJECT_NUMBER`, `REGION`, `SUPABASE_REGION`, `SERVICE_NAME`, `REF`,
-`BILLING_ACCOUNT_ID`, `DOMAIN`, `HOST`. The real values live in the owner's password manager and in
-the cloud itself.
+Its deploy values (project, region, service name, registry repository, runtime account, origin, the
+Supabase URL and publishable key, the native return address, the mail relay's host, port and sender) are
+committed in `deploy/persistent.env` and read by `task deploy:persistent` (ADR-131); **no credential is, now
+or ever**: the nine secrets live in Secret Manager, and the loader refuses a secret-looking name or an
+`sb_secret_` value. Where this document below says `PROJECT`, `REGION` or `SERVICE_NAME` it is writing a
+placeholder for a runbook step, and the real values are in that file. A throwaway environment still
+takes its values from the shell (ADR-021).
 
 The deploy path is not repeated here. `task deploy:cloudrun --summary` is the runbook (steps 1a-4)
 and ADR-065, ADR-066 and ADR-067 record what three real, disposable runs taught. This document

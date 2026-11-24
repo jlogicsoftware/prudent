@@ -188,8 +188,9 @@ web and admin bundle, migration run as a one-shot job ahead of the serving revis
 `task deploy:cloudrun` and `task verify:deploy` (ADR-020, ADR-021, ADR-023). It has run against
 disposable cloud environments that were then deleted (ADR-065 to ADR-067) and once against a persistent
 proof of concept that holds test data only and has no backups (ADR-068, ADR-069,
-[`docs/persistent-environment.md`](docs/persistent-environment.md)). No environment fact is written
-into this repository (ADR-021). Prudent Local has nothing to deploy.
+[`docs/persistent-environment.md`](docs/persistent-environment.md)). The persistent environment's values are
+committed in `deploy/persistent.env` and deployed with `task deploy:persistent` (ADR-131); nothing else's are,
+and no credential ever (ADR-021). Prudent Local has nothing to deploy.
 
 ## Platforms
 
