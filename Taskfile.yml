@@ -288,7 +288,7 @@ tasks:
       scripts/verify_local_release.py: the Android manifests (and, in CI, the MERGED manifest a build
       produced, which a plugin can change without the app's file changing) refuse Auto Backup; no Dart
       source reads ZEN_SYNC but jZen's ZenSyncPlan, so its release refusal is the only one; no
-      workflow sets ZEN_SYNC; no web runner exists. The server-free and Local-free-client rules are
+      workflow or repository action sets ZEN_SYNC; no web runner exists. The server-free and Local-free-client rules are
       `verify:boundaries` (checks F and H), the CocoaPods rule is `verify:swiftpm`.
       scripts/test_verify_local_release.py runs first and plants each violation.
     cmds:

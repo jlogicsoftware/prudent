@@ -53,6 +53,7 @@ jobs:
           version: "3.52.0"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: ./prudent/.github/actions/maven-cache
       - name: Install jZen framework libraries
         working-directory: prudent
         run: task zen:framework:install

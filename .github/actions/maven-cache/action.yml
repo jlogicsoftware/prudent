@@ -1,0 +1,33 @@
+# Keeps what Maven downloads between runs (ADR-133, jlogicsoftware/prudent#302): a package host that
+# refuses a runner's shared address fails a required check on a change that touched no dependency.
+#
+# Use it AFTER both checkouts (the key reads files from `prudent/` and `jZen/`) and BEFORE the first
+# step that runs Maven. The cache is saved when the job succeeds, and only when no exact entry
+# already existed.
+#
+# It caches third-party downloads and nothing this build produces. It adds no retry and no mirror: a
+# download that is still needed goes to the same host and fails the same way.
+name: Cache Maven downloads
+description: Restore, and save on success, the Maven wrapper distributions and the local repository
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.m2/repository
+          ~/.m2/wrapper/dists
+        # One entry per job, because the jobs resolve different artifacts and an entry is never
+        # updated once written: a shared key would keep whatever the quickest job happened to need.
+        # The older entries a restore-key finds are a head start; Maven downloads what is missing.
+        key: maven-v1-${{ runner.os }}-${{ github.job }}-${{ hashFiles('prudent/server/pom.xml', 'prudent/server/.mvn/wrapper/maven-wrapper.properties', 'jZen/server/**/pom.xml', 'jZen/server/.mvn/wrapper/maven-wrapper.properties') }}
+        restore-keys: |
+          maven-v1-${{ runner.os }}-${{ github.job }}-
+          maven-v1-${{ runner.os }}-
+    # `zen` and `prudent` are installed into this repository by the build itself. A copy from an
+    # earlier run could satisfy a dependency on a module that no longer exists, so the build would
+    # pass on something it did not produce. They are removed from whatever was restored.
+    - name: Drop first-party artifacts from the restored repository
+      shell: bash
+      run: rm -rf "$HOME/.m2/repository/zen" "$HOME/.m2/repository/prudent"

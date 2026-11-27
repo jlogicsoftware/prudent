@@ -13,6 +13,35 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-133 — CI keeps third-party downloads between runs; it never caches what it builds, and adds no retry or mirror
+
+**Date:** 2026-11-27. **Status:** accepted. **Builds on:** ADR-124. jlogicsoftware/prudent#302.
+
+### Decision
+
+- **Maven** (`.github/actions/maven-cache`; `gates`, `backend`, `e2e`, `audit`): `~/.m2/wrapper/dists`, which holds both wrapper distributions (jZen's and `server/`'s), and `~/.m2/repository`. The key is the job and a hash of both repositories' poms and wrapper properties.
+- **Gradle** (`.github/actions/gradle-cache`; `android-runner`, and `macos-runner`, which also builds Android for Prudent Local): `~/.gradle/wrapper/dists` and `~/.gradle/caches/modules-2`, without lock files. The key is the job and a hash of both apps' Gradle files, wrappers and `pubspec.lock`, and `.fvmrc`.
+- **`actions/cache` pinned by commit SHA**, as every other action. An entry is saved when its job succeeds and no exact entry existed; a changed input restores the newest older entry of the same job first, so only the difference is downloaded.
+- **Never first-party.** `~/.m2/repository/zen` and `prudent` are removed from whatever was restored, so every job resolves only the framework and application artifacts it built itself. No build output, Gradle build cache or transformed artifact is cached.
+- **No retry wrapper and no mirror.** A request that is still needed goes to the same host and a refusal still fails the job. A mirror would change who supplies the build's dependencies, which is a supply-chain decision of its own and not one to take to quiet a rate limit.
+- **The release gate follows the steps into the actions:** `verify:local-release` check C (ADR-100 T18) now also reads `.github/actions/`, where an `env:` would otherwise set `ZEN_SYNC` unseen.
+
+### Why
+
+`main` requires these checks, admins included, and run 46056530437 failed two of them on a change that touched no build file: `wget` could not fetch the Maven distribution, and Gradle got HTTP 429 from Maven Central. Nothing was cached, so every run asked for everything again from a runner address shared with other people's jobs.
+
+### What still reaches the network
+
+- **A cold or incomplete cache:** the first run on `main` after this change, any entry GitHub evicted (unused for seven days, or the repository's cache limit reached), and whatever a dependency, jZen pin or Flutter change adds. Those downloads can still be refused. A failed job saves nothing, so a re-run starts from the same entry.
+- A cache written by a pull request is visible only to that pull request; the entries every branch can use are the ones `main`'s runs write.
+- **Not cached at all:** the checkouts and actions, Flutter and pub packages, pnpm packages, `protoc`, `go-task`, apt packages, Android SDK components installed during a build, the container images of `backend` and `e2e`, and the advisory databases `audit` asks. Maven or Gradle may also still ask a repository for metadata it does not hold.
+
+### Consequence
+
+A restored Maven distribution is not checked against `distributionSha256Sum` again (the wrapper checks only what it downloads); only this repository's own workflow runs can write these entries. Verification is in the pull request that closes jlogicsoftware/prudent#302.
+
+---
+
 ## ADR-131 — The persistent environment's deploy values are committed in `deploy/persistent.env`; no secret ever is
 
 **Date:** 2026-11-24. **Status:** accepted. **Refines:** ADR-021 (for the one persistent environment only), ADR-070, ADR-085.

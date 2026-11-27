@@ -1,0 +1,35 @@
+# Keeps what the Android builds download between runs (ADR-133, jlogicsoftware/prudent#302): the
+# Gradle distribution and Gradle's dependency cache, so a refused request to Maven Central (HTTP 429),
+# Google's Maven or the Gradle plugin portal no longer fails a build whose dependencies are unchanged.
+#
+# Use it AFTER the checkout of `prudent/` and BEFORE the first Android build. The cache is saved when
+# the job succeeds, and only when no exact entry already existed.
+#
+# Only downloads are kept: no build output, no build cache, no transformed artifacts. It adds no
+# retry and no mirror.
+name: Cache Gradle downloads
+description: Restore, and save on success, the Gradle distribution and dependency cache
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.gradle/caches/modules-2
+          ~/.gradle/wrapper/dists
+        # Everything that decides what Gradle resolves: both apps' Gradle files and wrappers, the
+        # plugin versions their pubspec.lock pins, and the Flutter version (its Gradle plugin and
+        # engine artifacts). A missed input costs a repeated download, never a wrong build.
+        key: gradle-v1-${{ runner.os }}-${{ github.job }}-${{ hashFiles('prudent/client/android/**/*.gradle.kts', 'prudent/client/android/**/gradle*.properties', 'prudent/client/pubspec.lock', 'prudent/local/prudent_local_client/android/**/*.gradle.kts', 'prudent/local/prudent_local_client/android/**/gradle*.properties', 'prudent/local/prudent_local_client/pubspec.lock', 'prudent/.fvmrc') }}
+        restore-keys: |
+          gradle-v1-${{ runner.os }}-${{ github.job }}-
+    # Gradle's guidance for a copied dependency cache: lock files and the cleanup journal belong to
+    # the machine that wrote them.
+    - name: Drop Gradle's lock files from the restored cache
+      shell: bash
+      run: |
+        set -eu
+        if [ -d "$HOME/.gradle/caches/modules-2" ]; then
+          find "$HOME/.gradle/caches/modules-2" -type f \( -name '*.lock' -o -name gc.properties \) -delete
+        fi
