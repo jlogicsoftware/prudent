@@ -1,4 +1,4 @@
-# Keeps what the Android builds download between runs (ADR-133, jlogicsoftware/prudent#302): the
+# Keeps what the Android builds download between runs (ADR-136, jlogicsoftware/prudent#302): the
 # Gradle distribution and Gradle's dependency cache, so a refused request to Maven Central (HTTP 429),
 # Google's Maven or the Gradle plugin portal no longer fails a build whose dependencies are unchanged.
 #

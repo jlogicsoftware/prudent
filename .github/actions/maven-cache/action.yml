@@ -1,4 +1,4 @@
-# Keeps what Maven downloads between runs (ADR-133, jlogicsoftware/prudent#302): a package host that
+# Keeps what Maven downloads between runs (ADR-136, jlogicsoftware/prudent#302): a package host that
 # refuses a runner's shared address fails a required check on a change that touched no dependency.
 #
 # Use it AFTER both checkouts (the key reads files from `prudent/` and `jZen/`) and BEFORE the first

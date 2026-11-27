@@ -192,7 +192,9 @@ public class PlanResource {
           "A plan needs a nonzero amount. Negative is planned spending, positive is income.");
     }
 
-    AccountEntity account = AccountEntity.findOwned(userId, parseReference("account", accountId));
+    // Locked until the plan commits, so the account keeps the currency checked below (ADR-133).
+    AccountEntity account =
+        AccountEntity.findOwnedForPosting(userId, parseReference("account", accountId));
     if (account == null) {
       throw PrudentException.invalid("No such account for this user: " + accountId);
     }

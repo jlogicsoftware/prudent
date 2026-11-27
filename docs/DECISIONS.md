@@ -13,7 +13,7 @@ own — ADR-001 is the first instance.
 
 ---
 
-## ADR-133 — CI keeps third-party downloads between runs; it never caches what it builds, and adds no retry or mirror
+## ADR-136 — CI keeps third-party downloads between runs; it never caches what it builds, and adds no retry or mirror
 
 **Date:** 2026-11-27. **Status:** accepted. **Builds on:** ADR-124. jlogicsoftware/prudent#302.
 
@@ -39,6 +39,73 @@ own — ADR-001 is the first instance.
 ### Consequence
 
 A restored Maven distribution is not checked against `distributionSha256Sum` again (the wrapper checks only what it downloads); only this repository's own workflow runs can write these entries. Verification is in the pull request that closes jlogicsoftware/prudent#302.
+
+---
+
+## ADR-133 — A request that changes or deletes an account holds the account's row; one that writes a record or a plan against it holds a shared lock on the same row
+
+**Date:** 2026-11-27. **Status:** accepted. **Builds on:** ADR-008, ADR-092. jlogicsoftware/prudent#299.
+
+### Decision
+
+- **`PUT` and `DELETE /api/v1/accounts/{id}` lock the account row `FOR UPDATE`** (`AccountEntity.findOwnedForUpdate`) before they read anything about the account, and hold it to the end of the transaction. A statement import keeps using the same method (ADR-092).
+- **Everything that writes a record or a plan against an account locks that row `FOR KEY SHARE`** (`AccountEntity.findOwnedForPosting`) before it checks that the account holds the currency: record create and replace, a confirmed occurrence and an imported row (all through `RecordWriter`), both accounts of a transfer, a balance correction, plan create and replace. A new write path of this kind takes it too.
+- **The lock is the transaction's first read of the account.** An account already loaded is returned as it was loaded, so a lock taken later protects a stale copy.
+- **Both locks are one native statement** that locks and reads the row; the balances are read afterwards, so they are what the previous holder committed. This relies on read committed, which the server runs at.
+
+### Why
+
+The two rules "a currency with records or plans cannot be dropped" and "an account holds the currency written to it" were each checked on a snapshot. Two updates of one account could merge: each rewrote only the balance positions that differed from what it had read, so a currency with records disappeared while both answered 200. An update and a writer could each pass their check on the other's uncommitted state, leaving a record in a currency its account no longer held. A delete had the same shape and answered 500 from the foreign key.
+
+### Why these two strengths
+
+- **A pessimistic lock rather than a version column.** A version would refuse the second of two updates, but would not order an update against a record being written, which does not change the account row. It would need a migration and a refusal no client handles.
+- **`FOR KEY SHARE`, not `FOR SHARE`, for writers.** It is the lock the foreign key takes on the account at insert anyway, so it costs nothing new and writers do not wait for one another. An account update also writes *another* account's row when it moves the default flag; `FOR SHARE` conflicts with that write, so a transfer holding one account and waiting for the other could deadlock with the update. `FOR KEY SHARE` does not conflict with it.
+
+### Consequence
+
+Concurrent updates of one account run one after the other, and the second is checked against what the first committed. It is still a full replacement: the later update wins, and a client that edited an older copy is not told. A writer that waits behind an update is refused (400, the account does not hold the currency); an update or delete that waits behind a writer is refused (409). `AccountConcurrencyTest` drives each pair through the HTTP API in both orders.
+
+Not covered, and unchanged: two balance corrections of one account at once each compute their difference from the same balance (writers do not exclude one another), and two updates of two different accounts that both become the default can leave two defaults. Prudent Local is not affected: its store serialises writes and each one carries the version it was decided against (ADR-115).
+
+---
+
+## ADR-132 — The server-connected app's macOS runner may write the file a person chooses (`files.user-selected.read-write`), held by a test
+
+**Date:** 2026-11-27. **Status:** accepted. **Issue:** jlogicsoftware/prudent#286. **Refines:** ADR-093, ADR-117.
+**jZen:** filed jZenDev/jZen#282 and jZenDev/jZen#283 (found at `JZEN_REF` `24cd68c`).
+
+### Decision
+
+- **Both entitlements files of `client/macos/Runner`** (`Release.entitlements`, `DebugProfile.entitlements`) grant
+  `com.apple.security.files.user-selected.read-write` in place of `...read-only`. It still reaches only files the person chooses in a system panel,
+  and it covers reading them, so no second entitlement stays beside it.
+- **`client/test/macos_entitlements_test.dart` fails** when any `*.entitlements` file in that folder does not set it to true. It reads every file
+  in the folder, so a signing configuration added later is held too. It runs in the client suite, which CI runs.
+- **The privacy policy says what has been tried**: saving on a Mac only, with a test version of the app and made-up data.
+
+### What this supersedes, and why
+
+- **"The macOS runner needed `com.apple.security.files.user-selected.read-only` in both entitlement files"** (ADR-093) → **changed.** *Why:* it
+  was enough while the app only opened files; saving writes one.
+- **"the screen offers 'Save to a file' ... on iOS, Android, macOS, Windows, Linux and web"** (ADR-117) → **made true for macOS.** The button was
+  offered there and every save failed: `file_picker_darwin` 2.5.1 answers `ENTITLEMENT_REQUIRED_WRITE` before any panel opens. The suite stands in
+  for the plugin and the build was green, so nothing said so. ADR-117 also counted on "a download" on the web: see Consequence.
+
+### Consequence
+
+Verified on 2026-11-27, on one Mac: the release and debug apps built from this tree carry the read-write entitlement. A throwaway probe (the real
+`PrivacyScreen`, saver and macOS runner over a mock server with synthetic data, the release build re-signed ad hoc under another bundle id)
+opened the save panel, wrote the file, which read back as written, and showed "Your data was saved"; the same build signed with the old read-only
+entitlements showed "The file could not be saved" and logged `ENTITLEMENT_REQUIRED_WRITE`. With read-write the statement picker's open panel
+appeared and could be cancelled; **choosing and reading a file in it was not driven**. The new test passes, and fails with either file set back to
+read-only.
+
+**Not verified:** the unmodified app signed in to a server, a build signed with a developer identity (jlogicsoftware/prudent#290), a real export,
+a save outside the app's own container, and iOS, Android, Windows and Linux (unit 12). **Open:** on the web `zenSaveFile` answers `false` after a
+download (seen in a headless Chrome test of the real plugin; the downloaded file was not looked for), so the app shows no confirmation and
+ADR-117's "handed to your browser's downloads" sentence never appears (jZenDev/jZen#283; not worked around). Prudent Local's macOS runner is not
+changed here.
 
 ---
 

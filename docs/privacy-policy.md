@@ -85,13 +85,16 @@ The same document is `GET /api/v1/privacy/export` for anyone who would rather ca
 never cached.
 
 **Settings → Privacy and data → Save to a file** writes the same document to a file you choose
-(macOS, Windows, Linux and the web, where the browser decides where it goes; not yet on iOS and
-Android, which keep the clipboard copy). **The file is not encrypted:** it holds all of your finances
-in plain text, so keep it somewhere private and delete it when you have used it. The document also
-carries, for each record a statement import wrote, that record's import key — a fingerprint (a
-digest) and a number that let Prudent recognise the same statement row again after you move your data
-elsewhere. It is never the statement's text. The clipboard copy is shared with other apps and, on some
-devices, with your other devices.
+(iOS, Android, macOS, Windows, Linux and the web, where the browser decides where it goes). So far
+saving to a file has been tried on a Mac only, with a test version of the app and made-up data. It
+has not yet been tried on a real phone, on a Windows or Linux computer, or in the app in a web
+browser. In a web browser the app shows no message after saving, so look in your downloads before you
+save again, or you may collect several unencrypted copies. **The file is not encrypted:** it holds all
+of your finances in plain text, so keep it somewhere private and delete it when you have used it. The
+document also carries, for each record a statement import wrote, that record's import key — a
+fingerprint (a digest) and a number that let Prudent recognise the same statement row again after you
+move your data elsewhere. It is never the statement's text. The clipboard copy is shared with other
+apps and, on some devices, with your other devices.
 
 ## Deleting it
 

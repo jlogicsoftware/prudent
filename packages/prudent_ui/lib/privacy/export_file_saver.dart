@@ -15,7 +15,10 @@ typedef ExportFileSaver = Future<bool> Function(String name, Uint8List bytes);
 /// a test of this function; the app never passes it.
 ///
 /// On the web the browser downloads the file under [name] and decides where it goes, so there is no
-/// cancel to report. See [exportFileSavedByDownloadProvider].
+/// cancel to report. See [exportFileSavedByDownloadProvider]. The framework answers false there all
+/// the same (jZenDev/jZen#283), so until that is fixed the screen shows no confirmation on the web.
+///
+/// On macOS the runner needs the `files.user-selected.read-write` entitlement (jZenDev/jZen#282).
 Future<bool> saveExportFile(String name, Uint8List bytes, {ZenSaveFilePort? port}) =>
     zenSaveFile(name, bytes, mimeType: 'application/json', port: port);
 

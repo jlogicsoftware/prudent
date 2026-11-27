@@ -55,9 +55,9 @@ public class RecordWriter {
 
     // The owning account, looked up AS THE CALLER'S. An account id that is not theirs is refused
     // here rather than stored — a client that can name someone else's account can move money into
-    // it.
+    // it. Locked until the write commits, so the currency check below still holds then (ADR-133).
     AccountEntity account =
-        AccountEntity.findOwned(userId, Ids.parseInBody("account", accountId));
+        AccountEntity.findOwnedForPosting(userId, Ids.parseInBody("account", accountId));
     if (account == null) {
       throw PrudentException.invalid("No such account for this user: " + accountId);
     }

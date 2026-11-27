@@ -211,7 +211,7 @@ and to a JVM table of every code point's fold (the Dart VM's `toLowerCase` diffe
 `ledger_records`, `ledger_transfers`, `ledger_corrections`, `ledger_accounts`, `ledger_categories`, `ledger_settings`,
 `record_list_filters`, `record_list_order`. Filed jZenDev/jZen#251 (no write precondition; consumed by ADR-115: every write carries
 the version it was decided against, so an edit cannot bring back a record a sync just deleted). Found: the server answers 500 to an
-account update that reorders held currencies (row 5.5; jlogicsoftware/prudent#261).
+account update that reorders held currencies (row 5.5; jlogicsoftware/prudent#261, since fixed).
 Categories move here from unit 6, because a record is refused by its category's kind and archived
 flag (finding F-01). Balances derived; a transfer as one immutable record (ADR-102), shown as two legs; corrections; archive. Row-level security has no local
 meaning (one person per store) and is recorded as such. **Done when:** parity scenarios for every
@@ -337,7 +337,7 @@ ADR. **Done when:** `PrivacyCoverageTest` sees the new fields, `verify:contracts
 round-trips.
 
 **Status (ADR-110, ADR-117):** built on the server and on every platform of the server-connected app; the key travels as `record_import_keys` beside the record, and "Save to a file" is
-`zenSaveFile` (jZenDev/jZen#246, PR #254) on iOS, Android, macOS, Windows, Linux and web. **Open:** the save sheet has not been run on a real device or platform; that belongs to unit 12.
+`zenSaveFile` (jZenDev/jZen#246, PR #254) on iOS, Android, macOS, Windows, Linux and web. On macOS every save failed until the runner got `files.user-selected.read-write` (ADR-132, jlogicsoftware/prudent#286), tried once on a Mac in a throwaway probe with synthetic data; on the web a download shows no confirmation (jZenDev/jZen#283). **Open:** the save sheet has not been run on a real phone, Windows or Linux, in the web app in a browser, nor in the unmodified app against a server; that belongs to unit 12.
 
 ### Unit 10b — Moving data in
 As decided in ADR-103: the export read from a file into an empty store, opening amounts rebuilt from the
@@ -390,7 +390,7 @@ PIN, a lost device.
 4. **Real release signing.** Android release uses the debug key; iOS, macOS and Windows have no real signing (ADR-124; jlogicsoftware/prudent#275).
 5. **The Android analytics benchmark**: run `runAnalyticsBenchmark` (`local/prudent_local_store/tool/analytics_benchmark.dart`) in a Flutter harness on a
    real mid-range Android phone at 50 000 records and write the figures into a successor ADR (ADR-118 is append-only). Unit 7's "Done when" bound is not met until then.
-6. **The save-file sheet on devices** (`zenSaveFile`): never run on a real device or platform, on any of macOS, Windows, Linux, iOS, Android; and on
+6. **The save-file sheet on devices** (`zenSaveFile`): never run by the real apps on a real device or platform, on any of macOS, Windows, Linux, iOS, Android (a throwaway probe of the server-connected app's screen saved once on a Mac, ADR-132, and does not stand in for this step); and on
    Linux the move to `file_picker_linux` (a dialog helper such as zenity or kdialog) was not read for runtime requirements (ADR-110, ADR-117, ADR-121).
 7. **Notifications firing**: no local notification has been seen to fire or be cancelled on a device (ADR-056 to ADR-058, ADR-119).
 8. **A native-speaker review of every uk and pl string**, Local's and the server-connected app's (e.g. 'Dalej' vs 'Kontynuuj', ADR-124); none has been reviewed.
@@ -476,7 +476,6 @@ Known work left by the plan, each with its issue:
 
 - The Local occurrence and reminder lists do not answer `Settled` — jlogicsoftware/prudent#274 (nit of the review of #269).
 - Android release uses the debug key; iOS, macOS and Windows have no real signing — jlogicsoftware/prudent#275 (the real signing configuration also serves unit 12).
-- The server answers 500 to an account update that reorders held currencies — jlogicsoftware/prudent#261 (found by unit 5, ADR-113).
 - Five low findings from the review of #265 (the account in the posting group, `nameOf` dropping an unbound category, no non-empty assertion on the
   large parity run, the benchmark's `_check`, the UTC-day comment of the large run) — jlogicsoftware/prudent#276.
 - `askForName` and one-action-per-candidate are workarounds until jZenDev/jZen#256 lands — jlogicsoftware/prudent#277 (ADR-121, ADR-125).
@@ -485,6 +484,7 @@ Known work left by the plan, each with its issue:
   jlogicsoftware/prudent#278.
 - The Local data copy leaves out skipped dates and reminder-read marks — jlogicsoftware/prudent#288 (found by the review of #287).
 - iOS Data Protection is not set on the Local store, which ADR-100 T1 assumed — jlogicsoftware/prudent#285 (found by unit 13, ADR-128).
-- The server policy still says "Save to a file" is not on iOS and Android, which ADR-117 made untrue — jlogicsoftware/prudent#286 (found by unit 13, ADR-128).
+- The server policy said "Save to a file" was not on iOS and Android, which ADR-117 made untrue — jlogicsoftware/prudent#286 (found by unit 13, ADR-128), fixed in `docs/privacy-policy.md`, together with the macOS runner's read-only entitlement, which made the save fail there (ADR-132); seeing the save sheet on a real device is still unit 12's, item 6.
+- Prudent Local's macOS runner grants no `files.user-selected` entitlement, so saving a copy is expected to fail there (read from the plugin's code); that its open dialogs fail too is an inference, since `file_selector_macos` makes no entitlement check. Nothing was run — jlogicsoftware/prudent#296 (found by the review of #286).
 - Main's push run at `f858dbf` was red on a two-device test-harness flaw, fixed by jlogicsoftware/prudent#281 (ADR-126), green from `8447f8f` (see unit 11); the reference helper's same flaw is jZenDev/jZen#263, open.
 - The import crash test once saw the commit succeed — jlogicsoftware/prudent#282.

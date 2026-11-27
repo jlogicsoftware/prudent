@@ -453,7 +453,7 @@ category's kind and archived checks (finding F-01).
 | 5.2 | An account needs a type; `UNSPECIFIED` is refused | `AccountResource.java:265` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "accounts"; parity `ledger_accounts` |
 | 5.3 | An account holds at least one currency | `AccountResource.java:341` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "accounts"; parity `ledger_accounts` |
 | 5.4 | Each currency once per account, ISO-4217 | `AccountResource.java:350,355`; unique `init.sql:69` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` "accounts"; parity `ledger_accounts`; derived id (4.2) |
-| 5.5 | The declared order of an account's currencies is kept | `init.sql:64`; `AccountEntity.java:127` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` (declared order, reorder); parity `ledger_accounts` appends only — the server answers 500 to a reorder (ADR-113) |
+| 5.5 | The declared order of an account's currencies is kept | `init.sql:64`; `AccountEntity.java:127` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` (declared order, reorder); parity `ledger_accounts` (appends, drops and reorders; the server answered 500 to some of these until jlogicsoftware/prudent#261) |
 | 5.6 | A currency with records cannot be dropped | `AccountResource.java:367` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; parity `ledger_accounts`; `integrity_test.dart` (held currency) |
 | 5.7 | A currency with plans cannot be dropped | `AccountResource.java:375` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart`; `integrity_test.dart` (held currency) |
 | 5.8 | At most one default account | `AccountEntity.java:174` | **Covered (ADR-113):** `local/prudent_local_store/test/ledger_test.dart` (one settings field); parity `ledger_accounts` (`isDefault`) |
@@ -654,7 +654,7 @@ By design (recorded so they are not mistaken for gaps):
 | X.4 | Dormancy warnings and erasure | `DormancyWarningMailer.java`; `java/retention/` | there is no account to go dormant |
 | X.5 | Sign-in record deletion | `SignInRecordEraser.java` | there is no sign-in |
 | X.6 | Readiness, request ids | `HealthResource.java`; `RequestIdFilter` | there is no request |
-| X.7 | Row locks (`FOR UPDATE` on goals, the import's account, a confirmed occurrence) | `GoalEntity.java:102,131`; `LedgerImportCommitter.java`; `OccurrenceResource.java:192` | on one device the store serialises writes, and each write carries the version it was decided against as a precondition checked in its turn (ADR-115: changed meanwhile → 409 under X.7); across devices the answer is 0.2 (ids, integrity checks), not a lock |
+| X.7 | Row locks (`FOR UPDATE` on goals, an account being changed, deleted or imported into, a confirmed occurrence; `FOR KEY SHARE` on the account a record or plan is written against, ADR-133) | `GoalEntity.java:102,131`; `AccountEntity.findOwnedForUpdate`, `findOwnedForPosting`; `OccurrenceResource.java:192` | on one device the store serialises writes, and each write carries the version it was decided against as a precondition checked in its turn (ADR-115: changed meanwhile → 409 under X.7); across devices the answer is 0.2 (ids, integrity checks), not a lock |
 
 ### Findings
 
