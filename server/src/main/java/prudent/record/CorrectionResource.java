@@ -75,8 +75,10 @@ public class CorrectionResource {
   public Response create(CreateCorrectionRequest request) {
     UUID userId = currentUser.id();
 
+    // Locked until the correction commits, so the account keeps the currency checked below (ADR-133).
     AccountEntity account =
-        AccountEntity.findOwned(userId, Ids.parseInBody("account", request.getAccountId()));
+        AccountEntity.findOwnedForPosting(
+            userId, Ids.parseInBody("account", request.getAccountId()));
     if (account == null) {
       throw PrudentException.invalid("No such account for this user: " + request.getAccountId());
     }

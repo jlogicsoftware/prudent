@@ -149,6 +149,12 @@ both legs of a transfer — in one transaction, reopening any occurrence a delet
 without the flag the refusal stands, and a plan still refuses either way. The client asks twice, the
 second time for a typed phrase (`DeleteAccountForm`).
 
+**Writes against one account are serialised (ADR-133, jlogicsoftware/prudent#299).** An account update or delete locks the account row
+(`AccountEntity.findOwnedForUpdate`); anything that writes a record or a plan against an account locks it with
+`AccountEntity.findOwnedForPosting` **before** checking the currency — a new write path of that kind must too, and the lock must be the
+transaction's first read of the account. `AccountConcurrencyTest` holds each pair. Two concurrent balance corrections, and two accounts
+made default at once, are still unordered.
+
 M5 (local reminders) has begun: a plan carries a reminder setting (ADR-054, jlogicsoftware/prudent#40) —
 `Plan.reminder`, `enabled` plus `lead_days` — on `prudent_plan`. It is a setting only: nothing stores,
 schedules or sends a reminder yet. It is off by default (existing plans too), the lead time is one of 0, 1, 2, 3

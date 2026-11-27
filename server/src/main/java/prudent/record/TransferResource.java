@@ -81,13 +81,17 @@ public class TransferResource {
       throw PrudentException.invalid("A transfer needs a positive destination amount.");
     }
 
+    // Both locked until the legs commit, so each account keeps the currency checked below
+    // (ADR-133). The lock is shared between writers, so the order of the two does not matter.
     AccountEntity fromAccount =
-        AccountEntity.findOwned(userId, Ids.parseInBody("account", request.getFromAccountId()));
+        AccountEntity.findOwnedForPosting(
+            userId, Ids.parseInBody("account", request.getFromAccountId()));
     if (fromAccount == null) {
       throw PrudentException.invalid("No such account for this user: " + request.getFromAccountId());
     }
     AccountEntity toAccount =
-        AccountEntity.findOwned(userId, Ids.parseInBody("account", request.getToAccountId()));
+        AccountEntity.findOwnedForPosting(
+            userId, Ids.parseInBody("account", request.getToAccountId()));
     if (toAccount == null) {
       throw PrudentException.invalid("No such account for this user: " + request.getToAccountId());
     }
