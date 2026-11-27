@@ -152,8 +152,10 @@ second time for a typed phrase (`DeleteAccountForm`).
 **Writes against one account are serialised (ADR-133, jlogicsoftware/prudent#299).** An account update or delete locks the account row
 (`AccountEntity.findOwnedForUpdate`); anything that writes a record or a plan against an account locks it with
 `AccountEntity.findOwnedForPosting` **before** checking the currency — a new write path of that kind must too, and the lock must be the
-transaction's first read of the account. `AccountConcurrencyTest` holds each pair. Two concurrent balance corrections, and two accounts
-made default at once, are still unordered.
+transaction's first read of the account. `AccountConcurrencyTest` holds each pair. A balance correction is the exception (ADR-135,
+jlogicsoftware/prudent#301): the amount it stores depends on the balance it read, so it takes `findOwnedForUpdate` and queues with other
+corrections and with writes to the account (`CorrectionConcurrencyTest`); deletions take no account lock. Two accounts made default at once
+are still unordered.
 
 M5 (local reminders) has begun: a plan carries a reminder setting (ADR-054, jlogicsoftware/prudent#40) —
 `Plan.reminder`, `enabled` plus `lead_days` — on `prudent_plan`. It is a setting only: nothing stores,

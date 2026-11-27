@@ -152,10 +152,11 @@ public class AccountEntity extends PanacheEntityBase {
 
   /**
    * One account, but only if the caller owns it, locked ({@code SELECT ... FOR UPDATE}) for the rest
-   * of the transaction. Whatever changes or deletes an account takes it, and so does a statement
-   * import before it checks and writes (ADR-092), so two such requests for one account queue instead
-   * of both deciding on the same state. It also queues them behind, and ahead of, everyone holding
-   * {@link #findOwnedForPosting}.
+   * of the transaction. Whatever changes or deletes an account takes it, and so do a statement
+   * import before it checks and writes (ADR-092) and a balance correction before it reads the
+   * balance (ADR-135), so two such requests for one account queue instead of both deciding on the
+   * same state. It also queues them behind, and ahead of, everyone holding {@link
+   * #findOwnedForPosting}.
    *
    * <p>Must be the transaction's first read of the account; see {@link #lockOwned}.
    */
@@ -165,7 +166,7 @@ public class AccountEntity extends PanacheEntityBase {
 
   /**
    * One account, but only if the caller owns it, locked ({@code SELECT ... FOR KEY SHARE}) for a
-   * write that names it: a record, a transfer leg, a correction or a plan. The caller then checks
+   * write that names it: a record, a transfer leg or a plan. The caller then checks
    * {@link #holds} knowing the account cannot lose that currency, or be deleted, before the write
    * commits (ADR-133).
    *
