@@ -250,6 +250,102 @@ class AccountResourceTest {
     assertTrue(error.getMessage().contains("EUR"));
   }
 
+  /**
+   * The declared order of an account's currencies is the client's to change (jlogicsoftware/prudent#261).
+   * A reorder moves a currency onto a position another one still holds while the rows are being
+   * rewritten, which the (account, currency) uniqueness has to tolerate until the transaction ends.
+   */
+  @ParameterizedTest
+  @ValueSource(strings = {PrudentTest.JSON, PrudentTest.PROTOBUF})
+  @TestSecurity(user = PrudentTest.ALICE)
+  void reorderingAndDroppingCurrencies_keepsTheRequestedOrderAndTheBalances(String mode)
+      throws Exception {
+    CreateAccountRequest create =
+        CreateAccountRequest.newBuilder()
+            .setName("Travel card")
+            .setType(AccountType.ACCOUNT_TYPE_CARD)
+            .addBalances(balance("EUR", 2_00L))
+            .addBalances(balance("PLN", 3_00L))
+            .build();
+    Response created =
+        PrudentTest.body(PrudentTest.request(mode), mode, create)
+            .when()
+            .post("/api/v1/accounts")
+            .andReturn();
+    assertEquals(201, created.statusCode());
+    String id = PrudentTest.decode(mode, created, Account.newBuilder()).build().getId();
+    // A record, so a balance that moved to another currency's row would show.
+    UUID categoryId = PrudentTest.seedCategory(PrudentTest.ALICE, "Food");
+    PrudentTest.seedRecord(PrudentTest.ALICE, UUID.fromString(id), categoryId, -1_00L, "PLN");
+
+    // Two currencies swap places.
+    assertReplaced(
+        mode,
+        id,
+        List.of(balance("PLN", 3_00L), balance("EUR", 2_00L)),
+        List.of(balance("PLN", 2_00L), balance("EUR", 2_00L)));
+
+    // Two more are appended, then one from the middle is dropped.
+    assertReplaced(
+        mode,
+        id,
+        List.of(
+            balance("PLN", 3_00L),
+            balance("EUR", 2_00L),
+            balance("USD", 4_00L),
+            balance("GBP", 5_00L)),
+        List.of(
+            balance("PLN", 2_00L),
+            balance("EUR", 2_00L),
+            balance("USD", 4_00L),
+            balance("GBP", 5_00L)));
+    assertReplaced(
+        mode,
+        id,
+        List.of(balance("PLN", 3_00L), balance("USD", 4_00L), balance("GBP", 5_00L)),
+        List.of(balance("PLN", 2_00L), balance("USD", 4_00L), balance("GBP", 5_00L)));
+
+    // The whole set is reversed, and then the first one is dropped.
+    assertReplaced(
+        mode,
+        id,
+        List.of(balance("GBP", 5_00L), balance("USD", 4_00L), balance("PLN", 3_00L)),
+        List.of(balance("GBP", 5_00L), balance("USD", 4_00L), balance("PLN", 2_00L)));
+    assertReplaced(
+        mode,
+        id,
+        List.of(balance("USD", 4_00L), balance("PLN", 3_00L)),
+        List.of(balance("USD", 4_00L), balance("PLN", 2_00L)));
+  }
+
+  /**
+   * Replaces the account's balances with {@code openings} and checks that both the answer and a
+   * fresh read carry {@code expected}, in that order.
+   */
+  private static void assertReplaced(
+      String mode, String id, List<CurrencyBalance> openings, List<CurrencyBalance> expected)
+      throws Exception {
+    UpdateAccountRequest update =
+        UpdateAccountRequest.newBuilder()
+            .setName("Travel card")
+            .setType(AccountType.ACCOUNT_TYPE_CARD)
+            .addAllBalances(openings)
+            .build();
+    Response updated =
+        PrudentTest.body(PrudentTest.request(mode), mode, update)
+            .when()
+            .put("/api/v1/accounts/" + id)
+            .andReturn();
+    assertEquals(200, updated.statusCode(), () -> "replacing with " + openings);
+    assertEquals(
+        expected,
+        PrudentTest.decode(mode, updated, Account.newBuilder()).build().getBalancesList());
+
+    Response read = PrudentTest.request(mode).when().get("/api/v1/accounts/" + id).andReturn();
+    assertEquals(
+        expected, PrudentTest.decode(mode, read, Account.newBuilder()).build().getBalancesList());
+  }
+
   @Test
   @TestSecurity(user = PrudentTest.ALICE)
   void deletingAnAccountThatHasRecords_isRefused() throws Exception {

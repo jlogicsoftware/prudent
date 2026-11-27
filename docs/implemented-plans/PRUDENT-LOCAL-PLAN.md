@@ -211,7 +211,7 @@ and to a JVM table of every code point's fold (the Dart VM's `toLowerCase` diffe
 `ledger_records`, `ledger_transfers`, `ledger_corrections`, `ledger_accounts`, `ledger_categories`, `ledger_settings`,
 `record_list_filters`, `record_list_order`. Filed jZenDev/jZen#251 (no write precondition; consumed by ADR-115: every write carries
 the version it was decided against, so an edit cannot bring back a record a sync just deleted). Found: the server answers 500 to an
-account update that reorders held currencies (row 5.5; jlogicsoftware/prudent#261).
+account update that reorders held currencies (row 5.5; jlogicsoftware/prudent#261, since fixed).
 Categories move here from unit 6, because a record is refused by its category's kind and archived
 flag (finding F-01). Balances derived; a transfer as one immutable record (ADR-102), shown as two legs; corrections; archive. Row-level security has no local
 meaning (one person per store) and is recorded as such. **Done when:** parity scenarios for every
@@ -476,7 +476,6 @@ Known work left by the plan, each with its issue:
 
 - The Local occurrence and reminder lists do not answer `Settled` — jlogicsoftware/prudent#274 (nit of the review of #269).
 - Android release uses the debug key; iOS, macOS and Windows have no real signing — jlogicsoftware/prudent#275 (the real signing configuration also serves unit 12).
-- The server answers 500 to an account update that reorders held currencies — jlogicsoftware/prudent#261 (found by unit 5, ADR-113).
 - Five low findings from the review of #265 (the account in the posting group, `nameOf` dropping an unbound category, no non-empty assertion on the
   large parity run, the benchmark's `_check`, the UTC-day comment of the large run) — jlogicsoftware/prudent#276.
 - `askForName` and one-action-per-candidate are workarounds until jZenDev/jZen#256 lands — jlogicsoftware/prudent#277 (ADR-121, ADR-125).

@@ -112,7 +112,12 @@ public class AccountEntity extends PanacheEntityBase {
    * full-replacement {@code PUT} that drops a currency actually deletes its row.
    *
    * <p><strong>The unique constraint is on (account, currency)</strong>, which is the rule ADR-008
-   * states, enforced by the database rather than only by the validator above it. The
+   * states, enforced by the database rather than only by the validator above it. It is
+   * <em>deferred</em> to the commit: Hibernate rewrites an ordered collection position by position,
+   * so a currency that moves is briefly on two rows (jlogicsoftware/prudent#261). One consequence
+   * for hand-written SQL: PostgreSQL refuses a deferrable constraint as an {@code ON CONFLICT}
+   * arbiter, so an {@code INSERT} into this table with an untargeted {@code ON CONFLICT DO NOTHING}
+   * is an error even when nothing conflicts; name the primary key as the target. The
    * {@code @OrderColumn} is separate and does a different job: the client renders the order the
    * server sent, so the declared order is preserved rather than left to whatever order the rows
    * happen to come back in.

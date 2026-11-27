@@ -264,7 +264,7 @@ Polish or Ukrainian string reviewed by a native speaker.
 unit's PRs and ADRs in its status table; **unit 12 (real devices) is open and NOT VERIFIED**, and Prudent Local is not released before it. Unit 13 (ADR-128) wrote
 Prudent Local's privacy statement, `docs/privacy-policy-local.md` (#280), and brought the README, `docs/product-roadmap.md`, `docs/zen-architecture.md` and
 `docs/jzen/README.md` up to date; it found that iOS Data Protection, which ADR-100 T1 assumed, is not set on the store (#285). The plan's
-closing section lists what is owed and the follow-ups (jlogicsoftware/prudent#274 to #278, #282, #285, #286, #288, #261). What follows is the per-unit detail.
+closing section lists what is owed and the follow-ups (jlogicsoftware/prudent#274 to #278, #282, #285, #286, #288). What follows is the per-unit detail.
 
 Prudent Local (jlogicsoftware/prudent#245, `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md`) has its phase-0 decisions (ADR-100 to ADR-103) and unit 3
 (ADR-107): `local/prudent_local_core` is pure Dart and reproduces the server's money, currency, account-number, date, month and text
@@ -298,7 +298,7 @@ all or nothing. A figure never reads a value two devices disagree about: a dispu
 balance and is named on every read that answers a balance (`Settled<T>`, `AccountBalances.unsettled`), and a correction is refused until it is settled. Search and name order are the
 core's `SearchRules`, whose fold is a table from the JVM (`golden/fold.json`; the Dart VM's `toLowerCase` differs on 437 code
 points). `CorrectionIntent.seen_corrections` feeds the `correction.made_apart` check. The parity suite's local side is
-`StoreBackend` (`package:prudent_local_store/parity.dart`); thirteen scenarios agree with the live server. Open: the server's 500 on an account update that reorders currencies (jlogicsoftware/prudent#261).
+`StoreBackend` (`package:prudent_local_store/parity.dart`); thirteen scenarios agree with the live server. An account update that moved a currency onto a position another row still held (a reorder, or a drop such as `[EUR, PLN, USD]` to `[PLN, USD]`, though not `[EUR, PLN]` to `[PLN]`) answered 500 until jlogicsoftware/prudent#261 was fixed: the (account, currency) uniqueness is now checked at commit (`V20261127185652`).
 Unit 8b (ADR-114) is statement import: `ImportWorkflow` in `local/prudent_local_store/lib/src/imports/` is the server's three phases,
 destination checks, row decisions, defaults, duplicates and commit, check for check, answering the wire `ImportSession`; sessions are the
 device-only collection `import_sessions` of the ledger's store (`collection(syncs: false)`, jZenDev/jZen#252), one record per session,

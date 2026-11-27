@@ -160,7 +160,7 @@
       }
     },
     {
-      "comment": "A new opening and a new currency, appended; it becomes the default and Zupa stops being it. The server answers 500 to a PUT that reorders held currencies, so no scenario reorders them (ADR-113).",
+      "comment": "A new opening and a new currency, appended; it becomes the default and Zupa stops being it.",
       "op": "account.update",
       "outcome": "accepted",
       "input": {
@@ -271,6 +271,94 @@
       "outcome": "accepted",
       "input": {
         "account": "$z"
+      }
+    },
+    {
+      "comment": "5.5: the declared order is the client's to change. EUR comes back, and goes first; both held currencies move down.",
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l",
+        "name": "\u0141azienka",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "balances": [
+          {
+            "currency": "EUR",
+            "amountMinor": "7"
+          },
+          {
+            "currency": "USD",
+            "amountMinor": "5"
+          },
+          {
+            "currency": "PLN",
+            "amountMinor": "350"
+          }
+        ],
+        "accountNumber": "PL61109010140000000000000000"
+      }
+    },
+    {
+      "op": "account.get",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l"
+      }
+    },
+    {
+      "comment": "5.5: the first of the three goes, so both later ones move up; USD moves onto the position PLN still holds (jlogicsoftware/prudent#261).",
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l",
+        "name": "\u0141azienka",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "balances": [
+          {
+            "currency": "USD",
+            "amountMinor": "5"
+          },
+          {
+            "currency": "PLN",
+            "amountMinor": "350"
+          }
+        ],
+        "accountNumber": "PL61109010140000000000000000"
+      }
+    },
+    {
+      "op": "account.get",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l"
+      }
+    },
+    {
+      "comment": "5.5: the two held currencies swap places (jlogicsoftware/prudent#261).",
+      "op": "account.update",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l",
+        "name": "\u0141azienka",
+        "type": "ACCOUNT_TYPE_SAVINGS",
+        "balances": [
+          {
+            "currency": "PLN",
+            "amountMinor": "350"
+          },
+          {
+            "currency": "USD",
+            "amountMinor": "5"
+          }
+        ],
+        "accountNumber": "PL61109010140000000000000000"
+      }
+    },
+    {
+      "op": "account.get",
+      "outcome": "accepted",
+      "input": {
+        "account": "$l"
       }
     },
     {
