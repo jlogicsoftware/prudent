@@ -13,6 +13,34 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-133 — A request that changes or deletes an account holds the account's row; one that writes a record or a plan against it holds a shared lock on the same row
+
+**Date:** 2026-11-27. **Status:** accepted. **Builds on:** ADR-008, ADR-092. jlogicsoftware/prudent#299.
+
+### Decision
+
+- **`PUT` and `DELETE /api/v1/accounts/{id}` lock the account row `FOR UPDATE`** (`AccountEntity.findOwnedForUpdate`) before they read anything about the account, and hold it to the end of the transaction. A statement import keeps using the same method (ADR-092).
+- **Everything that writes a record or a plan against an account locks that row `FOR KEY SHARE`** (`AccountEntity.findOwnedForPosting`) before it checks that the account holds the currency: record create and replace, a confirmed occurrence and an imported row (all through `RecordWriter`), both accounts of a transfer, a balance correction, plan create and replace. A new write path of this kind takes it too.
+- **The lock is the transaction's first read of the account.** An account already loaded is returned as it was loaded, so a lock taken later protects a stale copy.
+- **Both locks are one native statement** that locks and reads the row; the balances are read afterwards, so they are what the previous holder committed. This relies on read committed, which the server runs at.
+
+### Why
+
+The two rules "a currency with records or plans cannot be dropped" and "an account holds the currency written to it" were each checked on a snapshot. Two updates of one account could merge: each rewrote only the balance positions that differed from what it had read, so a currency with records disappeared while both answered 200. An update and a writer could each pass their check on the other's uncommitted state, leaving a record in a currency its account no longer held. A delete had the same shape and answered 500 from the foreign key.
+
+### Why these two strengths
+
+- **A pessimistic lock rather than a version column.** A version would refuse the second of two updates, but would not order an update against a record being written, which does not change the account row. It would need a migration and a refusal no client handles.
+- **`FOR KEY SHARE`, not `FOR SHARE`, for writers.** It is the lock the foreign key takes on the account at insert anyway, so it costs nothing new and writers do not wait for one another. An account update also writes *another* account's row when it moves the default flag; `FOR SHARE` conflicts with that write, so a transfer holding one account and waiting for the other could deadlock with the update. `FOR KEY SHARE` does not conflict with it.
+
+### Consequence
+
+Concurrent updates of one account run one after the other, and the second is checked against what the first committed. It is still a full replacement: the later update wins, and a client that edited an older copy is not told. A writer that waits behind an update is refused (400, the account does not hold the currency); an update or delete that waits behind a writer is refused (409). `AccountConcurrencyTest` drives each pair through the HTTP API in both orders.
+
+Not covered, and unchanged: two balance corrections of one account at once each compute their difference from the same balance (writers do not exclude one another), and two updates of two different accounts that both become the default can leave two defaults. Prudent Local is not affected: its store serialises writes and each one carries the version it was decided against (ADR-115).
+
+---
+
 ## ADR-131 — The persistent environment's deploy values are committed in `deploy/persistent.env`; no secret ever is
 
 **Date:** 2026-11-24. **Status:** accepted. **Refines:** ADR-021 (for the one persistent environment only), ADR-070, ADR-085.

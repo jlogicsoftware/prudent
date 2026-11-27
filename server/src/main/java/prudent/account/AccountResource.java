@@ -139,7 +139,10 @@ public class AccountResource {
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response replace(@PathParam("id") String id, UpdateAccountRequest request) {
     UUID userId = currentUser.id();
-    AccountEntity entity = require(userId, id);
+    // Locked for the whole transaction, and before anything reads the account: the currencies in use
+    // are checked below and the balance rows rewritten from what was read here, so neither another
+    // update nor a record or plan being written may come between the two (ADR-133).
+    AccountEntity entity = requireForUpdate(userId, id);
     applyScalars(entity, request.getName(), request.getType(), request.getIsDefault(),
         request.getIsActive(), request.getIncludeInTotal(), request.getIncludeInOverview(),
         request.getEligibleForGoals());
@@ -181,7 +184,8 @@ public class AccountResource {
           @DefaultValue("false")
           boolean deleteRecords) {
     UUID userId = currentUser.id();
-    AccountEntity entity = require(userId, id);
+    // Locked like an update, so a record or plan cannot appear between the checks and the delete.
+    AccountEntity entity = requireForUpdate(userId, id);
     // Refused rather than cascaded unless the caller says otherwise — see the same rule on
     // categories, and ADR-008's reasoning about money that left an account no longer admitting it
     // exists. Deleting the records with the account is the caller's explicit, separate decision
@@ -239,6 +243,15 @@ public class AccountResource {
 
   private AccountEntity require(UUID userId, String id) {
     AccountEntity entity = AccountEntity.findOwned(userId, Ids.parse("account", id));
+    if (entity == null) {
+      throw PrudentException.notFound("account", id);
+    }
+    return entity;
+  }
+
+  /** {@link #require}, holding the account's lock until the transaction ends. */
+  private AccountEntity requireForUpdate(UUID userId, String id) {
+    AccountEntity entity = AccountEntity.findOwnedForUpdate(userId, Ids.parse("account", id));
     if (entity == null) {
       throw PrudentException.notFound("account", id);
     }

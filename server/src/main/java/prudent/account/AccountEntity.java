@@ -17,6 +17,7 @@ import jakarta.persistence.UniqueConstraint;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.hibernate.query.NativeQuery;
 import prudent.text.TextRules;
 
 /**
@@ -151,13 +152,54 @@ public class AccountEntity extends PanacheEntityBase {
 
   /**
    * One account, but only if the caller owns it, locked ({@code SELECT ... FOR UPDATE}) for the rest
-   * of the transaction. A statement import takes it before it checks and writes, so two commits into
-   * one account queue instead of both writing the same rows (ADR-092).
+   * of the transaction. Whatever changes or deletes an account takes it, and so does a statement
+   * import before it checks and writes (ADR-092), so two such requests for one account queue instead
+   * of both deciding on the same state. It also queues them behind, and ahead of, everyone holding
+   * {@link #findOwnedForPosting}.
+   *
+   * <p>Must be the transaction's first read of the account; see {@link #lockOwned}.
    */
   public static AccountEntity findOwnedForUpdate(UUID userId, UUID id) {
-    return find("id = ?1 and userId = ?2", id, userId)
-        .withLock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
-        .firstResult();
+    return lockOwned(userId, id, "for update");
+  }
+
+  /**
+   * One account, but only if the caller owns it, locked ({@code SELECT ... FOR KEY SHARE}) for a
+   * write that names it: a record, a transfer leg, a correction or a plan. The caller then checks
+   * {@link #holds} knowing the account cannot lose that currency, or be deleted, before the write
+   * commits (ADR-133).
+   *
+   * <p>Writers do not wait for each other, only for {@link #findOwnedForUpdate}. It is the lock the
+   * foreign key takes on the account at insert anyway, taken before the check instead of after it.
+   * A stronger one would also make writers wait for a change of the default flag on another account
+   * ({@link #clearDefaultExcept}), which can deadlock a transfer against an account update.
+   *
+   * <p>Must be the transaction's first read of the account; see {@link #lockOwned}.
+   */
+  public static AccountEntity findOwnedForPosting(UUID userId, UUID id) {
+    return lockOwned(userId, id, "for key share");
+  }
+
+  /**
+   * Locks the row and reads it in one statement; the balances are read by a second one, which under
+   * read committed sees whatever the previous holder of the lock committed. Native on purpose: it
+   * states the lock strength in SQL, and it cannot read the balances in the statement that waits,
+   * where they could be the ones from before the wait. An account already loaded in this
+   * transaction is returned as it was loaded, which is why the lock has to come before any other
+   * read of it.
+   */
+  private static AccountEntity lockOwned(UUID userId, UUID id, String strength) {
+    @SuppressWarnings("unchecked")
+    NativeQuery<AccountEntity> query =
+        getEntityManager()
+            .createNativeQuery(
+                "select * from prudent_account where id = :id and user_id = :userId " + strength,
+                AccountEntity.class)
+            .unwrap(NativeQuery.class);
+    // Without this a native query flushes every pending change first, which would write an import's
+    // records one at a time.
+    query.addSynchronizedEntityClass(AccountEntity.class);
+    return query.setParameter("id", id).setParameter("userId", userId).uniqueResult();
   }
 
   /** The caller's account holding {@code accountNumber} (already normalised), or {@code null}. */
