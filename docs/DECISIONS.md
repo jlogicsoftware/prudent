@@ -13,6 +13,45 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-132 — The server-connected app's macOS runner may write the file a person chooses (`files.user-selected.read-write`), held by a test
+
+**Date:** 2026-11-27. **Status:** accepted. **Issue:** jlogicsoftware/prudent#286. **Refines:** ADR-093, ADR-117.
+**jZen:** filed jZenDev/jZen#282 and jZenDev/jZen#283 (found at `JZEN_REF` `24cd68c`).
+
+### Decision
+
+- **Both entitlements files of `client/macos/Runner`** (`Release.entitlements`, `DebugProfile.entitlements`) grant
+  `com.apple.security.files.user-selected.read-write` in place of `...read-only`. It still reaches only files the person chooses in a system panel,
+  and it covers reading them, so no second entitlement stays beside it.
+- **`client/test/macos_entitlements_test.dart` fails** when any `*.entitlements` file in that folder does not set it to true. It reads every file
+  in the folder, so a signing configuration added later is held too. It runs in the client suite, which CI runs.
+- **The privacy policy says what has been tried**: saving on a Mac only, with a test version of the app and made-up data.
+
+### What this supersedes, and why
+
+- **"The macOS runner needed `com.apple.security.files.user-selected.read-only` in both entitlement files"** (ADR-093) → **changed.** *Why:* it
+  was enough while the app only opened files; saving writes one.
+- **"the screen offers 'Save to a file' ... on iOS, Android, macOS, Windows, Linux and web"** (ADR-117) → **made true for macOS.** The button was
+  offered there and every save failed: `file_picker_darwin` 2.5.1 answers `ENTITLEMENT_REQUIRED_WRITE` before any panel opens. The suite stands in
+  for the plugin and the build was green, so nothing said so. ADR-117 also counted on "a download" on the web: see Consequence.
+
+### Consequence
+
+Verified on 2026-11-27, on one Mac: the release and debug apps built from this tree carry the read-write entitlement. A throwaway probe (the real
+`PrivacyScreen`, saver and macOS runner over a mock server with synthetic data, the release build re-signed ad hoc under another bundle id)
+opened the save panel, wrote the file, which read back as written, and showed "Your data was saved"; the same build signed with the old read-only
+entitlements showed "The file could not be saved" and logged `ENTITLEMENT_REQUIRED_WRITE`. With read-write the statement picker's open panel
+appeared and could be cancelled; **choosing and reading a file in it was not driven**. The new test passes, and fails with either file set back to
+read-only.
+
+**Not verified:** the unmodified app signed in to a server, a build signed with a developer identity (jlogicsoftware/prudent#290), a real export,
+a save outside the app's own container, and iOS, Android, Windows and Linux (unit 12). **Open:** on the web `zenSaveFile` answers `false` after a
+download (seen in a headless Chrome test of the real plugin; the downloaded file was not looked for), so the app shows no confirmation and
+ADR-117's "handed to your browser's downloads" sentence never appears (jZenDev/jZen#283; not worked around). Prudent Local's macOS runner is not
+changed here.
+
+---
+
 ## ADR-131 — The persistent environment's deploy values are committed in `deploy/persistent.env`; no secret ever is
 
 **Date:** 2026-11-24. **Status:** accepted. **Refines:** ADR-021 (for the one persistent environment only), ADR-070, ADR-085.
