@@ -54,6 +54,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: ./prudent/.github/actions/maven-cache
+        id: maven-cache
       - name: Install jZen framework libraries
         working-directory: prudent
         run: task zen:framework:install
@@ -65,3 +66,9 @@ jobs:
       - name: task audit
         working-directory: prudent
         run: task audit
+
+      - name: Keep what a failed job downloaded
+        if: failure() && steps.maven-cache.outputs.unsaved-key != ''
+        uses: ./prudent/.github/actions/maven-cache
+        with:
+          save-partial-of: ${{ steps.maven-cache.outputs.unsaved-key }}

@@ -206,6 +206,7 @@ jobs:
         run: task test:deploy-origin
 
       - uses: ./prudent/.github/actions/maven-cache
+        id: maven-cache
       # THE STEP THE SEAM DIAGRAM ABOVE IS ABOUT. server/pom.xml's parent has an empty
       # <relativePath/>, resolved from the local Maven repository — a fresh runner has none, so
       # this installs jZen's framework artifacts into it before anything below tries to resolve
@@ -278,6 +279,13 @@ jobs:
         working-directory: prudent/client
         run: flutter build web --wasm --dart-define=ZEN_API_URL=https://ci.invalid
 
+      # Last in every job that caches (ADR-136): the cache step itself saves only on success.
+      - name: Keep what a failed job downloaded
+        if: failure() && steps.maven-cache.outputs.unsaved-key != ''
+        uses: ./prudent/.github/actions/maven-cache
+        with:
+          save-partial-of: ${{ steps.maven-cache.outputs.unsaved-key }}
+
   # The backend @QuarkusTest suite. Uses Quarkus Dev Services, which starts Postgres in Docker —
   # available on ubuntu-latest by default, so no extra service setup.
   backend:
@@ -304,11 +312,17 @@ jobs:
           version: "3.52.0"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: ./prudent/.github/actions/maven-cache
+        id: maven-cache
       - name: Install jZen framework libraries
         working-directory: prudent
         run: task zen:framework:install
       - working-directory: prudent
         run: task test:server
+      - name: Keep what a failed job downloaded
+        if: failure() && steps.maven-cache.outputs.unsaved-key != ''
+        uses: ./prudent/.github/actions/maven-cache
+        with:
+          save-partial-of: ${{ steps.maven-cache.outputs.unsaved-key }}
 
   # The delivery runners this Linux host can build: Android, plus the Linux desktop app (jZen
   # ADR-045). Its own job so a Gradle/manifest/GTK fault is reported as itself rather than buried
@@ -366,6 +380,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build libgtk-3-dev libsecret-1-dev xvfb
       - uses: ./prudent/.github/actions/gradle-cache
+        id: gradle-cache
       # zen:deps:client, not the all-tier zen:deps (jZen #74): this runner has no Node toolchain
       # and (on Windows) no JDK — it only builds Flutter runners.
       - working-directory: prudent
@@ -400,6 +415,11 @@ jobs:
       - name: Prudent Local refuses the development sync define in a release build
         working-directory: prudent
         run: xvfb-run -a task test:local-release-refusal
+      - name: Keep what a failed job downloaded
+        if: failure() && steps.gradle-cache.outputs.unsaved-key != ''
+        uses: ./prudent/.github/actions/gradle-cache
+        with:
+          save-partial-of: ${{ steps.gradle-cache.outputs.unsaved-key }}
 
   # THE Windows runner, and the one place the Windows app is ever built (jZen ADR-045): Flutter
   # refuses `build windows` off any other host, by name, so this job is the only evidence Prudent
@@ -500,6 +520,7 @@ jobs:
       - working-directory: prudent
         run: task zen:deps:client
       - uses: ./prudent/.github/actions/gradle-cache
+        id: gradle-cache
       - name: Prudent Local runners (debug)
         working-directory: prudent
         run: task build:local:runners
@@ -512,6 +533,11 @@ jobs:
       - name: Prudent Local refuses the development sync define in a release build
         working-directory: prudent
         run: task test:local-release-refusal
+      - name: Keep what a failed job downloaded
+        if: failure() && steps.gradle-cache.outputs.unsaved-key != ''
+        uses: ./prudent/.github/actions/gradle-cache
+        with:
+          save-partial-of: ${{ steps.gradle-cache.outputs.unsaved-key }}
 
   # The end-to-end release gate: boots real Supabase + Quarkus and runs Prudent's own integration
   # suite (client/integration_test/e2e_test.dart) with no mocks. LINUX-ONLY — see windows-runner's
@@ -549,6 +575,7 @@ jobs:
           version: "3.52.0"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: ./prudent/.github/actions/maven-cache
+        id: maven-cache
       - name: Install jZen framework libraries
         working-directory: prudent
         run: task zen:framework:install
@@ -558,3 +585,8 @@ jobs:
         run: task zen:deps:client
       - working-directory: prudent
         run: task test:e2e
+      - name: Keep what a failed job downloaded
+        if: failure() && steps.maven-cache.outputs.unsaved-key != ''
+        uses: ./prudent/.github/actions/maven-cache
+        with:
+          save-partial-of: ${{ steps.maven-cache.outputs.unsaved-key }}
