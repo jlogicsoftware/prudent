@@ -1,0 +1,87 @@
+# Keeps what the Android builds download between runs (ADR-136, jlogicsoftware/prudent#302): the
+# Gradle distribution and Gradle's dependency cache, so a refused request to Maven Central (HTTP 429),
+# Google's Maven or the Gradle plugin portal no longer fails a build whose dependencies are unchanged.
+#
+# Use it twice in a job:
+#
+#   1. AFTER the checkout of `prudent/` and BEFORE the first Android build, with an `id`. It restores,
+#      and saves when the job succeeds, only when no exact entry already existed.
+#   2. As the LAST step, on failure, passing the first use's `unsaved-key` as `save-partial-of`. A job
+#      refused part-way keeps what it did download, so the next run asks for less.
+#
+# Both live here so that the cached paths are written in one file: `actions/cache` finds an entry only
+# when the path list it was saved with is identical.
+#
+# Only downloads are kept: no build output, no build cache, no transformed artifacts. It adds no
+# retry and no mirror.
+name: Cache Gradle downloads
+description: Restore the Gradle distribution and dependency cache, and save them on success or failure
+
+inputs:
+  save-partial-of:
+    description: Empty restores. The `unsaved-key` of the restoring use saves what a failed job downloaded.
+    required: false
+    default: ""
+
+outputs:
+  unsaved-key:
+    description: The key this job would save on success; empty when that exact entry already exists
+    value: ${{ steps.cache.outputs.cache-hit != 'true' && steps.key.outputs.key || '' }}
+
+runs:
+  using: composite
+  steps:
+    # Everything that decides what Gradle resolves: both apps' Gradle files and wrappers, the plugin
+    # versions their pubspec.lock pins, and the Flutter version (its Gradle plugin and engine
+    # artifacts). A missed input costs a repeated download, never a wrong build.
+    - id: key
+      if: inputs.save-partial-of == ''
+      shell: bash
+      run: echo "key=gradle-v1-${{ runner.os }}-${{ github.job }}-${{ hashFiles('prudent/client/android/**/*.gradle.kts', 'prudent/client/android/**/gradle*.properties', 'prudent/client/pubspec.lock', 'prudent/local/prudent_local_client/android/**/*.gradle.kts', 'prudent/local/prudent_local_client/android/**/gradle*.properties', 'prudent/local/prudent_local_client/pubspec.lock', 'prudent/.fvmrc') }}" >> "$GITHUB_OUTPUT"
+    - id: cache
+      if: inputs.save-partial-of == ''
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.gradle/caches/modules-2
+          ~/.gradle/wrapper/dists
+        # A restore key also matches by prefix, so this key finds the partial entries named after it.
+        key: ${{ steps.key.outputs.key }}
+        restore-keys: |
+          gradle-v1-${{ runner.os }}-${{ github.job }}-
+    # Runs on both uses. Gradle's guidance for a copied dependency cache: lock files and the cleanup
+    # journal belong to the machine that wrote them.
+    - name: Drop Gradle's lock files
+      shell: bash
+      run: |
+        set -eu
+        if [ -d "$HOME/.gradle/caches/modules-2" ]; then
+          find "$HOME/.gradle/caches/modules-2" -type f \( -name '*.lock' -o -name gc.properties \) -delete
+        fi
+    # The partial entry is named after the downloaded files it holds (Gradle's own metadata changes on
+    # every run and is left out of the name), so a job that fails again without having downloaded
+    # anything new finds its name taken and stores nothing more.
+    - id: partial
+      if: inputs.save-partial-of != ''
+      shell: bash
+      run: |
+        set -euo pipefail
+        dirs=()
+        for d in "$HOME/.gradle/caches/modules-2/files-2.1" "$HOME/.gradle/wrapper/dists"; do
+          if [ -d "$d" ]; then dirs+=("$d"); fi
+        done
+        files=""
+        if [ "${#dirs[@]}" -gt 0 ]; then files="$(find "${dirs[@]}" -type f ! -name '*.lck' | LC_ALL=C sort)"; fi
+        if [ -z "$files" ]; then
+          echo "Nothing was downloaded; nothing to save."
+          exit 0
+        fi
+        sum="$(printf '%s\n' "$files" | shasum -a 256 | cut -c1-16)"
+        echo "key=${{ inputs.save-partial-of }}-partial-$sum" >> "$GITHUB_OUTPUT"
+    - if: inputs.save-partial-of != '' && steps.partial.outputs.key != ''
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.gradle/caches/modules-2
+          ~/.gradle/wrapper/dists
+        key: ${{ steps.partial.outputs.key }}

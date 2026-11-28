@@ -1,0 +1,95 @@
+# Keeps what Maven downloads between runs (ADR-136, jlogicsoftware/prudent#302): a package host that
+# refuses a runner's shared address fails a required check on a change that touched no dependency.
+#
+# Use it twice in a job:
+#
+#   1. AFTER both checkouts (the key reads files from `prudent/` and `jZen/`) and BEFORE the first
+#      step that runs Maven, with an `id`. It restores, and saves when the job succeeds, only when no
+#      exact entry already existed.
+#   2. As the LAST step, on failure, passing the first use's `unsaved-key` as `save-partial-of`. A job
+#      refused part-way keeps what it did download, so the next run asks for less.
+#
+# Both live here so that the cached paths are written in one file: `actions/cache` finds an entry only
+# when the path list it was saved with is identical.
+#
+# It caches third-party downloads and nothing this build produces. It adds no retry and no mirror: a
+# download that is still needed goes to the same host and fails the same way.
+name: Cache Maven downloads
+description: Restore the Maven wrapper distributions and local repository, and save them on success or failure
+
+inputs:
+  save-partial-of:
+    description: Empty restores. The `unsaved-key` of the restoring use saves what a failed job downloaded.
+    required: false
+    default: ""
+
+outputs:
+  unsaved-key:
+    description: The key this job would save on success; empty when that exact entry already exists
+    value: ${{ steps.cache.outputs.cache-hit != 'true' && steps.key.outputs.key || '' }}
+
+runs:
+  using: composite
+  steps:
+    - id: key
+      if: inputs.save-partial-of == ''
+      shell: bash
+      run: echo "key=maven-v1-${{ runner.os }}-${{ github.job }}-${{ hashFiles('prudent/server/pom.xml', 'prudent/server/.mvn/wrapper/maven-wrapper.properties', 'jZen/server/**/pom.xml', 'jZen/server/.mvn/wrapper/maven-wrapper.properties') }}" >> "$GITHUB_OUTPUT"
+    - id: cache
+      if: inputs.save-partial-of == ''
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.m2/repository
+          ~/.m2/wrapper/dists
+        # One entry per job, because the jobs resolve different artifacts and an entry is never
+        # updated once written: a shared key would keep whatever the quickest job happened to need.
+        # A restore key also matches by prefix, so this key finds the partial entries named after it.
+        # The older entries a restore-key finds are a head start; Maven downloads what is missing.
+        key: ${{ steps.key.outputs.key }}
+        restore-keys: |
+          maven-v1-${{ runner.os }}-${{ github.job }}-
+          maven-v1-${{ runner.os }}-
+    # Runs on both uses, after a restore and before a partial save.
+    #
+    # `zen` and `prudent` are installed into this repository by the build itself. A copy from an
+    # earlier run could satisfy a dependency on a module that no longer exists, so the build would
+    # pass on something it did not produce.
+    #
+    # `*.lastUpdated` is Maven's note that a download failed or found nothing, and Maven does not ask
+    # again while the note is fresh. Carried to another run it would turn one refusal into a day of
+    # failures.
+    - name: Drop first-party artifacts and failed-download notes
+      shell: bash
+      run: |
+        set -eu
+        rm -rf "$HOME/.m2/repository/zen" "$HOME/.m2/repository/prudent"
+        if [ -d "$HOME/.m2/repository" ]; then
+          find "$HOME/.m2/repository" -type f -name '*.lastUpdated' -delete
+        fi
+    # The partial entry is named after the files it holds, so a job that fails again without having
+    # downloaded anything new finds its name taken and stores nothing more.
+    - id: partial
+      if: inputs.save-partial-of != ''
+      shell: bash
+      run: |
+        set -euo pipefail
+        dirs=()
+        for d in "$HOME/.m2/repository" "$HOME/.m2/wrapper/dists"; do
+          if [ -d "$d" ]; then dirs+=("$d"); fi
+        done
+        files=""
+        if [ "${#dirs[@]}" -gt 0 ]; then files="$(find "${dirs[@]}" -type f | LC_ALL=C sort)"; fi
+        if [ -z "$files" ]; then
+          echo "Nothing was downloaded; nothing to save."
+          exit 0
+        fi
+        sum="$(printf '%s\n' "$files" | shasum -a 256 | cut -c1-16)"
+        echo "key=${{ inputs.save-partial-of }}-partial-$sum" >> "$GITHUB_OUTPUT"
+    - if: inputs.save-partial-of != '' && steps.partial.outputs.key != ''
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.m2/repository
+          ~/.m2/wrapper/dists
+        key: ${{ steps.partial.outputs.key }}

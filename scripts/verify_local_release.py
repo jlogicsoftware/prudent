@@ -15,8 +15,9 @@ Five checks over the tree, each failing on a real violation and on a scope that 
      source under client/, packages/ or local/ calls `String.fromEnvironment('ZEN_SYNC'...)` or
      names `ZEN_SYNC_FOLDER` that way, so the framework's refusal is the only one there is. Not
      duplicated here, and not bypassable by a second reader.
-  C. No CI workflow sets `ZEN_SYNC`. A workflow that baked it in would build the unencrypted
-     development transport on the runner that makes the release artifacts.
+  C. No CI workflow, and no repository action a workflow calls, sets `ZEN_SYNC`. Either one that
+     baked it in would build the unencrypted development transport on the runner that makes the
+     release artifacts.
   D. Prudent Local has no web runner (jZen ADR-073): no `web/` directory beside its other runners.
 
 Usage: verify_local_release.py [--merged MANIFEST]... [REPO_ROOT]
@@ -35,6 +36,7 @@ MANIFESTS = (
 MAIN_MANIFEST = MANIFESTS[0]
 DART_ROOTS = ("client", "packages", "local")
 WORKFLOWS = ".github/workflows"
+ACTIONS = ".github/actions"
 
 ATTR = r'android:{name}\s*=\s*"([^"]*)"'
 # Any literal mention of the define in code: fromEnvironment, hasEnvironment, a multi-line call, a
@@ -184,8 +186,10 @@ def check_workflows(root: Path) -> "list[str]":
     flows = sorted((root / WORKFLOWS).glob("*.yml"))
     if not flows:
         return [f"{WORKFLOWS} has no workflow — the scope matches nothing"]
+    # A composite action's steps run inside the job, so its `env:` and commands count the same.
+    actions = sorted((root / ACTIONS).rglob("*.yml")) + sorted((root / ACTIONS).rglob("*.yaml"))
     return [f"{f.relative_to(root)}:{n} mentions ZEN_SYNC — CI must not build the development transport (T18)"
-            for f in flows
+            for f in flows + actions
             for n, line in enumerate(f.read_text().splitlines(), 1)
             if "ZEN_SYNC" in line and not line.lstrip().startswith("#")]
 
@@ -211,7 +215,7 @@ def main(argv: "list[str]") -> int:
         ("Android refuses Auto Backup (T10)", check_android(root, merged)),
         ("ZEN_SYNC has one reader, jZen's (T18)", check_zen_sync_reader(root)),
         ("no sync transport is built outside the one starter (T18)", check_transport_construction(root)),
-        ("no workflow sets ZEN_SYNC (T18)", check_workflows(root)),
+        ("no workflow or repository action sets ZEN_SYNC (T18)", check_workflows(root)),
         ("no web runner", check_no_web(root)),
     )
     failed = False
