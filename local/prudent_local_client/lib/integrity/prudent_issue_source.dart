@@ -4,26 +4,21 @@ import 'package:zen_ui_store/zen_ui_store.dart';
 
 import '../l10n/generated/local_localizations.dart';
 
-/// Asks the person for a short text an action needs (the name of an account being brought back).
-/// Null when they cancelled.
-typedef AskForText = Future<String?> Function();
-
 /// The integrity runner's issues (ADR-102 D6, ADR-111) as `zen_ui_store` application issues, beside
 /// the store's own conflicts (jZenDev/jZen#233): the banner counts them and the conflict list shows
 /// them with Prudent's actions. Nothing is fixed silently (ADR-100 T23).
 ///
 /// [IntegrityIssue] is data; this gives it words in the person's language, chosen by its code, and
-/// names records by what the person calls them. An action that chooses among records becomes one
-/// button per choice ("Move to Savings"), and an action that needs a name asks for it through
-/// [askForText] first: `ZenIssueAction` takes no input of its own (jZenDev/jZen#256).
+/// names records by what the person calls them. What an action needs from the person, a choice among
+/// records or a name, is asked by `ZenIssueScreen` itself (jZenDev/jZen#256); cancelling there runs
+/// nothing and leaves the issue.
 ZenIssueSource prudentIssueSource(
   IntegrityRunner runner,
-  LocalLocalizations t, {
-  required AskForText askForText,
-}) => ZenIssueSource(
+  LocalLocalizations t,
+) => ZenIssueSource(
   issues: () => switch (runner.evaluate()) {
     ZenSuccess(:final data) => [
-      for (final issue in data) _issue(issue, runner.store, t, askForText),
+      for (final issue in data) _issue(issue, runner.store, t),
     ],
     // A store that cannot be read is never reported as "no issues": it is one issue that says so.
     ZenFailure(:final error) => [
@@ -50,52 +45,45 @@ ZenIssue _issue(
   IntegrityIssue issue,
   PrudentLocalStore store,
   LocalLocalizations t,
-  AskForText askForText,
 ) {
   final (title, description) = _words(issue.code, t);
   return ZenIssue(
     id: issue.id,
     title: title,
     description: description,
-    actions: [
-      for (final action in issue.actions)
-        ..._actions(action, store, t, askForText),
-    ],
+    actions: [for (final action in issue.actions) _action(action, store, t)],
   );
 }
 
-Iterable<ZenIssueAction> _actions(
+ZenIssueAction _action(
   IntegrityAction action,
   PrudentLocalStore store,
   LocalLocalizations t,
-  AskForText askForText,
-) sync* {
+) {
   final choices = action.choices;
   if (choices != null) {
-    for (final choice in choices) {
-      yield ZenIssueAction(
-        label: _choiceLabel(action.code, _nameOf(store, choice), t),
-        run: () => action.run(choice),
+    // One candidate is a button that names it: jZen's choice prompt asserts at least two
+    // (jZenDev/jZen#288).
+    if (choices case [final only]) {
+      return ZenIssueAction(
+        label: _onlyChoiceLabel(action.code, _nameOf(store, only), t),
+        run: () => action.run(only),
       );
     }
-  } else if (action.needsText) {
-    yield ZenIssueAction(
+    return ZenIssueAction.choose(
       label: _label(action.code, t),
-      run: () async {
-        final text = await askForText();
-        // Cancelled: nothing written, and the issue stays in the list.
-        if (text == null || text.trim().isEmpty) {
-          return const ZenResult.ok(null);
-        }
-        return action.run(text);
-      },
-    );
-  } else {
-    yield ZenIssueAction(
-      label: _label(action.code, t),
-      run: () => action.run(),
+      choices: [for (final id in choices) (id, _nameOf(store, id))],
+      run: action.run,
     );
   }
+  if (action.needsText) {
+    return ZenIssueAction.text(
+      label: _label(action.code, t),
+      fieldLabel: t.recreateNameField,
+      run: action.run,
+    );
+  }
+  return ZenIssueAction(label: _label(action.code, t), run: action.run);
 }
 
 /// What the person calls the record [id]: an account's or category's name, a record's title and
@@ -128,18 +116,23 @@ String _label(String code, LocalLocalizations t) => switch (code) {
   'undo_overshoot' => t.actionUndoOvershoot,
   'reactivate_goal' => t.actionReactivateGoal,
   'withdraw_all' => t.actionWithdrawAll,
+  'move_to_account' => t.actionMoveToAnotherAccount,
+  'move_to_category' => t.actionMoveToAnotherCategory,
+  'choose_default_account' => t.actionChooseAnotherDefault,
+  'delete_correction' => t.actionDeleteOneCorrection,
+  'correct_to_target' => t.actionKeepOneCorrection,
+  'clear_account_number' => t.actionClearOneAccountNumber,
+  'revoke_reset' => t.actionRevokeOneReset,
   _ => t.actionUnknown(code, ''),
 };
 
-String _choiceLabel(String code, String name, LocalLocalizations t) =>
+/// The button of a choice that has one candidate. The other choices are made only for two or more
+/// records (two corrections, two accounts with one number, two resets), so they have no wording here.
+String _onlyChoiceLabel(String code, String name, LocalLocalizations t) =>
     switch (code) {
       'move_to_account' => t.actionMoveToAccount(name),
       'move_to_category' => t.actionMoveToCategory(name),
       'choose_default_account' => t.actionChooseDefaultAccount(name),
-      'delete_correction' => t.actionDeleteCorrection(name),
-      'correct_to_target' => t.actionCorrectToTarget(name),
-      'clear_account_number' => t.actionClearAccountNumber(name),
-      'revoke_reset' => t.actionRevokeReset(name),
       _ => t.actionUnknown(code, name),
     };
 

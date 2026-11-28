@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zen_save_file/zen_save_file.dart';
 import 'package:zen_store_sync/zen_store_sync.dart';
@@ -24,12 +23,6 @@ final pinLockProvider = Provider<ZenPinLock>((ref) {
 final lockStorageProvider = Provider<ZenLockStorage>((ref) {
   throw UnimplementedError('lockStorageProvider must be overridden');
 });
-
-/// The navigator of the whole app, for what is asked outside any screen's own context (an
-/// integrity action that needs a name; `ZenIssueAction` gives none, jZenDev/jZen#256).
-final rootNavigatorKeyProvider = Provider<GlobalKey<NavigatorState>>(
-  (ref) => GlobalKey<NavigatorState>(),
-);
 
 /// Whether this device can confirm its owner (passcode, Face ID, Touch ID, Windows Hello), which is
 /// how a forgotten PIN is reset without erasing (ADR-100 T4). A failure to find out answers false,

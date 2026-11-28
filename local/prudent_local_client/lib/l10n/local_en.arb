@@ -167,38 +167,13 @@
       }
     }
   },
-  "actionDeleteCorrection": "Delete the correction of {name}",
-  "@actionDeleteCorrection": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "actionCorrectToTarget": "Keep one correction: {name}",
-  "@actionCorrectToTarget": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "actionClearAccountNumber": "Clear the number on {name}",
-  "@actionClearAccountNumber": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "actionRevokeReset": "Take back the reset made {name}",
-  "@actionRevokeReset": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
+  "actionMoveToAnotherAccount": "Move to another account",
+  "actionMoveToAnotherCategory": "File under another category",
+  "actionChooseAnotherDefault": "Choose another default account",
+  "actionDeleteOneCorrection": "Delete one correction",
+  "actionKeepOneCorrection": "Keep one correction",
+  "actionClearOneAccountNumber": "Clear the number on one account",
+  "actionRevokeOneReset": "Take back one reset",
   "actionUnknown": "{code}: {name}",
   "@actionUnknown": {
     "placeholders": {
@@ -210,9 +185,7 @@
       }
     }
   },
-  "recreateNameTitle": "What is it called?",
   "recreateNameField": "Name",
-  "recreateNameSave": "Bring it back",
   "conflictNotSet": "not set",
   "conflictAccount": "Account {name}",
   "@conflictAccount": {
