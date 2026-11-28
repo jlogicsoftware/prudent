@@ -12,6 +12,7 @@ import 'package:zen_store_folder/zen_store_folder.dart';
 import 'package:zen_store_shared_folder/zen_store_shared_folder.dart';
 import 'package:zen_ui_lock/zen_ui_lock.dart';
 
+import 'protect_store_directory.dart';
 import 'sync_starter.dart';
 
 /// Everything this device holds: the open store, Prudent's collections and ledger on it, the sync
@@ -75,8 +76,11 @@ final class LocalSession extends ChangeNotifier {
     _attach();
   }
 
-  /// Opens the store in [directory] and starts sync. Fails, writing nothing, if the store cannot be
-  /// read: a wrong key or a damaged file is never answered with an empty store (ADR-100 T8–T10).
+  /// Opens the store in [directory] and starts sync. Fails, writing nothing over the data, if the
+  /// store cannot be read: a wrong key or a damaged file is never answered with an empty store
+  /// (ADR-100 T8–T10). On iOS it fails too if the directory cannot be given Data Protection first
+  /// ([protectStoreDirectory]): the store is then not opened and no file's content is changed, though
+  /// iOS may already have created the directory or protected some of its files.
   static Future<ZenResult<LocalSession>> open({
     required Directory directory,
     required Directory dataDirectory,
@@ -88,7 +92,7 @@ final class LocalSession extends ChangeNotifier {
     Future<ZenFolderChoice?> Function()? pickFolder,
   }) async {
     final ZenStore store;
-    switch (await ZenStore.open(
+    switch (await _openStore(
       directory,
       deviceName: deviceName,
       key: storeKey,
@@ -126,6 +130,18 @@ final class LocalSession extends ChangeNotifier {
     }
     await session._restartSync();
     return ZenResult.ok(session);
+  }
+
+  /// The one way this session opens a store, at launch and after an erasure alike: the directory is
+  /// protected first, so no file is written into one that is not.
+  static Future<ZenResult<ZenStore>> _openStore(
+    Directory directory, {
+    required String deviceName,
+    required List<int> key,
+  }) async {
+    final protected = await protectStoreDirectory(directory);
+    if (protected case ZenFailure(:final error)) return ZenResult.err(error);
+    return ZenStore.open(directory, deviceName: deviceName, key: key);
   }
 
   void _attach() {
@@ -358,7 +374,7 @@ final class LocalSession extends ChangeNotifier {
   }
 
   Future<ZenResult<void>> _reopen() async {
-    switch (await ZenStore.open(
+    switch (await _openStore(
       directory,
       deviceName: deviceName,
       key: _storeKey,

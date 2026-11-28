@@ -71,6 +71,7 @@
   "erasedFailed": "Prudent Local nie mógł zacząć od nowa. Zamknij go i otwórz ponownie.",
   "startFailedTitle": "Prudent Local nie może otworzyć swoich danych",
   "startFailedBody": "Nie można odczytać klucza, który odblokowuje dane na tym urządzeniu, albo dane do niego nie pasują. Nic nie zostało zmienione.",
+  "startFailedProtection": "Nie udało się włączyć ochrony danych iOS dla danych na tym urządzeniu, więc Prudent Local ich nie otworzył. Twoje dane nie zostały zmienione.",
   "startFailedLinux": "W systemie Linux Prudent Local przechowuje klucz w pęku kluczy pulpitu. Zainstaluj usługę sekretów (gnome-keyring lub KWallet z libsecret) i odblokuj ją, a potem ponownie otwórz Prudent Local.",
   "startFailedRestored": "Jeśli pliki tego urządzenia przywrócono z kopii zapasowej, klucz nie wrócił razem z nimi. Wymaż kopię na tym urządzeniu i pozwól jej ponownie zsynchronizować się z innych urządzeń.",
   "startFailedErase": "Wymaż kopię na tym urządzeniu",

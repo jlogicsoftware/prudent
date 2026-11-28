@@ -11,11 +11,12 @@ import 'start_failed_page.dart';
 
 /// What the person sees when this device's data cannot be opened (ADR-100 T8, T9, T10): the key
 /// cannot be read (no secret service on Linux, a locked keyring, a Windows "nothing stored" beside
-/// existing files, files restored from a backup without their key) or the files do not decrypt.
+/// existing files, files restored from a backup without their key), the files do not decrypt, or iOS
+/// Data Protection cannot be set on them (T1, where nothing that erases is offered either).
 ///
-/// Nothing was changed, and nothing is erased on its own. Where erasing and re-syncing is the way
-/// out (Windows, a restored backup) it is offered, behind a question; on Linux, where the fix is to
-/// install or unlock the keyring, nothing that erases is offered (T8).
+/// No file's content is changed, and nothing is erased on its own. Where erasing and re-syncing is
+/// the way out (Windows, a restored backup) it is offered, behind a question; on Linux, where the fix
+/// is to install or unlock the keyring, nothing that erases is offered (T8).
 class StartFailedApp extends StatelessWidget {
   const StartFailedApp({
     super.key,

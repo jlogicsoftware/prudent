@@ -1043,7 +1043,7 @@ packages:
     source: path
     version: "0.1.0"
   zen_store_cloudkit:
-    dependency: transitive
+    dependency: "direct main"
     description:
       path: "../../../jZen/client/zen_store_cloudkit"
       relative: true

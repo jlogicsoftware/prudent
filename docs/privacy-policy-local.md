@@ -20,7 +20,8 @@ Your whole financial history lives on your own devices, encrypted. Nobody runs a
 it, so **nobody but you can read it and nobody can recover it for you**. If you sync, your devices
 exchange encrypted records through iCloud (on iPhone, iPad and Mac) or through a folder you choose
 and a sync service of your own (on Android, Windows and Linux). That service stores ciphertext: it
-can see how much there is and when it changes, not what it says.[^t-model]
+can see how much there is and when it changes, not what it says. A file you save, and the copies
+[the file dialogs leave](#plaintext-copies-the-file-dialogs-leave), are not encrypted.[^t-model]
 
 ## What stays on the device
 
@@ -32,7 +33,7 @@ Everything Prudent Local knows, in the app's own data directory:[^boot]
 | The store key | Kept by the platform's secret storage, or wrapped or encrypted by a key the platform keeps: never in the clear beside the data (table below)[^key] |
 | The sync key, once this device is paired (Android, Windows, Linux) | In the same secret storage[^synckey] |
 | The PIN, if you set one, and its failure count | A hash, in the same secret storage; a PIN is off unless you turn it on[^pin] |
-| A statement you are importing: the rows read from it, the categories and notes you give them, their fingerprints | Inside the encrypted store, in a collection that **never syncs** — not to your other devices, not to the folder, not to iCloud. Deleted when you confirm or discard the import, or 24 hours after you started it. The statement file itself is read once and never copied, cached or logged; it stays where you picked it, and Prudent says so after the import[^import] |
+| A statement you are importing: the rows read from it, the categories and notes you give them, their fingerprints | Inside the encrypted store, in a collection that **never syncs** — not to your other devices, not to the folder, not to iCloud. Deleted when you confirm or discard the import, or 24 hours after you started it. Prudent reads the statement file once, makes no copy of it in its own code and never logs it; the file stays where you picked it, and Prudent says so after the import. On iPhone, iPad and Android [the file dialog leaves a copy](#plaintext-copies-the-file-dialogs-leave) all the same, which the app's "did not keep the statement file" message does not mention[^import] |
 | Reminder notifications the app has scheduled | With the operating system. Their text has the plan's title and no amount, and a title can show on a lock screen[^notify] |
 | Whether the notification permission was already refused | One flag in the app's preferences[^notify] |
 | This device's name: the computer's or phone's host name (for example "my-laptop"), or the operating system's name if it has none | Inside the encrypted store, written into **every record** this device saves, and so **synced to and shown on your other devices** when two devices disagree about a record. It travels encrypted like the rest: the sync service cannot read it[^devicename] |
@@ -46,11 +47,33 @@ Everything Prudent Local knows, in the app's own data directory:[^boot]
 | Windows | Prudent's key in a file under `%APPDATA%`, encrypted by a key in Credential Manager (this machine, this user) | The file is useless on another machine; a program running as you can read Credential Manager |
 | Linux | The login keyring (libsecret: GNOME Keyring, KWallet or the portal) | As strong as that keyring; a program running as you can read it while it is unlocked. With no secret service, or a locked one, Prudent Local refuses to open rather than keep the key in a file |
 
+**On iPhone and iPad the store's files also get iOS Data Protection `complete`:** a second layer,
+beside Prudent's own encryption, that makes them unreadable while the device is locked (a device with
+no passcode has no Data Protection to apply, so it adds nothing there). Prudent Local asks iOS for it before it opens the
+store, at every launch and again after this device's copy is erased, and if iOS does not set it, the
+store is not opened (at launch the app says so). It covers the store's own directory and nothing else.
+No other platform has this class. **Not verified on a device.**[^dataprotection]
+
 Prudent Local never makes a new key over data it cannot open. If the key is missing or unreadable —
 for example after files were restored from a backup without it — the app says so and offers to
 erase this device's copy so it can sync again from your other devices, and never does that on its
 own.[^restore] On Android the app does not allow Auto Backup at all, and a gate fails the build if
 a manifest ever allows it.[^backup]
+
+### Plaintext copies the file dialogs leave
+
+Outside the encrypted store, the system's file dialogs leave **unencrypted copies in the app's own
+storage**, and Prudent Local does not delete them yet. This is read from the plugins' code and has
+**not been observed on a device or a simulator**.[^pickercopies]
+
+- **Picking a file** (a statement to import, or a server export to move in) on iPhone, iPad and
+  Android gives the app a copy of it: in the app's temporary folder on iOS, in its cache on Android.
+- **Save a copy to a file** on iPhone and iPad also leaves what it wrote, the whole copy in plain
+  text, in the app's temporary folder, whether you finished saving or cancelled.
+
+Neither erase button removes these copies, and the Data Protection set on the store's directory does
+not cover them. The operating system may clear temporary and cache files, at a time Prudent Local
+does not control.
 
 ## What the app never sends
 
@@ -186,7 +209,8 @@ It leaves out:
 - balances, budget summaries, goal progress and analytics, which are calculated from the rest.
 
 - **The file is not encrypted.** It holds all of your finances in plain text; the app says so above
-  the button. Keep it somewhere private and delete it when you are done with it.[^export]
+  the button. Keep it somewhere private and delete it when you are done with it. On iPhone and iPad
+  [a second copy stays in the app](#plaintext-copies-the-file-dialogs-leave).[^export]
 - It is **never** put on the clipboard: a clipboard reaches clipboard managers and, on some
   systems, your other devices.[^export]
 - It is named `prudent-export-<date>.json`, with no account number or name in it.[^numbers]
@@ -195,14 +219,16 @@ It leaves out:
 copy saved by the server-connected app into an empty Prudent Local and refuses the whole move
 unless every account balance matches to the cent. It reads the file you pick and changes nothing
 on the server: your server account stays until you erase it there, and the file stays where it was
-(it is not encrypted; delete it when you are done).[^movein] **Not verified:** no real export and
+(it is not encrypted; delete it when you are done). On iPhone, iPad and Android
+[a copy of it also stays in the app](#plaintext-copies-the-file-dialogs-leave).[^movein] **Not verified:** no real export and
 no device has been tried.
 
 ## Erasing it
 
 There is nothing to erase on a server. Two buttons, under **Settings → Privacy and data**:[^erase]
 
-- **Erase this device's copy** deletes Prudent Local's data on this device only. Your other devices
+- **Erase this device's copy** deletes Prudent Local's data on this device only, though not
+  [the copies the file dialogs left](#plaintext-copies-the-file-dialogs-leave). Your other devices
   keep theirs, and so do the folder and iCloud, from which this device gets it back when it syncs.
   The same thing is what "Forgot PIN?" does on a device with no other way to confirm it is you.
 - **Erase everywhere** asks twice, then deletes your data on this device, in the folder or in
@@ -220,6 +246,8 @@ There is nothing to erase on a server. Two buttons, under **Settings → Privacy
 - **If this device is not syncing**, only its own copy is erased and your other devices are not
   reached; the app says so before you press the button.
 - **Copies you made**: a saved copy, a server export you moved in from, a statement file.
+- **[The copies the file dialogs left](#plaintext-copies-the-file-dialogs-leave)** in the app's
+  storage.
 - **Backups the operating system or the sync service made** of the folder (a sync service's own
   version history or trash, a Time Machine or File History backup of the folder). They hold
   ciphertext, which needs a sync key the erased devices have forgotten, but they are not Prudent's
@@ -252,9 +280,9 @@ sync service. It does not protect against these, and says so:
 - **Android's store key and the screen lock.** The Keystore key that wraps Prudent's key is not tied
   to the screen lock, so the PIN, not the screen lock, is what stands between an unlocked phone
   and the app.[^key]
-- **iOS Data Protection on the store's directory is not set.** jZen offers it
-  (`ZenDataProtection.protectDirectory`) and the threat model assumed it, but Prudent Local does not
-  call it yet; the store's own encryption protects the files regardless.[^dataprotection]
+- **Anything outside the store's directory, on iOS.** Data Protection `complete` is set on that
+  directory alone: not on the app's preferences, a copy you saved or
+  [the copies the file dialogs leave](#plaintext-copies-the-file-dialogs-leave).[^dataprotection]
 - **A photograph of a pairing code.** A pairing code is on screen for five minutes at most, but a
   photograph of it, or a copy someone wrote down, stays the sync key after that, because the code
   carries the key itself: with it and access to
@@ -268,7 +296,8 @@ sync service. It does not protect against these, and says so:
   with.
 - **A device clock that is wrong.** Time decides nothing in a merge, but it dates reminders,
   expires imports and pairing codes.[^t-model]
-- **A plaintext copy you saved**, and a statement file you left where you picked it.
+- **A plaintext copy you saved**, a statement file you left where you picked it, and
+  [the copies the file dialogs leave](#plaintext-copies-the-file-dialogs-leave).
 
 ## What has not been verified
 
@@ -284,6 +313,9 @@ What this page states but has not been seen on a device:[^unit12]
   and what such a service's history and trash keep;
 - Android's screen-capture block, its owner check, and the Keystore after a restore;
 - "Forgot PIN?" on real Android, Windows and Linux;
+- on a real iPhone, that the store's files carry Data Protection `complete` and cannot be read while
+  it is locked;
+- the copies the file dialogs leave, on any device or simulator;
 - the save sheet on a phone, a notification firing, and scanning a pairing code with a camera;
 - that no traffic leaves a device other than through the sync transport (no device's network
   traffic has been observed).
@@ -330,6 +362,7 @@ server-connected app's policy are separate on purpose (ADR-128).*
 [^shared]: ADR-100 T25; `securityPeopleNote` in `local_en.arb`; jZen ADR-065.
 [^forgot]: ADR-100 T4; jZen ADR-078 (the owner check needs a passcode or biometric set), ADR-081 and ADR-086 (`zen_ui_lock` resolves no Windows owner check); ADR-127; `securityForgetAlone` in `local_en.arb`.
 [^devkeychain]: jZen ADR-087 (status: proposed; `zenIsDevBuild`; "can be in a backup"); ADR-127 (`task build:local:runners:release` passes `ZEN_ENV=prd`).
-[^dataprotection]: ADR-100 T1 ("iOS adds Data Protection `complete`"); `client/zen_store_cloudkit/lib/src/zen_data_protection.dart`; no call to it in `local/prudent_local_client/lib` (checked 2026-11-18); ADR-128. The follow-up is jlogicsoftware/prudent#285.
+[^pickercopies]: `file_selector_ios` 0.5.3+7 (`FileSelectorPlugin.openFile`, a document picker with `asCopy: true`); `file_selector_android` 0.5.2+11 (`FileUtils.getPathFromCopyOfFileFromUri`, into the cache directory); under `zen_save_file`, `file_picker_darwin` 2.5.1 (`IOSFilePickerHandler.saveFile` writes under `tmp/flutter_file_picker` and does not remove it; 2.5.2 says it does, jZenDev/jZen#287). Prudent's pickers (`packages/prudent_ui/lib/imports/statement_picker.dart`, `local/prudent_local_client/lib/move_in/export_file_picker.dart`) delete nothing. ADR-100 T11's "refuse" to copy a statement is therefore not met on iOS and Android.
+[^dataprotection]: ADR-100 T1 ("iOS adds Data Protection `complete`"); ADR-137 (before every open, nothing opened on iOS without it, `data_protection_test`); `local/prudent_local_client/lib/core/protect_store_directory.dart`; jZen's `ZenDataProtection.protectDirectory` (`client/zen_store_cloudkit/lib/src/zen_data_protection.dart`, and its Swift half for what is set). What the class does when the device locks is Apple's, and no test here shows it.
 [^unit12]: Plan unit 12 (items 1–3, 6, 7) and ADR-121 ("Not verified").
 [^jzen231]: ADR-127; `docs/jzen/README.md`.

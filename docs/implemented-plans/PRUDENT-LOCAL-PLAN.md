@@ -401,6 +401,8 @@ PIN, a lost device.
 12. **Performance of the write path**: building a 50 000-record ledger record by record is quadratic (379 s in batches of 500 on a Mac, ADR-118); an
     import of years of history and a first sync on a phone are where that shows, and have not been measured on a device.
 13. **jZen's device verification** (jZenDev/jZen#231, closed 2026-11-18) covered jZen's demo app on simulators, an emulator and a real Mac and iPhone, so it does not stand in for any step here; its open follow-ups are #266 (Android), #267 (Windows), #268 (Linux), #269 (folder-service sync), #270 (Apple: Face ID, `--release`, CloudKit, Developer ID) and #271 (camera QR), and Local cannot be more verified than the framework under it.
+14. **iOS Data Protection** (ADR-137): on a real iPhone with a passcode, in a signed build, the app opens (also after this device's copy is erased),
+    and the store's directory and files, those written after launch included, carry `complete` and cannot be read while the phone is locked.
 
 ### Unit 13 — Documents
 **Built** (#279 and #287, ADR-128). #279 moved the plan to `docs/implemented-plans/` with the status table above
@@ -412,7 +414,8 @@ and listed the follow-ups at the end. The second change wrote what #279 left:
 - The README (the two forms and how to run each), `docs/product-roadmap.md` (Local's milestones; unit 12 open), `docs/zen-architecture.md`
   (Local's design where it is Prudent's own), `docs/jzen/README.md` (every row checked against jZen on 2026-11-18) and `CLAUDE.md`.
 
-Writing the statement found that iOS Data Protection, which ADR-100 T1 counted on, is not set on the store (jlogicsoftware/prudent#285).
+Writing the statement found that iOS Data Protection, which ADR-100 T1 counted on, was not set on the store (jlogicsoftware/prudent#285;
+set since ADR-137, and seeing it on an iPhone is unit 12's, item 14).
 The statement is a document: what it says is not verified on a device is unit 12's.
 
 ---
@@ -484,7 +487,8 @@ Known work left by the plan, each with its issue:
   stripping and line-based transport gates, 'Dalej' vs 'Kontynuuj', the probe's untested branch, no old-format fixture for ADR-125) —
   jlogicsoftware/prudent#278.
 - The Local data copy leaves out skipped dates and reminder-read marks — jlogicsoftware/prudent#288 (found by the review of #287).
-- iOS Data Protection is not set on the Local store, which ADR-100 T1 assumed — jlogicsoftware/prudent#285 (found by unit 13, ADR-128).
+- iOS Data Protection was not set on the Local store, which ADR-100 T1 assumed — jlogicsoftware/prudent#285 (found by unit 13, ADR-128),
+  fixed by ADR-137; seeing the protection class on a real iPhone is unit 12's, item 14.
 - The server policy said "Save to a file" was not on iOS and Android, which ADR-117 made untrue — jlogicsoftware/prudent#286 (found by unit 13, ADR-128), fixed in `docs/privacy-policy.md`, together with the macOS runner's read-only entitlement, which made the save fail there (ADR-132); seeing the save sheet on a real device is still unit 12's, item 6.
 - Prudent Local's macOS runner grants no `files.user-selected` entitlement, so saving a copy is expected to fail there (read from the plugin's code); that its open dialogs fail too is an inference, since `file_selector_macos` makes no entitlement check. Nothing was run — jlogicsoftware/prudent#296 (found by the review of #286).
 - Main's push run at `f858dbf` was red on a two-device test-harness flaw, fixed by jlogicsoftware/prudent#281 (ADR-126), green from `8447f8f` (see unit 11); the reference helper's same flaw is jZenDev/jZen#263, open.
