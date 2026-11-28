@@ -398,6 +398,7 @@ void main() {
       int amount = -1000,
       String date = '2026-03-05',
       String? category,
+      String? account,
       String? note,
     }) async => ok(
       await on.updateRecord(
@@ -407,7 +408,7 @@ void main() {
           amountMinor: Int64(amount),
           date: date,
           categoryId: category ?? food,
-          accountId: wallet,
+          accountId: account ?? wallet,
           currency: 'PLN',
           note: note,
         ),
@@ -459,6 +460,39 @@ void main() {
         }
       },
     );
+
+    // Both devices move the record to one account, the laptop merges the two identical moves into
+    // one version under the phone's name, and the phone changes the amount before it hears of that:
+    // two amounts survive, and `ZenConflict.sides` shows each device only one (jZenDev/jZen#286). So
+    // the sides cannot say that a conflict on `posting` is about the account alone, and any such
+    // conflict leaves the record out (jlogicsoftware/prudent#276, item 1).
+    test('two surviving amounts under one author are still disputed', () async {
+      final bank = ok(
+        await laptop.createAccount(
+          wire.CreateAccountRequest(
+            name: 'Bank',
+            type: wire.AccountType.ACCOUNT_TYPE_CASH,
+            balances: [wire.CurrencyBalance(currency: 'PLN', amountMinor: Int64(100000))],
+          ),
+        ),
+      ).value.id;
+      await devices.sync();
+      final disputed = await add(laptop, -1000);
+      await devices.sync();
+      await edit(laptop, disputed, account: bank);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await edit(phone, disputed, account: bank);
+      await devices.phone.syncNow();
+      await devices.laptop.syncNow();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await edit(phone, disputed, account: bank, amount: -1800);
+      await devices.sync();
+      for (final (byCategory, byPeriod) in await both()) {
+        expect(byCategory.value.items, isEmpty);
+        expect(byPeriod.value.periods, isEmpty);
+        expect(byCategory.isSettled, isFalse);
+      }
+    });
 
     test('two dates for one record: left out of both figures', () async {
       final disputed = await add(laptop, -1000);
