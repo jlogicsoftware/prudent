@@ -75,9 +75,12 @@ public class CorrectionResource {
   public Response create(CreateCorrectionRequest request) {
     UUID userId = currentUser.id();
 
-    // Locked until the correction commits, so the account keeps the currency checked below (ADR-133).
+    // Locked exclusively until the correction commits, not shared like other writers: the amount
+    // stored below is computed from the balance read here, so no other correction and no record
+    // may be added to this account in between (ADR-135). The first lock of the transaction, and
+    // the only one it waits for, so it cannot be part of a deadlock.
     AccountEntity account =
-        AccountEntity.findOwnedForPosting(
+        AccountEntity.findOwnedForUpdate(
             userId, Ids.parseInBody("account", request.getAccountId()));
     if (account == null) {
       throw PrudentException.invalid("No such account for this user: " + request.getAccountId());

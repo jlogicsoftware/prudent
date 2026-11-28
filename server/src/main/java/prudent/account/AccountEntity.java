@@ -45,6 +45,9 @@ import prudent.text.TextRules;
 @Table(name = "prudent_account")
 public class AccountEntity extends PanacheEntityBase {
 
+  /** The first key of {@link #clearDefaultExcept}'s advisory lock; any other use takes another. */
+  private static final int DEFAULT_FLAG_LOCK_SPACE = 300;
+
   /** Server-minted. A create request carries no id: an id from an untrusted client is not identity. */
   @Id public UUID id;
 
@@ -152,10 +155,11 @@ public class AccountEntity extends PanacheEntityBase {
 
   /**
    * One account, but only if the caller owns it, locked ({@code SELECT ... FOR UPDATE}) for the rest
-   * of the transaction. Whatever changes or deletes an account takes it, and so does a statement
-   * import before it checks and writes (ADR-092), so two such requests for one account queue instead
-   * of both deciding on the same state. It also queues them behind, and ahead of, everyone holding
-   * {@link #findOwnedForPosting}.
+   * of the transaction. Whatever changes or deletes an account takes it, and so do a statement
+   * import before it checks and writes (ADR-092) and a balance correction before it reads the
+   * balance (ADR-135), so two such requests for one account queue instead of both deciding on the
+   * same state. It also queues them behind, and ahead of, everyone holding {@link
+   * #findOwnedForPosting}.
    *
    * <p>Must be the transaction's first read of the account; see {@link #lockOwned}.
    */
@@ -165,7 +169,7 @@ public class AccountEntity extends PanacheEntityBase {
 
   /**
    * One account, but only if the caller owns it, locked ({@code SELECT ... FOR KEY SHARE}) for a
-   * write that names it: a record, a transfer leg, a correction or a plan. The caller then checks
+   * write that names it: a record, a transfer leg or a plan. The caller then checks
    * {@link #holds} knowing the account cannot lose that currency, or be deleted, before the write
    * commits (ADR-133).
    *
@@ -218,9 +222,25 @@ public class AccountEntity extends PanacheEntityBase {
 
   /**
    * Clears the default flag on every other account of this user. Called before setting it here, so
-   * "exactly one default" is maintained by the server rather than trusted from the client.
+   * "at most one default" is maintained by the server rather than trusted from the client.
+   *
+   * <p>It first takes a lock on the user's default flag, held to the end of the transaction, so two
+   * requests that ask for the flag run one after the other (ADR-134). Without it neither sees the
+   * other's uncommitted flag, or its uncommitted new account, and both stay the default. The update
+   * is a statement of its own, after the lock: under read committed it sees whatever the previous
+   * holder committed.
+   *
+   * <p>Call it before the transaction reads, locks or writes any account. A request that held an
+   * account's row while it waited here could be waited for, on that same row, by the holder.
    */
   public static void clearDefaultExcept(UUID userId, UUID keepId) {
+    // An advisory lock because there may be no row to lock: two first accounts can both ask. The key
+    // is a hash, so two users may rarely share one, which only makes one wait for the other.
+    getEntityManager()
+        .createNativeQuery("select 1 from pg_advisory_xact_lock(:space, :user)")
+        .setParameter("space", DEFAULT_FLAG_LOCK_SPACE)
+        .setParameter("user", userId.hashCode())
+        .getSingleResult();
     update("isDefault = false where userId = ?1 and isDefault = true and id <> ?2", userId, keepId);
   }
 

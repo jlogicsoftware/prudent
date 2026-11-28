@@ -49,6 +49,63 @@ Verification is in the pull request that closes jlogicsoftware/prudent#302.
 
 ---
 
+## ADR-135 — A balance correction holds its account exclusively
+
+**Date:** 2026-11-27. **Status:** accepted. **Refines:** ADR-133 (for corrections only). jlogicsoftware/prudent#301.
+
+### Decision
+
+**`POST /api/v1/corrections` locks the account row `FOR UPDATE`** (`AccountEntity.findOwnedForUpdate`), not `FOR KEY SHARE` like the other writers, before it reads anything about the account, and holds it until the correction commits. It therefore waits for, and holds back, every other correction of the account and everything that adds a record or a plan to it.
+
+### Why
+
+A correction stores `requested balance - current balance`. It is the one writer whose row depends on the balance it read. Two at once read the same balance and both stored their difference: two requests for 700 left 1400, and requests for 700 and 900 left 1600. A record or transfer leg committing between the read and the insert left a balance that was not the one asked for. `CorrectionConcurrencyTest` reproduces each.
+
+The second of two corrections to one target now finds nothing to correct and is refused (400), as a repeated one already was.
+
+### Why no new deadlock
+
+The account lock is the only one a correction waits for. It then inserts one record with no category and no plan, whose only foreign key is the account it already holds (`user_id` is no foreign key). A transaction that waits while holding no lock cannot be in a cycle. `CorrectionConcurrencyTest` runs one against a default-flag move and a transfer.
+
+### Why not the alternatives
+
+- **A weaker exclusive lock** (`FOR NO KEY UPDATE`) would order corrections with each other but not with writers, which hold `FOR KEY SHARE`.
+- **Serializable isolation** or a version column would refuse one request instead of ordering it, and needs a retry nothing here does.
+
+### Consequence, and what stays unordered
+
+Corrections and writes to one account queue; writes still do not queue for each other. A request that only **removes** from the balance takes no lock on the account and is not ordered: deleting a record, a transfer or a correction, and moving a record to another account by replacing it. Its effect is the same as if it had run after the correction, so no difference is applied twice or lost, but a deletion that commits while a correction is in progress leaves the balance differing from the requested one by the deleted amount.
+
+Prudent Local is not affected: its store serialises writes and each carries the version it was decided against (ADR-115); two devices correcting apart are reported by `correction.made_apart`.
+
+---
+
+## ADR-134 — Requests that ask for the default account queue on a per-user lock, taken before any account row
+
+**Date:** 2026-11-27. **Status:** accepted. **Builds on:** ADR-008. **Composes with:** ADR-133, and closes the two-defaults case it leaves uncovered. jlogicsoftware/prudent#300.
+
+### Decision
+
+- **`AccountEntity.clearDefaultExcept` takes a transaction-scoped advisory lock on the user** (`pg_advisory_xact_lock(300, hash of the user id)`) and then clears the flag on the user's other accounts. A create or update that asks to be the default holds it to the end of its transaction; one that does not ask takes nothing.
+- **It is the first thing such a request does with accounts**: before the account is read or locked, and before its own account number is written. A write path that sets the flag calls this method first.
+- **No migration.** The database does not hold the rule.
+
+### Why
+
+"At most one default account per user" was kept only by an update that clears the flag on the accounts it can see. Under read committed, two requests for two different accounts cannot see each other's uncommitted flag, or uncommitted new account, so both stayed the default.
+
+- **Not a partial unique index.** It cannot be deferred, and it orders nothing by itself: the second request would be refused instead of taking the flag, so the lock would be needed anyway. Adding it also means a migration that picks which of a user's existing defaults survives.
+- **Not a row lock.** Two first accounts have no row to meet on. The `users` row is `zen-identity`'s table.
+- **Before any account row.** A request holding an account's row while it waits for the lock deadlocks against a holder that needs to clear the flag on that row. With the lock first, only its holder ever waits for a second account's row.
+- **Before the account number.** The clearing used to run last. A request moving the flag and one changing the old holder to the same account number then waited for each other, and the database ended one as a deadlock (500). It is now the number's own refusal (409).
+- **ADR-133's locks.** The clearing is a non-key update of another account's row. It does not conflict with a writer's `FOR KEY SHARE`; it does wait for an update or delete of that account, which, not holding this lock, waits for no other account.
+
+### Consequence
+
+Concurrent requests for the flag run one after the other and the later one holds it. A user who already has two defaults keeps them until the next request that asks for the flag, which clears every other one. Two users whose ids hash alike wait for each other, nothing more. Prudent Local is not affected: its default is one settings field. `DefaultAccountConcurrencyTest` holds every pair of create and update through the HTTP API, with and without a previous holder; nine of its cases fail without this change.
+
+---
+
 ## ADR-133 — A request that changes or deletes an account holds the account's row; one that writes a record or a plan against it holds a shared lock on the same row
 
 **Date:** 2026-11-27. **Status:** accepted. **Builds on:** ADR-008, ADR-092. jlogicsoftware/prudent#299.
