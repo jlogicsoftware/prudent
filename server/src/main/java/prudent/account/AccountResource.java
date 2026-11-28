@@ -106,6 +106,8 @@ public class AccountResource {
     // Server-minted; the request message has no id field.
     entity.id = UUID.randomUUID();
     entity.userId = userId;
+    // Before anything is read or written; see enforceSingleDefault.
+    enforceSingleDefault(userId, entity.id, request.getIsDefault());
     applyScalars(entity, request.getName(), request.getType(), request.getIsDefault(),
         request.getIsActive(), request.getIncludeInTotal(), request.getIncludeInOverview(),
         request.getEligibleForGoals());
@@ -113,7 +115,6 @@ public class AccountResource {
     applyBalances(entity, request.getBalancesList(), Set.of(), Set.of());
     entity.persist();
     flushAccountNumber(entity);
-    enforceSingleDefault(userId, entity);
     // No record can reference an id that did not exist until this line, so the derived balance
     // equals the opening one — Map.of() rather than a query that could only ever answer empty.
     return Response.status(Response.Status.CREATED)
@@ -139,6 +140,8 @@ public class AccountResource {
       content = @Content(schema = @Schema(ref = "ZenError")))
   public Response replace(@PathParam("id") String id, UpdateAccountRequest request) {
     UUID userId = currentUser.id();
+    // Before the account is read or written; see enforceSingleDefault.
+    enforceSingleDefault(userId, Ids.parse("account", id), request.getIsDefault());
     // Locked for the whole transaction, and before anything reads the account: the currencies in use
     // are checked below and the balance rows rewritten from what was read here, so neither another
     // update nor a record or plan being written may come between the two (ADR-133).
@@ -155,7 +158,6 @@ public class AccountResource {
         request.getBalancesList(),
         RecordEntity.currenciesInUse(userId, entity.id),
         PlanEntity.currenciesInUse(userId, entity.id));
-    enforceSingleDefault(userId, entity);
     return Response.ok(mapper.toProto(entity, RecordEntity.netByAccount(userId, entity.id))).build();
   }
 
@@ -397,16 +399,22 @@ public class AccountResource {
   }
 
   /**
-   * Keeps "exactly one default account per user" true, by clearing the flag elsewhere rather than
+   * Keeps "at most one default account per user" true, by clearing the flag elsewhere rather than
    * trusting the client to have done so.
+   *
+   * <p><strong>The first thing a request does with accounts.</strong> It waits for every other
+   * request asking for the flag (ADR-134), and it must not hold an account's row while it does. It
+   * also clears the previous holder before this request writes its own account number: the other way
+   * round, a concurrent change of the holder to the same number deadlocks against it. A request
+   * refused afterwards rolls the clearing back with everything else.
    *
    * <p>Only ever clears. Promoting some other account when the last default is un-set is a product
    * decision nobody has made — and picking one arbitrarily would mean a user who deliberately
    * cleared their default silently got a new one.
    */
-  private void enforceSingleDefault(UUID userId, AccountEntity entity) {
-    if (entity.isDefault) {
-      AccountEntity.clearDefaultExcept(userId, entity.id);
+  private void enforceSingleDefault(UUID userId, UUID accountId, boolean isDefault) {
+    if (isDefault) {
+      AccountEntity.clearDefaultExcept(userId, accountId);
     }
   }
 }
