@@ -13,6 +13,75 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-140 — Prudent Local's integrity repairs ask for a choice or a name through jZen's own prompts; a choice with one candidate stays a button
+
+**Date:** 2026-11-28. **Status:** accepted. **Part of:** jlogicsoftware/prudent#277, which stays open until jZenDev/jZen#288 lets
+the one-candidate button go. **Builds on:** ADR-111, ADR-121, ADR-125.
+**jZen:** consumes jZenDev/jZen#256 (PR #258, `139fcd6`) at `JZEN_REF` `24cd68c`; files jZenDev/jZen#288 and jZenDev/jZen#289.
+
+### Decision
+
+- **An `IntegrityAction` with two or more candidates is one `ZenIssueAction.choose`.** Its button says what will be done
+  ("Move to another account", "Delete one correction"); `ZenIssueScreen` asks which, naming each record as the person knows it
+  and in the order the check gives them, and passes the chosen id to the action.
+- **An action that needs a name is `ZenIssueAction.text`** with the field "Name". `ZenIssueScreen` asks, and passes the trimmed
+  text; an empty or blank one cannot be confirmed.
+- **A choice with exactly one candidate stays a plain button that names it** ("Move to Savings", "File under Travel", "Make
+  Savings the default"). `ZenChoiceIssueAction` accepts one candidate, but its prompt builds a `ZenRadioGroup`, which asserts two
+  (jZenDev/jZen#288). Seen in a widget test at the pin; a release build was not tried. It goes when #288 is fixed. Only these
+  three repairs can have one candidate: the checks make the other four (two corrections, two accounts with one number, two resets)
+  for two or more records.
+- **Deleted:** `askForName`, `RecreateNameForm`, the app's navigator key and its provider, the strings `recreateNameTitle` and
+  `recreateNameSave`, and the four per-candidate labels no check can produce for a single record.
+- `prudent_local_store` is unchanged: the same actions, writes and preconditions.
+
+### What this supersedes, and why
+
+- **"a choice among records becomes one action per candidate and a name is asked through the app's root navigator, because a
+  `ZenIssueAction` takes no input (jZenDev/jZen#256, filed)"** (ADR-121) → **changed, except for one candidate.** *Why:* the
+  framework now asks, from the issue screen's own context and inside its busy and failure handling.
+- **"`askForName` stays; replacing it is a separate change"** (ADR-125) → **replaced.** Both entries stay as written.
+
+### What a person sees differently
+
+- With two or more candidates there is one button, then a prompt with a "Continue" that stays disabled until a record is picked:
+  one step more than before.
+- Cancelling the name prompt leaves the issue's page open. Before, a cancel was reported as success and the page closed.
+- The name prompt is headed by the action ("Bring the account back"), not "What is it called?", and confirmed by "Continue", not
+  "Bring it back". Its field takes the focus and Enter confirms.
+
+### Consequence
+
+- **Known, not fixed here:** the choice prompt shows its heading twice (jZenDev/jZen#289). Records that share a name read the same
+  in the prompt, as their buttons did before. Two resets of one slot always do (both are "month, currency"). So do two corrections
+  made in the app on one date: the shared screens send no title and the ledger writes "Balance correction" on each, so the person
+  cannot tell which one to delete or keep. Two accounts or categories of one name read the same too.
+- The new Ukrainian and Polish strings have not been reviewed by a native speaker. Nothing was seen on a device.
+- **Documents changed with it:** `docs/jzen/README.md`, `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md` and `CLAUDE.md`.
+
+### Verified
+
+On 2026-11-28 in the worktree, against the local jZen checkout at `4cc8a3e`, whose `client/` does not differ from the pin
+`24cd68c`:
+
+- `task verify:analyze`, `verify:controls`, `verify:boundaries`, `verify:local-release`, `zen:verify:widget-files` and
+  `zen:verify:design-imports` passed.
+- The new `local/prudent_local_client/test/integrity_actions_test.dart` (18 cases, through the real screens) passed with the macOS,
+  iOS and Android defines: each of the seven choices and both names; cancelling any of the seven choices or the account name writing
+  nothing; a blank name refused; a write the store refuses said and writing nothing; a plain repair and a single candidate run from
+  their buttons; and both prompts in en, uk and pl. Seven deliberate mis-wirings each failed it, run with the macOS define. Four,
+  against the first 16 cases: every choice running the first candidate, the typed name ignored, two labels swapped, and candidates
+  named out of order. Three that those 16 cases let through, against the 18: every choice running the last candidate, a plain repair
+  doing nothing, and the single default candidate worded as a move.
+- The Local suite: 105 passed with the macOS define. With the iOS define 101 passed and 4 failed, with Android's 103 passed and 2
+  failed: two contrast checks in `accessibility_test` (iOS only) and `move_in_test`'s Ukrainian and Polish refusals (both), where
+  the shared harness looks for the English "More" on a phone layout. The review of this change ran `main` at `b90f6d4`: macOS 87
+  passed, iOS 83 passed and 4 failed, Android 85 passed and 2 failed, with the same failing test names.
+- `integration_test/app_test.dart` passed on macOS; it opens no integrity issue.
+- `prudent_local_store` was not touched and its suite was not run.
+
+---
+
 ## ADR-139 — The server lists the envelope history in the order the database recorded it, and stamps a stored instant at the precision the database keeps
 
 **Date:** 2026-11-28. **Status:** accepted. **Answers:** jlogicsoftware/prudent#284. **Changes:** ADR-050 (the order of the

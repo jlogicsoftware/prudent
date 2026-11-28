@@ -13,7 +13,6 @@ import 'package:zen_ui_store/zen_ui_store.dart';
 
 import '../conflicts/prudent_conflict_sources.dart';
 import '../integrity/prudent_issue_source.dart';
-import '../integrity/ask_for_name.dart';
 import '../l10n/generated/local_localizations.dart';
 import '../screens/erased_everywhere_screen.dart';
 import '../screens/first_run_notice.dart';
@@ -141,12 +140,7 @@ class _LocalRootState extends ConsumerState<LocalRoot> {
                 store: session.store,
                 sources: prudentConflictSources(session.prudent, t),
                 issues: [
-                  prudentIssueSource(
-                    IntegrityRunner(session.prudent),
-                    t,
-                    askForText: () =>
-                        askForName(ref.read(rootNavigatorKeyProvider)),
-                  ),
+                  prudentIssueSource(IntegrityRunner(session.prudent), t),
                 ],
               ),
               const Expanded(child: HomeShell()),

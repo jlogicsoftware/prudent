@@ -5,7 +5,6 @@ import 'package:zen_ui_store/zen_ui_store.dart';
 
 import '../app/local_providers.dart';
 import '../conflicts/prudent_conflict_sources.dart';
-import '../integrity/ask_for_name.dart';
 import '../integrity/prudent_issue_source.dart';
 import '../l10n/generated/local_localizations.dart';
 
@@ -19,17 +18,10 @@ class PrudentConflictsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = LocalLocalizations.of(context);
     final session = ref.watch(localSessionProvider);
-    final navigator = ref.watch(rootNavigatorKeyProvider);
     return ZenConflictsScreen(
       store: session.store,
       sources: prudentConflictSources(session.prudent, t),
-      issues: [
-        prudentIssueSource(
-          IntegrityRunner(session.prudent),
-          t,
-          askForText: () => askForName(navigator),
-        ),
-      ],
+      issues: [prudentIssueSource(IntegrityRunner(session.prudent), t)],
     );
   }
 }

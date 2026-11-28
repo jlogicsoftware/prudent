@@ -29,7 +29,6 @@ class PrudentLocalApp extends ConsumerWidget {
     final lock = ref.watch(pinLockProvider);
     return MaterialApp(
       onGenerateTitle: (context) => LocalLocalizations.of(context).appTitle,
-      navigatorKey: ref.watch(rootNavigatorKeyProvider),
       locale: ref.watch(localeProvider),
       // Prudent's own Polish comes FIRST for every framework package that ships only en and uk:
       // Localizations takes the first delegate per type that supports the locale.
