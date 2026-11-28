@@ -156,10 +156,12 @@ On 2026-11-28 in the worktree, against the local jZen checkout at `4cc8a3e`, who
 - **Verified:** with a first version of the removal (a recursive delete), on the simulator it cleared what 2.5.1 and an earlier pick had left, two picks through the statement
   picker read the file and left the temporary directory empty with the original in place, and a completed and a cancelled save
   with 2.5.2 left only its empty directory. On the emulator the removal and a pick left the cache empty, original in place.
-  In the apps' own debug builds, with the removal as decided here, a launch removed planted copies (a nested one and a
-  link among them) and left planted files that are not the dialogs', the link's target included: Prudent Local on the
-  simulator (built with `ZEN_SYNC=folder`) and on the emulator, the server-connected app on the emulator. That an erasure
-  succeeds and says a copy may remain, and that "Forgot PIN?" resets the PIN then, is covered by tests on the host only.
+  In the apps' own debug builds, with the removal as decided here, its link check included (run again after that check was
+  added), a launch removed planted copies (a nested one and a link among them) and left planted files that are not the
+  dialogs', the link's target included: Prudent Local on the simulator (built with `ZEN_SYNC=folder`) and on the emulator,
+  the server-connected app on the emulator. No run on them swapped a directory for a link; a test on the host does. That
+  an erasure succeeds and says a copy may remain, and that "Forgot PIN?" resets the PIN then, is covered by tests on the
+  host only.
   **Not verified:** a pick, a save or an erasure through either app's screens on any of them, the
   server-connected app's launch on iOS, any real device (unit 12), a cloud document provider. The server-connected app
   locks `file_selector_ios` 0.5.3+6, whose picker was not run (it also opens a copy, in the older "import" mode, read from
