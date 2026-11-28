@@ -100,9 +100,10 @@ message CreateGoalAllocationRequest {
 }
 
 // GET /api/v1/goal-allocations — the caller's history, optionally narrowed by the `goalId` query
-// parameter to the entries that put money into or took it out of that goal. Newest first, then by
-// id, so the order is total. Unpaginated in v1 for the reason records.proto gives for
-// ListRecordsResponse.
+// parameter to the entries that put money into or took it out of that goal. Newest first in the order
+// the entries were recorded, which is not read from created_at_ms: two entries can carry one instant.
+// The order is total and the same on every read. Unpaginated in v1 for the reason records.proto gives
+// for ListRecordsResponse.
 message ListGoalAllocationsResponse {
   repeated GoalAllocation allocations = 1;
 }

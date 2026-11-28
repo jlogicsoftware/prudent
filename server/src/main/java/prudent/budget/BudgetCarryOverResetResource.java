@@ -23,6 +23,7 @@ import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import prudent.CurrentUser;
 import prudent.Ids;
+import prudent.StoredClock;
 import prudent.category.CategoryEntity;
 import prudent.error.PrudentException;
 import prudent.proto.v1.BudgetCarryOverReset;
@@ -57,6 +58,7 @@ public class BudgetCarryOverResetResource {
 
   @Inject CurrentUser currentUser;
   @Inject BudgetMapper mapper;
+  @Inject StoredClock clock;
 
   @GET
   @Operation(
@@ -131,7 +133,7 @@ public class BudgetCarryOverResetResource {
             .getOrDefault(category, 0L);
 
     UUID id = UUID.randomUUID();
-    Instant now = Instant.now();
+    Instant now = clock.now();
     if (!BudgetCarryResetEntity.insertLive(
         id, userId, category, month, currency, discarded, note, now)) {
       throw PrudentException.conflict(
@@ -180,7 +182,7 @@ public class BudgetCarryOverResetResource {
     if (BudgetCarryResetEntity.findOwned(userId, resetId) == null) {
       throw PrudentException.notFound("carry-over reset", id);
     }
-    if (!BudgetCarryResetEntity.revoke(userId, resetId, Instant.now())) {
+    if (!BudgetCarryResetEntity.revoke(userId, resetId, clock.now())) {
       throw PrudentException.conflict("This reset was already revoked.");
     }
     // The revoke is a bulk update, so the entity loaded above is stale; read the row again.

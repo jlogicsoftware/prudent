@@ -13,7 +13,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
@@ -26,6 +25,7 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import prudent.Currencies;
 import prudent.CurrentUser;
 import prudent.Ids;
+import prudent.StoredClock;
 import prudent.error.PrudentException;
 import prudent.proto.v1.CreateGoalRequest;
 import prudent.proto.v1.UpdateGoalRequest;
@@ -51,6 +51,7 @@ public class GoalResource {
 
   @Inject CurrentUser currentUser;
   @Inject GoalMapper mapper;
+  @Inject StoredClock clock;
 
   @GET
   @Operation(
@@ -131,7 +132,7 @@ public class GoalResource {
     entity.userId = currentUser.id();
     entity.currency = parseCurrency(request.getCurrency());
     entity.status = GoalState.ACTIVE;
-    entity.createdAt = Instant.now();
+    entity.createdAt = clock.now();
     entity.statusChangedAt = entity.createdAt;
     apply(
         entity,
@@ -247,7 +248,7 @@ public class GoalResource {
       throw PrudentException.conflict(
           "This goal still has money set aside. Withdraw it or move it to another goal first.");
     }
-    entity.transitionTo(target, Instant.now());
+    entity.transitionTo(target, clock.now());
     return Response.ok(mapper.toProto(entity)).build();
   }
 

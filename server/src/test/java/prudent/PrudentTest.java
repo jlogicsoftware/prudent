@@ -460,7 +460,18 @@ public final class PrudentTest {
    */
   public static UUID seedAllocation(
       String userId, UUID goalId, String currency, long amountMinor) {
-    UUID id = UUID.randomUUID();
+    return seedAllocation(
+        userId, goalId, currency, amountMinor, UUID.randomUUID(), Instant.now());
+  }
+
+  /**
+   * {@link #seedAllocation(String, UUID, String, long)} with the entry's id and creation instant
+   * chosen, which the API does not allow — for suites about the order of the history. The entry's
+   * place in that order is still the database's, so entries seeded one call after another are
+   * recorded in that order.
+   */
+  public static UUID seedAllocation(
+      String userId, UUID goalId, String currency, long amountMinor, UUID id, Instant createdAt) {
     QuarkusTransaction.requiringNew()
         .run(
             () -> {
@@ -472,7 +483,7 @@ public final class PrudentTest {
               entry.currency = currency;
               entry.amountMinor = amountMinor;
               entry.note = "";
-              entry.createdAt = Instant.now();
+              entry.createdAt = createdAt;
               entry.createdBy = UUID.fromString(userId);
               entry.persist();
             });

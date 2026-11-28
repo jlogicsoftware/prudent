@@ -123,7 +123,10 @@ at `/api/v1/goals`, in one of three states (`ACTIVE`, `COMPLETED`, `ARCHIVED`) t
 `DELETE` route, and an archived goal is read-only until reactivated. Money is set aside for a goal by
 `GoalAllocationResource` over `GoalAllocationEntity` (ADR-050, jlogicsoftware/prudent#64) at
 `/api/v1/goal-allocations`: `ALLOCATE`, `WITHDRAW` and `MOVE` (between goals in one currency) are each one
-immutable, append-only history entry — no update or delete route, and the database refuses an `UPDATE`. A goal's
+immutable, append-only history entry — no update or delete route, and the database refuses an `UPDATE`. The server lists the history in the
+order it was recorded, by a database-assigned `recorded_seq` and not by time or id (ADR-139, jlogicsoftware/prudent#284), so a new path that
+inserts an entry takes the goal locks first; Prudent Local still orders by `created_at_ms` then id, which differs on a same-millisecond tie or a clock stepped back. An instant that is stored and
+answered is stamped by `StoredClock`, cut to the column's microsecond, never by `Instant.now()`: a Linux clock reads finer, and the answer can then differ from a later read by 1 ms (ADR-139). A goal's
 envelope has no stored amount: it is the sum of its entries, calculated on every read
 (`GET /api/v1/goal-allocations/envelopes`), and it is virtual — no account balance, record or analytics total
 reads it. Money goes into an active goal and comes out of an active or completed one, an entry cannot take an

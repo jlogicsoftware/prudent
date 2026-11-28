@@ -13,6 +13,121 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-139 — The server lists the envelope history in the order the database recorded it, and stamps a stored instant at the precision the database keeps
+
+**Date:** 2026-11-28. **Status:** accepted. **Answers:** jlogicsoftware/prudent#284. **Changes:** ADR-050 (the order of the
+history). **Builds on:** ADR-002.
+
+### What failed
+
+`GoalAllocationTest.theHistoryIsNewestFirstAndCanBeNarrowedToOneGoal` failed in CI (run 44202479848, attempt 1). The issue
+gave equal timestamps as the likely cause. **That was wrong:** the log shows the three entries in the expected order, stamped 11
+to 16 ms apart. The newest one's `created_at_ms` was `1794959399650` in the answer to its `POST` and `1794959399651` in the
+history read afterwards. `Instant.now()` on Linux carries digits below a microsecond. The answer was built from the instant in
+memory, which the wire mapping cuts to a millisecond, while the `TIMESTAMPTZ` column **rounds** it to a microsecond, so in the
+last half microsecond of a millisecond the stored value lies in the next one. A macOS clock reads whole microseconds, which is
+why the test did not fail on one.
+
+The issue's acceptance asks besides for a total order that matches the order of recording even when timestamps tie, and for a
+test without `Thread.sleep` that fails when the tie-break is removed. The history's order did not meet the first, although it was
+not what failed.
+
+### Decision: the stored instant
+
+- **`StoredClock`** answers the application's `Clock` cut to whole microseconds. A value at the column's precision is stored as
+  it is, so memory and database hold the same instant.
+- **Used for every instant that is stored and sent:** an envelope entry's creation; a goal's creation and status changes; a
+  carry-over reset's creation, which was answered from memory like the others, and its revocation, which was already answered
+  from the database and changes only so that one rule has no exception; an import session's creation, state changes and expiry.
+- **Not changed, because the value never leaves the server:** `prudent_category.archived_at` (the wire carries `archived`), and
+  `prudent_plan_occurrence.reminder_read_at`, stamped through `PlanClock` (the wire carries `read`). `PlanClock` otherwise
+  names today's date. The health answer's and the export's own timestamps are stored nowhere. A user's `created_at` is the
+  framework's, which reads the row back before answering.
+- Rows already stored are not touched, and every read of them answers as before. Only the answer to the write that stamped one
+  could have differed from them.
+
+### Decision: the order
+
+- **`prudent_goal_allocation.recorded_seq`** (V20261128075749): a `BIGINT GENERATED ALWAYS AS IDENTITY`, unique. The database
+  assigns it when a row is inserted and refuses a value from an ordinary insert.
+- **`GET /api/v1/goal-allocations`, with or without `goalId`, orders by `recorded_seq` descending and nothing else.** So does the
+  privacy export's `goal_allocations`, which reads the same query. `created_at_ms` is still stored and shown; it no longer orders
+  anything. The wire contract carries no number: the order of the list is the order. Only the proto comment changed.
+- **Existing rows are numbered oldest first, and within one instant by id descending**, so the history reads exactly as it did
+  before. The append-only trigger is switched off around that one `UPDATE`, inside the migration's transaction and under the
+  table's exclusive lock.
+
+### What the order means for writes that run at once
+
+The number is the order of the **inserts**, not of the commits. `GoalAllocationResource.create` inserts an entry while it holds
+row locks it keeps until it commits: those of every goal the entry names, and for an `ALLOCATE` of every goal in the currency
+(ADR-050, ADR-051). So **two entries whose locked goals overlap are numbered in the order they commit.** Two entries whose
+locked goals do not overlap (for example withdrawals from two different goals) may commit in the other order: a read in between
+sees the higher number alone, and the lower one appears below it afterwards. Both requests were then still running, and the
+history promises nothing about which of the two comes first, only that two entries once both visible never change places.
+
+That holds only while the sequence hands out one number at a time (**`CACHE 1`**, the default; `GoalAllocationSchemaTest` holds
+it). A cache gives each pooled connection a block of numbers. A future write path that inserts an entry **without** the goal
+locks loses the guarantee for itself.
+
+### What this supersedes, and why
+
+- **"The history is listed newest first, then by id"** (ADR-050) → **newest first in the order of recording.** *Why:* the id is
+  random, so two entries with one `created_at` were listed in the order of their ids and not necessarily the order they were
+  recorded, and the application's clock decided the rest.
+
+### Considered and not done
+
+- **`created_at desc, recorded_seq desc`** (the number only as a tie-break). The application's clock would still decide: an
+  instance whose clock is a few milliseconds behind, or a clock stepped back, would list an entry below one recorded before it,
+  also for two entries of one goal that the locks had put in order. The price of ordering by the number alone is that such a
+  history can show times that are not in order; the times are what the clocks said.
+- **An application clock that never repeats, or ids that sort by time.** Neither is shared between instances.
+- **Cutting the instant to milliseconds,** or rounding in each mapper as the database does. The first discards what the column
+  can keep; the second is a rule every new mapper would have to remember.
+- **Reading each row back before answering.** One more query per write, to learn a value the application chose.
+
+### Prudent Local: not changed
+
+`Ledger.listGoalAllocations` still orders by `created_at_ms` descending, then id. It agrees with the server while one device's
+entries carry distinct, rising times. It **differs** when two entries fall in one millisecond (their random ids decide) or the
+device's clock steps back; this includes entries moved in from a server export (ADR-123), whose listed order `MoveIn` does not
+keep. Closing it is a store-model decision of its own, left for a later change: a stored number the synced model does not have,
+how the move and the repair entries (ADR-120) assign it, and what orders entries two devices wrote apart, which have no common
+order of recording. The parity suite's local clock is strictly increasing, so its history comparisons do not exercise the
+difference. The other histories ordered by time and then id (carry-over resets, import sessions) are not changed on either side.
+Local stamps whole milliseconds, so it has no such difference between an answer and a read.
+
+### Consequence
+
+- A write is answered with the instants a later read gives.
+- A history entry has one place, assigned by the database; no clock and no random id takes part.
+- The `(user_id, created_at)` index is replaced by `(user_id, recorded_seq)`.
+- The application role needs no grant on the sequence: it is an identity column's, and `INSERT` on the table is enough. The
+  table's row-level security and policy are unchanged. Erasure and retention delete by user, as before.
+- The migration takes the table exclusively and rewrites every row; the history is small and v1 holds test data only
+  (ADR-068).
+- **Checked:** `task test:server` (1340 tests). `StoredInstantTest` and `ImportStoredInstantTest` replace the clock with one that
+  reads `10:15:30.650999700`. For the writes they make (an envelope entry, a goal's creation and completion, a reset's creation
+  and revocation, an import session's creation, preview, commit and discard) they compare the answer with a later read, and the
+  import ones also hold each answer to the clock's millisecond; with the cut removed all five tests fail, on macOS too. No test
+  holds the stamp of an import session that expires, on a read or in the sweep. `GoalAllocationTest` no longer sleeps; it holds
+  the order for six entries of one instant whose ids rise with it (also narrowed to a goal, and in the privacy export) and for
+  an entry stamped an hour before the one it follows. With the query put back to `createdAt desc, id`, to `createdAt desc` alone, or stripped of its order, both fail; with `createdAt desc,
+  recordedSeq desc` the second fails. `GoalAllocationOrderMigrationTest` migrates a database of its own to the version before,
+  writes rows with equal times and migrates on; it fails when the backfill numbers ties the other way and when the trigger is
+  left off. `GoalAllocationSchemaTest` fails without the unique constraint. On a local Supabase stack, `zen_runtime` holds
+  `USAGE` and `SELECT` on the sequence from zen-identity's default privileges, `anon` and `authenticated` nothing, and a role with
+  only `INSERT` on a table with such a column could insert. `task test:local-store` (829), and the end-to-end (7) and
+  server/Local parity (37) suites passed.
+- **Not verified:** the migration on a database that holds real history, and on the persistent environment, which has not been
+  deployed since. The review of this change built an arm64 native image and exercised the writes; the linux/amd64 image has not
+  been built and `task test:native` has not been run. This change adds no test that runs two
+  allocation requests at once to observe their numbers; the paragraph on concurrency rests on the locks in the code and on probes made
+  while the change was reviewed.
+
+---
+
 ## ADR-137 — On iOS Prudent Local sets Data Protection `complete` on the store's directory before every open, and opens nothing without it
 
 **Date:** 2026-11-28. **Status:** accepted. **Answers:** jlogicsoftware/prudent#285. **Builds on:** ADR-100 (T1), ADR-121,

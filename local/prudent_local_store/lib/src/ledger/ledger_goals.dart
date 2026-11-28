@@ -106,8 +106,13 @@ extension LedgerGoals on Ledger {
 
   // ── Envelopes and their history ─────────────────────────────────────────────────────────────
 
-  /// `GoalAllocationResource.history` (row 6.47): every entry, newest first (`created_at desc, id`),
-  /// optionally those that put money into or took it out of one goal (a malformed id is a 400).
+  /// `GoalAllocationResource.history` (row 6.47): every entry, newest first, optionally those that
+  /// put money into or took it out of one goal (a malformed id is a 400).
+  ///
+  /// **Not the server's order in every case** (ADR-139). The server lists entries in the order it
+  /// recorded them; the store keeps no such number, so this is `created_at desc, id`. Two entries of
+  /// one millisecond fall in the order of their random ids, and a device clock that stepped back
+  /// puts a newer entry lower.
   Future<ZenResult<wire.ListGoalAllocationsResponse>> listGoalAllocations({String? goalId}) =>
       Ledger._run(() async {
         final goal = goalId == null || javaIsBlank(goalId)
