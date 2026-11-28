@@ -13,6 +13,62 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-137 — On iOS Prudent Local sets Data Protection `complete` on the store's directory before every open, and opens nothing without it
+
+**Date:** 2026-11-28. **Status:** accepted. **Answers:** jlogicsoftware/prudent#285. **Builds on:** ADR-100 (T1), ADR-121,
+ADR-128; jZen ADR-065.
+
+### Decision
+
+- **`LocalSession` opens the store through one function, which on iOS first calls jZen's `ZenDataProtection.protectDirectory`**
+  on the store's directory: at launch and again after an erasure, because erasing deletes the directory and the one opened
+  afterwards is new. jZen's plugin sets the class on the directory and everything already in it; files written later take their
+  directory's class (jZen's statement of iOS's behaviour, not seen here).
+- **Anything but "set" fails on iOS**, the plugin's `false` (not registered) included. The store is not opened and no file's
+  content is changed, though iOS may already have created the directory or protected some of its files. The start-failure
+  page says that Data Protection could not be set, offers Try again and **offers no erase**: the data is not what is wrong.
+- **The platform asked is the running one (Flutter's `defaultTargetPlatform`, which only a debug build can override), not
+  `ZEN_PLATFORM`**, so a build with a wrong or missing define cannot drop the protection, and a test can set the platform and
+  exercise the same question production asks. Elsewhere the plugin is not called.
+- `zen_store_cloudkit` becomes a direct dependency. It was already resolved and linked through `zen_store_sync`, so no runner,
+  minimum OS or entitlement changes.
+
+### Why `complete` breaks nothing the app does today
+
+The app declares no background mode and schedules no background task; reminders are handed to the operating system when they are
+scheduled and run no app code when they fire. The store is read into memory when it opens and written only while the app runs, and
+the store key (`unlocked_this_device`) already could not be read on a locked device.
+
+### What this supersedes, and why
+
+- **"iOS Data Protection, which is not set"** (ADR-128) → **set.** *Why:* ADR-100 T1 counted on it, and it costs one platform
+  call. ADR-128 stays as written.
+
+### Consequence
+
+- The class covers the store's directory only: not the app's preferences, and not any file outside it. That includes the
+  plaintext copies the file dialogs leave in the app's storage, which predate this decision and are not fixed by it (read from the
+  plugins' code, not observed; `docs/privacy-policy-local.md` states them; jZenDev/jZen#287 for the save copy).
+- **Documents changed with it:** `docs/privacy-policy-local.md` (the new layer and, in correction of "never copied", the dialog
+  copies), `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md` (unit 13's note, the follow-up, unit 12 item 14),
+  `docs/jzen/README.md` (jZenDev/jZen#284, #285, #287) and `CLAUDE.md`.
+- **Before CloudKit may wake the app in the background (unit 12 and after):** a change delivered while the phone is locked could
+  not be written, and jZen's transport lets the change token advance past a record it failed to save (jZenDev/jZen#284,
+  its Dart half reproduced with a store that could not write). No remote-notification background mode is to be added until that is fixed upstream.
+- If the protection fails after "Erase this device's copy", the files are already deleted but the screen says the copy could not be
+  erased, and the closed store's records stay in memory until the app is restarted. The app has done this for any failure to reopen;
+  this adds one more way to reach it.
+- **Checked:** `data_protection_test` stands in for the plugin on its channel and holds the call on iOS before any file is written,
+  its repeat after both erasures, its absence on every other platform, and that a failure opens no store and leaves existing files'
+  contents as they were. A debug build with
+  `ZEN_SYNC=folder` opened its store through the real plugin on an iOS 27.0 simulator, which does not show that anything is locked;
+  without that define the same build crashed after the store opened, in CloudKit's initialiser, there being no iCloud entitlement
+  yet (jZenDev/jZen#285, unit 12).
+- **Not verified:** nothing on a real iPhone. Whether the files carry the class, and cannot be read while the phone is locked, is
+  plan unit 12's (item 14). The uk and pl wording has had no native-speaker review.
+
+---
+
 ## ADR-135 — A balance correction holds its account exclusively
 
 **Date:** 2026-11-27. **Status:** accepted. **Refines:** ADR-133 (for corrections only). jlogicsoftware/prudent#301.

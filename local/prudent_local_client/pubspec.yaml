@@ -52,6 +52,10 @@ dependencies:
     path: ../../../jZen/client/zen_store
   zen_store_key:
     path: ../../../jZen/client/zen_store_key
+  # iOS Data Protection on the store's directory (ADR-137). Already linked through zen_store_sync,
+  # which uses its CloudKit transport.
+  zen_store_cloudkit:
+    path: ../../../jZen/client/zen_store_cloudkit
   zen_store_sync:
     path: ../../../jZen/client/zen_store_sync
   zen_store_folder:

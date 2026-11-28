@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
+import '../core/protect_store_directory.dart';
 import '../l10n/generated/local_localizations.dart';
 import '../widgets/confirm_step.dart';
 
@@ -20,6 +21,7 @@ class StartFailedPage extends StatelessWidget {
 
   /// Erases this device's copy after a question; null when erasing would not help (the store opened,
   /// only the device's secret storage did not answer), and then nothing that erases is offered.
+  /// Nor is it offered when iOS Data Protection could not be set: the data is not what is wrong.
   final Future<void> Function()? onErase;
   final bool isLinux;
 
@@ -27,6 +29,8 @@ class StartFailedPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = LocalLocalizations.of(context);
     final theme = Theme.of(context);
+    final unprotected = error.internalData?['code'] == dataProtectionFailedCode;
+    final erase = unprotected ? null : onErase;
     return ZenPageScaffold(
       title: t.appTitle,
       body: ListView(
@@ -37,11 +41,11 @@ class StartFailedPage extends StatelessWidget {
             child: Text(t.startFailedTitle, style: theme.textTheme.titleLarge),
           ),
           const SizedBox(height: 12),
-          Text(t.startFailedBody),
+          Text(unprotected ? t.startFailedProtection : t.startFailedBody),
           const SizedBox(height: 12),
           if (isLinux)
             Text(t.startFailedLinux)
-          else if (onErase != null)
+          else if (erase != null)
             Text(t.startFailedRestored),
           const SizedBox(height: 12),
           // The store's error names files and classes, never what they hold (ADR-100 T21).
@@ -53,7 +57,7 @@ class StartFailedPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           ZenButton(label: t.startFailedRetry, onPressed: onRetry),
-          if (!isLinux && onErase != null) ...[
+          if (!isLinux && erase != null) ...[
             const SizedBox(height: 8),
             ZenButton(
               label: t.startFailedErase,
@@ -65,7 +69,7 @@ class StartFailedPage extends StatelessWidget {
                   action: t.erase,
                   cancel: t.cancel,
                 );
-                if (go) await onErase!();
+                if (go) await erase();
               },
             ),
           ],

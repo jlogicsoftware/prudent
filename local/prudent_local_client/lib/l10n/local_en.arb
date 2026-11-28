@@ -78,6 +78,7 @@
   "erasedFailed": "Prudent Local could not start again. Close it and open it once more.",
   "startFailedTitle": "Prudent Local cannot open its data",
   "startFailedBody": "The key that unlocks this device's data cannot be read, or the data does not match it. Nothing was changed.",
+  "startFailedProtection": "iOS Data Protection could not be set on this device's data, so Prudent Local did not open it. Your data was not changed.",
   "startFailedLinux": "On Linux, Prudent Local keeps its key in the desktop's keyring. Install a secret service (gnome-keyring or KWallet, with libsecret) and unlock it, then open Prudent Local again.",
   "startFailedRestored": "If this device's files were restored from a backup, the key did not come with them. Erase this device's copy and let it sync again from your other devices.",
   "startFailedErase": "Erase this device's copy",
