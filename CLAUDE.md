@@ -152,8 +152,9 @@ second time for a typed phrase (`DeleteAccountForm`).
 **Writes against one account are serialised (ADR-133, jlogicsoftware/prudent#299).** An account update or delete locks the account row
 (`AccountEntity.findOwnedForUpdate`); anything that writes a record or a plan against an account locks it with
 `AccountEntity.findOwnedForPosting` **before** checking the currency — a new write path of that kind must too, and the lock must be the
-transaction's first read of the account. `AccountConcurrencyTest` holds each pair. Two concurrent balance corrections are still
-unordered.
+transaction's first read of the account. `AccountConcurrencyTest` holds each pair. A balance correction is the exception (ADR-135,
+jlogicsoftware/prudent#301): the amount it stores depends on the balance it read, so it takes `findOwnedForUpdate` and queues with other
+corrections and with writes to the account (`CorrectionConcurrencyTest`); deletions take no account lock.
 
 **One default account per user is held under concurrency (ADR-134, jlogicsoftware/prudent#300).** `AccountEntity.clearDefaultExcept` takes a
 per-user advisory lock before it clears the other accounts' flag, so anything that sets `is_default` calls it first — before the transaction

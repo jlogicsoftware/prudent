@@ -13,6 +13,37 @@ own — ADR-001 is the first instance.
 
 ---
 
+## ADR-135 — A balance correction holds its account exclusively
+
+**Date:** 2026-11-27. **Status:** accepted. **Refines:** ADR-133 (for corrections only). jlogicsoftware/prudent#301.
+
+### Decision
+
+**`POST /api/v1/corrections` locks the account row `FOR UPDATE`** (`AccountEntity.findOwnedForUpdate`), not `FOR KEY SHARE` like the other writers, before it reads anything about the account, and holds it until the correction commits. It therefore waits for, and holds back, every other correction of the account and everything that adds a record or a plan to it.
+
+### Why
+
+A correction stores `requested balance - current balance`. It is the one writer whose row depends on the balance it read. Two at once read the same balance and both stored their difference: two requests for 700 left 1400, and requests for 700 and 900 left 1600. A record or transfer leg committing between the read and the insert left a balance that was not the one asked for. `CorrectionConcurrencyTest` reproduces each.
+
+The second of two corrections to one target now finds nothing to correct and is refused (400), as a repeated one already was.
+
+### Why no new deadlock
+
+The account lock is the only one a correction waits for. It then inserts one record with no category and no plan, whose only foreign key is the account it already holds (`user_id` is no foreign key). A transaction that waits while holding no lock cannot be in a cycle. `CorrectionConcurrencyTest` runs one against a default-flag move and a transfer.
+
+### Why not the alternatives
+
+- **A weaker exclusive lock** (`FOR NO KEY UPDATE`) would order corrections with each other but not with writers, which hold `FOR KEY SHARE`.
+- **Serializable isolation** or a version column would refuse one request instead of ordering it, and needs a retry nothing here does.
+
+### Consequence, and what stays unordered
+
+Corrections and writes to one account queue; writes still do not queue for each other. A request that only **removes** from the balance takes no lock on the account and is not ordered: deleting a record, a transfer or a correction, and moving a record to another account by replacing it. Its effect is the same as if it had run after the correction, so no difference is applied twice or lost, but a deletion that commits while a correction is in progress leaves the balance differing from the requested one by the deleted amount.
+
+Prudent Local is not affected: its store serialises writes and each carries the version it was decided against (ADR-115); two devices correcting apart are reported by `correction.made_apart`.
+
+---
+
 ## ADR-134 — Requests that ask for the default account queue on a per-user lock, taken before any account row
 
 **Date:** 2026-11-27. **Status:** accepted. **Builds on:** ADR-008. **Composes with:** ADR-133, and closes the two-defaults case it leaves uncovered. jlogicsoftware/prudent#300.
