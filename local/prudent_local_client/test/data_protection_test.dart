@@ -16,6 +16,8 @@ import 'package:prudent_local_client/l10n/generated/local_localizations.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_ui_lock/zen_ui_lock.dart';
 
+import 'support/test_picker_copies.dart';
+
 const _channel = MethodChannel('zen_store_cloudkit');
 
 /// One call to the plugin, with what the directory it named held at that moment.
@@ -61,6 +63,7 @@ void main() {
     secrets: ZenMemoryLockStorage(),
     start: (store, {required folder, required syncKey}) async =>
         const ZenResult.err(ZenValidationError('no transport in this test')),
+    pickerCopies: testPickerCopies(root),
   );
 
   setUp(() async {

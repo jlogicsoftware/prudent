@@ -403,6 +403,13 @@ PIN, a lost device.
 13. **jZen's device verification** (jZenDev/jZen#231, closed 2026-11-18) covered jZen's demo app on simulators, an emulator and a real Mac and iPhone, so it does not stand in for any step here; its open follow-ups are #266 (Android), #267 (Windows), #268 (Linux), #269 (folder-service sync), #270 (Apple: Face ID, `--release`, CloudKit, Developer ID) and #271 (camera QR), and Local cannot be more verified than the framework under it.
 14. **iOS Data Protection** (ADR-137): on a real iPhone with a passcode, in a signed build, the app opens (also after this device's copy is erased),
     and the store's directory and files, those written after launch included, carry `complete` and cannot be read while the phone is locked.
+15. **The file dialogs' temporary copies** (ADR-138): on a real iPhone and a real Android phone, in each app's own build, after a statement
+    and (Prudent Local) a server export is picked and read, refused, unreadable or cancelled, and after a save that completes, is cancelled
+    or fails, the app's temporary and cache directories hold no `*-Inbox`, `flutter_file_picker` content or pick directory, and the picked
+    original is still there; a copy left by killing the app with a dialog open is gone after the next launch; both erase actions leave none,
+    and no notice that a copy may remain appears (whether iOS lets the app delete the `*-Inbox` directory itself is not known).
+    Include a cloud document provider (iCloud Drive, Google Drive). Seen so far on a simulator and an emulator only: picks and saves
+    with a test app, and the apps themselves only removing planted copies at launch (not the server-connected app on iOS).
 
 ### Unit 13 — Documents
 **Built** (#279 and #287, ADR-128). #279 moved the plan to `docs/implemented-plans/` with the status table above
@@ -489,6 +496,8 @@ Known work left by the plan, each with its issue:
 - The Local data copy leaves out skipped dates and reminder-read marks — jlogicsoftware/prudent#288 (found by the review of #287).
 - iOS Data Protection was not set on the Local store, which ADR-100 T1 assumed — jlogicsoftware/prudent#285 (found by unit 13, ADR-128),
   fixed by ADR-137; seeing the protection class on a real iPhone is unit 12's, item 14.
+- The file dialogs left plaintext copies of a picked statement or export, and of a saved copy, in the app's storage — jlogicsoftware/prudent#309
+  (found by the review of #285), fixed by ADR-138; seeing it on real devices is unit 12's, item 15.
 - The server policy said "Save to a file" was not on iOS and Android, which ADR-117 made untrue — jlogicsoftware/prudent#286 (found by unit 13, ADR-128), fixed in `docs/privacy-policy.md`, together with the macOS runner's read-only entitlement, which made the save fail there (ADR-132); seeing the save sheet on a real device is still unit 12's, item 6.
 - Prudent Local's macOS runner grants no `files.user-selected` entitlement, so saving a copy is expected to fail there (read from the plugin's code); that its open dialogs fail too is an inference, since `file_selector_macos` makes no entitlement check. Nothing was run — jlogicsoftware/prudent#296 (found by the review of #286).
 - Main's push run at `f858dbf` was red on a two-device test-harness flaw, fixed by jlogicsoftware/prudent#281 (ADR-126), green from `8447f8f` (see unit 11); the reference helper's same flaw is jZenDev/jZen#263, open.

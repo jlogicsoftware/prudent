@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:material_ui/material_ui.dart';
@@ -7,8 +8,10 @@ import 'package:zen_core/zen_core.dart';
 import 'package:zen_ui_widgets/zen_ui_widgets.dart';
 
 import '../app/local_providers.dart';
+import '../core/local_session.dart';
 import '../l10n/generated/local_localizations.dart';
 import '../widgets/confirm_step.dart';
+import '../widgets/copy_may_remain_notice.dart';
 import 'move_in_screen.dart';
 import '../widgets/settings_action.dart';
 import '../widgets/settings_heading.dart';
@@ -78,9 +81,18 @@ class _LocalDataScreenState extends ConsumerState<LocalDataScreen> {
       cancel: t.cancel,
     );
     if (!go || !mounted) return;
+    final navigator = Navigator.of(context, rootNavigator: true);
     await _run(() async {
       final erased = await ref.read(localSessionProvider).eraseThisDevice();
-      return erased is ZenSuccess ? t.dataErased : t.dataEraseFailed;
+      switch (erased) {
+        case ZenFailure():
+          return t.dataEraseFailed;
+        case ZenSuccess(data: LocalErasure.complete):
+          return t.dataErased;
+        case ZenSuccess(data: LocalErasure.copyMayRemain):
+          unawaited(showCopyMayRemainNotice(navigator, t));
+          return null;
+      }
     });
   }
 
@@ -99,8 +111,13 @@ class _LocalDataScreenState extends ConsumerState<LocalDataScreen> {
       cancel: t.cancel,
     );
     if (!second || !mounted) return;
+    // Taken now: this screen is usually gone by the time the erasure answers.
+    final navigator = Navigator.of(context, rootNavigator: true);
     await _run(() async {
       final erased = await ref.read(localSessionProvider).eraseEverywhere();
+      if (erased case ZenSuccess(data: LocalErasure.copyMayRemain)) {
+        unawaited(showCopyMayRemainNotice(navigator, t));
+      }
       // On success the app shows that the data is gone everywhere; nothing more to say here.
       return erased is ZenSuccess ? null : t.dataEverywhereFailed;
     });

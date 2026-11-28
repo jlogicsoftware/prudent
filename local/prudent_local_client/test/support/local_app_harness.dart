@@ -7,6 +7,7 @@ import 'package:prudent_local_client/app/prudent_local_app.dart';
 import 'package:prudent_local_client/core/local_session.dart';
 import 'package:prudent_local_client/repository/local_data_export.dart';
 import 'package:prudent_ui/notification/notification_providers.dart';
+import 'package:prudent_ui/privacy/picker_copies.dart';
 import 'package:prudent_ui/providers.dart';
 import 'package:zen_ui_lock/zen_ui_lock.dart';
 import 'package:zen_ui_navigation/zen_ui_navigation.dart';
@@ -152,8 +153,11 @@ final class LocalAppHarness {
 Future<TwoLocalDevices> twoDevices(
   WidgetTester tester, [
   TransportKind kind = TransportKind.folderCloud,
+  PickerCopies? phoneCopies,
 ]) async {
-  final devices = (await tester.runAsync(() => TwoLocalDevices.create(kind)))!;
+  final devices = (await tester.runAsync(
+    () => TwoLocalDevices.create(kind, phoneCopies),
+  ))!;
   addTearDown(() => tester.runAsync(devices.dispose));
   return devices;
 }

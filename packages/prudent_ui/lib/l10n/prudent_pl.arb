@@ -459,5 +459,5 @@
   "importRowUnknownCode": "Ten wiersz nie zostanie zaimportowany (kod {code}). Wpisz go ręcznie, jeśli go potrzebujesz.",
   "importRowNoteTooLong": "Notatka może mieć najwyżej 500 znaków.",
   "unsettledBalanceNote": "{count, plural, one{Pomija 1 wpis, co do którego Twoje urządzenia się nie zgadzają, dopóki go nie rozstrzygniesz.} few{Pomija {count} wpisy, co do których Twoje urządzenia się nie zgadzają, dopóki ich nie rozstrzygniesz.} many{Pomija {count} wpisów, co do których Twoje urządzenia się nie zgadzają, dopóki ich nie rozstrzygniesz.} other{Pomija {count} wpisu, co do których Twoje urządzenia się nie zgadzają, dopóki ich nie rozstrzygniesz.}}",
-  "importStatementFileKept": "Prudent nie zachował pliku wyciągu. Nadal jest tam, skąd go wybrano — usuń go, jeśli nie jest już potrzebny."
+  "importStatementFileKept": "Prudent nie zachował pliku wyciągu i usuwa kopię tymczasową, jeśli urządzenie utworzyło ją przy wyborze pliku. Oryginał nadal jest tam, skąd go wybrano — usuń go, jeśli nie jest już potrzebny."
 }

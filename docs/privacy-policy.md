@@ -96,6 +96,16 @@ fingerprint (a digest) and a number that let Prudent recognise the same statemen
 move your data elsewhere. It is never the statement's text. The clipboard copy is shared with other
 apps and, on some devices, with your other devices.
 
+**Temporary copies on a phone.** To hand the app a statement you pick, an iPhone, iPad or Android
+device writes an unencrypted copy of it in the app's own storage, and saving to a file on an iPhone
+or iPad writes the document there for the save sheet. The copy of a statement is deleted once it has
+been read, refused or failed to read, the copy made for a save when the sheet closes, and anything
+left over at the next launch (including what an earlier version of the app left). A deletion can
+fail; it is then tried again at the next pick or launch. A statement or a
+saved file of your own is never deleted. Picking and saving have been seen only with a test app and
+made-up files on an iPhone simulator and an Android emulator, the removal at launch also with this app
+on the emulator, and none of it on a real device (ADR-138).
+
 ## Deleting it
 
 **Settings → Privacy and data → Delete my data.** You are asked to type your email address, then:

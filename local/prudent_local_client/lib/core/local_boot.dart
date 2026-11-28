@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
+import 'package:prudent_ui/privacy/picker_copies.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_store_key/zen_store_key.dart';
 import 'package:zen_ui_lock/zen_ui_lock.dart';
@@ -22,7 +23,12 @@ final class LocalBoot {
 /// that does not decrypt — stops the open and is shown as it is (ADR-100 T8, T9, T10). Nothing here
 /// makes a new key or an empty store over existing data, and nothing erases on its own
 /// (jZen ADR-075, ADR-065).
+///
+/// First, whatever the store then does, the copies a file dialog left are removed: those of a launch
+/// that ended with a dialog open, and of an earlier build (ADR-138). A removal that fails is logged
+/// and does not keep the person out of their data.
 Future<ZenResult<LocalBoot>> bootPrudentLocal({ZenLockStorage? secrets}) async {
+  await const PickerCopies().remove();
   final support = await getApplicationSupportDirectory();
   final directory = Directory(
     '${support.path}${Platform.pathSeparator}prudent_local',
