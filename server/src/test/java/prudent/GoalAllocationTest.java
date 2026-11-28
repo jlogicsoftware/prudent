@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.restassured.response.Response;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import prudent.proto.v1.CreateGoalAllocationRequest;
 import prudent.proto.v1.CreateGoalRequest;
+import prudent.proto.v1.DataExport;
 import prudent.proto.v1.Goal;
 import prudent.proto.v1.GoalAllocation;
 import prudent.proto.v1.GoalAllocationKind;
@@ -263,7 +266,7 @@ class GoalAllocationTest {
         java.util.concurrent.Executors.newFixedThreadPool(attempts);
     java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
     try {
-      List<java.util.concurrent.Future<Integer>> results = new java.util.ArrayList<>();
+      List<java.util.concurrent.Future<Integer>> results = new ArrayList<>();
       for (int i = 0; i < attempts; i++) {
         results.add(
             pool.submit(
@@ -488,6 +491,10 @@ class GoalAllocationTest {
 
   // --- History ----------------------------------------------------------------------------------
 
+  private static List<String> ids(List<GoalAllocation> entries) {
+    return entries.stream().map(GoalAllocation::getId).toList();
+  }
+
   @Test
   @TestSecurity(user = PrudentTest.ALICE)
   void theHistoryIsNewestFirstAndCanBeNarrowedToOneGoal() throws Exception {
@@ -495,9 +502,7 @@ class GoalAllocationTest {
     Goal car = goal("Car", "PLN");
     Goal other = goal("Other", "PLN");
     GoalAllocation first = recorded(allocate(holiday, 100_00L).build());
-    Thread.sleep(5);
     GoalAllocation second = recorded(move(holiday, car, 30_00L).build());
-    Thread.sleep(5);
     GoalAllocation third = recorded(allocate(other, 1_00L).build());
 
     assertEquals(List.of(third, second, first), history(""));
@@ -505,6 +510,56 @@ class GoalAllocationTest {
     assertEquals(List.of(second), history("?goalId=" + car.getId()));
     assertEquals(List.of(third), history("?goalId=" + other.getId()));
     refused(get(ALLOCATIONS + "?goalId=not-a-uuid"), 400);
+  }
+
+  /**
+   * Entries that carry one instant stay in the order they were recorded (ADR-139,
+   * jlogicsoftware/prudent#284). The ids rise with that order, so ordering by time and then by id —
+   * or leaving equal times undecided — cannot answer newest first.
+   */
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void entriesWithOneInstantAreListedInTheOrderTheyWereRecorded() throws Exception {
+    UUID holiday = PrudentTest.seedGoal(PrudentTest.ALICE, "Holiday", "PLN", 10_000_00L);
+    UUID car = PrudentTest.seedGoal(PrudentTest.ALICE, "Car", "PLN", 10_000_00L);
+    Instant instant = Instant.parse("2026-11-28T10:15:30.123456Z");
+    List<String> recorded = new ArrayList<>();
+    List<String> recordedForHoliday = new ArrayList<>();
+    for (int n = 1; n <= 6; n++) {
+      UUID goal = n % 2 == 0 ? car : holiday;
+      String id =
+          PrudentTest.seedAllocation(
+                  PrudentTest.ALICE, goal, "PLN", n, new UUID(0, n), instant)
+              .toString();
+      recorded.add(id);
+      if (goal.equals(holiday)) {
+        recordedForHoliday.add(id);
+      }
+    }
+
+    assertEquals(recorded.reversed(), ids(history("")));
+    assertEquals(recordedForHoliday.reversed(), ids(history("?goalId=" + holiday)));
+    // The privacy export carries the history in the same order.
+    DataExport export =
+        PrudentTest.decode(
+                PrudentTest.JSON, get("/api/v1/privacy/export"), DataExport.newBuilder())
+            .build();
+    assertEquals(recorded.reversed(), ids(export.getGoalAllocationsList()));
+  }
+
+  /** The history does not read the clock: an entry stamped earlier than the one before it is newer. */
+  @Test
+  @TestSecurity(user = PrudentTest.ALICE)
+  void aClockThatSteppedBackDoesNotReorderTheHistory() throws Exception {
+    UUID goal = PrudentTest.seedGoal(PrudentTest.ALICE, "Holiday", "PLN", 10_000_00L);
+    Instant noon = Instant.parse("2026-11-28T12:00:00Z");
+    UUID first =
+        PrudentTest.seedAllocation(PrudentTest.ALICE, goal, "PLN", 1, UUID.randomUUID(), noon);
+    UUID second =
+        PrudentTest.seedAllocation(
+            PrudentTest.ALICE, goal, "PLN", 2, UUID.randomUUID(), noon.minusSeconds(3600));
+
+    assertEquals(List.of(second.toString(), first.toString()), ids(history("")));
   }
 
   @Test

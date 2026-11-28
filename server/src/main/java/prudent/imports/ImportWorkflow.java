@@ -4,7 +4,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -13,6 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
+import prudent.StoredClock;
 import prudent.account.AccountEntity;
 import prudent.category.CategoryEntity;
 import prudent.error.PrudentException;
@@ -80,7 +80,7 @@ public class ImportWorkflow {
   @Inject ImportFormats formats;
   @Inject ImportCommitter committer;
   @Inject Instance<ImportPreviewStage> stages;
-  @Inject Clock clock;
+  @Inject StoredClock clock;
 
   /** How long a session can wait for its preview and confirmation before its rows are deleted. */
   @ConfigProperty(name = "prudent.import.session-ttl", defaultValue = "PT24H")
@@ -96,7 +96,7 @@ public class ImportWorkflow {
       throw PrudentException.invalid(new ImportRejectedException("statement.too_large").getMessage());
     }
     StatementImporter importer = formats.require(formatId);
-    Instant now = clock.instant();
+    Instant now = clock.now();
     if (ImportSessionEntity.countOpen(userId, now) >= maxOpenSessions) {
       throw PrudentException.conflict(
           "Too many import sessions are open. Commit or discard one before uploading another.");
@@ -156,7 +156,7 @@ public class ImportWorkflow {
     if (session == null) {
       throw PrudentException.notFound("import session", id);
     }
-    Instant now = clock.instant();
+    Instant now = clock.now();
     if (session.state.holdsRows() && session.isDue(now)) {
       end(session, ImportState.EXPIRED, now);
     }
@@ -174,7 +174,7 @@ public class ImportWorkflow {
   @Transactional
   public SessionView preview(UUID userId, UUID id, UUID accountId) {
     ImportSessionEntity session = lock(userId, id);
-    Instant now = clock.instant();
+    Instant now = clock.now();
     if (session.state != ImportState.PARSED && session.state != ImportState.PREVIEWED) {
       throw PrudentException.conflict(
           "Only a parsed or previewed import session can be previewed; this one is "
@@ -224,7 +224,7 @@ public class ImportWorkflow {
   @Transactional
   public SessionView commit(UUID userId, UUID id, int confirmedAcceptedRows) {
     ImportSessionEntity session = lock(userId, id);
-    Instant now = clock.instant();
+    Instant now = clock.now();
     if (session.state == ImportState.COMMITTED) {
       // A retry of a commit that went through (a lost response, a second click): the same answer,
       // not an error and not a second write. Only the same confirmation counts as a retry; the
@@ -295,7 +295,7 @@ public class ImportWorkflow {
       UUID userId, UUID id, int rowNumber, UUID categoryId, boolean clearCategory, String note,
       Boolean includeDuplicate) {
     ImportSessionEntity session = lock(userId, id);
-    Instant now = clock.instant();
+    Instant now = clock.now();
     if (!session.state.holdsRows()) {
       throw PrudentException.conflict(
           "An import session that is " + session.state + " holds no rows to change.");
@@ -350,7 +350,7 @@ public class ImportWorkflow {
       UUID incomeCategoryId,
       boolean clearIncome) {
     ImportSessionEntity session = lock(userId, id);
-    Instant now = clock.instant();
+    Instant now = clock.now();
     if (!session.state.holdsRows()) {
       throw PrudentException.conflict(
           "An import session that is " + session.state + " holds no rows to categorise.");
@@ -385,7 +385,7 @@ public class ImportWorkflow {
   @Transactional
   public SessionView discard(UUID userId, UUID id) {
     ImportSessionEntity session = lock(userId, id);
-    end(session, ImportState.DISCARDED, clock.instant());
+    end(session, ImportState.DISCARDED, clock.now());
     return new SessionView(session, List.of());
   }
 
@@ -398,7 +398,7 @@ public class ImportWorkflow {
    */
   @Transactional
   public int expireDue() {
-    Instant now = clock.instant();
+    Instant now = clock.now();
     List<ImportSessionEntity> due = ImportSessionEntity.lockDue(now);
     due.forEach(session -> end(session, ImportState.EXPIRED, now));
     if (!due.isEmpty()) {

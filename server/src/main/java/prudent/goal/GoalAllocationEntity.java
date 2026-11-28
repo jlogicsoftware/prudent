@@ -69,6 +69,14 @@ public class GoalAllocationEntity extends PanacheEntityBase {
   @Column(name = "created_by", nullable = false)
   public UUID createdBy;
 
+  /**
+   * The entry's place in the order of recording (ADR-139). The database assigns it on insert and
+   * refuses a value from any writer, so it is never set here and stays {@code null} on an instance
+   * until it is read back.
+   */
+  @Column(name = "recorded_seq", insertable = false, updatable = false)
+  public Long recordedSeq;
+
   /** One entry, but only if the caller owns it — ownership is part of the lookup. */
   public static GoalAllocationEntity findOwned(UUID userId, UUID id) {
     return find("id = ?1 and userId = ?2", id, userId).firstResult();
@@ -76,14 +84,16 @@ public class GoalAllocationEntity extends PanacheEntityBase {
 
   /**
    * The caller's history, optionally narrowed to the entries that put money into or took it out of
-   * one goal. Newest first, then by id, so the order is total.
+   * one goal. Newest first <strong>in the order the entries were recorded</strong> ({@link
+   * #recordedSeq}), not by {@link #createdAt}: two entries can carry one instant and a clock can step
+   * back, while the sequence is unique, so the order is total and repeats on every read (ADR-139).
    */
   public static List<GoalAllocationEntity> history(UUID userId, UUID goalId) {
     if (goalId == null) {
-      return list("userId = ?1 order by createdAt desc, id", userId);
+      return list("userId = ?1 order by recordedSeq desc", userId);
     }
     return list(
-        "userId = ?1 and (sourceGoalId = ?2 or targetGoalId = ?2) order by createdAt desc, id",
+        "userId = ?1 and (sourceGoalId = ?2 or targetGoalId = ?2) order by recordedSeq desc",
         userId, goalId);
   }
 
