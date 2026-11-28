@@ -197,6 +197,93 @@ Local stamps whole milliseconds, so it has no such difference between an answer 
 
 ---
 
+## ADR-138 — The copies the file dialogs leave on iOS and Android are removed after every pick, at every launch and by both erasures; `file_picker_darwin` is locked at 2.5.2 or later
+
+**Date:** 2026-11-28. **Status:** accepted. **Answers:** jlogicsoftware/prudent#309. **Builds on:** ADR-093, ADR-100
+(T11, T21), ADR-117, ADR-123, ADR-137.
+
+### Decision
+
+- **One class removes them: `PickerCopies`** (`packages/prudent_ui/lib/privacy/picker_copies.dart`; a web build gets one that
+  does nothing). The places, with the plugins both apps lock:
+
+  | Platform | Where | Made by |
+  |---|---|---|
+  | iOS | `tmp/<bundle id>-Inbox/` | picking: `file_selector_ios` opens the document picker "as a copy" |
+  | iOS | `tmp/flutter_file_picker/<UUID>/` | saving: `file_picker_darwin` 2.5.1 left the export there |
+  | Android | `cacheDir/<name-based (version 3) UUID>/` | picking: `file_selector_android` |
+
+  The three were seen with a throwaway app and made-up files on an iOS 26.5 simulator and an Android (API 36) emulator.
+  Saving on Android wrote no copy there. On desktop the picker answers with the person's own file.
+- **A file the person owns is never deleted.** Nothing is touched unless the running platform (`defaultTargetPlatform`, as
+  ADR-137 asks it) is iOS or Android. The path a picker answered with is deleted only if, with links and `..` resolved on both
+  sides, it lies inside the app's temporary or cache directory. Beyond that path only the directories in the table go: the iOS
+  temporary directory's `*-Inbox` and `flutter_file_picker`, and the Android cache's version-3 UUID directories. Random
+  (version 4) UUID directories, which other plugins make, loose files and links are left; no directory is wiped.
+- **When.** Both pickers (the statement's and Prudent Local's export's) remove the copies before they answer, whether the file
+  was read, refused as too large, failed to read, the pick was cancelled, or the dialog threw. Every launch removes them
+  (`AppRoot` in the server-connected app, signed in or not; `bootPrudentLocal` in Prudent Local, before the store is opened, so
+  also when it cannot be and after the start-failed page's erase). That covers a launch that ended with a dialog open and
+  what earlier builds left. Prudent Local's `eraseThisDevice` (also "Forgot PIN?" and starting afresh) and `eraseEverywhere`
+  remove them too.
+- **A copy that stays does not fail an erasure.** Their failure is the store's, or the erasure's, alone; a copy that may remain
+  is `LocalErasure.copyMayRemain` of a success. "Forgot PIN?" asks only whether the data went, so it resets the PIN whatever
+  the copies did: a failure there would keep a person whose device has no owner check out of an erased app for as long as the
+  removal failed. It says nothing about the copy. "Erase this device's copy", "Erase everywhere" and "Start again" say it in a
+  notice of their own (`erasedCopyMayRemain`), shown over the app's navigator because the last two replace the screen that
+  asked. The next launch tries again.
+- **A removal fails when a copy may still be there.** Each entry is deleted on its own: one that is already gone (another
+  removal, or the system clearing its cache) is success, one that fails does not stop the rest, and a copy directory that
+  cannot be deleted but holds nothing is success too. It errs towards failing: a directory inside a copy directory that
+  cannot be deleted fails the removal even when it is empty.
+- **Links.** A link found in a copy directory is deleted as a link and not listed into. Each directory is checked, just before
+  it is listed, for having been swapped for a link since its parent was listed. That narrows the window to the time between
+  the check and the listing and does not close it: something swapping them exactly then would have the link's target emptied.
+  It would take code writing in the app's own sandbox while a removal runs, which could delete those files itself; nothing
+  read in the app or the locked picker plugins makes links.
+- **A removal that fails** is logged as the error's class, with no path or file name (T21), and tried again at the next pick,
+  launch or erasure. A pick still succeeds: refusing a file already read would remove nothing.
+- **Saving is fixed upstream, and the lock files hold the fix.** `client/`, `local/prudent_local_client/` and
+  `packages/prudent_ui/` now lock `file_picker_darwin` 2.5.2 (the only package whose version moved), and a test in each app
+  fails below it; nothing guards the package's own lock, which ships nothing. `zen_save_file` still admits 2.5.1
+  (jZenDev/jZen#287); Prudent adds no code around a save.
+- `path_provider` becomes a direct dependency of `prudent_ui`, for Android's cache directory.
+
+### What this supersedes, and why
+
+- **"Refuse to copy, cache or log the file's bytes"** (ADR-100, row T11) → **refined.** On iOS and Android the platform's dialog
+  writes the copy before Prudent sees the file, and `file_selector` offers no way to ask it not to. Prudent keeps none: it
+  removes the copy as soon as the read ends. Not logging, and not deleting the person's own file, stand as written.
+- **"plaintext copies the file dialogs leave in the app's storage, which predate this decision and are not fixed by it"**
+  (ADR-137, Consequence) → **fixed here.** ADR-100 and ADR-137 stay as written.
+
+### Consequence
+
+- **What remains true:** the copy exists, unencrypted and outside ADR-137's directory, from the pick until the read ends, and,
+  if the app is killed in that time or with a save sheet open, until the next launch. Removal is an ordinary file deletion, not
+  a secure erase. Anything the system or a document provider keeps outside the app's sandbox is not Prudent's to remove.
+- A plugin update that moves a copy would escape the table: the returned path is still deleted if it is inside the app's
+  directories, but a copy no path names would stay. Raising `file_selector_ios`, `file_selector_android` or
+  `file_picker_darwin` means reading where it writes.
+- **Documents changed with it:** both privacy statements, `importStatementFileKept` and `erasedCopyMayRemain` in `en`, `uk`
+  and `pl` (not reviewed by a native speaker), `docs/implemented-plans/PRUDENT-LOCAL-PLAN.md` (the follow-up, unit 12 item 15), `docs/jzen/README.md`
+  (jZenDev/jZen#287's row) and `CLAUDE.md`.
+- **Verified:** with a first version of the removal (a recursive delete), on the simulator it cleared what 2.5.1 and an earlier pick had left, two picks through the statement
+  picker read the file and left the temporary directory empty with the original in place, and a completed and a cancelled save
+  with 2.5.2 left only its empty directory. On the emulator the removal and a pick left the cache empty, original in place.
+  In the apps' own debug builds, with the removal as decided here, its link check included (run again after that check was
+  added), a launch removed planted copies (a nested one and a link among them) and left planted files that are not the
+  dialogs', the link's target included: Prudent Local on the simulator (built with `ZEN_SYNC=folder`) and on the emulator,
+  the server-connected app on the emulator. No run on them swapped a directory for a link; a test on the host does. That
+  an erasure succeeds and says a copy may remain, and that "Forgot PIN?" resets the PIN then, is covered by tests on the
+  host only.
+  **Not verified:** a pick, a save or an erasure through either app's screens on any of them, the
+  server-connected app's launch on iOS, any real device (unit 12), a cloud document provider. The server-connected app
+  locks `file_selector_ios` 0.5.3+6, whose picker was not run (it also opens a copy, in the older "import" mode, read from
+  its code).
+
+---
+
 ## ADR-137 — On iOS Prudent Local sets Data Protection `complete` on the store's directory before every open, and opens nothing without it
 
 **Date:** 2026-11-28. **Status:** accepted. **Answers:** jlogicsoftware/prudent#285. **Builds on:** ADR-100 (T1), ADR-121,

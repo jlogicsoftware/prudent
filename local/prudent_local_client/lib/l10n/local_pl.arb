@@ -69,6 +69,7 @@
   "erasedBody": "Dane Prudent Local zostały wymazane na każdym urządzeniu — z tego albo z innego. Aby znów korzystać z Prudent Local, zacznij od pustej księgi i połącz urządzenia od nowa.",
   "erasedStart": "Zacznij od nowa",
   "erasedFailed": "Prudent Local nie mógł zacząć od nowa. Zamknij go i otwórz ponownie.",
+  "erasedCopyMayRemain": "Dane na tym urządzeniu są wymazane, ale może na nim nadal być tymczasowa kopia wybranego lub zapisanego pliku. Prudent Local spróbuje ją ponownie usunąć przy następnym uruchomieniu.",
   "startFailedTitle": "Prudent Local nie może otworzyć swoich danych",
   "startFailedBody": "Nie można odczytać klucza, który odblokowuje dane na tym urządzeniu, albo dane do niego nie pasują. Nic nie zostało zmienione.",
   "startFailedProtection": "Nie udało się włączyć ochrony danych iOS dla danych na tym urządzeniu, więc Prudent Local ich nie otworzył. Twoje dane nie zostały zmienione.",

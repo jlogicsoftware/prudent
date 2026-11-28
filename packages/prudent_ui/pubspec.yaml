@@ -58,11 +58,15 @@ dependencies:
   flutter_timezone: ^5.1.1
   shared_preferences: ^2.5.6
   file_selector: ^1.1.0
+  # The app's cache directory, where a file dialog leaves a copy that has to be removed (ADR-138).
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # The picker test stands in for the platform's file dialog.
+  file_selector_platform_interface: ^2.7.0
 
 flutter:
   uses-material-design: true

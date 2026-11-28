@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prudent_local_client/core/local_session.dart';
+import 'package:prudent_ui/privacy/picker_copies.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_store/zen_store.dart';
 import 'package:zen_store_folder/zen_store_folder.dart';
@@ -9,6 +10,7 @@ import 'package:zen_store_shared_folder/zen_store_shared_folder.dart';
 import 'package:zen_ui_lock/zen_ui_lock.dart';
 
 import 'offline_folder_cloud.dart';
+import 'test_picker_copies.dart';
 
 /// How a test's two devices reach each other: the development emulation of CloudKit, or the shared
 /// folder transport every Android, Windows and Linux build uses.
@@ -41,8 +43,10 @@ final class TwoLocalDevices {
     this.phoneSecrets,
   );
 
+  /// [phoneCopies] stands in for the removal of the phone's file-dialog copies.
   static Future<TwoLocalDevices> create([
     TransportKind kind = TransportKind.folderCloud,
+    PickerCopies? phoneCopies,
   ]) async {
     final root = await Directory.systemTemp.createTemp(
       'prudent_local_two_devices',
@@ -70,8 +74,9 @@ final class TwoLocalDevices {
     Future<LocalSession> open(
       String name,
       String deviceName,
-      ZenLockStorage secrets,
-    ) async {
+      ZenLockStorage secrets, [
+      PickerCopies? copies,
+    ]) async {
       final data = Directory('${root.path}/$name')..createSync();
       final session = await LocalSession.open(
         directory: Directory('${data.path}/prudent_local'),
@@ -80,6 +85,7 @@ final class TwoLocalDevices {
         storeKey: List.filled(32, name.length),
         secrets: secrets,
         start: start,
+        pickerCopies: copies ?? testPickerCopies(data),
         restoreFolder: (reference) => ZenFolderChoice(
           reference: reference,
           label: 'cloud',
@@ -97,7 +103,7 @@ final class TwoLocalDevices {
     final laptopSecrets = ZenMemoryLockStorage();
     final phoneSecrets = ZenMemoryLockStorage();
     final laptop = await open('laptop', 'Laptop', laptopSecrets);
-    final phone = await open('phone', 'Phone', phoneSecrets);
+    final phone = await open('phone', 'Phone', phoneSecrets, phoneCopies);
     final devices = TwoLocalDevices._(
       root,
       cloud,

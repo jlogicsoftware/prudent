@@ -6,6 +6,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:prudent_local_store/prudent_local_store.dart';
+import 'package:prudent_ui/privacy/picker_copies.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:zen_store/zen_store.dart';
 import 'package:zen_store_folder/zen_store_folder.dart';
@@ -14,6 +15,15 @@ import 'package:zen_ui_lock/zen_ui_lock.dart';
 
 import 'protect_store_directory.dart';
 import 'sync_starter.dart';
+
+/// What an erasure that got through leaves on this device.
+enum LocalErasure {
+  /// No temporary copy a file dialog made is left.
+  complete,
+
+  /// The data is erased, but such a copy may still be there (ADR-138). The next launch tries again.
+  copyMayRemain,
+}
 
 /// Everything this device holds: the open store, Prudent's collections and ledger on it, the sync
 /// key and chosen folder, and the transport keeping it in step with the person's other devices.
@@ -46,6 +56,7 @@ final class LocalSession extends ChangeNotifier {
   final SyncStarter _start;
   final ZenFolderChoice Function(String reference) _restoreFolder;
   final Future<ZenFolderChoice?> Function() _pickFolder;
+  final PickerCopies _pickerCopies;
 
   ZenStore _store;
   late PrudentLocalStore _prudent;
@@ -71,6 +82,7 @@ final class LocalSession extends ChangeNotifier {
     this._start,
     this._restoreFolder,
     this._pickFolder,
+    this._pickerCopies,
     this._store,
   ) {
     _attach();
@@ -90,6 +102,7 @@ final class LocalSession extends ChangeNotifier {
     SyncStarter start = startSyncForBuild,
     ZenFolderChoice Function(String reference)? restoreFolder,
     Future<ZenFolderChoice?> Function()? pickFolder,
+    PickerCopies pickerCopies = const PickerCopies(),
   }) async {
     final ZenStore store;
     switch (await _openStore(
@@ -111,6 +124,7 @@ final class LocalSession extends ChangeNotifier {
       start,
       restoreFolder ?? ZenFolderPicker.restore,
       pickFolder ?? ZenFolderPicker.pick,
+      pickerCopies,
       store,
     );
     try {
@@ -330,35 +344,50 @@ final class LocalSession extends ChangeNotifier {
   /// Deletes this device's copy and starts over, empty. The sync key and folder stay, so what the
   /// other devices hold comes back. Never routed through the sync engine: a deletion would erase the
   /// data on every device (`ZenPinLock`'s contract for "Forgot PIN?").
-  Future<ZenResult<void>> eraseThisDevice() async {
+  ///
+  /// Copies a file dialog left are removed too (ADR-138). A failure here means the store was not
+  /// erased or could not be opened again, and nothing else: a copy that stays is
+  /// [LocalErasure.copyMayRemain] of a success, so that "Forgot PIN?", which asks only whether the
+  /// data went, is never held back by it.
+  Future<ZenResult<LocalErasure>> eraseThisDevice() async {
     await _stopSync();
     await _detach();
     await _store.close();
     final erased = await ZenStore.erase(directory);
+    final copies = await _pickerCopies.remove();
     // Reopen either way: after a failed erase what is still there must keep working.
     final reopened = await _reopen();
     if (erased case ZenFailure(:final error)) return ZenResult.err(error);
-    return reopened;
+    if (reopened case ZenFailure(:final error)) return ZenResult.err(error);
+    return ZenResult.ok(_after(copies));
   }
+
+  static LocalErasure _after(ZenResult<void> copies) =>
+      copies is ZenFailure ? LocalErasure.copyMayRemain : LocalErasure.complete;
 
   /// Erases the person's data on every device and in the sync place, not only here (ADR-100 T24,
   /// jZenDev/jZen#239). Irreversible. Goes through the transport where there is one, so the shared
   /// place is cleaned and the other devices are told; without one (sync never started), only this
   /// store is marked, and the screen says the other devices are not reached.
   ///
-  /// Afterwards the store holds nothing and refuses writes; [startAfresh] makes a new one.
-  Future<ZenResult<void>> eraseEverywhere() async {
+  /// Afterwards the store holds nothing and refuses writes; [startAfresh] makes a new one. Copies a
+  /// file dialog left on this device are removed too, whether or not the erasure got through
+  /// (ADR-138); a failure is the erasure's alone, and a copy that stays is
+  /// [LocalErasure.copyMayRemain].
+  Future<ZenResult<LocalErasure>> eraseEverywhere() async {
     final transport = _transport;
     final result = transport != null
         ? await transport.eraseEverywhere()
         : await _store.eraseEverywhere();
+    final copies = await _pickerCopies.remove();
     if (!_closed) notifyListeners();
-    return result;
+    if (result case ZenFailure(:final error)) return ZenResult.err(error);
+    return ZenResult.ok(_after(copies));
   }
 
   /// After an erasure everywhere: erases this device's directory, forgets the sync key (an erased key
   /// is never reused, jZen ADR-085), and opens a new, empty store. The folder choice stays.
-  Future<ZenResult<void>> startAfresh() async {
+  Future<ZenResult<LocalErasure>> startAfresh() async {
     try {
       await _secrets.delete(_keyName);
     } on Object catch (e, stack) {

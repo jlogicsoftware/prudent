@@ -809,8 +809,8 @@
       }
     }
   },
-  "importStatementFileKept": "Prudent did not keep the statement file. It is still where you picked it from — delete it if you no longer need it.",
+  "importStatementFileKept": "Prudent did not keep the statement file, and deletes any temporary copy your device made when you picked it. The original is still where you picked it from — delete it if you no longer need it.",
   "@importStatementFileKept": {
-    "description": "After an import is committed or ended (ADR-100 T11): the app never keeps or deletes the person's own statement file."
+    "description": "After an import is committed or ended (ADR-100 T11, ADR-138): the app keeps no copy of the statement — it deletes the one a phone's file dialog makes — and never deletes the person's own file."
   }
 }

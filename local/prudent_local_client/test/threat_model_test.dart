@@ -18,6 +18,7 @@ import 'package:zen_store_sync/zen_store_sync.dart';
 import 'package:zen_ui_lock/zen_ui_lock.dart';
 
 import 'support/local_app_harness.dart';
+import 'support/test_picker_copies.dart';
 
 void main() {
   final l = lookupLocalLocalizations(const Locale('en'));
@@ -64,6 +65,7 @@ void main() {
       secrets: secrets,
       start: (store, {required folder, required syncKey}) async =>
           const ZenResult.err(ZenValidationError('no transport in this test')),
+      pickerCopies: testPickerCopies(root),
       restoreFolder: (reference) => ZenFolderChoice(
         reference: reference,
         label: reference,

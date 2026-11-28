@@ -2,7 +2,8 @@
 //
 // - On screen: "Erase this device's copy" says what remains before it is pressed and asks first;
 //   "Erase everywhere" asks twice; a device whose data was erased everywhere says so and starts
-//   again only when the person asks.
+//   again only when the person asks. Each of the three says in a notice of its own when the data
+//   went but a file dialog's copy may remain (ADR-138).
 // - Across two real devices: erasing here leaves the other device's copy and comes back at the next
 //   sync; erasing everywhere reaches the other device through the shared folder; starting again
 //   makes a new, empty store and forgets the erased key.
@@ -10,12 +11,15 @@
 // The erasing itself closes and reopens the store, which waits on file I/O a widget test's fake
 // clock never finishes; so the semantics are proven on the real event loop (as jZen's own Local
 // tests do), and the whole flow through the buttons in integration_test/app_test.dart on macOS.
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zen_core/zen_core.dart';
 import 'package:prudent_local_client/l10n/generated/local_localizations.dart';
 import 'package:prudent_local_client/screens/erased_everywhere_screen.dart';
 import 'package:prudent_ui/l10n/generated/prudent_localizations.dart';
+import 'package:prudent_ui/privacy/picker_copies.dart';
 
 import 'support/ledger_setup.dart';
 import 'support/local_app_harness.dart';
@@ -98,6 +102,85 @@ void main() {
         expect(find.text(l.erasedStart), findsOneWidget);
       },
     );
+  });
+
+  group('when a copy may remain', () {
+    // The directory cannot be named, so no one can say the copies are gone.
+    final broken = PickerCopies(
+      cacheDirectory: () async => throw const FileSystemException('refused'),
+    );
+
+    Future<(TwoLocalDevices, LocalAppHarness)> openPrivacy(
+      WidgetTester tester,
+      PickerCopies? copies,
+    ) async {
+      final devices = await twoDevices(
+        tester,
+        TransportKind.folderCloud,
+        copies,
+      );
+      await tester.runAsync(() => openBooks(devices.phone.ledger));
+      final app = await LocalAppHarness.pump(tester, devices.phone);
+      await app.openTab(t.navSettings);
+      await app.tapText(t.settingsPrivacy);
+      return (devices, app);
+    }
+
+    // The first tap is on the real event loop too: the handler runs on in the zone it started in,
+    // and the erasing after the question waits on file I/O.
+    Future<void> press(LocalAppHarness app, Finder button) =>
+        app.tapReal(button, wait: const Duration(milliseconds: 200));
+
+    Future<void> eraseHere(LocalAppHarness app) async {
+      await press(app, find.text(l.dataEraseButton).last);
+      await app.tapReal(find.text(l.erase));
+    }
+
+    Future<void> eraseEverywhere(LocalAppHarness app) async {
+      await press(app, find.text(l.dataEverywhereButton).last);
+      await press(app, find.text(l.confirm));
+      await app.tapReal(find.text(l.dataEverywhereButton).last);
+    }
+
+    testWidgets('erasing this device\'s copy says the data went and no more', (
+      tester,
+    ) async {
+      final (_, app) = await openPrivacy(tester, null);
+      await eraseHere(app);
+      await app.settleUntil(find.text(l.dataErased));
+      expect(find.text(l.erasedCopyMayRemain), findsNothing);
+    });
+
+    testWidgets('erasing this device\'s copy says a copy may remain', (
+      tester,
+    ) async {
+      final (devices, app) = await openPrivacy(tester, broken);
+      await eraseHere(app);
+      await app.settleUntil(find.text(l.erasedCopyMayRemain));
+      expect(find.text(l.dataEraseFailed), findsNothing);
+      expect(find.text(l.dataErased), findsNothing);
+      expect(devices.phone.prudent.accounts.list().dataOrNull, isEmpty);
+      await app.tapText(l.confirm);
+      expect(find.text(l.erasedCopyMayRemain), findsNothing);
+    });
+
+    testWidgets('erasing everywhere and starting again each say it', (
+      tester,
+    ) async {
+      final (devices, app) = await openPrivacy(tester, broken);
+      await eraseEverywhere(app);
+      await app.settleUntil(find.text(l.erasedCopyMayRemain));
+      expect(find.byType(ErasedEverywhereScreen), findsOneWidget);
+      expect(find.text(l.dataEverywhereFailed), findsNothing);
+      await app.tapText(l.confirm);
+      expect(find.text(l.erasedCopyMayRemain), findsNothing);
+
+      await app.tapReal(find.text(l.erasedStart));
+      await app.settleUntil(find.text(l.erasedCopyMayRemain));
+      expect(find.byType(ErasedEverywhereScreen), findsNothing);
+      expect(find.text(l.erasedFailed), findsNothing);
+      expect(devices.phone.erasedEverywhere, isFalse);
+    });
   });
 
   group('across two devices', () {
