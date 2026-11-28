@@ -459,7 +459,9 @@ From `docs/plans/prudent-local-phase0.md` §0.3, each with the unit that owns it
 | jZenDev/jZen#238 | refuse the unencrypted folder in release | 11 (ADR-100 T18) |
 | jZenDev/jZen#239 | erase everywhere — **merged (PR #253), consumed by unit 9 (ADR-121)** | 9 (ADR-100 T24) |
 | jZenDev/jZen#240 | screen-capture protection — **merged (PR #253), consumed by unit 9 (ADR-121): on** | 9 (ADR-100 T15) |
-| jZenDev/jZen#256 | a `ZenIssueAction` cannot ask for a choice or a text — **filed by unit 9**; one action per candidate and a name asked through the app's navigator until it lands | 9 |
+| jZenDev/jZen#256 | a `ZenIssueAction` cannot ask for a choice or a text — **filed by unit 9; merged (PR #258), consumed by ADR-140** (jlogicsoftware/prudent#277) | 9 |
+| jZenDev/jZen#288 (open) | a `choose` action with one candidate asserts in `ZenRadioGroup`; one candidate stays a button naming it until fixed (ADR-140); jlogicsoftware/prudent#277 stays open for it | 9 |
+| jZenDev/jZen#289 (open) | the choice prompt shows its title twice; cosmetic (ADR-140) | 9 |
 | jZenDev/jZen#244 | a merge policy over a group (a reset's revocation: who and when) — **merged (PR #249), consumed by unit 8b (ADR-114)**; unit 6a relies on it (ADR-116) | 4, 6a |
 | jZenDev/jZen#245 | a proto3 field set to its default differs from an unset one in the merge — **merged (PR #254, jZen `4fa887a`); consumed by unit 8b for the import sessions (ADR-114) and for the unit 4/5 collections by ADR-115** | 4, 5 (every write path), 8b |
 | jZenDev/jZen#246 | save-file capability on iOS and Android | 10a (mobile half) — fixed by PR #254, consumed (ADR-117) |
@@ -489,7 +491,8 @@ Known work left by the plan, each with its issue:
 - One low finding from the review of #265: a conflict about a record's account alone leaves it out of both analytics figures, though neither reads
   the account — jlogicsoftware/prudent#276, blocked on jZenDev/jZen#286 (`ZenConflict.sides` can omit a disputed value). The review's other four
   findings under that issue are done.
-- `askForName` and one-action-per-candidate are workarounds until jZenDev/jZen#256 lands — jlogicsoftware/prudent#277 (ADR-121, ADR-125).
+- Integrity repairs ask for a choice or a name through jZen's own prompts — jlogicsoftware/prudent#277, done in part by ADR-140. The issue
+  stays open: a choice with one candidate is still a button naming it, until jZenDev/jZen#288.
 - Nits from the reviews of #269 and #272 (unreadable-store 'Retry', raw English `syncProblem`, the comment
   stripping and line-based transport gates, 'Dalej' vs 'Kontynuuj', the probe's untested branch, no old-format fixture for ADR-125) —
   jlogicsoftware/prudent#278.

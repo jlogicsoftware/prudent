@@ -361,7 +361,8 @@ Unit 9 (ADR-121) is the app, `local/prudent_local_client`: its own composition r
 (`invalidateRepositoryReads`).
 `LocalSession` starts sync only through `ZenSync.start`, replaces the sync key to remove a device (#237), erases here or everywhere (#239),
 and refuses a sync folder inside the app's data; the app is behind `ZenLockGate(secureScreen: true)` (#240); conflicts and integrity issues
-(`prudentIssueSource`, a choice as one action per candidate, a name asked via the root navigator: jZenDev/jZen#256) open in
+(`prudentIssueSource`; since ADR-140 `ZenIssueScreen` asks for a choice among two or more records and for a name, jZenDev/jZen#256, and one
+candidate stays a button naming it, jZenDev/jZen#288, for which jlogicsoftware/prudent#277 stays open) open in
 `ZenConflictsScreen`; the data copy is `DataExport` saved with `zen_save_file`, never the clipboard. Settings takes Local's pages through
 `settingsEntriesProvider` and `privacyScreenProvider` and now scrolls; `zen_ui_store`/`zen_ui_lock` get Polish delegates. Its suite
 (`flutter test` with the client's defines; the touch-size rule runs when compiled for `android`/`ios`) and `integration_test/app_test.dart`
