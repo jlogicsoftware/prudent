@@ -200,6 +200,82 @@ class GoalAllocationSchemaTest {
   }
 
   @Test
+  void theDatabaseNumbersEntriesInTheOrderTheyAreInserted() throws SQLException {
+    UUID first = insert("ALLOCATE", null, pln, "PLN", 1, "");
+    UUID second = insert("ALLOCATE", null, pln, "PLN", 2, "");
+
+    assertTrue(recordedSeq(first) < recordedSeq(second));
+  }
+
+  @Test
+  void aWriterCannotChooseAnEntrysPlaceInTheOrder() throws SQLException {
+    try (Connection owner = dataSource.getConnection();
+        Statement statement = owner.createStatement()) {
+      SQLException refused =
+          assertThrows(
+              SQLException.class,
+              () ->
+                  statement.executeUpdate(
+                      "INSERT INTO prudent_goal_allocation (id, user_id, kind, target_goal_id,"
+                          + " currency, amount_minor, created_at, created_by, recorded_seq)"
+                          + " VALUES (gen_random_uuid(), '" + PrudentTest.ALICE + "', 'ALLOCATE', '"
+                          + pln + "', 'PLN', 1, now(), '" + PrudentTest.ALICE + "', 1)"));
+      assertRefused("recorded_seq", refused);
+    }
+    assertEquals(0, rows());
+  }
+
+  @Test
+  void twoEntriesCannotHoldOnePlaceInTheOrder() throws SQLException {
+    UUID first = insert("ALLOCATE", null, pln, "PLN", 1, "");
+
+    try (Connection owner = dataSource.getConnection();
+        Statement statement = owner.createStatement()) {
+      // OVERRIDING SYSTEM VALUE is how a writer gets past the identity; the constraint is what then
+      // keeps the order total.
+      SQLException refused =
+          assertThrows(
+              SQLException.class,
+              () ->
+                  statement.executeUpdate(
+                      "INSERT INTO prudent_goal_allocation (id, user_id, kind, target_goal_id,"
+                          + " currency, amount_minor, created_at, created_by, recorded_seq)"
+                          + " OVERRIDING SYSTEM VALUE"
+                          + " VALUES (gen_random_uuid(), '" + PrudentTest.ALICE + "', 'ALLOCATE', '"
+                          + pln + "', 'PLN', 1, now(), '" + PrudentTest.ALICE + "', "
+                          + recordedSeq(first) + ")"));
+      assertRefused("prudent_goal_allocation_recorded_seq_unique", refused);
+    }
+    assertEquals(1, rows());
+  }
+
+  @Test
+  void theOrderSequenceHandsOutOneNumberAtATime() throws SQLException {
+    // A cached sequence gives each pooled connection a block of numbers, so entries written through
+    // different connections would be numbered out of the order they were recorded in (ADR-139).
+    try (Connection owner = dataSource.getConnection();
+        Statement statement = owner.createStatement();
+        ResultSet row =
+            statement.executeQuery(
+                "SELECT s.seqcache FROM pg_sequence s WHERE s.seqrelid ="
+                    + " pg_get_serial_sequence('prudent_goal_allocation', 'recorded_seq')::regclass")) {
+      assertTrue(row.next());
+      assertEquals(1, row.getLong(1));
+    }
+  }
+
+  private long recordedSeq(UUID id) throws SQLException {
+    try (Connection owner = dataSource.getConnection();
+        Statement statement = owner.createStatement();
+        ResultSet row =
+            statement.executeQuery(
+                "SELECT recorded_seq FROM prudent_goal_allocation WHERE id = '" + id + "'")) {
+      assertTrue(row.next());
+      return row.getLong(1);
+    }
+  }
+
+  @Test
   void anEntryCanNeverBeChanged() throws SQLException {
     UUID id = insert("ALLOCATE", null, pln, "PLN", 100, "original");
 

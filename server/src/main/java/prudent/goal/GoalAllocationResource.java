@@ -12,7 +12,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeSet;
@@ -24,6 +23,7 @@ import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import prudent.CurrentUser;
 import prudent.Ids;
+import prudent.StoredClock;
 import prudent.error.PrudentException;
 import prudent.proto.v1.CreateGoalAllocationRequest;
 import prudent.proto.v1.GoalAllocationKind;
@@ -52,6 +52,7 @@ public class GoalAllocationResource {
 
   @Inject CurrentUser currentUser;
   @Inject GoalAllocationMapper mapper;
+  @Inject StoredClock clock;
 
   @GET
   @Operation(
@@ -253,7 +254,7 @@ public class GoalAllocationResource {
     entry.currency = (source != null ? source : target).currency;
     entry.amountMinor = amount;
     entry.note = note;
-    entry.createdAt = Instant.now();
+    entry.createdAt = clock.now();
     entry.createdBy = userId;
     entry.persist();
     return Response.status(Response.Status.CREATED).entity(mapper.toProto(entry)).build();

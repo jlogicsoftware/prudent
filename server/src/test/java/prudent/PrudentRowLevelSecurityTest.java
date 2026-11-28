@@ -166,6 +166,27 @@ class PrudentRowLevelSecurityTest {
   }
 
   @Test
+  void applicationRole_canRecordAnEnvelopeEntryAndItIsNumbered() throws SQLException {
+    // The one table whose insert also takes a number from a sequence (ADR-139): the application
+    // role must be able to do both, and read the row back.
+    try (Connection runtime = connectAsRuntime();
+        Statement statement = runtime.createStatement()) {
+      UUID id = UUID.randomUUID();
+      statement.execute(
+          "INSERT INTO prudent_goal_allocation (id, user_id, kind, target_goal_id, currency,"
+              + " amount_minor, created_at, created_by) SELECT '" + id + "', user_id, 'ALLOCATE',"
+              + " id, currency, 1, now(), user_id FROM prudent_goal");
+
+      try (ResultSet rows =
+          statement.executeQuery(
+              "SELECT recorded_seq FROM prudent_goal_allocation WHERE id = '" + id + "'")) {
+        assertTrue(rows.next(), "zen_runtime wrote an envelope entry it cannot read back");
+        assertTrue(rows.getLong(1) > 0);
+      }
+    }
+  }
+
+  @Test
   void applicationRole_cannotRewriteMigrationHistory() throws SQLException {
     // zen-identity's role migration revokes flyway_schema_history from zen_runtime: an application
     // role that can rewrite migration history can make the schema claim to be any version it likes.

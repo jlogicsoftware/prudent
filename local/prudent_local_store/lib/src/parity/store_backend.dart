@@ -40,9 +40,10 @@ import 'import_parity.dart';
 /// Budgets, resets, goals and allocations (unit 6a) go through the ledger too; `budget.set` and
 /// `reset.create` kept the names of unit 3's stand-ins, which they replaced.
 ///
-/// **The clock is strictly increasing** ([_tick]): a history is ordered by creation time, and two
-/// entries written within one millisecond would tie and fall back to their random ids, an order the
-/// server's microsecond clock never shows. That is a property of the harness, not of the ledger.
+/// **The clock is strictly increasing** ([_tick]): the ledger orders a history by creation time, and
+/// two entries written within one millisecond would tie and fall back to their random ids, while the
+/// server lists carry-over resets by a microsecond clock and envelope entries in the order it
+/// recorded them (ADR-139). That is a property of the harness, not of the ledger.
 final class StoreBackend extends ParityBackend {
   @override
   String get name => 'local';
