@@ -479,8 +479,9 @@ Known work left by the plan, each with its issue:
 
 - The Local occurrence and reminder lists do not answer `Settled` — jlogicsoftware/prudent#274 (nit of the review of #269).
 - Android release uses the debug key; iOS, macOS and Windows have no real signing — jlogicsoftware/prudent#275 (the real signing configuration also serves unit 12).
-- Five low findings from the review of #265 (the account in the posting group, `nameOf` dropping an unbound category, no non-empty assertion on the
-  large parity run, the benchmark's `_check`, the UTC-day comment of the large run) — jlogicsoftware/prudent#276.
+- One low finding from the review of #265: a conflict about a record's account alone leaves it out of both analytics figures, though neither reads
+  the account — jlogicsoftware/prudent#276, blocked on jZenDev/jZen#286 (`ZenConflict.sides` can omit a disputed value). The review's other four
+  findings under that issue are done.
 - `askForName` and one-action-per-candidate are workarounds until jZenDev/jZen#256 lands — jlogicsoftware/prudent#277 (ADR-121, ADR-125).
 - Nits from the reviews of #269 and #272 (unreadable-store 'Retry', raw English `syncProblem`, the comment
   stripping and line-based transport gates, 'Dalej' vs 'Kontynuuj', the probe's untested branch, no old-format fixture for ADR-125) —

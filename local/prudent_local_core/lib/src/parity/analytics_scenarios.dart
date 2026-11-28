@@ -8,23 +8,35 @@ import 'parity_scenario.dart';
 ///
 /// It is code, not a committed JSON file, for one reason: `spend-by-period` is relative to "now"
 /// (UTC), so the dates of the ledger must be too — a month that is "the current one" today is not
-/// next month. Everything else is fixed by [seed], so a failure repeats.
+/// next month. **So the run is deterministic only while the date it is relative to stands**: the same
+/// [seed] on the same UTC day builds the same ledger and a failure repeats, and nothing promises that
+/// a later date builds it again. (What is read of the date today is its year and month.)
 ///
 /// **What it exercises** — each record is one of: an expense (most), income, a refund (positive, in
 /// a category, never netted), an expense on the first or last day of a month (boundaries), a
 /// transfer between two accounts, or a balance correction (neither is spending). Some records are
 /// then edited (amount, month, category and currency-preserving) and some deleted, so the figures
-/// have to follow. The dates run from about 70 months back to the end of the current month, so the
-/// trailing 60-month window has records on both sides of its edge, and a few records are decades old
-/// so the year window's edge is crossed too.
+/// have to follow. The dates run from about 70 months back to the end of the current month, and a
+/// few records are decades old.
+///
+/// **Both sides of every window's edge hold spend, whatever the seed drew**: for each trailing window
+/// asked ([monthCounts], [yearCounts]) and each currency, one expense on the first day inside it and
+/// one on the last day before it, written after the edits and deletes and touched by neither. And
+/// every question has something to compare: [shortfall] says when an answer does not.
 ///
 /// **Currencies are reserved.** The server's analytics sum every record of its one user in a
 /// currency, and the parity run shares one user across scenarios (ADR-107), so a scenario's figures
 /// are its own only if nobody else uses its currencies: [currencies] are used by this generator
-/// and by no committed scenario, and `analytics_scenarios_test.dart` fails if that stops being true.
+/// and by no committed scenario, and `scenarios_test.dart` fails if that stops being true.
 abstract final class AnalyticsScenarios {
   /// The currencies of the large ledger; `analytics.json` reserves THB, TRY and ILS for itself.
   static const currencies = ['CAD', 'NZD', 'SGD', 'HKD'];
+
+  /// The `count`s asked of spend by month; the largest is the contract's largest.
+  static const monthCounts = [1, 2, 6, 12, 24, 59, 60];
+
+  /// The `count`s asked of spend by year.
+  static const yearCounts = [1, 2, 5, 10, 60];
 
   /// A ledger of about [records] records, relative to [today] (read in UTC).
   static ParityScenario large({required DateTime today, int records = 4000, int seed = 20261116}) {
@@ -150,6 +162,29 @@ abstract final class AnalyticsScenarios {
       step('record.delete', {'record': '\$$name'});
     }
 
+    // The two days next to each window's edge (see the class comment). The amounts differ, so a day
+    // wrongly in or out changes a figure by an amount that names it.
+    var edge = 0;
+    void spendOn(String currency, String day) => step('record.create', {
+      'account': accounts.first,
+      'category': categories.first,
+      'amountMinor': '-${100000000 + ++edge}',
+      'currency': currency,
+      'date': day,
+      'title': 'Edge $edge',
+    });
+    String year(int yearsBack) => (now.year - yearsBack).toString().padLeft(4, '0');
+    for (final currency in currencies) {
+      for (final count in monthCounts) {
+        spendOn(currency, date(count - 1, day: 1));
+        spendOn(currency, date(count, day: -1));
+      }
+      for (final count in yearCounts) {
+        spendOn(currency, '${year(count - 1)}-01-01');
+        spendOn(currency, '${year(count)}-12-31');
+      }
+    }
+
     // The questions the screens ask: the whole of each recent year and a few months by category;
     // the trailing windows by month and by year.
     for (final currency in currencies) {
@@ -164,14 +199,14 @@ abstract final class AnalyticsScenarios {
           'month': index % 12 + 1,
         });
       }
-      for (final count in const [1, 2, 6, 12, 24, 59, 60]) {
+      for (final count in monthCounts) {
         step('analytics.spendByPeriod', {
           'currency': currency,
           'granularity': 'MONTH',
           'count': count,
         });
       }
-      for (final count in const [1, 2, 5, 10, 60]) {
+      for (final count in yearCounts) {
         step('analytics.spendByPeriod', {
           'currency': currency,
           'granularity': 'YEAR',
@@ -189,5 +224,39 @@ abstract final class AnalyticsScenarios {
       rules: const ['7.1', '7.2', '7.3'],
       steps: steps,
     );
+  }
+
+  /// What the answer to one of this ledger's analytics questions lacks, or null. Two empty answers
+  /// agree, so a parity run says nothing unless the figures it compared are there: every question
+  /// must be accepted with at least one figure, none of them zero, and a trailing window must reach
+  /// exactly from the oldest bucket inside it to the one that holds [today].
+  static String? shortfall(
+    String op,
+    Map<String, Object?> input,
+    Map<String, Object?> observation, {
+    required DateTime today,
+  }) {
+    final asked = '$op $input';
+    if (observation['outcome'] != 'accepted') return '$asked was not accepted: $observation';
+    final byPeriod = op == 'analytics.spendByPeriod';
+    final figures = observation[byPeriod ? 'periods' : 'items'];
+    if (figures is! Map || figures.isEmpty) return '$asked answered no figure.';
+    if (figures.values.any((amount) => amount == '0')) return '$asked answered a zero figure.';
+    if (!byPeriod) return null;
+    final now = today.toUtc();
+    final count = input['count']! as int;
+    final monthly = input['granularity'] == 'MONTH';
+    String label(int back) {
+      if (!monthly) return (now.year - back).toString().padLeft(4, '0');
+      final month = DateTime.utc(now.year, now.month - back);
+      return '${month.year.toString().padLeft(4, '0')}-${month.month.toString().padLeft(2, '0')}';
+    }
+
+    final periods = figures.keys.cast<String>().toList()..sort();
+    if (periods.first != label(count - 1) || periods.last != label(0)) {
+      return '$asked answered ${periods.first} to ${periods.last}, '
+          'not ${label(count - 1)} to ${label(0)}.';
+    }
+    return null;
   }
 }

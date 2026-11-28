@@ -196,6 +196,12 @@ class Gate(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("ci.yml:3", r.stdout)
 
+    def test_repository_action_setting_zen_sync_fails(self):
+        for name in ("action.yml", "action.yaml"):
+            r = run(write(f".github/actions/build/{name}", "runs:\n  env:\n    ZEN_SYNC: folder\n"))
+            self.assertEqual(r.returncode, 1, name)
+            self.assertIn(f"{name}:3", r.stdout)
+
     # No web
     def test_a_web_runner_fails(self):
         r = run(write(f"{APP}/web/index.html", "<html/>\n"))

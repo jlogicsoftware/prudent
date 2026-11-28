@@ -118,8 +118,10 @@ abstract final class ParityReaders {
   }
 
   /// Spend by category (rows 7.1, 7.3): the currency and, by bound name, the spend of each
-  /// category the scenario made (the server's user is shared by the whole run, so a category of
-  /// another scenario is left out). The order of the items is the server's `TreeMap<UUID>` order,
+  /// category. Unlike the lists, nothing is left out: a scenario that asks for analytics owns its
+  /// currencies (ADR-107, ADR-118), so every category in the answer is one it made, and an id it
+  /// bound no name to is a figure that should not be there. Dropping it would let a backend that
+  /// answers an extra category pass. The order of the items is the server's `TreeMap<UUID>` order,
   /// which differs between the backends' ids and means nothing, so it is not observed.
   static Map<String, Object?> spendByCategory(Map<String, Object?> body, ParityBindings bindings) =>
       {
@@ -127,9 +129,20 @@ abstract final class ParityReaders {
         'items': {
           for (final item
               in ((body['items'] as List<Object?>?) ?? const []).cast<Map<String, Object?>>())
-            ?bindings.nameOf(item['categoryId'] as String?): int64(item, 'amountMinor'),
+            _spendCategory(item, bindings): int64(item, 'amountMinor'),
         },
       };
+
+  static String _spendCategory(Map<String, Object?> item, ParityBindings bindings) {
+    final id = string(item, 'categoryId');
+    final name = bindings.nameOf(id);
+    if (name == null) {
+      throw StateError(
+        'spend by category answered the category "$id", which this scenario bound no name to.',
+      );
+    }
+    return name;
+  }
 
   /// Spend by period (row 7.2): the currency, the granularity, every period with its spend, and
   /// whether the backend answered them oldest to newest — the one order the contract promises, which
